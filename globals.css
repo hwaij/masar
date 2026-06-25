@@ -1,0 +1,27 @@
+:root {
+  --bg: #0A0A0B;
+  --panel: #121214;
+  --gold: #C9A24B;
+  --ink: #E8E6E1;
+  --muted: #6B6863;
+  --line: #1A1A1D;
+  --teal: #1B3A3A;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Tajawal', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.6); }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: #2A2A2D; border-radius: 3px; }
+button:disabled { opacity: 0.6; cursor: default; }
+input::placeholder { color: #5A5650; }
+a { color: inherit; }

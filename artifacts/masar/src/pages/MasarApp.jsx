@@ -1436,7 +1436,7 @@ function FocusView({ focus, setFocus, commitments, setCommitments, categories, e
       )}
       {subTab === "study" && <FocusReport focus={focus.filter((f) => f.isStudy)} studyEntries={studyEntries} title="تقرير الدراسة" color="#5FA8A0" emptyMsg="لا جلسات دراسة بعد. شغّل المؤقت بوضع دراسة." />}
       {subTab === "general" && <FocusReport focus={focus.filter((f) => !f.isStudy)} title="التقرير العام" color="#C9A24B" emptyMsg="لا جلسات عامة بعد. شغّل المؤقت بوضع نشاط عام." />}
-      {subTab === "bots" && <BotsChallenge focus={focus} />}
+      {subTab === "bots" && <BotsChallenge focus={focus} entries={entries} categories={categories} />}
     </div>
   );
 }
@@ -1519,14 +1519,31 @@ function FocusReport({ focus, title, color, emptyMsg, studyEntries }) {
   );
 }
 
-function BotsChallenge({ focus }) {
+function BotsChallenge({ focus, entries, categories }) {
   const [tick, setTick] = useState(0);
   useEffect(() => {
     const iv = setInterval(() => setTick((t) => t + 1), 60000);
     return () => clearInterval(iv);
   }, []);
 
-  const myToday = focus.filter((f) => f.date === todayKey()).reduce((s, f) => s + f.minutes, 0);
+  const studyCat = useMemo(() => (categories || []).find((c) => c.name.includes("دراس") || c.id === "study"), [categories]);
+  const generalCat = useMemo(() => (categories || []).find((c) => c.name.includes("عام") || c.id === "general"), [categories]);
+  const relevantCatIds = useMemo(() => {
+    const ids = new Set(["study"]);
+    if (studyCat) ids.add(studyCat.id);
+    if (generalCat) ids.add(generalCat.id);
+    return ids;
+  }, [studyCat, generalCat]);
+  const entriesMinutes = useMemo(() => {
+    if (!entries || !relevantCatIds.size) return 0;
+    const today = todayKey();
+    return entries.filter((e) => e.date === today && relevantCatIds.has(e.catId)).reduce((s, e) => s + diffMinutes(e.start, e.end), 0);
+  }, [entries, relevantCatIds]);
+  const focusMinutes = useMemo(() => {
+    const today = todayKey();
+    return (focus || []).filter((f) => f.date === today).reduce((s, f) => s + f.minutes, 0);
+  }, [focus]);
+  const myToday = entriesMinutes + focusMinutes;
   const hour = new Date().getHours() + new Date().getMinutes() / 60;
   const bots = useMemo(() => {
     const winner = Math.round(Math.min(240, hour * 11 + 20));

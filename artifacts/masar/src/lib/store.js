@@ -69,7 +69,7 @@ export const store = {
     const local = lsGet(LS.categories, DEFAULT_CATEGORIES);
     const next = local.some((c) => c.id === cat.id) ? local.map((c) => (c.id === cat.id ? cat : c)) : [...local, cat];
     lsSet(LS.categories, next);
-    if (hasSupabase) await supabase.from("categories").upsert({ id: cat.id, name: cat.name, color: cat.color, owner: CURRENT_OWNER });
+    if (hasSupabase) await supabase.from("categories").upsert({ id: cat.id, name: cat.name, color: cat.color, owner: CURRENT_OWNER }, { onConflict: "owner,id" });
   },
   async deleteCategory(id) {
     const local = lsGet(LS.categories, DEFAULT_CATEGORIES).filter((c) => c.id !== id);

@@ -3,12 +3,14 @@
 -- آمن لإعادة التشغيل (يستخدم create table if not exists).
 
 -- التصنيفات
+-- للجدول القديم (مفتاح id فقط): ترقية للمفتاح المركّب (owner, id) تتم في قسم ترقيات المفاتيح أدناه.
 create table if not exists categories (
-  id          text primary key,
+  id          text not null,
   owner       text not null default 'solo',
   name        text not null,
   color       text,
-  created_at  timestamptz default now()
+  created_at  timestamptz default now(),
+  primary key (owner, id)
 );
 
 -- سجلات الوقت

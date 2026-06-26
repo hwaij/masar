@@ -38,7 +38,8 @@ export function computeStreak(entries) {
 }
 
 export function getLevel(points) {
-  const thresholds = [0, 100, 300, 600, 1000, 1500, 2200, 3000, 4000, 5500];
+  // L1: 0–99, L2: 100–249, then +150 per level threshold
+  const thresholds = [0, 100, 250, 400, 550, 700, 850, 1000, 1150, 1300];
   const labels = ["مبتدئ", "منتظم", "ملتزم", "متقدم", "محترف", "خبير", "نخبة", "أسطورة", "بطل", "خارق"];
   let lvl = 0;
   for (let i = 0; i < thresholds.length; i++) {
@@ -148,7 +149,10 @@ export const BADGES = [
   { id: "focus_first", name: "أول تركيز", desc: "أكملت أول جلسة تركيز", icon: "⏣", threshold: (s) => s.focusSessions >= 1 },
   { id: "focus_master", name: "سيّد التركيز", desc: "10 ساعات تركيز إجمالاً", icon: "❂", threshold: (s) => s.focusHours >= 10 },
   { id: "prayer_week", name: "صفوف منتظمة", desc: "صليت جميع الصلوات 7 أيام", icon: "🕌", threshold: (s) => (s.prayerStreak || 0) >= 7 },
-  { id: "azkar_streak5", name: "مداوم الأذكار", desc: "أذكار صباح ومساء 5 أيام", icon: "📿", threshold: (s) => (s.azkarStreak || 0) >= 5 },
+  { id: "azkar_streak7", name: "مداوم الأذكار", desc: "أذكار صباح ومساء 7 أيام متتالية", icon: "📿", threshold: (s) => (s.azkarStreak || 0) >= 7 },
+  { id: "istighfar_1k", name: "ألف استغفار", desc: "أكملت 1000 استغفار", icon: "📿", threshold: (s) => (s.istighfarTotal || 0) >= 1000 },
+  { id: "istighfar_5k", name: "خمسة آلاف", desc: "أكملت 5000 استغفار", icon: "🌿", threshold: (s) => (s.istighfarTotal || 0) >= 5000 },
+  { id: "istighfar_10k", name: "عشرة آلاف", desc: "أكملت 10000 استغفار", icon: "🌙", threshold: (s) => (s.istighfarTotal || 0) >= 10000 },
   { id: "quran_5juz", name: "خمسة أجزاء", desc: "أتممت 5 أجزاء من القرآن", icon: "📗", threshold: (s) => (s.quranJuzDone || 0) >= 5 },
   { id: "quran_10juz", name: "عشرة أجزاء", desc: "أتممت 10 أجزاء من القرآن", icon: "📘", threshold: (s) => (s.quranJuzDone || 0) >= 10 },
   { id: "quran_30juz", name: "ختم القرآن", desc: "أتممت ختمة كاملة للقرآن الكريم", icon: "🌟", threshold: (s) => (s.quranJuzDone || 0) >= 30 },

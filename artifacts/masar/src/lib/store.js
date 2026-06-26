@@ -231,32 +231,90 @@ export const store = {
   },
 
   async loadMandatoryLog() {
-    return lsGet("masar_mandatory_log", {});
+    const local = lsGet("masar_mandatory_log", {});
+    if (!hasSupabase) return local;
+    try {
+      const { data, error } = await supabase.from("mandatory_log").select("*").order("date");
+      if (error || !data) return local;
+      const log = {};
+      data.forEach((r) => { if (!log[r.date]) log[r.date] = {}; log[r.date][r.task_key] = r.done; });
+      lsSet("masar_mandatory_log", log);
+      return log;
+    } catch { return local; }
   },
   async saveMandatoryItem(date, taskKey, done) {
     const log = lsGet("masar_mandatory_log", {});
     if (!log[date]) log[date] = {};
     log[date][taskKey] = done;
     lsSet("masar_mandatory_log", log);
+    if (hasSupabase) {
+      try { await supabase.from("mandatory_log").upsert({ date, task_key: taskKey, done, owner: "solo" }); } catch {}
+    }
   },
 
   async loadAzkarLog() {
-    return lsGet("masar_azkar_log", {});
+    const local = lsGet("masar_azkar_log", {});
+    if (!hasSupabase) return local;
+    try {
+      const { data, error } = await supabase.from("azkar_log").select("*").order("date");
+      if (error || !data) return local;
+      const log = {};
+      data.forEach((r) => { if (!log[r.date]) log[r.date] = {}; log[r.date][r.session] = r.done; });
+      lsSet("masar_azkar_log", log);
+      return log;
+    } catch { return local; }
   },
   async saveAzkarLog(date, session, done) {
     const log = lsGet("masar_azkar_log", {});
     if (!log[date]) log[date] = {};
     log[date][session] = done;
     lsSet("masar_azkar_log", log);
+    if (hasSupabase) {
+      try { await supabase.from("azkar_log").upsert({ date, session, done, owner: "solo" }); } catch {}
+    }
   },
 
   async loadQuranProgress() {
-    return lsGet("masar_quran_juz", {});
+    const local = lsGet("masar_quran_juz", {});
+    if (!hasSupabase) return local;
+    try {
+      const { data, error } = await supabase.from("quran_progress").select("*");
+      if (error || !data) return local;
+      const prog = {};
+      data.forEach((r) => { prog[r.juz_num] = r.done; });
+      lsSet("masar_quran_juz", prog);
+      return prog;
+    } catch { return local; }
   },
   async saveQuranJuz(juzNum, done) {
     const data = lsGet("masar_quran_juz", {});
     data[juzNum] = done;
     lsSet("masar_quran_juz", data);
+    if (hasSupabase) {
+      try { await supabase.from("quran_progress").upsert({ juz_num: juzNum, done, owner: "solo" }); } catch {}
+    }
+  },
+
+  async loadIstighfar() {
+    return lsGet("masar_istighfar", { daily: {}, total: 0 });
+  },
+  async saveIstighfar(data) {
+    lsSet("masar_istighfar", data);
+    if (hasSupabase) {
+      try { await supabase.from("istighfar").upsert({ owner: "solo", daily: data.daily, total: data.total, updated_at: new Date().toISOString() }); } catch {}
+    }
+  },
+
+  async loadPointsLog() {
+    return lsGet("masar_points_log", []);
+  },
+  async addPointsLog(entry) {
+    const log = lsGet("masar_points_log", []);
+    const next = [entry, ...log].slice(0, 200);
+    lsSet("masar_points_log", next);
+    if (hasSupabase) {
+      try { await supabase.from("points_log").insert({ id: entry.id, date: entry.date, amount: entry.amount, reason: entry.reason, owner: "solo" }); } catch {}
+    }
   },
 
   async loadGamify() {

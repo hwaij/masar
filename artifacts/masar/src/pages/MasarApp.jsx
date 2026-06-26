@@ -95,19 +95,23 @@ export default function MasarApp() {
   const [mandatoryLog, setMandatoryLog] = useState({});
   const [azkarLog, setAzkarLog] = useState({});
   const [quranProgress, setQuranProgress] = useState({});
+  const [istighfar, setIstighfar] = useState({ daily: {}, total: 0 });
+  const [pointsLog, setPointsLog] = useState([]);
 
   useEffect(() => {
     (async () => {
-      const [c, e, t, r, g, p, a, f, cm, pl, rel, ml, al, qp] = await Promise.all([
+      const [c, e, t, r, g, p, a, f, cm, pl, rel, ml, al, qp, isf, plog] = await Promise.all([
         store.loadCategories(), store.loadEntries(), store.loadTasks(),
         store.loadReports(), store.loadGamify(), store.loadProfile(), store.loadAchieve(),
         store.loadFocus(), store.loadCommitments(), store.loadPrayerLog(), store.loadReligious(),
         store.loadMandatoryLog(), store.loadAzkarLog(), store.loadQuranProgress(),
+        store.loadIstighfar(), store.loadPointsLog(),
       ]);
       setCategories(c); setEntries(e); setTasks(t); setReports(r); setGamify(g);
       setProfile(p); setAchieve(a); setFocus(f); setCommitments(cm);
       setPrayerLog(pl); setReligious(rel);
       setMandatoryLog(ml); setAzkarLog(al); setQuranProgress(qp);
+      setIstighfar(isf); setPointsLog(plog);
 
       const today = todayKey();
       const lastOpen = localStorage.getItem("masar_last_open");
@@ -124,6 +128,9 @@ export default function MasarApp() {
           const next = { ...g, points: Math.max(0, g.points - deduction) };
           setGamify(next);
           await store.saveGamify(next);
+          const logEntry = { id: uid(), date: today, amount: -deduction, reason: `خصم مهام فائتة (${yesterday})` };
+          setPointsLog((prev) => [logEntry, ...prev]);
+          await store.addPointsLog(logEntry);
         }
       }
       localStorage.setItem("masar_last_open", today);
@@ -161,8 +168,9 @@ export default function MasarApp() {
       focusHours: focusMinutes / 60,
       quranJuzDone,
       azkarStreak,
+      istighfarTotal: istighfar.total || 0,
     };
-  }, [entries, tasks, focus, quranProgress, azkarLog]);
+  }, [entries, tasks, focus, quranProgress, azkarLog, istighfar]);
 
   useEffect(() => {
     if (!loaded) return;
@@ -175,8 +183,13 @@ export default function MasarApp() {
     }
   }, [stats, loaded]);
 
-  const addPoints = useCallback((n) => {
+  const addPoints = useCallback((n, reason = "") => {
     setGamify((g) => { const next = { ...g, points: g.points + n }; store.saveGamify(next); return next; });
+    if (reason) {
+      const logEntry = { id: uid(), date: todayKey(), amount: n, reason };
+      setPointsLog((prev) => [logEntry, ...prev].slice(0, 200));
+      store.addPointsLog(logEntry);
+    }
   }, []);
 
   if (!loaded) {
@@ -202,6 +215,8 @@ export default function MasarApp() {
             mandatoryLog={mandatoryLog} setMandatoryLog={setMandatoryLog}
             azkarLog={azkarLog} setAzkarLog={setAzkarLog}
             quranProgress={quranProgress} setQuranProgress={setQuranProgress}
+            istighfar={istighfar} setIstighfar={setIstighfar}
+            prayerLog={prayerLog} setPrayerLog={setPrayerLog}
             addPoints={addPoints} showToast={showToast}
           />
         )}
@@ -210,7 +225,7 @@ export default function MasarApp() {
         {view === "achieve" && <AchieveView achieve={achieve} setAchieve={setAchieve} profile={profile} focus={focus} tasks={tasks} prayerLog={prayerLog} religious={religious} addPoints={addPoints} showToast={showToast} />}
         {view === "reports" && <ReportsView entries={entries} categories={categories} focus={focus} profile={profile} showToast={showToast} />}
         {view === "ai" && <AIView entries={entries} tasks={tasks} categories={categories} reports={reports} setReports={setReports} aiHistory={aiHistory} focus={focus} commitments={commitments} prayerLog={prayerLog} religious={religious} />}
-        {view === "settings" && <SettingsView categories={categories} setCategories={setCategories} gamify={gamify} hasCloud={store.hasCloud} showToast={showToast} profile={profile} setProfile={setProfile} />}
+        {view === "settings" && <SettingsView categories={categories} setCategories={setCategories} gamify={gamify} hasCloud={store.hasCloud} showToast={showToast} profile={profile} setProfile={setProfile} pointsLog={pointsLog} />}
       </div>
       {toast && <div style={S.toast}>{toast}</div>}
     </div>
@@ -1672,20 +1687,22 @@ function EntryModal({ entry, date, categories, onSave, onClose }) {
   );
 }
 
-function EssentialsView({ mandatoryLog, setMandatoryLog, azkarLog, setAzkarLog, quranProgress, setQuranProgress, addPoints, showToast }) {
+function EssentialsView({ mandatoryLog, setMandatoryLog, azkarLog, setAzkarLog, quranProgress, setQuranProgress, istighfar, setIstighfar, prayerLog, setPrayerLog, addPoints, showToast }) {
   const today = todayKey();
   const isFriday = new Date().getDay() === 5;
   const todayMandatory = mandatoryLog[today] || {};
   const todayAzkar = azkarLog[today] || {};
   const quranDoneCount = Object.values(quranProgress).filter(Boolean).length;
   const [azkarTab, setAzkarTab] = useState("morning");
+  const todayIstighfar = (istighfar.daily || {})[today] || 0;
+  const ISTIGHFAR_TARGET = 1000;
 
   async function toggleMandatory(task) {
     const done = !todayMandatory[task.key];
     const newLog = { ...mandatoryLog, [today]: { ...todayMandatory, [task.key]: done } };
     setMandatoryLog(newLog);
     await store.saveMandatoryItem(today, task.key, done);
-    if (done) { addPoints(task.points); showToast(`+${task.points} نقطة`); }
+    if (done) { addPoints(task.points, task.label); showToast(`+${task.points} نقطة`); }
   }
 
   async function completeAzkar(session) {
@@ -1693,7 +1710,7 @@ function EssentialsView({ mandatoryLog, setMandatoryLog, azkarLog, setAzkarLog, 
     const newLog = { ...azkarLog, [today]: { ...todayAzkar, [session]: done } };
     setAzkarLog(newLog);
     await store.saveAzkarLog(today, session, done);
-    if (done) { addPoints(15); showToast("أذكار مكتملة! +15 نقطة"); }
+    if (done) { addPoints(15, `أذكار ${session === "morning" ? "الصباح" : "المساء"}`); showToast("أذكار مكتملة! +15 نقطة"); }
   }
 
   async function toggleJuz(juzNum) {
@@ -1701,8 +1718,30 @@ function EssentialsView({ mandatoryLog, setMandatoryLog, azkarLog, setAzkarLog, 
     const next = { ...quranProgress, [juzNum]: done };
     setQuranProgress(next);
     await store.saveQuranJuz(juzNum, done);
-    if (done) { addPoints(20); showToast(`الجزء ${juzNum} مكتمل! +20 نقطة`); }
+    if (done) { addPoints(20, `الجزء ${juzNum} من القرآن`); showToast(`الجزء ${juzNum} مكتمل! +20 نقطة`); }
   }
+
+  async function addIstighfar(amount) {
+    const newDailyCount = todayIstighfar + amount;
+    const newTotal = (istighfar.total || 0) + amount;
+    const newData = { daily: { ...(istighfar.daily || {}), [today]: newDailyCount }, total: newTotal };
+    setIstighfar(newData);
+    await store.saveIstighfar(newData);
+    if (todayIstighfar < ISTIGHFAR_TARGET && newDailyCount >= ISTIGHFAR_TARGET) {
+      addPoints(10, "إتمام ألف استغفار"); showToast("ألف استغفار! +10 نقطة");
+    }
+  }
+
+  async function resetIstighfarDay() {
+    const newData = { daily: { ...(istighfar.daily || {}), [today]: 0 }, total: istighfar.total || 0 };
+    setIstighfar(newData);
+    await store.saveIstighfar(newData);
+    showToast("تم إعادة التهيئة");
+  }
+
+  const todayPrayers = (prayerLog || []).filter((p) => p.date === today);
+  const PRAYER_NAMES = { fajr: "الفجر", dhuhr: "الظهر", asr: "العصر", maghrib: "المغرب", isha: "العشاء" };
+  const PRAYER_KEYS = ["fajr", "dhuhr", "asr", "maghrib", "isha"];
 
   const mandatoryDone = MANDATORY_TASKS.filter((t) => {
     if (t.fridayOnly && !isFriday) return true;

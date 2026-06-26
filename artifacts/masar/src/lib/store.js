@@ -306,7 +306,15 @@ export const store = {
   },
 
   async loadPointsLog() {
-    return lsGet("masar_points_log", []);
+    const local = lsGet("masar_points_log", []);
+    if (!hasSupabase) return local;
+    try {
+      const { data, error } = await supabase.from("points_log").select("*").eq("owner", "solo").order("date", { ascending: false }).limit(200);
+      if (error || !data) return local;
+      const items = data.map((r) => ({ id: r.id, date: r.date, amount: r.amount, reason: r.reason }));
+      lsSet("masar_points_log", items);
+      return items;
+    } catch { return local; }
   },
   async addPointsLog(entry) {
     const log = lsGet("masar_points_log", []);

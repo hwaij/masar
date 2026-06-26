@@ -118,17 +118,28 @@ export default function MasarApp() {
       if (lastOpen && lastOpen !== today) {
         const yesterday = lastOpen;
         const yLog = ml[yesterday] || {};
-        const isFriday = new Date(yesterday).getDay() === 5;
+        const yIsFriday = new Date(yesterday).getDay() === 5;
         let deduction = 0;
+        const reasons = [];
         for (const task of MANDATORY_TASKS) {
-          if (task.fridayOnly && !isFriday) continue;
-          if (!yLog[task.key]) deduction += task.penalty;
+          if (task.fridayOnly && !yIsFriday) continue;
+          if (!yLog[task.key]) { deduction += task.penalty; reasons.push(task.label); }
         }
+        const PRAYER_IDS = ["fajr", "dhuhr", "asr", "maghrib", "isha"];
+        const yPrayers = (pl || []).filter((p) => p.date === yesterday);
+        const missedPrayers = PRAYER_IDS.filter((pid) => !yPrayers.some((p) => p.prayerId === pid)).length;
+        if (missedPrayers > 0) { deduction += missedPrayers * 5; reasons.push(`${missedPrayers} صلوات فائتة`); }
+        const yAzkar = al[yesterday] || {};
+        if (!yAzkar.morning) { deduction += 5; reasons.push("أذكار الصباح"); }
+        if (!yAzkar.evening) { deduction += 5; reasons.push("أذكار المساء"); }
+        const ISTIGHFAR_TARGET = 1000;
+        const yIstighfar = (isf.daily || {})[yesterday];
+        if (yIstighfar === undefined || yIstighfar > 0) { deduction += 5; reasons.push("استغفار"); }
         if (deduction > 0) {
           const next = { ...g, points: Math.max(0, g.points - deduction) };
           setGamify(next);
           await store.saveGamify(next);
-          const logEntry = { id: uid(), date: today, amount: -deduction, reason: `خصم مهام فائتة (${yesterday})` };
+          const logEntry = { id: uid(), date: today, amount: -deduction, reason: `خصم فائتات (${yesterday}): ${[...new Set(reasons)].join("، ")}` };
           setPointsLog((prev) => [logEntry, ...prev]);
           await store.addPointsLog(logEntry);
         }
@@ -1746,8 +1757,9 @@ function EssentialsView({ mandatoryLog, setMandatoryLog, azkarLog, setAzkarLog, 
   const todayAzkar = azkarLog[today] || {};
   const quranDoneCount = Object.values(quranProgress).filter(Boolean).length;
   const [azkarTab, setAzkarTab] = useState("morning");
-  const todayIstighfar = (istighfar.daily || {})[today] || 0;
   const ISTIGHFAR_TARGET = 1000;
+  const todayIstighfarDone = (istighfar.daily || {})[today] ?? ISTIGHFAR_TARGET;
+  const todayIstighfar = todayIstighfarDone;
 
   async function toggleMandatory(task) {
     const done = !todayMandatory[task.key];
@@ -1774,21 +1786,23 @@ function EssentialsView({ mandatoryLog, setMandatoryLog, azkarLog, setAzkarLog, 
   }
 
   async function addIstighfar(amount) {
-    const newDailyCount = todayIstighfar + amount;
-    const newTotal = (istighfar.total || 0) + amount;
-    const newData = { daily: { ...(istighfar.daily || {}), [today]: newDailyCount }, total: newTotal };
+    const remaining = todayIstighfar;
+    if (remaining <= 0) return;
+    const newRemaining = Math.max(0, remaining - amount);
+    const newTotal = (istighfar.total || 0) + Math.min(amount, remaining);
+    const newData = { daily: { ...(istighfar.daily || {}), [today]: newRemaining }, total: newTotal };
     setIstighfar(newData);
     await store.saveIstighfar(newData);
-    if (todayIstighfar < ISTIGHFAR_TARGET && newDailyCount >= ISTIGHFAR_TARGET) {
-      addPoints(10, "إتمام ألف استغفار"); showToast("ألف استغفار! +10 نقطة");
+    if (remaining > 0 && newRemaining === 0) {
+      addPoints(10, "إتمام ألف استغفار"); showToast("أحسنت! أكملت ألف استغفار اليوم +10 نقطة");
     }
   }
 
   async function resetIstighfarDay() {
-    const newData = { daily: { ...(istighfar.daily || {}), [today]: 0 }, total: istighfar.total || 0 };
+    const newData = { daily: { ...(istighfar.daily || {}), [today]: ISTIGHFAR_TARGET }, total: istighfar.total || 0 };
     setIstighfar(newData);
     await store.saveIstighfar(newData);
-    showToast("تم إعادة التهيئة");
+    showToast("تم إعادة العداد إلى 1000");
   }
 
   const todayPrayers = (prayerLog || []).filter((p) => p.date === today);
@@ -1854,16 +1868,15 @@ function EssentialsView({ mandatoryLog, setMandatoryLog, azkarLog, setAzkarLog, 
         <div style={ES.sectionHead}>
           <span style={{ fontSize: 16 }}>🕌</span>
           <span style={ES.sectionTitle}>الصلوات</span>
-          <span style={ES.progressBadge}>{todayPrayers.filter((p) => p.prayed).length}/5 مؤداة</span>
+          <span style={ES.progressBadge}>{PRAYER_KEYS.filter((k) => todayPrayers.some((p) => p.prayerId === k)).length}/5 مؤداة</span>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 6 }}>
           {PRAYER_KEYS.map((key) => {
-            const rec = todayPrayers.find((p) => p.prayer === key);
-            const prayed = rec?.prayed;
+            const prayed = todayPrayers.some((p) => p.prayerId === key);
             return (
               <div key={key} style={{ flex: 1, textAlign: "center" }}>
                 <div style={{ fontSize: 11, color: "#8A8782", marginBottom: 5 }}>{PRAYER_NAMES[key]}</div>
-                <div style={{ width: 34, height: 34, borderRadius: "50%", border: prayed ? "2px solid #5FA8A0" : "2px solid var(--line)", background: prayed ? "rgba(95,168,160,0.15)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto", fontSize: 16, cursor: "default" }}>
+                <div style={{ width: 34, height: 34, borderRadius: "50%", border: prayed ? "2px solid #5FA8A0" : "2px solid var(--line)", background: prayed ? "rgba(95,168,160,0.15)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto", fontSize: 16, color: "#5FA8A0" }}>
                   {prayed ? "✓" : ""}
                 </div>
               </div>
@@ -1877,26 +1890,29 @@ function EssentialsView({ mandatoryLog, setMandatoryLog, azkarLog, setAzkarLog, 
         <div style={ES.sectionHead}>
           <span style={{ fontSize: 16 }}>🤲</span>
           <span style={ES.sectionTitle}>عداد الاستغفار</span>
-          <span style={ES.progressBadge}>{todayIstighfar}/{ISTIGHFAR_TARGET}</span>
+          <span style={ES.progressBadge}>{todayIstighfar === 0 ? "مكتمل ✓" : `متبقّ ${todayIstighfar}`}</span>
         </div>
         <div style={{ marginBottom: 10 }}>
           <div style={{ height: 6, background: "#1F1F22", borderRadius: 3, overflow: "hidden" }}>
-            <div style={{ height: "100%", width: `${Math.min(100, (todayIstighfar / ISTIGHFAR_TARGET) * 100)}%`, background: todayIstighfar >= ISTIGHFAR_TARGET ? "#5FA8A0" : "#C9A24B", borderRadius: 3, transition: "width 0.4s" }} />
+            <div style={{ height: "100%", width: `${Math.min(100, ((ISTIGHFAR_TARGET - todayIstighfar) / ISTIGHFAR_TARGET) * 100)}%`, background: todayIstighfar === 0 ? "#5FA8A0" : "#C9A24B", borderRadius: 3, transition: "width 0.4s" }} />
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
-            <span style={{ fontSize: 11, color: "#8A8782" }}>اليوم: {todayIstighfar.toLocaleString("ar-SA")}</span>
-            <span style={{ fontSize: 11, color: "#8A8782" }}>الإجمالي: {(istighfar.total || 0).toLocaleString("ar-SA")}</span>
+            <span style={{ fontSize: 11, color: "#8A8782" }}>
+              {todayIstighfar === 0 ? "أكملت ألف استغفار اليوم" : `أكملت ${(ISTIGHFAR_TARGET - todayIstighfar).toLocaleString("ar-SA")} من ${ISTIGHFAR_TARGET}`}
+            </span>
+            <span style={{ fontSize: 11, color: "#8A8782" }}>الكلي: {(istighfar.total || 0).toLocaleString("ar-SA")}</span>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-          {[1, 10, 33, 100].map((n) => (
-            <button key={n} onClick={() => addIstighfar(n)} style={{ flex: 1, border: "1px solid var(--gold)", borderRadius: 10, background: "rgba(201,162,75,0.08)", color: "var(--gold)", padding: "10px 0", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-              +{n}
-            </button>
-          ))}
-        </div>
-        {todayIstighfar >= ISTIGHFAR_TARGET && (
-          <button onClick={resetIstighfarDay} style={{ ...ES.completeBtn, fontSize: 12, padding: "8px 0" }}>إعادة العداد</button>
+        {todayIstighfar === 0 ? (
+          <button onClick={resetIstighfarDay} style={{ ...ES.completeBtn }}>إعادة العداد إلى 1000</button>
+        ) : (
+          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+            {[1, 10, 33, 100].map((n) => (
+              <button key={n} onClick={() => addIstighfar(n)} style={{ flex: 1, border: "1px solid var(--gold)", borderRadius: 10, background: "rgba(201,162,75,0.08)", color: "var(--gold)", padding: "10px 0", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                -{n}
+              </button>
+            ))}
+          </div>
         )}
       </div>
 

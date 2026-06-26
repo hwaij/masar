@@ -83,15 +83,16 @@ export const AUTO_CLASSIFY_RULES = [
 ];
 
 export function autoClassify(note, categories) {
-  if (!note || !categories) return null;
-  const lower = note.toLowerCase();
-  for (const rule of AUTO_CLASSIFY_RULES) {
-    if (rule.keywords.some((kw) => lower.includes(kw))) {
-      const cat = categories.find((c) => c.id === rule.catId);
-      if (cat) return cat.id;
-    }
+  if (!note || !categories || !categories.length) return null;
+  const lower = note;
+  const STUDY_TRIGGERS = ["دراسة", "جامعة", "درس", "دراس", "امتحان", "اختبار", "محاضرة", "مذاكرة"];
+  const isStudy = STUDY_TRIGGERS.some((kw) => lower.includes(kw));
+  if (isStudy) {
+    const studyCat = categories.find((c) => c.id === "study" || c.name.includes("دراس") || c.name.includes("جامعة"));
+    if (studyCat) return studyCat.id;
   }
-  return null;
+  const generalCat = categories.find((c) => c.id === "general" || c.name.includes("عام") || c.name.includes("أخرى") || c.name.includes("عامة"));
+  return generalCat?.id || categories[0]?.id || null;
 }
 
 export const MANDATORY_TASKS = [

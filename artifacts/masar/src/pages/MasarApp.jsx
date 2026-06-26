@@ -94,23 +94,24 @@ export default function MasarApp() {
   const [toast, setToast] = useState(null);
   const [mandatoryLog, setMandatoryLog] = useState({});
   const [azkarLog, setAzkarLog] = useState({});
+  const [azkarItems, setAzkarItems] = useState({});
   const [quranProgress, setQuranProgress] = useState({});
   const [istighfar, setIstighfar] = useState({ daily: {}, total: 0 });
   const [pointsLog, setPointsLog] = useState([]);
 
   useEffect(() => {
     (async () => {
-      const [c, e, t, r, g, p, a, f, cm, pl, rel, ml, al, qp, isf, plog] = await Promise.all([
+      const [c, e, t, r, g, p, a, f, cm, pl, rel, ml, al, ai, qp, isf, plog] = await Promise.all([
         store.loadCategories(), store.loadEntries(), store.loadTasks(),
         store.loadReports(), store.loadGamify(), store.loadProfile(), store.loadAchieve(),
         store.loadFocus(), store.loadCommitments(), store.loadPrayerLog(), store.loadReligious(),
-        store.loadMandatoryLog(), store.loadAzkarLog(), store.loadQuranProgress(),
+        store.loadMandatoryLog(), store.loadAzkarLog(), store.loadAzkarItems(), store.loadQuranProgress(),
         store.loadIstighfar(), store.loadPointsLog(),
       ]);
       setCategories(c); setEntries(e); setTasks(t); setReports(r); setGamify(g);
       setProfile(p); setAchieve(a); setFocus(f); setCommitments(cm);
       setPrayerLog(pl); setReligious(rel);
-      setMandatoryLog(ml); setAzkarLog(al); setQuranProgress(qp);
+      setMandatoryLog(ml); setAzkarLog(al); setAzkarItems(ai); setQuranProgress(qp);
       setIstighfar(isf); setPointsLog(plog);
 
       const today = todayKey();
@@ -196,11 +197,10 @@ export default function MasarApp() {
 
   const addPoints = useCallback((n, reason = "") => {
     setGamify((g) => { const next = { ...g, points: g.points + n }; store.saveGamify(next); return next; });
-    if (reason) {
-      const logEntry = { id: uid(), date: todayKey(), amount: n, reason };
-      setPointsLog((prev) => [logEntry, ...prev].slice(0, 200));
-      store.addPointsLog(logEntry);
-    }
+    const logReason = reason || (n >= 0 ? "نقاط مكتسبة" : "خصم نقاط");
+    const logEntry = { id: uid(), date: todayKey(), amount: n, reason: logReason };
+    setPointsLog((prev) => [logEntry, ...prev].slice(0, 200));
+    store.addPointsLog(logEntry);
   }, []);
 
   if (!loaded) {
@@ -228,6 +228,7 @@ export default function MasarApp() {
             mandatoryLog={mandatoryLog} setMandatoryLog={setMandatoryLog}
             azkarLog={azkarLog} setAzkarLog={setAzkarLog}
             quranProgress={quranProgress} setQuranProgress={setQuranProgress}
+            azkarItems={azkarItems} setAzkarItems={setAzkarItems}
             istighfar={istighfar} setIstighfar={setIstighfar}
             prayerLog={prayerLog} setPrayerLog={setPrayerLog}
             addPoints={addPoints} showToast={showToast}
@@ -349,7 +350,7 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
         <button onClick={() => shiftDay(1)} style={S.iconBtn}><ChevronLeft size={18} /></button>
       </div>
 
-      {isToday && mandatoryVisible.length > 0 && (
+      {mandatoryVisible.length > 0 && (
         <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, padding: "10px 12px", marginBottom: 12 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: "var(--gold)" }}>المهام الأساسية اليومية</span>
@@ -1752,7 +1753,7 @@ function EntryModal({ entry, date, categories, onSave, onClose }) {
   );
 }
 
-function EssentialsView({ mandatoryLog, setMandatoryLog, azkarLog, setAzkarLog, quranProgress, setQuranProgress, istighfar, setIstighfar, prayerLog, setPrayerLog, addPoints, showToast }) {
+function EssentialsView({ mandatoryLog, setMandatoryLog, azkarLog, setAzkarLog, azkarItems, setAzkarItems, quranProgress, setQuranProgress, istighfar, setIstighfar, prayerLog, setPrayerLog, addPoints, showToast }) {
   const today = todayKey();
   const isFriday = new Date().getDay() === 5;
   const todayMandatory = mandatoryLog[today] || {};
@@ -1771,12 +1772,26 @@ function EssentialsView({ mandatoryLog, setMandatoryLog, azkarLog, setAzkarLog, 
     if (done) { addPoints(task.points, task.label); showToast(`+${task.points} نقطة`); }
   }
 
-  async function completeAzkar(session) {
-    const done = !todayAzkar[session];
-    const newLog = { ...azkarLog, [today]: { ...todayAzkar, [session]: done } };
-    setAzkarLog(newLog);
-    await store.saveAzkarLog(today, session, done);
-    if (done) { addPoints(15, `أذكار ${session === "morning" ? "الصباح" : "المساء"}`); showToast("أذكار مكتملة! +15 نقطة"); }
+  async function toggleAzkarItem(itemId, session, allSessionIds) {
+    const todayItems = (azkarItems || {})[today] || {};
+    const newDone = !todayItems[itemId];
+    const newTodayItems = { ...todayItems, [itemId]: newDone };
+    const newAzkarItems = { ...(azkarItems || {}), [today]: newTodayItems };
+    setAzkarItems(newAzkarItems);
+    await store.saveAzkarItem(today, itemId, newDone);
+    const wasSessionDone = allSessionIds.every((id) => !!todayItems[id]);
+    const isNowSessionDone = allSessionIds.every((id) => !!newTodayItems[id]);
+    if (!wasSessionDone && isNowSessionDone) {
+      const newLog = { ...azkarLog, [today]: { ...todayAzkar, [session]: true } };
+      setAzkarLog(newLog);
+      await store.saveAzkarLog(today, session, true);
+      addPoints(15, `أذكار ${session === "morning" ? "الصباح" : "المساء"}`);
+      showToast("أتممت الأذكار! +15 نقطة");
+    } else if (wasSessionDone && !isNowSessionDone && todayAzkar[session]) {
+      const newLog = { ...azkarLog, [today]: { ...todayAzkar, [session]: false } };
+      setAzkarLog(newLog);
+      await store.saveAzkarLog(today, session, false);
+    }
   }
 
   async function toggleJuz(juzNum) {
@@ -1935,16 +1950,26 @@ function EssentialsView({ mandatoryLog, setMandatoryLog, azkarLog, setAzkarLog, 
             🌙 المساء {todayAzkar.evening ? "✓" : ""}
           </button>
         </div>
-        {azkarList.map((z) => (
-          <div key={z.id} style={ES.azkarItem}>
-            <span style={ES.azkarText}>{z.short}</span>
-            <span style={ES.azkarCount}>×{z.count}</span>
+        {(() => {
+          const todayItems = (azkarItems || {})[today] || {};
+          const allIds = azkarList.map((z) => z.id);
+          const sessionDone = todayAzkar[azkarTab];
+          return azkarList.map((z) => {
+            const itemDone = !!todayItems[z.id];
+            return (
+              <div key={z.id} style={{ ...ES.azkarItem, cursor: "pointer" }} onClick={() => toggleAzkarItem(z.id, azkarTab, allIds)}>
+                <span style={{ ...ES.azkarText, textDecoration: itemDone ? "line-through" : "none", color: itemDone ? "#8A8782" : "var(--ink)" }}>{z.short}</span>
+                <span style={ES.azkarCount}>×{z.count}</span>
+                <span style={{ ...S.checkbox, ...(itemDone ? S.checkboxDone : {}), flexShrink: 0, marginRight: 4 }}>{itemDone && <Check size={12} />}</span>
+              </div>
+            );
+          });
+        })()}
+        {todayAzkar[azkarTab] && (
+          <div style={{ ...ES.completeBtn, ...ES.completeBtnDone, cursor: "default" }}>
+            <Check size={15} /> أتممت أذكار {azkarTab === "morning" ? "الصباح" : "المساء"}
           </div>
-        ))}
-        <button onClick={() => completeAzkar(azkarTab)} style={{ ...ES.completeBtn, ...(todayAzkar[azkarTab] ? ES.completeBtnDone : {}) }}>
-          <Check size={15} />
-          {todayAzkar[azkarTab] ? "تم إكمال الأذكار" : `أكملت أذكار ${azkarTab === "morning" ? "الصباح" : "المساء"} (+15 نقطة)`}
-        </button>
+        )}
       </div>
 
       <div style={ES.section}>

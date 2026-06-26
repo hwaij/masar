@@ -270,6 +270,15 @@ export const store = {
       return log;
     } catch { return local; }
   },
+  async loadAzkarItems() {
+    return lsGet("masar_azkar_items", {});
+  },
+  async saveAzkarItem(date, itemId, done) {
+    const items = lsGet("masar_azkar_items", {});
+    if (!items[date]) items[date] = {};
+    items[date][itemId] = done;
+    lsSet("masar_azkar_items", items);
+  },
   async saveAzkarLog(date, session, done) {
     const log = lsGet("masar_azkar_log", {});
     if (!log[date]) log[date] = {};

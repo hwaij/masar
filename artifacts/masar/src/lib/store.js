@@ -34,6 +34,11 @@ function lsSet(key, value) {
 }
 
 const DEFAULT_CATEGORIES = [
+  { id: "prayer", name: "الصلاة", color: "#5FA8A0" },
+  { id: "quran", name: "القرآن", color: "#8A7BD1" },
+  { id: "istighfar", name: "الاستغفار", color: "#9AA84C" },
+  { id: "teeth", name: "الأسنان", color: "#6FA8DC" },
+  { id: "bed", name: "ترتيب السرير", color: "#D17B5F" },
   { id: "shoot", name: "تصوير وتنفيذ", color: "#C9A24B" },
   { id: "edit", name: "مونتاج وتعديل", color: "#8A7BD1" },
   { id: "study", name: "دراسة جامعية", color: "#5FA8A0" },
@@ -64,7 +69,7 @@ export const store = {
     const local = lsGet(LS.categories, DEFAULT_CATEGORIES);
     const next = local.some((c) => c.id === cat.id) ? local.map((c) => (c.id === cat.id ? cat : c)) : [...local, cat];
     lsSet(LS.categories, next);
-    if (hasSupabase) await supabase.from("categories").upsert({ id: cat.id, name: cat.name, color: cat.color, owner: CURRENT_OWNER }, { onConflict: "owner,id" });
+    if (hasSupabase) await supabase.from("categories").upsert({ id: cat.id, name: cat.name, color: cat.color, owner: CURRENT_OWNER });
   },
   async deleteCategory(id) {
     const local = lsGet(LS.categories, DEFAULT_CATEGORIES).filter((c) => c.id !== id);

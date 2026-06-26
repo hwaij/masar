@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "مسار"
+version = "1.0.0"
+id = "artifacts/masar"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18100
+
+[services.development]
+run = "pnpm --filter @workspace/masar run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/masar", "run", "build" ]
+publicDir = "artifacts/masar/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18100"
+BASE_PATH = "/"

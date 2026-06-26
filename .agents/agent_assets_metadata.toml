@@ -6,3 +6,9 @@ id = "9wGs6tvQZ1_9j8QqiPWm0"
 uri = "file://artifacts/masar-promo/public/audio/bg_music.mp3"
 type = "audio"
 title = "background music"
+
+[[outputs]]
+id = "_DXR4mHHDnbL8ooKqJ33g"
+uri = "file://.local/video-export/masar-promo.mp4"
+type = "video"
+title = "مسار - فيديو تعريفي (MP4)"

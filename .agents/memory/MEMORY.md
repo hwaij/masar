@@ -1,0 +1,1 @@
+- [Masar brand & Arabic conventions](masar-brand.md) — palette (black #0A0A0B, gold #C9A24B, teal #5FA8A0), Arabic RTL, no em-dash; reuse across all مسار artifacts.

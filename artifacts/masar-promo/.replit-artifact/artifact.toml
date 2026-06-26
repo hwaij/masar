@@ -1,0 +1,31 @@
+kind = "video"
+previewPath = "/masar-promo/"
+title = "مسار - فيديو تعريفي"
+version = "1.0.0"
+id = "artifacts/masar-promo"
+router = "path"
+
+[[integratedSkills]]
+name = "video-js"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/masar-promo/" ]
+localPort = 18445
+
+[services.development]
+run = "pnpm --filter @workspace/masar-promo run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/masar-promo", "run", "build" ]
+publicDir = "artifacts/masar-promo/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18445"
+BASE_PATH = "/masar-promo/"

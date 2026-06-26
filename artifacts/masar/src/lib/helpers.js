@@ -38,22 +38,25 @@ export function computeStreak(entries) {
 }
 
 export function getLevel(points) {
-  // L1: 0–99, L2: 100–249, then +150 per level threshold
-  const thresholds = [0, 100, 250, 400, 550, 700, 850, 1000, 1150, 1300];
-  const labels = ["مبتدئ", "منتظم", "ملتزم", "متقدم", "محترف", "خبير", "نخبة", "أسطورة", "بطل", "خارق"];
-  let lvl = 0;
-  for (let i = 0; i < thresholds.length; i++) {
-    if (points >= thresholds[i]) lvl = i;
-    else break;
+  // L1: 0–99, L2: 100–249, then +150 per level (open-ended)
+  const FIXED_LABELS = ["مبتدئ", "منتظم", "ملتزم", "متقدم", "محترف", "خبير", "نخبة", "أسطورة", "بطل", "خارق"];
+  // Compute threshold for level n (0-indexed): L0=0, L1=100, L2=250, L3=400, ...
+  function threshold(n) {
+    if (n === 0) return 0;
+    if (n === 1) return 100;
+    return 250 + (n - 2) * 150;
   }
+  let lvl = 0;
+  while (points >= threshold(lvl + 1)) lvl++;
+  const label = FIXED_LABELS[lvl] || `مستوى ${lvl + 1}`;
+  const cur = threshold(lvl);
+  const nxt = threshold(lvl + 1);
   return {
     level: lvl + 1,
-    label: labels[lvl],
-    current: thresholds[lvl],
-    next: thresholds[lvl + 1] || null,
-    progress: thresholds[lvl + 1]
-      ? (points - thresholds[lvl]) / (thresholds[lvl + 1] - thresholds[lvl])
-      : 1,
+    label,
+    current: cur,
+    next: nxt,
+    progress: (points - cur) / (nxt - cur),
   };
 }
 

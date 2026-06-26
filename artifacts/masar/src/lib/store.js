@@ -248,7 +248,13 @@ export const store = {
     log[date][taskKey] = done;
     lsSet("masar_mandatory_log", log);
     if (hasSupabase) {
-      try { await supabase.from("mandatory_log").upsert({ date, task_key: taskKey, done, owner: "solo" }); } catch {}
+      try {
+        const { error } = await supabase.from("mandatory_log").upsert(
+          { date, task_key: taskKey, done, owner: "solo", updated_at: new Date().toISOString() },
+          { onConflict: "owner,date,task_key" }
+        );
+        if (error) console.warn("mandatory_log sync error:", error.message);
+      } catch (e) { console.warn("mandatory_log write failed:", e); }
     }
   },
 
@@ -270,7 +276,13 @@ export const store = {
     log[date][session] = done;
     lsSet("masar_azkar_log", log);
     if (hasSupabase) {
-      try { await supabase.from("azkar_log").upsert({ date, session, done, owner: "solo" }); } catch {}
+      try {
+        const { error } = await supabase.from("azkar_log").upsert(
+          { date, session, done, owner: "solo", updated_at: new Date().toISOString() },
+          { onConflict: "owner,date,session" }
+        );
+        if (error) console.warn("azkar_log sync error:", error.message);
+      } catch (e) { console.warn("azkar_log write failed:", e); }
     }
   },
 

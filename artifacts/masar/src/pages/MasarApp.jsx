@@ -206,7 +206,9 @@ export default function MasarApp() {
             entries={entries} setEntries={setEntries}
             categories={categories} tasks={tasks} setTasks={setTasks}
             reports={reports} setReports={setReports}
-            aiHistory={aiHistory} addPoints={addPoints} showToast={showToast}
+            aiHistory={aiHistory}
+            mandatoryLog={mandatoryLog} setMandatoryLog={setMandatoryLog}
+            addPoints={addPoints} showToast={showToast}
           />
         )}
         {view === "prayer" && <PrayerView prayerLog={prayerLog} setPrayerLog={setPrayerLog} religious={religious} setReligious={setReligious} addPoints={addPoints} showToast={showToast} />}
@@ -278,7 +280,7 @@ function Header({ view, setView, gamify, stats, hasCloud }) {
   );
 }
 
-function TodayView({ date, setDate, entries, setEntries, categories, tasks, setTasks, reports, setReports, aiHistory, addPoints, showToast }) {
+function TodayView({ date, setDate, entries, setEntries, categories, tasks, setTasks, reports, setReports, aiHistory, mandatoryLog, setMandatoryLog, addPoints, showToast }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState(null);
   const catMap = useMemo(() => Object.fromEntries(categories.map((c) => [c.id, c])), [categories]);
@@ -287,6 +289,19 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
   const dayTasks = tasks.filter((t) => t.due === date);
   const isToday = date === todayKey();
   const dailyReport = reports.find((r) => r.kind === "daily" && r.date === date);
+  const isFriday = new Date().getDay() === 5;
+  const todayMandatory = (mandatoryLog || {})[todayKey()] || {};
+  const mandatoryVisible = MANDATORY_TASKS.filter((t) => !t.fridayOnly || isFriday);
+  const mandatoryDoneCount = mandatoryVisible.filter((t) => !!todayMandatory[t.key]).length;
+
+  async function toggleMandatoryToday(task) {
+    const today = todayKey();
+    const done = !todayMandatory[task.key];
+    const newLog = { ...(mandatoryLog || {}), [today]: { ...todayMandatory, [task.key]: done } };
+    if (setMandatoryLog) setMandatoryLog(newLog);
+    await store.saveMandatoryItem(today, task.key, done);
+    if (done) { addPoints(task.points, task.label); showToast(`+${task.points} نقطة`); }
+  }
 
   async function saveEntry(entry) {
     setEntries((prev) => prev.some((e) => e.id === entry.id) ? prev.map((e) => (e.id === entry.id ? entry : e)) : [...prev, entry]);
@@ -322,6 +337,25 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
         <div style={S.dateLabel}>{arabicDate(date, { weekday: "long", day: "numeric", month: "long" })}{isToday && <span style={S.todayPill}>اليوم</span>}</div>
         <button onClick={() => shiftDay(1)} style={S.iconBtn}><ChevronLeft size={18} /></button>
       </div>
+
+      {isToday && mandatoryVisible.length > 0 && (
+        <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, padding: "10px 12px", marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--gold)" }}>المهام الأساسية اليومية</span>
+            <span style={{ fontSize: 11, color: mandatoryDoneCount === mandatoryVisible.length ? "#5FA8A0" : "#8A8782" }}>{mandatoryDoneCount}/{mandatoryVisible.length}</span>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {mandatoryVisible.map((task) => {
+              const done = !!todayMandatory[task.key];
+              return (
+                <button key={task.key} onClick={() => toggleMandatoryToday(task)} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", borderRadius: 20, border: done ? "1px solid rgba(95,168,160,0.5)" : "1px solid var(--line)", background: done ? "rgba(95,168,160,0.1)" : "transparent", color: done ? "#5FA8A0" : "#8A8782", fontSize: 12, cursor: "pointer", fontFamily: "inherit", textDecoration: done ? "line-through" : "none" }}>
+                  <span>{task.icon}</span><span>{task.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div style={S.wheelSection}>
         <DayWheel entries={dayEntries} catMap={catMap} size={224} />
@@ -1517,7 +1551,7 @@ function AchieveCard({ item, kindLabel, onToggle, onRemove }) {
   );
 }
 
-function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, profile, setProfile }) {
+function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, profile, setProfile, pointsLog }) {
   const [editing, setEditing] = useState(null);
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState(COLOR_CHOICES[0]);
@@ -1591,6 +1625,24 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
           </div>
         </div>
       </div>
+      {pointsLog && pointsLog.length > 0 && (
+        <div style={S.catEditorCard}>
+          <div style={S.catEditorHeader}><span style={{ fontSize: 14 }}>📋</span><span>سجل النقاط</span></div>
+          <div>
+            {pointsLog.slice(0, 20).map((entry) => (
+              <div key={entry.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                <div>
+                  <div style={{ fontSize: 13, color: "var(--ink)" }}>{entry.reason}</div>
+                  <div style={{ fontSize: 11, color: "#6B6863", marginTop: 2 }}>{entry.date}</div>
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: entry.amount >= 0 ? "#5FA8A0" : "#E05252", whiteSpace: "nowrap", marginRight: 8 }}>
+                  {entry.amount >= 0 ? "+" : ""}{entry.amount}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <RoadmapCard />
     </div>
   );
@@ -1796,6 +1848,56 @@ function EssentialsView({ mandatoryLog, setMandatoryLog, azkarLog, setAzkarLog, 
             </div>
           );
         })}
+      </div>
+
+      <div style={ES.section}>
+        <div style={ES.sectionHead}>
+          <span style={{ fontSize: 16 }}>🕌</span>
+          <span style={ES.sectionTitle}>الصلوات</span>
+          <span style={ES.progressBadge}>{todayPrayers.filter((p) => p.prayed).length}/5 مؤداة</span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 6 }}>
+          {PRAYER_KEYS.map((key) => {
+            const rec = todayPrayers.find((p) => p.prayer === key);
+            const prayed = rec?.prayed;
+            return (
+              <div key={key} style={{ flex: 1, textAlign: "center" }}>
+                <div style={{ fontSize: 11, color: "#8A8782", marginBottom: 5 }}>{PRAYER_NAMES[key]}</div>
+                <div style={{ width: 34, height: 34, borderRadius: "50%", border: prayed ? "2px solid #5FA8A0" : "2px solid var(--line)", background: prayed ? "rgba(95,168,160,0.15)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto", fontSize: 16, cursor: "default" }}>
+                  {prayed ? "✓" : ""}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ fontSize: 11, color: "#6B6863", marginTop: 10, textAlign: "center" }}>للتسجيل اذهب إلى تبويب الصلاة</div>
+      </div>
+
+      <div style={ES.section}>
+        <div style={ES.sectionHead}>
+          <span style={{ fontSize: 16 }}>🤲</span>
+          <span style={ES.sectionTitle}>عداد الاستغفار</span>
+          <span style={ES.progressBadge}>{todayIstighfar}/{ISTIGHFAR_TARGET}</span>
+        </div>
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ height: 6, background: "#1F1F22", borderRadius: 3, overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${Math.min(100, (todayIstighfar / ISTIGHFAR_TARGET) * 100)}%`, background: todayIstighfar >= ISTIGHFAR_TARGET ? "#5FA8A0" : "#C9A24B", borderRadius: 3, transition: "width 0.4s" }} />
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+            <span style={{ fontSize: 11, color: "#8A8782" }}>اليوم: {todayIstighfar.toLocaleString("ar-SA")}</span>
+            <span style={{ fontSize: 11, color: "#8A8782" }}>الإجمالي: {(istighfar.total || 0).toLocaleString("ar-SA")}</span>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+          {[1, 10, 33, 100].map((n) => (
+            <button key={n} onClick={() => addIstighfar(n)} style={{ flex: 1, border: "1px solid var(--gold)", borderRadius: 10, background: "rgba(201,162,75,0.08)", color: "var(--gold)", padding: "10px 0", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+              +{n}
+            </button>
+          ))}
+        </div>
+        {todayIstighfar >= ISTIGHFAR_TARGET && (
+          <button onClick={resetIstighfarDay} style={{ ...ES.completeBtn, fontSize: 12, padding: "8px 0" }}>إعادة العداد</button>
+        )}
       </div>
 
       <div style={ES.section}>

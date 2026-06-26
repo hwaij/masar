@@ -183,6 +183,18 @@ export async function analyze(prompt, maxTokens = 1000) {
   return data.text;
 }
 
+export async function coachChat(messages, context) {
+  const base = import.meta.env.BASE_URL || "/";
+  const res = await fetch(`${base}api/coach`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages, context }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "تعذّر الاتصال بالمساعد");
+  return data.text;
+}
+
 export function parseJsonLoose(text) {
   return JSON.parse(text.replace(/```json|```/g, "").trim());
 }

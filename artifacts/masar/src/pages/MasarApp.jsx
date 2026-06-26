@@ -11,6 +11,7 @@ import {
   Rocket, BookOpen, User, Trophy, ChevronDown, ExternalLink,
   Timer, Play, Pause, RotateCcw, Zap, Download, ListPlus, Save,
   Moon, Bell, BookMarked, CheckCircle2,
+  MessageCircle, Send, Activity, Heart, Footprints, Droplets,
 } from "lucide-react";
 import { fivePrayers, nextPrayer, to12h } from "../lib/prayer";
 import { store } from "../lib/store";
@@ -19,7 +20,7 @@ import {
   COLOR_CHOICES, BADGES, DEFAULT_DAILY_TASKS, analyze, parseJsonLoose,
   localAchieveSuggestions, localCoachReply, localAnalysisSummary,
   getLevel, addMinutesToTime, nowHHMM, autoClassify,
-  MANDATORY_TASKS, AZKAR_MORNING, AZKAR_EVENING,
+  MANDATORY_TASKS, AZKAR_MORNING, AZKAR_EVENING, coachChat,
 } from "../lib/helpers";
 import { S } from "../components/styles";
 import DayWheel from "../components/DayWheel";
@@ -76,6 +77,40 @@ const PS = {
   manualUnit: { fontFamily: "'Amiri', serif", fontSize: 18, color: "#8A8782" },
 };
 
+// Assistant + health styles
+const HS = {
+  wrap: { display: "flex", flexDirection: "column", gap: 16 },
+  hero: { display: "flex", alignItems: "center", gap: 12 },
+  heroIcon: { width: 44, height: 44, borderRadius: 14, background: "linear-gradient(140deg, #5FA8A0, #3E7E78)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  heroTitle: { fontFamily: "'Amiri', serif", fontSize: 22, fontWeight: 700 },
+  heroSub: { fontSize: 12, color: "#8A8782", marginTop: 2, lineHeight: 1.5 },
+  healthCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "14px" },
+  healthHead: { display: "flex", alignItems: "center", gap: 7, marginBottom: 12 },
+  healthTitle: { fontSize: 13, fontWeight: 700, color: "#B8B5AF" },
+  healthGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 },
+  metric: { background: "#0F0F11", border: "1px solid var(--line)", borderRadius: 12, padding: "10px 12px" },
+  metricTop: { display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, color: "#8A8782", marginBottom: 8 },
+  metricInputRow: { display: "flex", alignItems: "baseline", gap: 6 },
+  metricInput: { flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", color: "var(--ink)", fontSize: 20, fontFamily: "'Amiri', serif", fontWeight: 700, padding: 0, fontVariantNumeric: "tabular-nums" },
+  metricUnit: { fontSize: 11, color: "#6B6863", flexShrink: 0 },
+  energyRow: { display: "flex", gap: 6 },
+  energyBtn: { flex: 1, border: "1px solid #2A2A2D", background: "transparent", color: "#8A8782", borderRadius: 8, padding: "7px 0", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" },
+  energyBtnActive: { background: "rgba(95,168,160,0.12)", borderColor: "rgba(95,168,160,0.4)", color: "#5FA8A0" },
+  healthSaveBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 7, width: "100%", background: "rgba(95,168,160,0.12)", border: "1px solid rgba(95,168,160,0.4)", color: "#5FA8A0", borderRadius: 10, padding: "10px 0", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", marginTop: 12 },
+  healthNote: { display: "flex", gap: 7, alignItems: "flex-start", fontSize: 11, color: "#6B6863", lineHeight: 1.6, marginTop: 10 },
+  chatCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "14px", display: "flex", flexDirection: "column" },
+  chatHead: { display: "flex", alignItems: "center", gap: 7, marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid var(--line)" },
+  chatTitle: { fontSize: 13, fontWeight: 700, color: "#B8B5AF" },
+  chatScroll: { display: "flex", flexDirection: "column", gap: 10, maxHeight: 380, overflowY: "auto", marginBottom: 12 },
+  msgUser: { alignSelf: "flex-start", maxWidth: "85%", background: "rgba(201,162,75,0.12)", border: "1px solid rgba(201,162,75,0.25)", borderRadius: "14px 4px 14px 14px", padding: "10px 12px", fontSize: 13.5, color: "#E8E6E1", lineHeight: 1.7, whiteSpace: "pre-wrap" },
+  msgBot: { alignSelf: "flex-end", maxWidth: "92%", background: "#0F0F11", border: "1px solid var(--line)", borderRadius: "4px 14px 14px 14px", padding: "10px 12px", fontSize: 13.5, color: "#D8D5CF", lineHeight: 1.8, whiteSpace: "pre-wrap" },
+  suggestionRow: { display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 12 },
+  suggestionChip: { background: "rgba(201,162,75,0.07)", border: "1px solid rgba(201,162,75,0.25)", color: "#C9A24B", borderRadius: 20, padding: "7px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", textAlign: "right" },
+  chatInputRow: { display: "flex", gap: 8, alignItems: "center" },
+  chatInput: { flex: 1, background: "#0F0F11", border: "1px solid #2A2A2D", borderRadius: 12, padding: "11px 14px", color: "var(--ink)", fontSize: 14, fontFamily: "inherit", outline: "none" },
+  chatSend: { background: "var(--gold)", color: "var(--bg)", border: "none", borderRadius: 12, width: 46, height: 44, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 },
+};
+
 export default function MasarApp() {
   const [loaded, setLoaded] = useState(false);
   const [view, setView] = useState("today");
@@ -98,21 +133,22 @@ export default function MasarApp() {
   const [quranProgress, setQuranProgress] = useState({});
   const [istighfar, setIstighfar] = useState({ daily: {}, total: 0 });
   const [pointsLog, setPointsLog] = useState([]);
+  const [health, setHealth] = useState([]);
 
   useEffect(() => {
     (async () => {
-      const [c, e, t, r, g, p, a, f, cm, pl, rel, ml, al, ai, qp, isf, plog] = await Promise.all([
+      const [c, e, t, r, g, p, a, f, cm, pl, rel, ml, al, ai, qp, isf, plog, hl] = await Promise.all([
         store.loadCategories(), store.loadEntries(), store.loadTasks(),
         store.loadReports(), store.loadGamify(), store.loadProfile(), store.loadAchieve(),
         store.loadFocus(), store.loadCommitments(), store.loadPrayerLog(), store.loadReligious(),
         store.loadMandatoryLog(), store.loadAzkarLog(), store.loadAzkarItems(), store.loadQuranProgress(),
-        store.loadIstighfar(), store.loadPointsLog(),
+        store.loadIstighfar(), store.loadPointsLog(), store.loadHealth(),
       ]);
       setCategories(c); setEntries(e); setTasks(t); setReports(r); setGamify(g);
       setProfile(p); setAchieve(a); setFocus(f); setCommitments(cm);
       setPrayerLog(pl); setReligious(rel);
       setMandatoryLog(ml); setAzkarLog(al); setAzkarItems(ai); setQuranProgress(qp);
-      setIstighfar(isf); setPointsLog(plog);
+      setIstighfar(isf); setPointsLog(plog); setHealth(hl);
 
       const today = todayKey();
       const lastOpen = localStorage.getItem("masar_last_open");
@@ -238,6 +274,7 @@ export default function MasarApp() {
         {view === "focus" && <FocusView focus={focus} setFocus={setFocus} commitments={commitments} setCommitments={setCommitments} categories={categories} entries={entries} addPoints={addPoints} showToast={showToast} />}
         {view === "achieve" && <AchieveView achieve={achieve} setAchieve={setAchieve} profile={profile} focus={focus} tasks={tasks} prayerLog={prayerLog} religious={religious} addPoints={addPoints} showToast={showToast} />}
         {view === "reports" && <ReportsView entries={entries} categories={categories} focus={focus} profile={profile} showToast={showToast} />}
+        {view === "assistant" && <AssistantView entries={entries} tasks={tasks} categories={categories} focus={focus} prayerLog={prayerLog} religious={religious} health={health} setHealth={setHealth} profile={profile} stats={stats} azkarLog={azkarLog} quranProgress={quranProgress} istighfar={istighfar} showToast={showToast} />}
         {view === "ai" && <AIView entries={entries} tasks={tasks} categories={categories} reports={reports} setReports={setReports} aiHistory={aiHistory} focus={focus} commitments={commitments} prayerLog={prayerLog} religious={religious} />}
         {view === "settings" && <SettingsView categories={categories} setCategories={setCategories} gamify={gamify} hasCloud={store.hasCloud} showToast={showToast} profile={profile} setProfile={setProfile} pointsLog={pointsLog} />}
       </div>
@@ -255,6 +292,7 @@ function Header({ view, setView, gamify, stats, hasCloud }) {
     { id: "tasks", label: "المهام", icon: ListChecks },
     { id: "achieve", label: "أنجز", icon: Rocket },
     { id: "reports", label: "التقارير", icon: TrendingUp },
+    { id: "assistant", label: "مساعد", icon: MessageCircle },
     { id: "ai", label: "التحليل", icon: Sparkles },
     { id: "settings", label: "التخصيص", icon: Settings },
   ];
@@ -692,6 +730,180 @@ function ReportsView({ entries, categories, focus, profile, showToast }) {
             <Line type="monotone" dataKey="hours" stroke="#C9A24B" strokeWidth={2} dot={{ fill: "#C9A24B", r: range === "week" ? 3 : 0 }} />
           </LineChart>
         </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+function AssistantView({ entries, tasks, categories, focus, prayerLog, religious, health, setHealth, profile, stats, azkarLog, quranProgress, istighfar, showToast }) {
+  const today = todayKey();
+  const todayHealth = useMemo(
+    () => health.find((h) => h.date === today) || { date: today, steps: 0, sleepHours: 0, waterCups: 0, weight: null, energy: null, note: "" },
+    [health, today]
+  );
+  const [steps, setSteps] = useState(todayHealth.steps || "");
+  const [sleep, setSleep] = useState(todayHealth.sleepHours || "");
+  const [water, setWater] = useState(todayHealth.waterCups || "");
+  const [energy, setEnergy] = useState(todayHealth.energy || null);
+
+  async function saveHealthEntry() {
+    const rec = {
+      id: `health_${today}`,
+      date: today,
+      steps: Number(steps) || 0,
+      sleepHours: Number(sleep) || 0,
+      waterCups: Number(water) || 0,
+      weight: todayHealth.weight ?? null,
+      energy: energy,
+      note: "",
+    };
+    setHealth((prev) => (prev.some((h) => h.date === today) ? prev.map((h) => (h.date === today ? rec : h)) : [rec, ...prev]));
+    await store.saveHealth(rec);
+    showToast("تم حفظ بيانات صحتك");
+  }
+
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+  const scrollRef = useRef(null);
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [messages, sending]);
+
+  const buildContext = useCallback(() => {
+    const catMap = Object.fromEntries((categories || []).map((c) => [c.id, c.name]));
+    const todayEntries = (entries || []).filter((e) => e.date === today);
+    const entryLines = todayEntries.map((e) => `${catMap[e.catId] || "نشاط"} ${e.start}-${e.end}`).join("، ") || "لا يوجد";
+    const tasksToday = (tasks || []).filter((t) => t.due === today);
+    const doneTasks = tasksToday.filter((t) => t.done).length;
+    const focusToday = (focus || []).filter((f) => f.date === today).reduce((s, f) => s + f.minutes, 0);
+    const prayersToday = (prayerLog || []).filter((p) => p.date === today).length;
+    const religiousDone = (religious || []).filter((r) => r.date === today && r.done).length;
+    const azkar = azkarLog[today] || {};
+    return [
+      `التاريخ: ${arabicDate(today)}`,
+      `أنشطة اليوم: ${entryLines}`,
+      `المهام: ${doneTasks} من ${tasksToday.length} مكتملة`,
+      `دقائق التركيز اليوم: ${focusToday}`,
+      `الصلوات المسجلة اليوم: ${prayersToday} من 5`,
+      `الأعمال الروحية المنجزة اليوم: ${religiousDone}`,
+      `أذكار: صباح ${azkar.morning ? "نعم" : "لا"} / مساء ${azkar.evening ? "نعم" : "لا"}`,
+      `الصحة اليوم: خطوات ${todayHealth.steps || Number(steps) || 0}، نوم ${todayHealth.sleepHours || Number(sleep) || 0} ساعة، ماء ${todayHealth.waterCups || Number(water) || 0} أكواب، الطاقة ${energy || todayHealth.energy || "غير محددة"}`,
+      `أجزاء القرآن المختومة: ${Object.values(quranProgress || {}).filter(Boolean).length} من 30`,
+      `إجمالي الاستغفار: ${istighfar?.total || 0}`,
+      `سلسلة الالتزام: ${stats?.streak || 0} يوم`,
+      profile?.field ? `مجال المستخدم: ${profile.field}` : "",
+      profile?.about ? `عن المستخدم: ${profile.about}` : "",
+    ].filter(Boolean).join("\n");
+  }, [entries, tasks, categories, focus, prayerLog, religious, azkarLog, quranProgress, istighfar, stats, profile, todayHealth, steps, sleep, water, energy, today]);
+
+  async function send(text) {
+    const content = (text ?? input).trim();
+    if (!content || sending) return;
+    const next = [...messages, { role: "user", content }];
+    setMessages(next);
+    setInput("");
+    setSending(true);
+    try {
+      const reply = await coachChat(next, buildContext());
+      setMessages([...next, { role: "assistant", content: reply }]);
+    } catch {
+      setMessages([...next, { role: "assistant", content: "تعذّر الاتصال بالمساعد الآن. تأكد من اتصالك وحاول مرة أخرى." }]);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  const suggestions = ["كيف أحسّن يومي؟", "خطط لي يومي", "نصيحة لصحتي اليوم", "كيف أنظّم وقتي؟"];
+
+  return (
+    <div style={S.view}>
+      <div style={HS.wrap}>
+        <div style={HS.hero}>
+          <div style={HS.heroIcon}><MessageCircle size={22} color="#0A0A0B" /></div>
+          <div>
+            <div style={HS.heroTitle}>مساعد أنجز</div>
+            <div style={HS.heroSub}>مدرّبك الشخصي. يرى يومك وصحتك ويساعدك تتطور.</div>
+          </div>
+        </div>
+
+        <div style={HS.healthCard}>
+          <div style={HS.healthHead}><Heart size={15} color="#5FA8A0" /><span style={HS.healthTitle}>صحتي اليوم</span></div>
+          <div style={HS.healthGrid}>
+            <div style={HS.metric}>
+              <div style={HS.metricTop}><Footprints size={13} /> الخطوات</div>
+              <div style={HS.metricInputRow}>
+                <input type="number" inputMode="numeric" value={steps} onChange={(e) => setSteps(e.target.value)} placeholder="0" style={HS.metricInput} />
+                <span style={HS.metricUnit}>خطوة</span>
+              </div>
+            </div>
+            <div style={HS.metric}>
+              <div style={HS.metricTop}><Moon size={13} /> النوم</div>
+              <div style={HS.metricInputRow}>
+                <input type="number" inputMode="decimal" value={sleep} onChange={(e) => setSleep(e.target.value)} placeholder="0" style={HS.metricInput} />
+                <span style={HS.metricUnit}>ساعة</span>
+              </div>
+            </div>
+            <div style={HS.metric}>
+              <div style={HS.metricTop}><Droplets size={13} /> الماء</div>
+              <div style={HS.metricInputRow}>
+                <input type="number" inputMode="numeric" value={water} onChange={(e) => setWater(e.target.value)} placeholder="0" style={HS.metricInput} />
+                <span style={HS.metricUnit}>كوب</span>
+              </div>
+            </div>
+            <div style={HS.metric}>
+              <div style={HS.metricTop}><Zap size={13} /> الطاقة</div>
+              <div style={HS.energyRow}>
+                {["منخفضة", "متوسطة", "عالية"].map((lvl) => (
+                  <button key={lvl} onClick={() => setEnergy(lvl)} style={{ ...HS.energyBtn, ...(energy === lvl ? HS.energyBtnActive : {}) }}>{lvl}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <button onClick={saveHealthEntry} style={HS.healthSaveBtn}><Save size={15} /> حفظ صحة اليوم</button>
+          <div style={HS.healthNote}>
+            <Activity size={13} color="#6B6863" style={{ flexShrink: 0, marginTop: 1 }} />
+            المواقع لا تستطيع قراءة خطوات الآيفون مباشرة، فأدخلها يدوياً ليستفيد منها المساعد في نصائحه.
+          </div>
+        </div>
+
+        <div style={HS.chatCard}>
+          <div style={HS.chatHead}><Sparkles size={15} color="#C9A24B" /><span style={HS.chatTitle}>تحدّث مع أنجز</span></div>
+          <div style={HS.chatScroll} ref={scrollRef}>
+            {messages.length === 0 && (
+              <div style={HS.msgBot}>أهلاً بك. أنا أنجز، مدرّبك الشخصي. اسألني كيف تحسّن يومك أو صحتك أو إنتاجيتك، أو دعني أخطط لك يومك.</div>
+            )}
+            {messages.map((m, i) => (
+              <div key={i} style={m.role === "user" ? HS.msgUser : HS.msgBot}>{m.content}</div>
+            ))}
+            {sending && (
+              <div style={{ ...HS.msgBot, color: "#8A8782", display: "flex", alignItems: "center", gap: 6 }}>
+                <Loader2 size={14} className="spin" /> أنجز يكتب...
+              </div>
+            )}
+          </div>
+          {messages.length === 0 && (
+            <div style={HS.suggestionRow}>
+              {suggestions.map((s) => (
+                <button key={s} onClick={() => send(s)} style={HS.suggestionChip}>{s}</button>
+              ))}
+            </div>
+          )}
+          <div style={HS.chatInputRow}>
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") send(); }}
+              placeholder="اكتب رسالتك..."
+              style={HS.chatInput}
+              disabled={sending}
+            />
+            <button onClick={() => send()} disabled={sending || !input.trim()} style={{ ...HS.chatSend, ...(sending || !input.trim() ? { opacity: 0.5, cursor: "default" } : {}) }}>
+              <Send size={17} />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

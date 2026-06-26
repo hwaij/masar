@@ -367,4 +367,31 @@ export const store = {
     lsSet(LS.gamify, g);
     if (hasSupabase) await supabase.from("gamify").upsert({ owner: "solo", points: g.points, badges: g.badges, updated_at: new Date().toISOString() });
   },
+
+  async loadHealth() {
+    const local = lsGet("masar_health", []);
+    if (!hasSupabase) return local;
+    try {
+      const { data, error } = await supabase.from("health_log").select("*").order("date", { ascending: false });
+      if (error || !data) return local;
+      const items = data.map((r) => ({ id: r.id, date: r.date, steps: r.steps || 0, sleepHours: r.sleep_hours || 0, waterCups: r.water_cups || 0, weight: r.weight ?? null, energy: r.energy ?? null, note: r.note || "" }));
+      lsSet("masar_health", items);
+      return items;
+    } catch { return local; }
+  },
+  async saveHealth(h) {
+    const local = lsGet("masar_health", []);
+    const next = local.some((x) => x.id === h.id) ? local.map((x) => (x.id === h.id ? h : x)) : [h, ...local];
+    next.sort((a, b) => (a.date < b.date ? 1 : -1));
+    lsSet("masar_health", next);
+    if (hasSupabase) {
+      try {
+        const { error } = await supabase.from("health_log").upsert(
+          { id: h.id, date: h.date, steps: h.steps || 0, sleep_hours: h.sleepHours || 0, water_cups: h.waterCups || 0, weight: h.weight ?? null, energy: h.energy ?? null, note: h.note || "", owner: "solo", updated_at: new Date().toISOString() },
+          { onConflict: "owner,date" }
+        );
+        if (error) console.warn("health_log sync error:", error.message);
+      } catch (e) { console.warn("health_log write failed:", e); }
+    }
+  },
 };

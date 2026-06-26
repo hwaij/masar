@@ -171,3 +171,18 @@ create table if not exists istighfar (
   total       integer not null default 0,
   updated_at  timestamptz default now()
 );
+
+-- سجل الصحة اليومي (إدخال يدوي: خطوات، نوم، ماء، وزن، طاقة)
+create table if not exists health_log (
+  id          text primary key,
+  owner       text not null default 'solo',
+  date        text not null,
+  steps       integer default 0,
+  sleep_hours numeric default 0,
+  water_cups  integer default 0,
+  weight      numeric,
+  energy      text,
+  note        text default '',
+  updated_at  timestamptz default now(),
+  unique (owner, date)
+);

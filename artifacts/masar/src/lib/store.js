@@ -230,6 +230,35 @@ export const store = {
     if (hasSupabase) await supabase.from("religious_tasks").delete().eq("id", id);
   },
 
+  async loadMandatoryLog() {
+    return lsGet("masar_mandatory_log", {});
+  },
+  async saveMandatoryItem(date, taskKey, done) {
+    const log = lsGet("masar_mandatory_log", {});
+    if (!log[date]) log[date] = {};
+    log[date][taskKey] = done;
+    lsSet("masar_mandatory_log", log);
+  },
+
+  async loadAzkarLog() {
+    return lsGet("masar_azkar_log", {});
+  },
+  async saveAzkarLog(date, session, done) {
+    const log = lsGet("masar_azkar_log", {});
+    if (!log[date]) log[date] = {};
+    log[date][session] = done;
+    lsSet("masar_azkar_log", log);
+  },
+
+  async loadQuranProgress() {
+    return lsGet("masar_quran_juz", {});
+  },
+  async saveQuranJuz(juzNum, done) {
+    const data = lsGet("masar_quran_juz", {});
+    data[juzNum] = done;
+    lsSet("masar_quran_juz", data);
+  },
+
   async loadGamify() {
     const local = lsGet(LS.gamify, { points: 0, badges: [] });
     if (!hasSupabase) return local;

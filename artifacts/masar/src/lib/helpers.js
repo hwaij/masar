@@ -37,6 +37,102 @@ export function computeStreak(entries) {
   return streak;
 }
 
+export function getLevel(points) {
+  const thresholds = [0, 100, 300, 600, 1000, 1500, 2200, 3000, 4000, 5500];
+  const labels = ["مبتدئ", "منتظم", "ملتزم", "متقدم", "محترف", "خبير", "نخبة", "أسطورة", "بطل", "خارق"];
+  let lvl = 0;
+  for (let i = 0; i < thresholds.length; i++) {
+    if (points >= thresholds[i]) lvl = i;
+    else break;
+  }
+  return {
+    level: lvl + 1,
+    label: labels[lvl],
+    current: thresholds[lvl],
+    next: thresholds[lvl + 1] || null,
+    progress: thresholds[lvl + 1]
+      ? (points - thresholds[lvl]) / (thresholds[lvl + 1] - thresholds[lvl])
+      : 1,
+  };
+}
+
+export function addMinutesToTime(hhmm, minutes) {
+  const [h, m] = hhmm.split(":").map(Number);
+  const total = h * 60 + m + minutes;
+  const nh = Math.floor(((total % (24 * 60)) + 24 * 60) % (24 * 60) / 60);
+  const nm = ((total % 60) + 60) % 60;
+  return `${String(nh).padStart(2, "0")}:${String(nm).padStart(2, "0")}`;
+}
+
+export function nowHHMM() {
+  const now = new Date();
+  return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+}
+
+export const AUTO_CLASSIFY_RULES = [
+  { keywords: ["دراس", "جامعة", "مادة", "اختبار", "امتحان", "محاضرة", "مذاكرة"], catId: "study" },
+  { keywords: ["تصوير", "كاميرا", "لقطة", "جلسة تصوير"], catId: "shoot" },
+  { keywords: ["مونتاج", "تعديل", "تحرير", "بريمير"], catId: "edit" },
+  { keywords: ["عميل", "تواصل", "اجتماع"], catId: "client" },
+  { keywords: ["رياضة", "تمرين", "جيم", "ركض", "ملاكمة"], catId: "fitness" },
+  { keywords: ["راحة", "نوم", "قيلولة"], catId: "rest" },
+];
+
+export function autoClassify(note, categories) {
+  if (!note || !categories) return null;
+  const lower = note.toLowerCase();
+  for (const rule of AUTO_CLASSIFY_RULES) {
+    if (rule.keywords.some((kw) => lower.includes(kw))) {
+      const cat = categories.find((c) => c.id === rule.catId);
+      if (cat) return cat.id;
+    }
+  }
+  return null;
+}
+
+export const MANDATORY_TASKS = [
+  { key: "bed", label: "ترتيب السرير", points: 5, penalty: 5, icon: "🛏" },
+  { key: "teeth_morning", label: "أسنان الصباح", points: 5, penalty: 3, icon: "🦷" },
+  { key: "teeth_evening", label: "أسنان المساء", points: 5, penalty: 3, icon: "🦷" },
+  { key: "quran_daily", label: "قراءة القرآن اليومية", points: 15, penalty: 10, icon: "📖" },
+  { key: "alkahf", label: "سورة الكهف", points: 10, penalty: 5, icon: "📗", fridayOnly: true },
+];
+
+export const AZKAR_MORNING = [
+  { id: "sub_m", text: "سبحان الله", count: 33, short: "سبحان الله (33)" },
+  { id: "ham_m", text: "الحمد لله", count: 33, short: "الحمد لله (33)" },
+  { id: "akb_m", text: "الله أكبر", count: 33, short: "الله أكبر (33)" },
+  { id: "lailaha_m", text: "لا إله إلا الله وحده لا شريك له، له الملك وله الحمد وهو على كل شيء قدير", count: 1, short: "لا إله إلا الله" },
+  { id: "kursi_m", text: "آية الكرسي", count: 1, short: "آية الكرسي" },
+  { id: "morning_dua", text: "اللهم بك أصبحنا وبك أمسينا وبك نحيا وبك نموت وإليك النشور", count: 1, short: "دعاء الصباح" },
+];
+
+export const AZKAR_EVENING = [
+  { id: "sub_e", text: "سبحان الله", count: 33, short: "سبحان الله (33)" },
+  { id: "ham_e", text: "الحمد لله", count: 33, short: "الحمد لله (33)" },
+  { id: "akb_e", text: "الله أكبر", count: 33, short: "الله أكبر (33)" },
+  { id: "lailaha_e", text: "لا إله إلا الله وحده لا شريك له، له الملك وله الحمد وهو على كل شيء قدير", count: 1, short: "لا إله إلا الله" },
+  { id: "kursi_e", text: "آية الكرسي", count: 1, short: "آية الكرسي" },
+  { id: "evening_dua", text: "اللهم بك أمسينا وبك أصبحنا وبك نحيا وبك نموت وإليك المصير", count: 1, short: "دعاء المساء" },
+];
+
+const QURAN_JUZ_NAMES = [
+  "الم","سيقول","تلك الرسل","لن تنالوا","والمحصنات","لا يحب الله",
+  "وإذا سمعوا","ولو أننا","قال الملأ","واعلموا","يعتذرون","وما من دابة",
+  "وما أبرئ","ربما","سبحان الذي","قال ألم","اقترب","قد أفلح",
+  "وقال الذين","أمن خلق","اتل ما أوحي","ومن يقنت","وما لي",
+  "فمن أظلم","إليه يرد","حم","قال فما خطبكم","قد سمع الله",
+  "تبارك الذي","عم",
+];
+
+const _quranBadges = QURAN_JUZ_NAMES.map((name, i) => ({
+  id: `juz_${i + 1}`,
+  name: `الجزء ${i + 1}`,
+  desc: `أتممت الجزء ${i + 1}: ${name}`,
+  icon: "📖",
+  threshold: (s) => (s.quranJuzDone || 0) >= i + 1,
+}));
+
 export const COLOR_CHOICES = [
   "#C9A24B", "#8A7BD1", "#5FA8A0", "#D17B5F", "#6FA8DC",
   "#B25D7D", "#9AA84C", "#D4A04C", "#7BA05B", "#C76B6B",
@@ -51,6 +147,12 @@ export const BADGES = [
   { id: "century", name: "المئة", desc: "سجّلت 100 نشاط", icon: "★", threshold: (s) => s.totalEntries >= 100 },
   { id: "focus_first", name: "أول تركيز", desc: "أكملت أول جلسة تركيز", icon: "⏣", threshold: (s) => s.focusSessions >= 1 },
   { id: "focus_master", name: "سيّد التركيز", desc: "10 ساعات تركيز إجمالاً", icon: "❂", threshold: (s) => s.focusHours >= 10 },
+  { id: "prayer_week", name: "صفوف منتظمة", desc: "صليت جميع الصلوات 7 أيام", icon: "🕌", threshold: (s) => (s.prayerStreak || 0) >= 7 },
+  { id: "azkar_streak5", name: "مداوم الأذكار", desc: "أذكار صباح ومساء 5 أيام", icon: "📿", threshold: (s) => (s.azkarStreak || 0) >= 5 },
+  { id: "quran_5juz", name: "خمسة أجزاء", desc: "أتممت 5 أجزاء من القرآن", icon: "📗", threshold: (s) => (s.quranJuzDone || 0) >= 5 },
+  { id: "quran_10juz", name: "عشرة أجزاء", desc: "أتممت 10 أجزاء من القرآن", icon: "📘", threshold: (s) => (s.quranJuzDone || 0) >= 10 },
+  { id: "quran_30juz", name: "ختم القرآن", desc: "أتممت ختمة كاملة للقرآن الكريم", icon: "🌟", threshold: (s) => (s.quranJuzDone || 0) >= 30 },
+  ..._quranBadges,
 ];
 
 export const DEFAULT_DAILY_TASKS = [

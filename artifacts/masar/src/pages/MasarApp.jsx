@@ -405,7 +405,9 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
         {dayEntries.map((e) => {
           const cat = catMap[e.catId] || { name: "غير محدد", color: "#9A968F" };
           async function adjustMins(delta) {
-            const newEnd = addMinutesToTime(e.end, delta);
+            const currentDur = diffMinutes(e.start, e.end);
+            const newDur = Math.max(1, currentDur + delta);
+            const newEnd = addMinutesToTime(e.start, newDur);
             const updated = { ...e, end: newEnd };
             setEntries((prev) => prev.map((x) => x.id === e.id ? updated : x));
             await store.saveEntry(updated);

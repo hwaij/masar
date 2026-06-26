@@ -296,7 +296,15 @@ export const store = {
   },
 
   async loadIstighfar() {
-    return lsGet("masar_istighfar", { daily: {}, total: 0 });
+    const local = lsGet("masar_istighfar", { daily: {}, total: 0 });
+    if (!hasSupabase) return local;
+    try {
+      const { data, error } = await supabase.from("istighfar").select("*").eq("owner", "solo").maybeSingle();
+      if (error || !data) return local;
+      const result = { daily: data.daily || {}, total: data.total || 0 };
+      lsSet("masar_istighfar", result);
+      return result;
+    } catch { return local; }
   },
   async saveIstighfar(data) {
     lsSet("masar_istighfar", data);

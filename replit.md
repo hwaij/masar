@@ -1,6 +1,6 @@
-# [Project name]
+# مسار (Masar)
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Arabic, RTL personal time + religious habit tracker (prayers, azkar, Quran, focus, tasks, health) with an AI coach, gamified points, and optional Google login. Deployed at masarr.replit.app.
 
 ## Run & Operate
 
@@ -22,23 +22,35 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/masar/` — the web app (React + Vite, mostly JS/JSX). Main UI: `src/pages/MasarApp.jsx`.
+- `artifacts/masar/src/lib/store.js` — local-first data layer + Supabase cloud sync (source of truth for the owner model).
+- `artifacts/masar/src/lib/auth.js` — Supabase Google auth wrapper.
+- `artifacts/masar/supabase-schema.sql` — DB schema + RLS policies. Run in Supabase SQL Editor to apply.
+- `artifacts/api-server/src/routes/coach.ts` — AI coach endpoint; `analyze.ts` — report analysis. Both use the Anthropic SDK.
+- `artifacts/masar-promo/` — promo video artifact (done).
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Local-first: localStorage is primary; Supabase is sync. The app works fully offline / logged out.
+- Per-user data via an `owner` column: `"solo"` when logged out, the Supabase `auth.uid()` when logged in. `store.js` switches `CURRENT_OWNER` on auth change. Every read/delete is owner-scoped and localStorage is namespaced per owner.
+- Auth is Supabase Auth (Google) — chosen because the app already runs on Supabase.
+- AI uses the user's own Anthropic key via the raw SDK (the Replit AI integration path was declined).
+- See `.agents/memory/masar-auth-data.md` for the full owner/RLS rules.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+Daily tracker for prayers, azkar, Quran progress, istighfar, focus sessions, tasks, and manual health logging (steps/sleep/water/energy). An AI coach chats in Arabic and gives personalized advice from the user's data. Points/badges gamify consistency. Optional Google login syncs a user's data across devices.
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- Arabic UI, RTL throughout. Casual register. Never use an em-dash in Arabic text.
+- User is non-technical — explain in plain language, avoid jargon.
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Health data is manual entry only (a website cannot read iPhone Health).
+- For Google login to work, the user must enable the Google provider in the Supabase dashboard and add redirect URLs (dev domain + masarr.replit.app), then run `supabase-schema.sql` for RLS.
+- The AI coach needs a valid `sk-ant-` key with a non-zero Anthropic credit balance.
 
 ## Pointers
 

@@ -12,9 +12,11 @@ import {
   Timer, Play, Pause, RotateCcw, Zap, Download, ListPlus, Save,
   Moon, Bell, BookMarked, CheckCircle2,
   MessageCircle, Send, Activity, Heart, Footprints, Droplets,
+  LogIn, LogOut,
 } from "lucide-react";
 import { fivePrayers, nextPrayer, to12h } from "../lib/prayer";
-import { store } from "../lib/store";
+import { store, setOwner } from "../lib/store";
+import { getSession, onAuthChange, signInWithGoogle, signOut, userFromSession, hasAuth } from "../lib/auth";
 import {
   todayKey, fmtHM, uid, diffMinutes, arabicDate, computeStreak,
   COLOR_CHOICES, BADGES, DEFAULT_DAILY_TASKS, analyze, parseJsonLoose,
@@ -134,9 +136,12 @@ export default function MasarApp() {
   const [istighfar, setIstighfar] = useState({ daily: {}, total: 0 });
   const [pointsLog, setPointsLog] = useState([]);
   const [health, setHealth] = useState([]);
+  const [user, setUser] = useState(null);
+  const userIdRef = useRef(undefined);
+  const loadVersionRef = useRef(0);
 
-  useEffect(() => {
-    (async () => {
+  const loadAll = useCallback(async () => {
+      const myVersion = ++loadVersionRef.current;
       const [c, e, t, r, g, p, a, f, cm, pl, rel, ml, al, ai, qp, isf, plog, hl] = await Promise.all([
         store.loadCategories(), store.loadEntries(), store.loadTasks(),
         store.loadReports(), store.loadGamify(), store.loadProfile(), store.loadAchieve(),
@@ -144,6 +149,7 @@ export default function MasarApp() {
         store.loadMandatoryLog(), store.loadAzkarLog(), store.loadAzkarItems(), store.loadQuranProgress(),
         store.loadIstighfar(), store.loadPointsLog(), store.loadHealth(),
       ]);
+      if (loadVersionRef.current !== myVersion) return;
       setCategories(c); setEntries(e); setTasks(t); setReports(r); setGamify(g);
       setProfile(p); setAchieve(a); setFocus(f); setCommitments(cm);
       setPrayerLog(pl); setReligious(rel);
@@ -183,8 +189,30 @@ export default function MasarApp() {
       }
       localStorage.setItem("masar_last_open", today);
       setLoaded(true);
-    })();
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const session = await getSession();
+      const u = userFromSession(session);
+      userIdRef.current = u?.id || null;
+      setOwner(u?.id);
+      setUser(u);
+      if (active) await loadAll();
+    })();
+    const unsub = onAuthChange(async (session) => {
+      const u = userFromSession(session);
+      const newId = u?.id || null;
+      if (newId === userIdRef.current) return;
+      userIdRef.current = newId;
+      setOwner(u?.id);
+      setUser(u);
+      setLoaded(false);
+      await loadAll();
+    });
+    return () => { active = false; unsub(); };
+  }, [loadAll]);
 
   const showToast = useCallback((msg) => {
     setToast(msg);
@@ -239,13 +267,26 @@ export default function MasarApp() {
     store.addPointsLog(logEntry);
   }, []);
 
+  const handleSignIn = useCallback(async () => {
+    try { await signInWithGoogle(); } catch { showToast("تعذّر تسجيل الدخول الآن"); }
+  }, [showToast]);
+  const handleSignOut = useCallback(async () => {
+    await signOut();
+    userIdRef.current = null;
+    setOwner(null);
+    setUser(null);
+    setLoaded(false);
+    await loadAll();
+    showToast("تم تسجيل الخروج");
+  }, [loadAll, showToast]);
+
   if (!loaded) {
     return <div style={{ ...S.app, ...S.loaderWrap }}><Loader2 size={28} color="#C9A24B" className="spin" /></div>;
   }
 
   return (
     <div style={S.app}>
-      <Header view={view} setView={setView} gamify={gamify} stats={stats} hasCloud={store.hasCloud} />
+      <Header view={view} setView={setView} gamify={gamify} stats={stats} hasCloud={store.hasCloud} user={user} onSignIn={handleSignIn} onSignOut={handleSignOut} />
       <div style={S.body} key={view} className="view-fade">
         {view === "today" && (
           <TodayView
@@ -283,7 +324,7 @@ export default function MasarApp() {
   );
 }
 
-function Header({ view, setView, gamify, stats, hasCloud }) {
+function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSignOut }) {
   const tabs = [
     { id: "today", label: "اليوم", icon: Clock },
     { id: "prayer", label: "الصلاة", icon: Moon },
@@ -314,6 +355,16 @@ function Header({ view, setView, gamify, stats, hasCloud }) {
           </span>
           <span style={S.hStat}><Flame size={13} color="#D17B5F" /> {stats.streak}</span>
           <span style={S.hStat}><Star size={13} color="#C9A24B" /> {gamify.points}</span>
+          {hasAuth && (user ? (
+            <button onClick={onSignOut} title={`${user.name || user.email} · تسجيل الخروج`} style={{ display: "flex", alignItems: "center", gap: 4, background: "rgba(95,168,160,0.12)", border: "1px solid rgba(95,168,160,0.3)", color: "#5FA8A0", borderRadius: 10, padding: "3px 7px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+              {user.avatar ? <img src={user.avatar} alt="" style={{ width: 16, height: 16, borderRadius: "50%" }} /> : <User size={12} />}
+              <LogOut size={11} />
+            </button>
+          ) : (
+            <button onClick={onSignIn} title="تسجيل الدخول بحساب Google" style={{ display: "flex", alignItems: "center", gap: 4, background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.3)", color: "#C9A24B", borderRadius: 10, padding: "3px 8px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+              <LogIn size={11} /> دخول
+            </button>
+          ))}
         </div>
       </div>
       <div style={S.tabs}>

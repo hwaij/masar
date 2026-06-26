@@ -1,1 +1,2 @@
 - [Masar brand & Arabic conventions](masar-brand.md) — palette (black #0A0A0B, gold #C9A24B, teal #5FA8A0), Arabic RTL, no em-dash; reuse across all مسار artifacts.
+- [Masar auth & data isolation](masar-auth-data.md) — Supabase Google auth; every store read/delete must scope by owner + namespaced localStorage + RLS, or accounts leak.

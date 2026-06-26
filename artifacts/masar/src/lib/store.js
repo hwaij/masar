@@ -1,5 +1,9 @@
 import { supabase, hasSupabase } from "./supabase";
 
+let CURRENT_OWNER = "solo";
+export function setOwner(id) { CURRENT_OWNER = id || "solo"; }
+export function getOwner() { return CURRENT_OWNER; }
+
 const LS = {
   categories: "masar_categories",
   entries: "masar_entries",
@@ -8,10 +12,13 @@ const LS = {
   gamify: "masar_gamify",
 };
 
+function nsKey(key) {
+  return CURRENT_OWNER === "solo" ? key : `${key}::${CURRENT_OWNER}`;
+}
 function lsGet(key, fallback) {
   if (typeof window === "undefined") return fallback;
   try {
-    const raw = window.localStorage.getItem(key);
+    const raw = window.localStorage.getItem(nsKey(key));
     return raw ? JSON.parse(raw) : fallback;
   } catch {
     return fallback;
@@ -20,7 +27,7 @@ function lsGet(key, fallback) {
 function lsSet(key, value) {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(key, JSON.stringify(value));
+    window.localStorage.setItem(nsKey(key), JSON.stringify(value));
   } catch (e) {
     console.error("localStorage set failed", key, e);
   }
@@ -36,9 +43,9 @@ const DEFAULT_CATEGORIES = [
 ];
 
 const fromDbEntry = (r) => ({ id: r.id, date: r.date, catId: r.cat_id, start: r.start_time, end: r.end_time, note: r.note || "" });
-const toDbEntry = (e) => ({ id: e.id, date: e.date, cat_id: e.catId, start_time: e.start, end_time: e.end, note: e.note || "", owner: "solo" });
+const toDbEntry = (e) => ({ id: e.id, date: e.date, cat_id: e.catId, start_time: e.start, end_time: e.end, note: e.note || "", owner: CURRENT_OWNER });
 const fromDbTask = (r) => ({ id: r.id, title: r.title, catId: r.cat_id, due: r.due, done: r.done, created: r.created_at });
-const toDbTask = (t) => ({ id: t.id, title: t.title, cat_id: t.catId, due: t.due || null, done: !!t.done, owner: "solo" });
+const toDbTask = (t) => ({ id: t.id, title: t.title, cat_id: t.catId, due: t.due || null, done: !!t.done, owner: CURRENT_OWNER });
 
 export const store = {
   hasCloud: hasSupabase,
@@ -46,7 +53,7 @@ export const store = {
   async loadCategories() {
     const local = lsGet(LS.categories, DEFAULT_CATEGORIES);
     if (!hasSupabase) return local;
-    const { data, error } = await supabase.from("categories").select("*").order("created_at");
+    const { data, error } = await supabase.from("categories").select("*").eq("owner", CURRENT_OWNER).order("created_at");
     if (error || !data) return local;
     const cats = data.map((r) => ({ id: r.id, name: r.name, color: r.color }));
     const result = cats.length ? cats : DEFAULT_CATEGORIES;
@@ -57,18 +64,18 @@ export const store = {
     const local = lsGet(LS.categories, DEFAULT_CATEGORIES);
     const next = local.some((c) => c.id === cat.id) ? local.map((c) => (c.id === cat.id ? cat : c)) : [...local, cat];
     lsSet(LS.categories, next);
-    if (hasSupabase) await supabase.from("categories").upsert({ id: cat.id, name: cat.name, color: cat.color, owner: "solo" });
+    if (hasSupabase) await supabase.from("categories").upsert({ id: cat.id, name: cat.name, color: cat.color, owner: CURRENT_OWNER }, { onConflict: "owner,id" });
   },
   async deleteCategory(id) {
     const local = lsGet(LS.categories, DEFAULT_CATEGORIES).filter((c) => c.id !== id);
     lsSet(LS.categories, local);
-    if (hasSupabase) await supabase.from("categories").delete().eq("id", id);
+    if (hasSupabase) await supabase.from("categories").delete().eq("id", id).eq("owner", CURRENT_OWNER);
   },
 
   async loadEntries() {
     const local = lsGet(LS.entries, []);
     if (!hasSupabase) return local;
-    const { data, error } = await supabase.from("entries").select("*").order("date");
+    const { data, error } = await supabase.from("entries").select("*").eq("owner", CURRENT_OWNER).order("date");
     if (error || !data) return local;
     const entries = data.map(fromDbEntry);
     lsSet(LS.entries, entries);
@@ -82,13 +89,13 @@ export const store = {
   },
   async deleteEntry(id) {
     lsSet(LS.entries, lsGet(LS.entries, []).filter((e) => e.id !== id));
-    if (hasSupabase) await supabase.from("entries").delete().eq("id", id);
+    if (hasSupabase) await supabase.from("entries").delete().eq("id", id).eq("owner", CURRENT_OWNER);
   },
 
   async loadTasks() {
     const local = lsGet(LS.tasks, []);
     if (!hasSupabase) return local;
-    const { data, error } = await supabase.from("tasks").select("*").order("created_at");
+    const { data, error } = await supabase.from("tasks").select("*").eq("owner", CURRENT_OWNER).order("created_at");
     if (error || !data) return local;
     const tasks = data.map(fromDbTask);
     lsSet(LS.tasks, tasks);
@@ -102,13 +109,13 @@ export const store = {
   },
   async deleteTask(id) {
     lsSet(LS.tasks, lsGet(LS.tasks, []).filter((t) => t.id !== id));
-    if (hasSupabase) await supabase.from("tasks").delete().eq("id", id);
+    if (hasSupabase) await supabase.from("tasks").delete().eq("id", id).eq("owner", CURRENT_OWNER);
   },
 
   async loadReports() {
     const local = lsGet(LS.reports, []);
     if (!hasSupabase) return local;
-    const { data, error } = await supabase.from("reports").select("*").order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("reports").select("*").eq("owner", CURRENT_OWNER).order("created_at", { ascending: false });
     if (error || !data) return local;
     const reports = data.map((r) => ({ id: r.id, kind: r.kind, date: r.date, payload: r.payload, gist: r.gist }));
     lsSet(LS.reports, reports);
@@ -117,13 +124,13 @@ export const store = {
   async saveReport(report) {
     const local = lsGet(LS.reports, []);
     lsSet(LS.reports, [report, ...local]);
-    if (hasSupabase) await supabase.from("reports").upsert({ id: report.id, kind: report.kind, date: report.date, payload: report.payload, gist: report.gist, owner: "solo" });
+    if (hasSupabase) await supabase.from("reports").upsert({ id: report.id, kind: report.kind, date: report.date, payload: report.payload, gist: report.gist, owner: CURRENT_OWNER });
   },
 
   async loadProfile() {
     const local = lsGet("masar_profile", { about: "", hobbies: "", field: "" });
     if (!hasSupabase) return local;
-    const { data, error } = await supabase.from("profile").select("*").eq("owner", "solo").maybeSingle();
+    const { data, error } = await supabase.from("profile").select("*").eq("owner", CURRENT_OWNER).maybeSingle();
     if (error || !data) return local;
     const p = { about: data.about || "", hobbies: data.hobbies || "", field: data.field || "" };
     lsSet("masar_profile", p);
@@ -131,13 +138,13 @@ export const store = {
   },
   async saveProfile(p) {
     lsSet("masar_profile", p);
-    if (hasSupabase) await supabase.from("profile").upsert({ owner: "solo", about: p.about, hobbies: p.hobbies, field: p.field, updated_at: new Date().toISOString() });
+    if (hasSupabase) await supabase.from("profile").upsert({ owner: CURRENT_OWNER, about: p.about, hobbies: p.hobbies, field: p.field, updated_at: new Date().toISOString() });
   },
 
   async loadAchieve() {
     const local = lsGet("masar_achieve", []);
     if (!hasSupabase) return local;
-    const { data, error } = await supabase.from("achieve").select("*").order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("achieve").select("*").eq("owner", CURRENT_OWNER).order("created_at", { ascending: false });
     if (error || !data) return local;
     const items = data.map((r) => ({ id: r.id, kind: r.kind, title: r.title, detail: r.detail, steps: r.steps || [], topic: r.topic, done: r.done }));
     lsSet("masar_achieve", items);
@@ -147,17 +154,17 @@ export const store = {
     const local = lsGet("masar_achieve", []);
     const next = local.some((a) => a.id === item.id) ? local.map((a) => (a.id === item.id ? item : a)) : [item, ...local];
     lsSet("masar_achieve", next);
-    if (hasSupabase) await supabase.from("achieve").upsert({ id: item.id, kind: item.kind, title: item.title, detail: item.detail, steps: item.steps, topic: item.topic, done: !!item.done, owner: "solo" });
+    if (hasSupabase) await supabase.from("achieve").upsert({ id: item.id, kind: item.kind, title: item.title, detail: item.detail, steps: item.steps, topic: item.topic, done: !!item.done, owner: CURRENT_OWNER });
   },
   async deleteAchieve(id) {
     lsSet("masar_achieve", lsGet("masar_achieve", []).filter((a) => a.id !== id));
-    if (hasSupabase) await supabase.from("achieve").delete().eq("id", id);
+    if (hasSupabase) await supabase.from("achieve").delete().eq("id", id).eq("owner", CURRENT_OWNER);
   },
 
   async loadFocus() {
     const local = lsGet("masar_focus", []);
     if (!hasSupabase) return local;
-    const { data, error } = await supabase.from("focus_sessions").select("*").order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("focus_sessions").select("*").eq("owner", CURRENT_OWNER).order("created_at", { ascending: false });
     if (error || !data) return local;
     const items = data.map((r) => ({ id: r.id, date: r.date, minutes: r.minutes, label: r.label || "", isStudy: !!r.is_study }));
     lsSet("masar_focus", items);
@@ -166,13 +173,13 @@ export const store = {
   async saveFocus(session) {
     const local = lsGet("masar_focus", []);
     lsSet("masar_focus", [session, ...local]);
-    if (hasSupabase) await supabase.from("focus_sessions").upsert({ id: session.id, date: session.date, minutes: session.minutes, label: session.label || "", is_study: !!session.isStudy, owner: "solo" });
+    if (hasSupabase) await supabase.from("focus_sessions").upsert({ id: session.id, date: session.date, minutes: session.minutes, label: session.label || "", is_study: !!session.isStudy, owner: CURRENT_OWNER });
   },
 
   async loadCommitments() {
     const local = lsGet("masar_commitments", []);
     if (!hasSupabase) return local;
-    const { data, error } = await supabase.from("commitments").select("*").order("created_at");
+    const { data, error } = await supabase.from("commitments").select("*").eq("owner", CURRENT_OWNER).order("created_at");
     if (error || !data) return local;
     const items = data.map((r) => ({ id: r.id, title: r.title, targetMinutes: r.target_minutes, catId: r.cat_id, log: r.log || {} }));
     lsSet("masar_commitments", items);
@@ -182,17 +189,17 @@ export const store = {
     const local = lsGet("masar_commitments", []);
     const next = local.some((x) => x.id === c.id) ? local.map((x) => (x.id === c.id ? c : x)) : [...local, c];
     lsSet("masar_commitments", next);
-    if (hasSupabase) await supabase.from("commitments").upsert({ id: c.id, title: c.title, target_minutes: c.targetMinutes, cat_id: c.catId || null, log: c.log || {}, owner: "solo" });
+    if (hasSupabase) await supabase.from("commitments").upsert({ id: c.id, title: c.title, target_minutes: c.targetMinutes, cat_id: c.catId || null, log: c.log || {}, owner: CURRENT_OWNER });
   },
   async deleteCommitment(id) {
     lsSet("masar_commitments", lsGet("masar_commitments", []).filter((c) => c.id !== id));
-    if (hasSupabase) await supabase.from("commitments").delete().eq("id", id);
+    if (hasSupabase) await supabase.from("commitments").delete().eq("id", id).eq("owner", CURRENT_OWNER);
   },
 
   async loadPrayerLog() {
     const local = lsGet("masar_prayer_log", []);
     if (!hasSupabase) return local;
-    const { data, error } = await supabase.from("prayer_log").select("*").order("done_at", { ascending: false });
+    const { data, error } = await supabase.from("prayer_log").select("*").eq("owner", CURRENT_OWNER).order("done_at", { ascending: false });
     if (error || !data) return local;
     const items = data.map((r) => ({ id: r.id, date: r.date, prayerId: r.prayer_id }));
     lsSet("masar_prayer_log", items);
@@ -202,18 +209,18 @@ export const store = {
     const local = lsGet("masar_prayer_log", []);
     if (local.some((p) => p.date === entry.date && p.prayerId === entry.prayerId)) return;
     lsSet("masar_prayer_log", [entry, ...local]);
-    if (hasSupabase) await supabase.from("prayer_log").upsert({ id: entry.id, date: entry.date, prayer_id: entry.prayerId, owner: "solo" });
+    if (hasSupabase) await supabase.from("prayer_log").upsert({ id: entry.id, date: entry.date, prayer_id: entry.prayerId, owner: CURRENT_OWNER });
   },
   async removePrayer(date, prayerId) {
     const local = lsGet("masar_prayer_log", []).filter((p) => !(p.date === date && p.prayerId === prayerId));
     lsSet("masar_prayer_log", local);
-    if (hasSupabase) await supabase.from("prayer_log").delete().eq("date", date).eq("prayer_id", prayerId);
+    if (hasSupabase) await supabase.from("prayer_log").delete().eq("date", date).eq("prayer_id", prayerId).eq("owner", CURRENT_OWNER);
   },
 
   async loadReligious() {
     const local = lsGet("masar_religious", []);
     if (!hasSupabase) return local;
-    const { data, error } = await supabase.from("religious_tasks").select("*").order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("religious_tasks").select("*").eq("owner", CURRENT_OWNER).order("created_at", { ascending: false });
     if (error || !data) return local;
     const items = data.map((r) => ({ id: r.id, date: r.date, taskKey: r.task_key, title: r.title, targetCount: r.target_count, targetMinutes: r.target_minutes, minutesSpent: r.minutes_spent || 0, done: r.done }));
     lsSet("masar_religious", items);
@@ -223,18 +230,18 @@ export const store = {
     const local = lsGet("masar_religious", []);
     const next = local.some((x) => x.id === t.id) ? local.map((x) => (x.id === t.id ? t : x)) : [t, ...local];
     lsSet("masar_religious", next);
-    if (hasSupabase) await supabase.from("religious_tasks").upsert({ id: t.id, date: t.date, task_key: t.taskKey, title: t.title, target_count: t.targetCount || null, target_minutes: t.targetMinutes || null, minutes_spent: t.minutesSpent || 0, done: !!t.done, done_at: t.done ? new Date().toISOString() : null, owner: "solo" });
+    if (hasSupabase) await supabase.from("religious_tasks").upsert({ id: t.id, date: t.date, task_key: t.taskKey, title: t.title, target_count: t.targetCount || null, target_minutes: t.targetMinutes || null, minutes_spent: t.minutesSpent || 0, done: !!t.done, done_at: t.done ? new Date().toISOString() : null, owner: CURRENT_OWNER });
   },
   async deleteReligious(id) {
     lsSet("masar_religious", lsGet("masar_religious", []).filter((t) => t.id !== id));
-    if (hasSupabase) await supabase.from("religious_tasks").delete().eq("id", id);
+    if (hasSupabase) await supabase.from("religious_tasks").delete().eq("id", id).eq("owner", CURRENT_OWNER);
   },
 
   async loadMandatoryLog() {
     const local = lsGet("masar_mandatory_log", {});
     if (!hasSupabase) return local;
     try {
-      const { data, error } = await supabase.from("mandatory_log").select("*").order("date");
+      const { data, error } = await supabase.from("mandatory_log").select("*").eq("owner", CURRENT_OWNER).order("date");
       if (error || !data) return local;
       const log = {};
       data.forEach((r) => { if (!log[r.date]) log[r.date] = {}; log[r.date][r.task_key] = r.done; });
@@ -250,7 +257,7 @@ export const store = {
     if (hasSupabase) {
       try {
         const { error } = await supabase.from("mandatory_log").upsert(
-          { date, task_key: taskKey, done, owner: "solo", updated_at: new Date().toISOString() },
+          { date, task_key: taskKey, done, owner: CURRENT_OWNER, updated_at: new Date().toISOString() },
           { onConflict: "owner,date,task_key" }
         );
         if (error) console.warn("mandatory_log sync error:", error.message);
@@ -262,7 +269,7 @@ export const store = {
     const local = lsGet("masar_azkar_log", {});
     if (!hasSupabase) return local;
     try {
-      const { data, error } = await supabase.from("azkar_log").select("*").order("date");
+      const { data, error } = await supabase.from("azkar_log").select("*").eq("owner", CURRENT_OWNER).order("date");
       if (error || !data) return local;
       const log = {};
       data.forEach((r) => { if (!log[r.date]) log[r.date] = {}; log[r.date][r.session] = r.done; });
@@ -287,7 +294,7 @@ export const store = {
     if (hasSupabase) {
       try {
         const { error } = await supabase.from("azkar_log").upsert(
-          { date, session, done, owner: "solo", updated_at: new Date().toISOString() },
+          { date, session, done, owner: CURRENT_OWNER, updated_at: new Date().toISOString() },
           { onConflict: "owner,date,session" }
         );
         if (error) console.warn("azkar_log sync error:", error.message);
@@ -299,7 +306,7 @@ export const store = {
     const local = lsGet("masar_quran_juz", {});
     if (!hasSupabase) return local;
     try {
-      const { data, error } = await supabase.from("quran_progress").select("*");
+      const { data, error } = await supabase.from("quran_progress").select("*").eq("owner", CURRENT_OWNER);
       if (error || !data) return local;
       const prog = {};
       data.forEach((r) => { prog[r.juz_num] = r.done; });
@@ -312,7 +319,7 @@ export const store = {
     data[juzNum] = done;
     lsSet("masar_quran_juz", data);
     if (hasSupabase) {
-      try { await supabase.from("quran_progress").upsert({ juz_num: juzNum, done, owner: "solo" }); } catch {}
+      try { await supabase.from("quran_progress").upsert({ juz_num: juzNum, done, owner: CURRENT_OWNER }); } catch {}
     }
   },
 
@@ -320,7 +327,7 @@ export const store = {
     const local = lsGet("masar_istighfar", { daily: {}, total: 0 });
     if (!hasSupabase) return local;
     try {
-      const { data, error } = await supabase.from("istighfar").select("*").eq("owner", "solo").maybeSingle();
+      const { data, error } = await supabase.from("istighfar").select("*").eq("owner", CURRENT_OWNER).maybeSingle();
       if (error || !data) return local;
       const result = { daily: data.daily || {}, total: data.total || 0 };
       lsSet("masar_istighfar", result);
@@ -330,7 +337,7 @@ export const store = {
   async saveIstighfar(data) {
     lsSet("masar_istighfar", data);
     if (hasSupabase) {
-      try { await supabase.from("istighfar").upsert({ owner: "solo", daily: data.daily, total: data.total, updated_at: new Date().toISOString() }); } catch {}
+      try { await supabase.from("istighfar").upsert({ owner: CURRENT_OWNER, daily: data.daily, total: data.total, updated_at: new Date().toISOString() }); } catch {}
     }
   },
 
@@ -338,7 +345,7 @@ export const store = {
     const local = lsGet("masar_points_log", []);
     if (!hasSupabase) return local;
     try {
-      const { data, error } = await supabase.from("points_log").select("*").eq("owner", "solo").order("date", { ascending: false }).limit(200);
+      const { data, error } = await supabase.from("points_log").select("*").eq("owner", CURRENT_OWNER).order("date", { ascending: false }).limit(200);
       if (error || !data) return local;
       const items = data.map((r) => ({ id: r.id, date: r.date, amount: r.amount, reason: r.reason }));
       lsSet("masar_points_log", items);
@@ -350,14 +357,14 @@ export const store = {
     const next = [entry, ...log].slice(0, 200);
     lsSet("masar_points_log", next);
     if (hasSupabase) {
-      try { await supabase.from("points_log").insert({ id: entry.id, date: entry.date, amount: entry.amount, reason: entry.reason, owner: "solo" }); } catch {}
+      try { await supabase.from("points_log").insert({ id: entry.id, date: entry.date, amount: entry.amount, reason: entry.reason, owner: CURRENT_OWNER }); } catch {}
     }
   },
 
   async loadGamify() {
     const local = lsGet(LS.gamify, { points: 0, badges: [] });
     if (!hasSupabase) return local;
-    const { data, error } = await supabase.from("gamify").select("*").eq("owner", "solo").maybeSingle();
+    const { data, error } = await supabase.from("gamify").select("*").eq("owner", CURRENT_OWNER).maybeSingle();
     if (error || !data) return local;
     const g = { points: data.points, badges: data.badges || [] };
     lsSet(LS.gamify, g);
@@ -365,14 +372,14 @@ export const store = {
   },
   async saveGamify(g) {
     lsSet(LS.gamify, g);
-    if (hasSupabase) await supabase.from("gamify").upsert({ owner: "solo", points: g.points, badges: g.badges, updated_at: new Date().toISOString() });
+    if (hasSupabase) await supabase.from("gamify").upsert({ owner: CURRENT_OWNER, points: g.points, badges: g.badges, updated_at: new Date().toISOString() });
   },
 
   async loadHealth() {
     const local = lsGet("masar_health", []);
     if (!hasSupabase) return local;
     try {
-      const { data, error } = await supabase.from("health_log").select("*").order("date", { ascending: false });
+      const { data, error } = await supabase.from("health_log").select("*").eq("owner", CURRENT_OWNER).order("date", { ascending: false });
       if (error || !data) return local;
       const items = data.map((r) => ({ id: r.id, date: r.date, steps: r.steps || 0, sleepHours: r.sleep_hours || 0, waterCups: r.water_cups || 0, weight: r.weight ?? null, energy: r.energy ?? null, note: r.note || "" }));
       lsSet("masar_health", items);
@@ -387,7 +394,7 @@ export const store = {
     if (hasSupabase) {
       try {
         const { error } = await supabase.from("health_log").upsert(
-          { id: h.id, date: h.date, steps: h.steps || 0, sleep_hours: h.sleepHours || 0, water_cups: h.waterCups || 0, weight: h.weight ?? null, energy: h.energy ?? null, note: h.note || "", owner: "solo", updated_at: new Date().toISOString() },
+          { id: h.id, date: h.date, steps: h.steps || 0, sleep_hours: h.sleepHours || 0, water_cups: h.waterCups || 0, weight: h.weight ?? null, energy: h.energy ?? null, note: h.note || "", owner: CURRENT_OWNER, updated_at: new Date().toISOString() },
           { onConflict: "owner,date" }
         );
         if (error) console.warn("health_log sync error:", error.message);

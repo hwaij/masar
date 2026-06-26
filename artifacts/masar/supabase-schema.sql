@@ -186,3 +186,123 @@ create table if not exists health_log (
   updated_at  timestamptz default now(),
   unique (owner, date)
 );
+
+-- ============================================================
+-- ترقية المفاتيح لتكون مخصّصة لكل مستخدم (تمنع تصادم بيانات حسابين)
+-- categories: المفتاح صار (owner, id) لأن التصنيفات الافتراضية تشترك بنفس id.
+-- health_log: نزيل مفتاح id العام ونعتمد على فرادة (owner, date) للحفظ.
+-- آمن لإعادة التشغيل (يستخدم drop ... if exists).
+-- ============================================================
+alter table categories drop constraint if exists categories_pkey;
+alter table categories add primary key (owner, id);
+
+alter table health_log drop constraint if exists health_log_pkey;
+
+-- ============================================================
+-- أمان الصفوف (RLS): عزل بيانات كل مستخدم على مستوى الخادم
+-- المستخدم المسجّل بـ Google يرى بياناته فقط (owner = معرّفه).
+-- غير المسجّل (anon) يصل فقط لبيانات 'solo' المحلية الافتراضية.
+-- شغّل هذا في Supabase SQL Editor لتفعيل الحماية الكاملة.
+-- ============================================================
+
+alter table categories enable row level security;
+drop policy if exists categories_anon_solo on categories;
+create policy categories_anon_solo on categories for all to anon using (owner = 'solo') with check (owner = 'solo');
+drop policy if exists categories_user_own on categories;
+create policy categories_user_own on categories for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
+alter table entries enable row level security;
+drop policy if exists entries_anon_solo on entries;
+create policy entries_anon_solo on entries for all to anon using (owner = 'solo') with check (owner = 'solo');
+drop policy if exists entries_user_own on entries;
+create policy entries_user_own on entries for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
+alter table tasks enable row level security;
+drop policy if exists tasks_anon_solo on tasks;
+create policy tasks_anon_solo on tasks for all to anon using (owner = 'solo') with check (owner = 'solo');
+drop policy if exists tasks_user_own on tasks;
+create policy tasks_user_own on tasks for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
+alter table reports enable row level security;
+drop policy if exists reports_anon_solo on reports;
+create policy reports_anon_solo on reports for all to anon using (owner = 'solo') with check (owner = 'solo');
+drop policy if exists reports_user_own on reports;
+create policy reports_user_own on reports for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
+alter table profile enable row level security;
+drop policy if exists profile_anon_solo on profile;
+create policy profile_anon_solo on profile for all to anon using (owner = 'solo') with check (owner = 'solo');
+drop policy if exists profile_user_own on profile;
+create policy profile_user_own on profile for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
+alter table achieve enable row level security;
+drop policy if exists achieve_anon_solo on achieve;
+create policy achieve_anon_solo on achieve for all to anon using (owner = 'solo') with check (owner = 'solo');
+drop policy if exists achieve_user_own on achieve;
+create policy achieve_user_own on achieve for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
+alter table focus_sessions enable row level security;
+drop policy if exists focus_sessions_anon_solo on focus_sessions;
+create policy focus_sessions_anon_solo on focus_sessions for all to anon using (owner = 'solo') with check (owner = 'solo');
+drop policy if exists focus_sessions_user_own on focus_sessions;
+create policy focus_sessions_user_own on focus_sessions for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
+alter table commitments enable row level security;
+drop policy if exists commitments_anon_solo on commitments;
+create policy commitments_anon_solo on commitments for all to anon using (owner = 'solo') with check (owner = 'solo');
+drop policy if exists commitments_user_own on commitments;
+create policy commitments_user_own on commitments for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
+alter table prayer_log enable row level security;
+drop policy if exists prayer_log_anon_solo on prayer_log;
+create policy prayer_log_anon_solo on prayer_log for all to anon using (owner = 'solo') with check (owner = 'solo');
+drop policy if exists prayer_log_user_own on prayer_log;
+create policy prayer_log_user_own on prayer_log for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
+alter table religious_tasks enable row level security;
+drop policy if exists religious_tasks_anon_solo on religious_tasks;
+create policy religious_tasks_anon_solo on religious_tasks for all to anon using (owner = 'solo') with check (owner = 'solo');
+drop policy if exists religious_tasks_user_own on religious_tasks;
+create policy religious_tasks_user_own on religious_tasks for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
+alter table gamify enable row level security;
+drop policy if exists gamify_anon_solo on gamify;
+create policy gamify_anon_solo on gamify for all to anon using (owner = 'solo') with check (owner = 'solo');
+drop policy if exists gamify_user_own on gamify;
+create policy gamify_user_own on gamify for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
+alter table mandatory_log enable row level security;
+drop policy if exists mandatory_log_anon_solo on mandatory_log;
+create policy mandatory_log_anon_solo on mandatory_log for all to anon using (owner = 'solo') with check (owner = 'solo');
+drop policy if exists mandatory_log_user_own on mandatory_log;
+create policy mandatory_log_user_own on mandatory_log for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
+alter table azkar_log enable row level security;
+drop policy if exists azkar_log_anon_solo on azkar_log;
+create policy azkar_log_anon_solo on azkar_log for all to anon using (owner = 'solo') with check (owner = 'solo');
+drop policy if exists azkar_log_user_own on azkar_log;
+create policy azkar_log_user_own on azkar_log for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
+alter table quran_progress enable row level security;
+drop policy if exists quran_progress_anon_solo on quran_progress;
+create policy quran_progress_anon_solo on quran_progress for all to anon using (owner = 'solo') with check (owner = 'solo');
+drop policy if exists quran_progress_user_own on quran_progress;
+create policy quran_progress_user_own on quran_progress for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
+alter table points_log enable row level security;
+drop policy if exists points_log_anon_solo on points_log;
+create policy points_log_anon_solo on points_log for all to anon using (owner = 'solo') with check (owner = 'solo');
+drop policy if exists points_log_user_own on points_log;
+create policy points_log_user_own on points_log for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
+alter table istighfar enable row level security;
+drop policy if exists istighfar_anon_solo on istighfar;
+create policy istighfar_anon_solo on istighfar for all to anon using (owner = 'solo') with check (owner = 'solo');
+drop policy if exists istighfar_user_own on istighfar;
+create policy istighfar_user_own on istighfar for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
+alter table health_log enable row level security;
+drop policy if exists health_log_anon_solo on health_log;
+create policy health_log_anon_solo on health_log for all to anon using (owner = 'solo') with check (owner = 'solo');
+drop policy if exists health_log_user_own on health_log;
+create policy health_log_user_own on health_log for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);

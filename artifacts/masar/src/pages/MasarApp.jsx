@@ -1,5 +1,6 @@
 "use strict";
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, ResponsiveContainer,
   Tooltip, LineChart, Line, CartesianGrid,
@@ -115,6 +116,7 @@ const HS = {
 
 export default function MasarApp() {
   const [loaded, setLoaded] = useState(false);
+  const [showSplash, setShowSplash] = useState(() => !sessionStorage.getItem("masar_splash_done"));
   const [view, setView] = useState("today");
   const [entries, setEntries] = useState([]);
   const [tasks, setTasks] = useState([]);
@@ -285,9 +287,18 @@ export default function MasarApp() {
     showToast("تم تسجيل الخروج");
   }, [loadAll, showToast]);
 
-  if (!loaded) {
-    return <div style={{ ...S.app, ...S.loaderWrap }}><Loader2 size={28} color="#C9A24B" className="spin" /></div>;
-  }
+  useEffect(() => {
+    if (!showSplash) return;
+    const t = setTimeout(() => {
+      setShowSplash(false);
+      sessionStorage.setItem("masar_splash_done", "1");
+    }, 3600);
+    return () => clearTimeout(t);
+  }, [showSplash]);
+
+  if (showSplash) return <SplashScreen />;
+  if (!loaded) return <div style={{ ...S.app, ...S.loaderWrap }}><Loader2 size={28} color="#C9A24B" className="spin" /></div>;
+  if (hasAuth && !user) return <LandingPage onSignIn={handleSignIn} />;
 
   return (
     <div style={S.app}>
@@ -325,6 +336,122 @@ export default function MasarApp() {
         {view === "settings" && <SettingsView categories={categories} setCategories={setCategories} gamify={gamify} hasCloud={store.hasCloud} showToast={showToast} profile={profile} setProfile={setProfile} pointsLog={pointsLog} />}
       </div>
       {toast && <div style={S.toast}>{toast}</div>}
+    </div>
+  );
+}
+
+function SplashScreen() {
+  return (
+    <div style={{ minHeight: "100vh", background: "#0A0A0B", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 0, overflow: "hidden", direction: "rtl" }}>
+      <motion.div
+        initial={{ scale: 0.4, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ duration: 0.7, ease: [0.34, 1.56, 0.64, 1] }}
+        style={{ fontSize: 80, lineHeight: 1, color: "#C9A24B", marginBottom: 24, filter: "drop-shadow(0 0 32px rgba(201,162,75,0.45))" }}
+      >◐</motion.div>
+      <motion.div
+        initial={{ opacity: 0, y: 18 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.5, duration: 0.6 }}
+        style={{ fontFamily: "'Amiri', serif", fontSize: 48, fontWeight: 700, color: "#E8E6E1", letterSpacing: 2 }}
+      >مسار</motion.div>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 1.1, duration: 0.7 }}
+        style={{ fontSize: 15, color: "#6B6863", marginTop: 10, letterSpacing: 1 }}
+      >تتبّع وقتك · ارتقِ بيومك</motion.div>
+      <motion.div
+        initial={{ scaleX: 0, opacity: 0 }}
+        animate={{ scaleX: 1, opacity: 1 }}
+        transition={{ delay: 1.8, duration: 1.4, ease: "easeInOut" }}
+        style={{ marginTop: 52, width: 120, height: 2, background: "linear-gradient(90deg, transparent, #C9A24B, transparent)", borderRadius: 2, transformOrigin: "center" }}
+      />
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: [0, 0.5, 0] }}
+        transition={{ delay: 2.4, duration: 1, repeat: Infinity }}
+        style={{ marginTop: 18, display: "flex", gap: 7 }}
+      >
+        {[0, 1, 2].map((i) => (
+          <motion.div key={i} animate={{ opacity: [0.2, 1, 0.2] }} transition={{ delay: i * 0.2, duration: 0.8, repeat: Infinity }}
+            style={{ width: 6, height: 6, borderRadius: "50%", background: "#C9A24B" }} />
+        ))}
+      </motion.div>
+    </div>
+  );
+}
+
+const FEATURES = [
+  { icon: "🕌", title: "تتبّع الصلوات", desc: "سجّل الصلوات الخمس يومياً وابنِ عادة ثابتة" },
+  { icon: "⏱️", title: "مؤقت التركيز", desc: "جلسات تركيز مع إحصاءات ومنافسة الروبوتات" },
+  { icon: "📿", title: "الأذكار والقرآن", desc: "تتبّع أذكارك وتقدّمك في حفظ وقراءة القرآن" },
+  { icon: "✅", title: "المهام اليومية", desc: "نظّم مهامك واحتفل بكل إنجاز صغير" },
+  { icon: "📊", title: "تقارير وتحليل", desc: "شاهد تقدّمك الأسبوعي بأرقام واضحة" },
+  { icon: "🤖", title: "مساعد ذكي", desc: "مستشار شخصي يعرف عاداتك ويقترح تحسينات" },
+];
+
+function LandingPage({ onSignIn }) {
+  const [signing, setSigning] = useState(false);
+  async function handleClick() {
+    setSigning(true);
+    try { await onSignIn(); } finally { setSigning(false); }
+  }
+  return (
+    <div style={{ minHeight: "100vh", background: "#0A0A0B", color: "#E8E6E1", direction: "rtl", fontFamily: "inherit", overflowX: "hidden" }}>
+      <div style={{ maxWidth: 480, margin: "0 auto", padding: "0 20px 60px" }}>
+        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}
+          style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 64, paddingBottom: 40, textAlign: "center" }}>
+          <div style={{ fontSize: 64, color: "#C9A24B", marginBottom: 16, filter: "drop-shadow(0 0 24px rgba(201,162,75,0.4))" }}>◐</div>
+          <h1 style={{ fontFamily: "'Amiri', serif", fontSize: 42, fontWeight: 700, margin: 0, letterSpacing: 2 }}>مسار</h1>
+          <p style={{ fontSize: 16, color: "#8A8782", marginTop: 12, lineHeight: 1.8, maxWidth: 300 }}>
+            رفيقك اليومي لتنظيم وقتك وتعزيز عاداتك الإسلامية
+          </p>
+          <motion.button
+            whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+            onClick={handleClick} disabled={signing}
+            style={{ marginTop: 32, display: "flex", alignItems: "center", gap: 12, background: "#fff", color: "#1a1a1a", border: "none", borderRadius: 14, padding: "14px 28px", fontSize: 15, fontWeight: 700, cursor: signing ? "wait" : "pointer", fontFamily: "inherit", boxShadow: "0 4px 24px rgba(0,0,0,0.4)", minWidth: 220, justifyContent: "center" }}
+          >
+            {signing ? <Loader2 size={18} className="spin" /> : (
+              <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#4285F4" d="M44.5 20H24v8.5h11.8C34.7 33.9 30 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-22 0-1.3-.2-2.7-.5-4z"/><path fill="#34A853" d="M6.3 14.7l7 5.1C15 16.1 19.1 13 24 13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2c-7.7 0-14.4 4.3-17.7 10.7z"/><path fill="#FBBC05" d="M24 46c5.8 0 10.7-1.9 14.3-5.2l-6.6-5.4C29.7 37 27 38 24 38c-5.9 0-10.9-3.8-12.7-9.1l-7 5.4C7.9 41.7 15.4 46 24 46z"/><path fill="#EA4335" d="M44.5 20H24v8.5h11.8c-1 2.9-2.9 5.2-5.3 6.9l6.6 5.4C41.3 37.4 45 31.2 45 24c0-1.3-.2-2.7-.5-4z"/></svg>
+            )}
+            {signing ? "جارٍ التحميل..." : "ابدأ مع Google"}
+          </motion.button>
+          <p style={{ marginTop: 14, fontSize: 12, color: "#4A4845" }}>بياناتك محفوظة لديك فقط · لا إعلانات · مجاني</p>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3, duration: 0.6 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            {FEATURES.map((f, i) => (
+              <motion.div key={f.title}
+                initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 + i * 0.08, duration: 0.5 }}
+                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: "16px 14px", textAlign: "center" }}>
+                <div style={{ fontSize: 30, marginBottom: 8 }}>{f.icon}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#E8E6E1", marginBottom: 5 }}>{f.title}</div>
+                <div style={{ fontSize: 11.5, color: "#6B6863", lineHeight: 1.6 }}>{f.desc}</div>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }}
+          style={{ marginTop: 40, textAlign: "center", display: "flex", flexDirection: "column", gap: 20, alignItems: "center" }}>
+          <div style={{ width: "100%", height: 1, background: "rgba(255,255,255,0.06)" }} />
+          <div style={{ display: "flex", gap: 24, justifyContent: "center", fontSize: 13, color: "#6B6863" }}>
+            <span>🔒 بدون إعلانات</span>
+            <span>☁️ مزامنة سحابية</span>
+            <span>📱 يشتغل أوفلاين</span>
+          </div>
+          <motion.button
+            whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+            onClick={handleClick} disabled={signing}
+            style={{ display: "flex", alignItems: "center", gap: 10, background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.35)", color: "#C9A24B", borderRadius: 14, padding: "13px 32px", fontSize: 15, fontWeight: 700, cursor: signing ? "wait" : "pointer", fontFamily: "inherit" }}>
+            <LogIn size={18} />
+            سجّل دخولك الآن — مجاناً
+          </motion.button>
+        </motion.div>
+      </div>
     </div>
   );
 }

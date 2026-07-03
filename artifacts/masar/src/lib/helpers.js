@@ -26,9 +26,9 @@ export function arabicDate(key, opts) {
   return new Date(key).toLocaleDateString("ar-KW-u-nu-latn", opts);
 }
 
-export function computeStreak(entries) {
-  if (!entries.length) return 0;
-  const days = new Set(entries.map((e) => e.date));
+export function computeStreak(dates) {
+  if (!dates.length) return 0;
+  const days = new Set(dates.map((d) => (typeof d === "string" ? d : d.date)));
   let streak = 0;
   let d = new Date();
   if (!days.has(todayKey(d))) {

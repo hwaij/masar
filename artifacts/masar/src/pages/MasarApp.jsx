@@ -237,7 +237,12 @@ export default function MasarApp() {
     }
     return {
       totalEntries: entries.length,
-      streak: computeStreak(entries),
+      streak: computeStreak([
+        ...entries.map((e) => e.date),
+        ...focus.map((f) => f.date),
+        ...prayerLog.map((p) => p.date),
+        ...tasks.map((t) => t.due || (t.created ? t.created.slice(0, 10) : null)).filter(Boolean),
+      ]),
       tasksDone: tasks.filter((t) => t.done).length,
       maxDayHours: Math.max(0, ...Object.values(dayHours)) / 60,
       focusSessions: focus.length,
@@ -246,7 +251,7 @@ export default function MasarApp() {
       azkarStreak,
       istighfarTotal: istighfar.total || 0,
     };
-  }, [entries, tasks, focus, quranProgress, azkarLog, istighfar]);
+  }, [entries, tasks, focus, prayerLog, quranProgress, azkarLog, istighfar]);
 
   useEffect(() => {
     if (!loaded) return;

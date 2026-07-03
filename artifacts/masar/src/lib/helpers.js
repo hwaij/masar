@@ -1,6 +1,7 @@
 export function todayKey(d = new Date()) {
   return d.toISOString().slice(0, 10);
 }
+
 export function fmtHM(mins) {
   const h = Math.floor(mins / 60);
   const m = Math.round(mins % 60);
@@ -8,9 +9,11 @@ export function fmtHM(mins) {
   if (m === 0) return `${h} س`;
   return `${h} س ${m} د`;
 }
+
 export function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
+
 export function diffMinutes(start, end) {
   const [sh, sm] = start.split(":").map(Number);
   const [eh, em] = end.split(":").map(Number);
@@ -18,9 +21,11 @@ export function diffMinutes(start, end) {
   if (mins < 0) mins += 24 * 60;
   return mins;
 }
+
 export function arabicDate(key, opts) {
   return new Date(key).toLocaleDateString("ar-KW-u-nu-latn", opts);
 }
+
 export function computeStreak(entries) {
   if (!entries.length) return 0;
   const days = new Set(entries.map((e) => e.date));
@@ -38,25 +43,38 @@ export function computeStreak(entries) {
 }
 
 export function getLevel(points) {
-  // L1: 0–99, L2: 100–249, then +150 per level (open-ended)
-  const FIXED_LABELS = ["مبتدئ", "منتظم", "ملتزم", "متقدم", "محترف", "خبير", "نخبة", "أسطورة", "بطل", "خارق"];
-  // Compute threshold for level n (0-indexed): L0=0, L1=100, L2=250, L3=400, ...
+  const FIXED_LABELS = [
+    "مبتدئ",
+    "منتظم",
+    "ملتزم",
+    "متقدم",
+    "محترف",
+    "خبير",
+    "نخبة",
+    "أسطورة",
+    "بطل",
+    "خارق",
+  ];
+
   function threshold(n) {
     if (n === 0) return 0;
     if (n === 1) return 100;
     return 250 + (n - 2) * 150;
   }
+
   let lvl = 0;
   while (points >= threshold(lvl + 1)) lvl++;
+
   const label = FIXED_LABELS[lvl] || `مستوى ${lvl + 1}`;
   const cur = threshold(lvl);
   const nxt = threshold(lvl + 1);
+
   return {
     level: lvl + 1,
     label,
     current: cur,
     next: nxt,
-    progress: (points - cur) / (nxt - cur),
+    progress: Math.min((points - cur) / (nxt - cur), 1),
   };
 }
 
@@ -126,7 +144,7 @@ const QURAN_JUZ_NAMES = [
   "وإذا سمعوا","ولو أننا","قال الملأ","واعلموا","يعتذرون","وما من دابة",
   "وما أبرئ","ربما","سبحان الذي","قال ألم","اقترب","قد أفلح",
   "وقال الذين","أمن خلق","اتل ما أوحي","ومن يقنت","وما لي",
-  "فمن أظلم","إليه يرد","حم","قال فما خطبكم","قد سمع الله",
+  "فمن أظلم","ومن يرد","حم","قال فما خطبكم","قد سمع الله",
   "تبارك الذي","عم",
 ];
 

@@ -1996,6 +1996,50 @@ function AchieveCard({ item, kindLabel, onToggle, onRemove }) {
   );
 }
 
+function GeminiKeyCard({ showToast }) {
+  const [key, setKey] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    import("../lib/gemini.js").then(({ getGeminiKey }) => setKey(getGeminiKey()));
+  }, []);
+
+  async function handleSave() {
+    const { setGeminiKey } = await import("../lib/gemini.js");
+    setGeminiKey(key);
+    setSaved(true);
+    showToast("تم حفظ مفتاح Gemini");
+    setTimeout(() => setSaved(false), 2000);
+  }
+
+  return (
+    <div style={{ background: "rgba(95,168,160,0.06)", border: "1px solid rgba(95,168,160,0.2)", borderRadius: 14, padding: "14px 16px", marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        <span style={{ fontSize: 16 }}>🤖</span>
+        <span style={{ fontSize: 14, fontWeight: 700, color: "#5FA8A0" }}>مفتاح Gemini AI</span>
+      </div>
+      <p style={{ fontSize: 12, color: "#6B6863", lineHeight: 1.7, margin: "0 0 10px" }}>
+        مطلوب لتفعيل المساعد الذكي والتحليل. احصل على مفتاح مجاني من{" "}
+        <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" style={{ color: "#5FA8A0" }}>aistudio.google.com</a>
+      </p>
+      <div style={{ display: "flex", gap: 8 }}>
+        <input
+          type="password"
+          value={key}
+          onChange={(e) => setKey(e.target.value)}
+          placeholder="AIza..."
+          dir="ltr"
+          style={{ flex: 1, background: "#0F0F11", border: "1px solid #2A2A2D", borderRadius: 10, padding: "9px 12px", color: "#E8E6E1", fontSize: 13, fontFamily: "inherit", outline: "none" }}
+        />
+        <button onClick={handleSave} style={{ background: saved ? "rgba(95,168,160,0.3)" : "rgba(95,168,160,0.12)", border: "1px solid rgba(95,168,160,0.4)", color: "#5FA8A0", borderRadius: 10, padding: "9px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
+          {saved ? "✓ تم" : "حفظ"}
+        </button>
+      </div>
+      {key && <p style={{ fontSize: 11, color: "#4A6B68", marginTop: 8, margin: "8px 0 0" }}>المفتاح محفوظ محلياً على جهازك فقط</p>}
+    </div>
+  );
+}
+
 function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, profile, setProfile, pointsLog }) {
   const [editing, setEditing] = useState(null);
   const [newName, setNewName] = useState("");
@@ -2019,6 +2063,7 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
     <div style={S.view}>
       <div style={S.sectionTitle}>التخصيص</div>
       <ProfileCard profile={profile} setProfile={setProfile} showToast={showToast} />
+      <GeminiKeyCard showToast={showToast} />
       {!hasCloud && (
         <div style={S.setupCard}>
           <Cloud size={16} color="#5FA8A0" style={{ flexShrink: 0, marginTop: 2 }} />

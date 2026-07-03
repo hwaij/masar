@@ -1,0 +1,12 @@
+[build]
+  command   = "pnpm --filter @workspace/masar run build"
+  publish   = "artifacts/masar/dist"
+  base      = "."
+
+[build.environment]
+  NODE_VERSION = "20"
+
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200

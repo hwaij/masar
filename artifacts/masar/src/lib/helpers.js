@@ -193,27 +193,13 @@ export const DEFAULT_DAILY_TASKS = [
 ];
 
 export async function analyze(prompt, maxTokens = 1000) {
-  const base = import.meta.env.BASE_URL || "/";
-  const res = await fetch(`${base}api/analyze`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, maxTokens }),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "تعذّر التحليل");
-  return data.text;
+  const { geminiAnalyze } = await import("./gemini.js");
+  return geminiAnalyze(prompt, maxTokens);
 }
 
 export async function coachChat(messages, context) {
-  const base = import.meta.env.BASE_URL || "/";
-  const res = await fetch(`${base}api/coach`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, context }),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "تعذّر الاتصال بالمساعد");
-  return data.text;
+  const { geminiCoachChat } = await import("./gemini.js");
+  return geminiCoachChat(messages, context);
 }
 
 export function parseJsonLoose(text) {

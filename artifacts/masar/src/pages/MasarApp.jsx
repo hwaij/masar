@@ -1519,6 +1519,24 @@ function FocusReport({ focus, title, color, emptyMsg, studyEntries }) {
   );
 }
 
+const ROBOT_DATA = [
+  { id: "ahmed",  name: "Ahmed",  flag: "🇸🇦", country: "Saudi Arabia", specialty: "Web Dev",      trait: "ناشط ومثابر",      base: 320, speed: 0.11, phase: 0.0  },
+  { id: "fatima", name: "Fatima", flag: "🇪🇬", country: "Egypt",        specialty: "Design",       trait: "مبدعة وملهمة",     base: 285, speed: 0.07, phase: 1.1  },
+  { id: "omar",   name: "Omar",   flag: "🇦🇪", country: "UAE",          specialty: "Marketing",    trait: "استراتيجي وذكي",   base: 410, speed: 0.13, phase: 2.3  },
+  { id: "layla",  name: "Layla",  flag: "🇯🇴", country: "Jordan",       specialty: "UX",           trait: "دقيقة ومتأنية",    base: 195, speed: 0.09, phase: 0.7  },
+  { id: "karim",  name: "Karim",  flag: "🇲🇦", country: "Morocco",      specialty: "Data Science", trait: "تحليلي وعميق",     base: 340, speed: 0.15, phase: 3.5  },
+  { id: "noor",   name: "Noor",   flag: "🇰🇼", country: "Kuwait",       specialty: "Content",      trait: "رشيقة وسريعة",    base: 150, speed: 0.06, phase: 1.8  },
+  { id: "hassan", name: "Hassan", flag: "🇶🇦", country: "Qatar",        specialty: "Backend",      trait: "صامت وفعّال",      base: 460, speed: 0.10, phase: 4.2  },
+  { id: "amira",  name: "Amira",  flag: "🇧🇭", country: "Bahrain",      specialty: "Branding",     trait: "أنيقة ومتجددة",    base: 230, speed: 0.08, phase: 2.9  },
+  { id: "rashid", name: "Rashid", flag: "🇹🇳", country: "Tunisia",      specialty: "iOS Dev",      trait: "شغوف ومتطور",      base: 380, speed: 0.14, phase: 0.4  },
+  { id: "sara",   name: "Sara",   flag: "🇱🇧", country: "Lebanon",      specialty: "Photography",  trait: "حساسة وفنية",      base: 270, speed: 0.12, phase: 5.1  },
+  { id: "zain",   name: "Zain",   flag: "🇮🇶", country: "Iraq",         specialty: "AI",           trait: "فضولي ومتعمق",     base: 445, speed: 0.05, phase: 1.5  },
+  { id: "dina",   name: "Dina",   flag: "🇾🇪", country: "Yemen",        specialty: "Writing",      trait: "شاعرية وعذبة",     base: 180, speed: 0.16, phase: 3.0  },
+  { id: "malik",  name: "Malik",  flag: "🇵🇸", country: "Palestine",    specialty: "SEO",          trait: "صبور ومنهجي",      base: 310, speed: 0.09, phase: 6.2  },
+  { id: "maya",   name: "Maya",   flag: "🇴🇲", country: "Oman",         specialty: "Video",        trait: "حيوية ومبتكرة",    base: 255, speed: 0.11, phase: 4.7  },
+  { id: "carlos", name: "Carlos", flag: "🇪🇸", country: "Spain",        specialty: "Music",        trait: "إيقاعي ومتدفق",    base: 490, speed: 0.07, phase: 2.1  },
+];
+
 function BotsChallenge({ focus, entries, categories }) {
   const [tick, setTick] = useState(0);
   useEffect(() => {
@@ -1544,19 +1562,16 @@ function BotsChallenge({ focus, entries, categories }) {
     return (focus || []).filter((f) => f.date === today).reduce((s, f) => s + f.minutes, 0);
   }, [focus]);
   const myToday = entriesMinutes + focusMinutes;
-  const hour = new Date().getHours() + new Date().getMinutes() / 60;
+
   const bots = useMemo(() => {
-    const winner = Math.round(Math.min(240, hour * 11 + 20));
-    const avg = Math.round(Math.max(0, Math.min(180, hour * 6 + Math.sin(hour * 1.5 + tick * 0.1) * 25)));
-    const loser = Math.round(Math.max(0, Math.min(70, hour * 2.2 - 5)));
-    let list = [
-      { id: "winner", name: "ناجح", emoji: "🟢", mins: Math.max(winner, myToday > winner ? myToday : winner), color: "#5FA8A0", trait: "منظم ومستمر، يتفوق عليك إذا توقفت" },
-      { id: "avg", name: "متوسط", emoji: "🟡", mins: avg, color: "#C9A24B", trait: "يتقدم أحياناً ويتراجع أحياناً" },
-      { id: "loser", name: "متكاسل", emoji: "🔴", mins: loser, color: "#D17B5F", trait: "يتأخر دائماً ويتوقف بسرعة" },
-    ];
-    const me = { id: "me", name: "أنت", emoji: "⭐", mins: myToday, color: "#E8E6E1", trait: "تقدمك الحقيقي اليوم", isMe: true };
+    const list = ROBOT_DATA.map((r) => ({
+      ...r,
+      mins: Math.max(0, Math.round(r.base + Math.sin(tick * r.speed + r.phase) * 35 + Math.cos(tick * r.speed * 0.6 + r.phase + 1) * 15)),
+      color: "#5FA8A0",
+    }));
+    const me = { id: "me", name: "أنت", flag: "⭐", country: "", specialty: "", trait: "تقدمك الحقيقي اليوم", mins: myToday, color: "#E8E6E1", isMe: true };
     return [...list, me].sort((a, b) => b.mins - a.mins);
-  }, [hour, tick, myToday]);
+  }, [tick, myToday]);
 
   const maxMins = Math.max(60, ...bots.map((b) => b.mins));
   const myRank = bots.findIndex((b) => b.isMe) + 1;
@@ -1564,27 +1579,31 @@ function BotsChallenge({ focus, entries, categories }) {
   return (
     <div>
       <div style={{ ...S.sectionTitle, fontSize: 17 }}>تحدي الروبوتات</div>
-      <p style={S.profileHint}>منافسون افتراضيون يتحركون على مدار اليوم. ركّز أكثر لتتقدم عليهم.</p>
+      <p style={S.profileHint}>15 منافس من دول مختلفة يتحركون بشكل عشوائي. ركّز أكثر لتتقدم عليهم.</p>
       <div style={S.rankBanner}>
         <Trophy size={16} color={myRank === 1 ? "#C9A24B" : "#8A8782"} />
-        <span>ترتيبك الآن: <strong style={{ color: myRank === 1 ? "#C9A24B" : "#E8E6E1" }}>{myRank} من 4</strong></span>
+        <span>ترتيبك الآن: <strong style={{ color: myRank === 1 ? "#C9A24B" : "#E8E6E1" }}>{myRank} من 16</strong></span>
         {myRank === 1 && <span style={S.leadPill}>متصدّر</span>}
       </div>
       <div style={S.botsList}>
         {bots.map((b, i) => (
           <div key={b.id} style={{ ...S.botRow, ...(b.isMe ? S.botRowMe : {}) }}>
             <span style={S.botRank}>{i + 1}</span>
-            <span style={S.botEmoji}>{b.emoji}</span>
+            <span style={S.botEmoji}>{b.flag}</span>
             <div style={S.botInfo}>
-              <div style={S.botName}>{b.name} {b.isMe && <span style={S.botYou}>أنت</span>}</div>
-              <div style={S.botTrait}>{b.trait}</div>
-              <div style={S.botBarWrap}><div style={{ ...S.botBarFill, width: `${(b.mins / maxMins) * 100}%`, background: b.color }} /></div>
+              <div style={S.botName}>
+                {b.name}
+                {b.isMe && <span style={S.botYou}>أنت</span>}
+                {!b.isMe && <span style={{ fontSize: 11, color: "#8A8782", marginRight: 6 }}>{b.specialty}</span>}
+              </div>
+              <div style={S.botTrait}>{!b.isMe && <span style={{ marginLeft: 4 }}>{b.country}</span>}{b.trait}</div>
+              <div style={S.botBarWrap}><div style={{ ...S.botBarFill, width: `${(b.mins / maxMins) * 100}%`, background: b.isMe ? "#E8E6E1" : b.color }} /></div>
             </div>
             <span style={S.botMins}>{fmtHM(b.mins)}</span>
           </div>
         ))}
       </div>
-      <div style={S.memoryNote}><Zap size={13} color="#C9A24B" /><span>تتحدث أوقات الروبوتات تلقائياً كل دقيقة ومع تقدّم الساعة.</span></div>
+      <div style={S.memoryNote}><Zap size={13} color="#C9A24B" /><span>تتحدث أوقات الروبوتات تلقائياً كل دقيقة بشكل عشوائي مستقل.</span></div>
     </div>
   );
 }

@@ -21,10 +21,10 @@ export function onAuthChange(cb) {
 export async function signInWithGoogle() {
   if (!hasSupabase) throw new Error("no-supabase");
   const base = import.meta.env.BASE_URL || "/";
-  const redirectTo = window.location.origin + base;
+  const redirectTo = `${window.location.protocol}//${window.location.host}${base}`;
   const { error } = await supabase.auth.signInWithOAuth({
     provider: "google",
-    options: { redirectTo },
+    options: { redirectTo, queryParams: { prompt: "select_account" } },
   });
   if (error) throw error;
 }

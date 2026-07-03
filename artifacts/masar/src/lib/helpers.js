@@ -54,12 +54,15 @@ export function getLevel(points) {
     "أسطورة",
     "بطل",
     "خارق",
+    "عبقري",
+    "أسطوري",
+    "لا يُهزم",
+    "خرافي",
+    "إلهي",
   ];
 
   function threshold(n) {
-    if (n === 0) return 0;
-    if (n === 1) return 100;
-    return 250 + (n - 2) * 150;
+    return 25 * n * (n + 3);
   }
 
   let lvl = 0;

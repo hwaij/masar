@@ -60,21 +60,35 @@ export const store = {
     if (!hasSupabase) return local;
     const { data, error } = await supabase.from("categories").select("*").eq("owner", CURRENT_OWNER).order("created_at");
     if (error || !data) return local;
-    const cats = data.map((r) => ({ id: r.id, name: r.name, color: r.color }));
-    const result = cats.length ? cats : DEFAULT_CATEGORIES;
-    lsSet(LS.categories, result);
-    return result;
+    const cloudCats = data.map((r) => ({ id: r.id, name: r.name, color: r.color }));
+    if (cloudCats.length === 0) {
+      lsSet(LS.categories, DEFAULT_CATEGORIES);
+      return DEFAULT_CATEGORIES;
+    }
+    const cloudIds = new Set(cloudCats.map((c) => c.id));
+    const merged = [...cloudCats, ...DEFAULT_CATEGORIES.filter((d) => !cloudIds.has(d.id))];
+    lsSet(LS.categories, merged);
+    return merged;
   },
   async saveCategory(cat) {
     const local = lsGet(LS.categories, DEFAULT_CATEGORIES);
     const next = local.some((c) => c.id === cat.id) ? local.map((c) => (c.id === cat.id ? cat : c)) : [...local, cat];
     lsSet(LS.categories, next);
-    if (hasSupabase) await supabase.from("categories").upsert({ id: cat.id, name: cat.name, color: cat.color, owner: CURRENT_OWNER }, { onConflict: "owner,id" });
+    if (hasSupabase) {
+      const { error } = await supabase.from("categories").upsert(
+        { id: cat.id, name: cat.name, color: cat.color, owner: CURRENT_OWNER },
+        { onConflict: "owner,id" }
+      );
+      if (error) console.error("[saveCategory] Supabase error:", error.message);
+    }
   },
   async deleteCategory(id) {
     const local = lsGet(LS.categories, DEFAULT_CATEGORIES).filter((c) => c.id !== id);
     lsSet(LS.categories, local);
-    if (hasSupabase) await supabase.from("categories").delete().eq("id", id).eq("owner", CURRENT_OWNER);
+    if (hasSupabase) {
+      const { error } = await supabase.from("categories").delete().eq("id", id).eq("owner", CURRENT_OWNER);
+      if (error) console.error("[deleteCategory] Supabase error:", error.message);
+    }
   },
 
   async loadEntries() {

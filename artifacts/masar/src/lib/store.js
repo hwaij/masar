@@ -4,6 +4,12 @@ let CURRENT_OWNER = "solo";
 export function setOwner(id) { CURRENT_OWNER = id || "solo"; }
 export function getOwner() { return CURRENT_OWNER; }
 
+// Anonymous ("solo") users never touch Supabase: their data stays local-only,
+// so guests never read or write another guest's cloud data.
+function useCloud() {
+  return hasSupabase && CURRENT_OWNER !== "solo";
+}
+
 const LS = {
   categories: "masar_categories",
   entries: "masar_entries",
@@ -53,28 +59,51 @@ const fromDbTask = (r) => ({ id: r.id, title: r.title, catId: r.cat_id, due: r.d
 const toDbTask = (t) => ({ id: t.id, title: t.title, cat_id: t.catId, due: t.due || null, done: !!t.done, owner: CURRENT_OWNER });
 
 export const store = {
-  hasCloud: hasSupabase,
+  get hasCloud() {
+    return useCloud();
+  },
 
   async loadCategories() {
-    const local = lsGet(LS.categories, DEFAULT_CATEGORIES);
-    if (!hasSupabase) return local;
-    const { data, error } = await supabase.from("categories").select("*").eq("owner", CURRENT_OWNER).order("created_at");
-    if (error || !data) return local;
-    const cloudCats = data.map((r) => ({ id: r.id, name: r.name, color: r.color }));
-    if (cloudCats.length === 0) {
+    const seededKey = "masar_categories_seeded";
+    if (!useCloud()) {
+      const local = lsGet(LS.categories, null);
+      if (local) return local;
       lsSet(LS.categories, DEFAULT_CATEGORIES);
       return DEFAULT_CATEGORIES;
     }
-    const cloudIds = new Set(cloudCats.map((c) => c.id));
-    const merged = [...cloudCats, ...DEFAULT_CATEGORIES.filter((d) => !cloudIds.has(d.id))];
-    lsSet(LS.categories, merged);
-    return merged;
+    const { data, error } = await supabase.from("categories").select("*").eq("owner", CURRENT_OWNER).order("created_at");
+    if (error || !data) return lsGet(LS.categories, DEFAULT_CATEGORIES);
+    if (data.length > 0) {
+      const cloudCats = data.map((r) => ({ id: r.id, name: r.name, color: r.color }));
+      lsSet(LS.categories, cloudCats);
+      lsSet(seededKey, true);
+      return cloudCats;
+    }
+    // Cloud has zero rows: either this account was already seeded and the
+    // user deliberately deleted every category (respect that, return empty),
+    // or this is the very first time we're loading for this account (seed
+    // the defaults once and persist them so this branch won't fire again).
+    if (lsGet(seededKey, false)) {
+      lsSet(LS.categories, []);
+      return [];
+    }
+    lsSet(LS.categories, DEFAULT_CATEGORIES);
+    lsSet(seededKey, true);
+    for (const cat of DEFAULT_CATEGORIES) {
+      const { error: seedError } = await supabase.from("categories").upsert(
+        { id: cat.id, name: cat.name, color: cat.color, owner: CURRENT_OWNER },
+        { onConflict: "owner,id" }
+      );
+      if (seedError) console.error("[loadCategories] seed error:", seedError.message);
+    }
+    return DEFAULT_CATEGORIES;
   },
   async saveCategory(cat) {
     const local = lsGet(LS.categories, DEFAULT_CATEGORIES);
     const next = local.some((c) => c.id === cat.id) ? local.map((c) => (c.id === cat.id ? cat : c)) : [...local, cat];
     lsSet(LS.categories, next);
-    if (hasSupabase) {
+    if (useCloud()) {
+      lsSet("masar_categories_seeded", true);
       const { error } = await supabase.from("categories").upsert(
         { id: cat.id, name: cat.name, color: cat.color, owner: CURRENT_OWNER },
         { onConflict: "owner,id" }
@@ -85,7 +114,8 @@ export const store = {
   async deleteCategory(id) {
     const local = lsGet(LS.categories, DEFAULT_CATEGORIES).filter((c) => c.id !== id);
     lsSet(LS.categories, local);
-    if (hasSupabase) {
+    if (useCloud()) {
+      lsSet("masar_categories_seeded", true);
       const { error } = await supabase.from("categories").delete().eq("id", id).eq("owner", CURRENT_OWNER);
       if (error) console.error("[deleteCategory] Supabase error:", error.message);
     }
@@ -93,7 +123,7 @@ export const store = {
 
   async loadEntries() {
     const local = lsGet(LS.entries, []);
-    if (!hasSupabase) return local;
+    if (!useCloud()) return local;
     const { data, error } = await supabase.from("entries").select("*").eq("owner", CURRENT_OWNER).order("date");
     if (error || !data) return local;
     const entries = data.map(fromDbEntry);
@@ -104,16 +134,22 @@ export const store = {
     const local = lsGet(LS.entries, []);
     const next = local.some((e) => e.id === entry.id) ? local.map((e) => (e.id === entry.id ? entry : e)) : [...local, entry];
     lsSet(LS.entries, next);
-    if (hasSupabase) await supabase.from("entries").upsert(toDbEntry(entry));
+    if (useCloud()) {
+      const { error } = await supabase.from("entries").upsert(toDbEntry(entry));
+      if (error) console.error("[saveEntry] Supabase error:", error.message);
+    }
   },
   async deleteEntry(id) {
     lsSet(LS.entries, lsGet(LS.entries, []).filter((e) => e.id !== id));
-    if (hasSupabase) await supabase.from("entries").delete().eq("id", id).eq("owner", CURRENT_OWNER);
+    if (useCloud()) {
+      const { error } = await supabase.from("entries").delete().eq("id", id).eq("owner", CURRENT_OWNER);
+      if (error) console.error("[deleteEntry] Supabase error:", error.message);
+    }
   },
 
   async loadTasks() {
     const local = lsGet(LS.tasks, []);
-    if (!hasSupabase) return local;
+    if (!useCloud()) return local;
     const { data, error } = await supabase.from("tasks").select("*").eq("owner", CURRENT_OWNER).order("created_at");
     if (error || !data) return local;
     const tasks = data.map(fromDbTask);
@@ -124,16 +160,22 @@ export const store = {
     const local = lsGet(LS.tasks, []);
     const next = local.some((t) => t.id === task.id) ? local.map((t) => (t.id === task.id ? task : t)) : [...local, task];
     lsSet(LS.tasks, next);
-    if (hasSupabase) await supabase.from("tasks").upsert(toDbTask(task));
+    if (useCloud()) {
+      const { error } = await supabase.from("tasks").upsert(toDbTask(task));
+      if (error) console.error("[saveTask] Supabase error:", error.message);
+    }
   },
   async deleteTask(id) {
     lsSet(LS.tasks, lsGet(LS.tasks, []).filter((t) => t.id !== id));
-    if (hasSupabase) await supabase.from("tasks").delete().eq("id", id).eq("owner", CURRENT_OWNER);
+    if (useCloud()) {
+      const { error } = await supabase.from("tasks").delete().eq("id", id).eq("owner", CURRENT_OWNER);
+      if (error) console.error("[deleteTask] Supabase error:", error.message);
+    }
   },
 
   async loadReports() {
     const local = lsGet(LS.reports, []);
-    if (!hasSupabase) return local;
+    if (!useCloud()) return local;
     const { data, error } = await supabase.from("reports").select("*").eq("owner", CURRENT_OWNER).order("created_at", { ascending: false });
     if (error || !data) return local;
     const reports = data.map((r) => ({ id: r.id, kind: r.kind, date: r.date, payload: r.payload, gist: r.gist }));
@@ -143,12 +185,15 @@ export const store = {
   async saveReport(report) {
     const local = lsGet(LS.reports, []);
     lsSet(LS.reports, [report, ...local]);
-    if (hasSupabase) await supabase.from("reports").upsert({ id: report.id, kind: report.kind, date: report.date, payload: report.payload, gist: report.gist, owner: CURRENT_OWNER });
+    if (useCloud()) {
+      const { error } = await supabase.from("reports").upsert({ id: report.id, kind: report.kind, date: report.date, payload: report.payload, gist: report.gist, owner: CURRENT_OWNER });
+      if (error) console.error("[saveReport] Supabase error:", error.message);
+    }
   },
 
   async loadProfile() {
     const local = lsGet("masar_profile", { about: "", hobbies: "", field: "" });
-    if (!hasSupabase) return local;
+    if (!useCloud()) return local;
     const { data, error } = await supabase.from("profile").select("*").eq("owner", CURRENT_OWNER).maybeSingle();
     if (error || !data) return local;
     const p = { about: data.about || "", hobbies: data.hobbies || "", field: data.field || "" };
@@ -157,12 +202,15 @@ export const store = {
   },
   async saveProfile(p) {
     lsSet("masar_profile", p);
-    if (hasSupabase) await supabase.from("profile").upsert({ owner: CURRENT_OWNER, about: p.about, hobbies: p.hobbies, field: p.field, updated_at: new Date().toISOString() });
+    if (useCloud()) {
+      const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, about: p.about, hobbies: p.hobbies, field: p.field, updated_at: new Date().toISOString() });
+      if (error) console.error("[saveProfile] Supabase error:", error.message);
+    }
   },
 
   async loadAchieve() {
     const local = lsGet("masar_achieve", []);
-    if (!hasSupabase) return local;
+    if (!useCloud()) return local;
     const { data, error } = await supabase.from("achieve").select("*").eq("owner", CURRENT_OWNER).order("created_at", { ascending: false });
     if (error || !data) return local;
     const items = data.map((r) => ({ id: r.id, kind: r.kind, title: r.title, detail: r.detail, steps: r.steps || [], topic: r.topic, done: r.done }));
@@ -173,16 +221,22 @@ export const store = {
     const local = lsGet("masar_achieve", []);
     const next = local.some((a) => a.id === item.id) ? local.map((a) => (a.id === item.id ? item : a)) : [item, ...local];
     lsSet("masar_achieve", next);
-    if (hasSupabase) await supabase.from("achieve").upsert({ id: item.id, kind: item.kind, title: item.title, detail: item.detail, steps: item.steps, topic: item.topic, done: !!item.done, owner: CURRENT_OWNER });
+    if (useCloud()) {
+      const { error } = await supabase.from("achieve").upsert({ id: item.id, kind: item.kind, title: item.title, detail: item.detail, steps: item.steps, topic: item.topic, done: !!item.done, owner: CURRENT_OWNER });
+      if (error) console.error("[saveAchieve] Supabase error:", error.message);
+    }
   },
   async deleteAchieve(id) {
     lsSet("masar_achieve", lsGet("masar_achieve", []).filter((a) => a.id !== id));
-    if (hasSupabase) await supabase.from("achieve").delete().eq("id", id).eq("owner", CURRENT_OWNER);
+    if (useCloud()) {
+      const { error } = await supabase.from("achieve").delete().eq("id", id).eq("owner", CURRENT_OWNER);
+      if (error) console.error("[deleteAchieve] Supabase error:", error.message);
+    }
   },
 
   async loadFocus() {
     const local = lsGet("masar_focus", []);
-    if (!hasSupabase) return local;
+    if (!useCloud()) return local;
     const { data, error } = await supabase.from("focus_sessions").select("*").eq("owner", CURRENT_OWNER).order("created_at", { ascending: false });
     if (error || !data) return local;
     const items = data.map((r) => ({ id: r.id, date: r.date, minutes: r.minutes, label: r.label || "", isStudy: !!r.is_study }));
@@ -192,12 +246,15 @@ export const store = {
   async saveFocus(session) {
     const local = lsGet("masar_focus", []);
     lsSet("masar_focus", [session, ...local]);
-    if (hasSupabase) await supabase.from("focus_sessions").upsert({ id: session.id, date: session.date, minutes: session.minutes, label: session.label || "", is_study: !!session.isStudy, owner: CURRENT_OWNER });
+    if (useCloud()) {
+      const { error } = await supabase.from("focus_sessions").upsert({ id: session.id, date: session.date, minutes: session.minutes, label: session.label || "", is_study: !!session.isStudy, owner: CURRENT_OWNER });
+      if (error) console.error("[saveFocus] Supabase error:", error.message);
+    }
   },
 
   async loadCommitments() {
     const local = lsGet("masar_commitments", []);
-    if (!hasSupabase) return local;
+    if (!useCloud()) return local;
     const { data, error } = await supabase.from("commitments").select("*").eq("owner", CURRENT_OWNER).order("created_at");
     if (error || !data) return local;
     const items = data.map((r) => ({ id: r.id, title: r.title, targetMinutes: r.target_minutes, catId: r.cat_id, log: r.log || {} }));
@@ -208,16 +265,22 @@ export const store = {
     const local = lsGet("masar_commitments", []);
     const next = local.some((x) => x.id === c.id) ? local.map((x) => (x.id === c.id ? c : x)) : [...local, c];
     lsSet("masar_commitments", next);
-    if (hasSupabase) await supabase.from("commitments").upsert({ id: c.id, title: c.title, target_minutes: c.targetMinutes, cat_id: c.catId || null, log: c.log || {}, owner: CURRENT_OWNER });
+    if (useCloud()) {
+      const { error } = await supabase.from("commitments").upsert({ id: c.id, title: c.title, target_minutes: c.targetMinutes, cat_id: c.catId || null, log: c.log || {}, owner: CURRENT_OWNER });
+      if (error) console.error("[saveCommitment] Supabase error:", error.message);
+    }
   },
   async deleteCommitment(id) {
     lsSet("masar_commitments", lsGet("masar_commitments", []).filter((c) => c.id !== id));
-    if (hasSupabase) await supabase.from("commitments").delete().eq("id", id).eq("owner", CURRENT_OWNER);
+    if (useCloud()) {
+      const { error } = await supabase.from("commitments").delete().eq("id", id).eq("owner", CURRENT_OWNER);
+      if (error) console.error("[deleteCommitment] Supabase error:", error.message);
+    }
   },
 
   async loadPrayerLog() {
     const local = lsGet("masar_prayer_log", []);
-    if (!hasSupabase) return local;
+    if (!useCloud()) return local;
     const { data, error } = await supabase.from("prayer_log").select("*").eq("owner", CURRENT_OWNER).order("done_at", { ascending: false });
     if (error || !data) return local;
     const items = data.map((r) => ({ id: r.id, date: r.date, prayerId: r.prayer_id }));
@@ -228,17 +291,23 @@ export const store = {
     const local = lsGet("masar_prayer_log", []);
     if (local.some((p) => p.date === entry.date && p.prayerId === entry.prayerId)) return;
     lsSet("masar_prayer_log", [entry, ...local]);
-    if (hasSupabase) await supabase.from("prayer_log").upsert({ id: entry.id, date: entry.date, prayer_id: entry.prayerId, owner: CURRENT_OWNER });
+    if (useCloud()) {
+      const { error } = await supabase.from("prayer_log").upsert({ id: entry.id, date: entry.date, prayer_id: entry.prayerId, owner: CURRENT_OWNER });
+      if (error) console.error("[savePrayer] Supabase error:", error.message);
+    }
   },
   async removePrayer(date, prayerId) {
     const local = lsGet("masar_prayer_log", []).filter((p) => !(p.date === date && p.prayerId === prayerId));
     lsSet("masar_prayer_log", local);
-    if (hasSupabase) await supabase.from("prayer_log").delete().eq("date", date).eq("prayer_id", prayerId).eq("owner", CURRENT_OWNER);
+    if (useCloud()) {
+      const { error } = await supabase.from("prayer_log").delete().eq("date", date).eq("prayer_id", prayerId).eq("owner", CURRENT_OWNER);
+      if (error) console.error("[removePrayer] Supabase error:", error.message);
+    }
   },
 
   async loadReligious() {
     const local = lsGet("masar_religious", []);
-    if (!hasSupabase) return local;
+    if (!useCloud()) return local;
     const { data, error } = await supabase.from("religious_tasks").select("*").eq("owner", CURRENT_OWNER).order("created_at", { ascending: false });
     if (error || !data) return local;
     const items = data.map((r) => ({ id: r.id, date: r.date, taskKey: r.task_key, title: r.title, targetCount: r.target_count, targetMinutes: r.target_minutes, minutesSpent: r.minutes_spent || 0, done: r.done }));
@@ -249,16 +318,22 @@ export const store = {
     const local = lsGet("masar_religious", []);
     const next = local.some((x) => x.id === t.id) ? local.map((x) => (x.id === t.id ? t : x)) : [t, ...local];
     lsSet("masar_religious", next);
-    if (hasSupabase) await supabase.from("religious_tasks").upsert({ id: t.id, date: t.date, task_key: t.taskKey, title: t.title, target_count: t.targetCount || null, target_minutes: t.targetMinutes || null, minutes_spent: t.minutesSpent || 0, done: !!t.done, done_at: t.done ? new Date().toISOString() : null, owner: CURRENT_OWNER });
+    if (useCloud()) {
+      const { error } = await supabase.from("religious_tasks").upsert({ id: t.id, date: t.date, task_key: t.taskKey, title: t.title, target_count: t.targetCount || null, target_minutes: t.targetMinutes || null, minutes_spent: t.minutesSpent || 0, done: !!t.done, done_at: t.done ? new Date().toISOString() : null, owner: CURRENT_OWNER });
+      if (error) console.error("[saveReligious] Supabase error:", error.message);
+    }
   },
   async deleteReligious(id) {
     lsSet("masar_religious", lsGet("masar_religious", []).filter((t) => t.id !== id));
-    if (hasSupabase) await supabase.from("religious_tasks").delete().eq("id", id).eq("owner", CURRENT_OWNER);
+    if (useCloud()) {
+      const { error } = await supabase.from("religious_tasks").delete().eq("id", id).eq("owner", CURRENT_OWNER);
+      if (error) console.error("[deleteReligious] Supabase error:", error.message);
+    }
   },
 
   async loadMandatoryLog() {
     const local = lsGet("masar_mandatory_log", {});
-    if (!hasSupabase) return local;
+    if (!useCloud()) return local;
     try {
       const { data, error } = await supabase.from("mandatory_log").select("*").eq("owner", CURRENT_OWNER).order("date");
       if (error || !data) return local;
@@ -273,7 +348,7 @@ export const store = {
     if (!log[date]) log[date] = {};
     log[date][taskKey] = done;
     lsSet("masar_mandatory_log", log);
-    if (hasSupabase) {
+    if (useCloud()) {
       try {
         const { error } = await supabase.from("mandatory_log").upsert(
           { date, task_key: taskKey, done, owner: CURRENT_OWNER, updated_at: new Date().toISOString() },
@@ -286,7 +361,7 @@ export const store = {
 
   async loadAzkarLog() {
     const local = lsGet("masar_azkar_log", {});
-    if (!hasSupabase) return local;
+    if (!useCloud()) return local;
     try {
       const { data, error } = await supabase.from("azkar_log").select("*").eq("owner", CURRENT_OWNER).order("date");
       if (error || !data) return local;
@@ -310,7 +385,7 @@ export const store = {
     if (!log[date]) log[date] = {};
     log[date][session] = done;
     lsSet("masar_azkar_log", log);
-    if (hasSupabase) {
+    if (useCloud()) {
       try {
         const { error } = await supabase.from("azkar_log").upsert(
           { date, session, done, owner: CURRENT_OWNER, updated_at: new Date().toISOString() },
@@ -323,7 +398,7 @@ export const store = {
 
   async loadQuranProgress() {
     const local = lsGet("masar_quran_juz", {});
-    if (!hasSupabase) return local;
+    if (!useCloud()) return local;
     try {
       const { data, error } = await supabase.from("quran_progress").select("*").eq("owner", CURRENT_OWNER);
       if (error || !data) return local;
@@ -337,14 +412,17 @@ export const store = {
     const data = lsGet("masar_quran_juz", {});
     data[juzNum] = done;
     lsSet("masar_quran_juz", data);
-    if (hasSupabase) {
-      try { await supabase.from("quran_progress").upsert({ juz_num: juzNum, done, owner: CURRENT_OWNER }); } catch {}
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("quran_progress").upsert({ juz_num: juzNum, done, owner: CURRENT_OWNER });
+        if (error) console.warn("quran_progress sync error:", error.message);
+      } catch (e) { console.warn("quran_progress write failed:", e); }
     }
   },
 
   async loadIstighfar() {
     const local = lsGet("masar_istighfar", { daily: {}, total: 0 });
-    if (!hasSupabase) return local;
+    if (!useCloud()) return local;
     try {
       const { data, error } = await supabase.from("istighfar").select("*").eq("owner", CURRENT_OWNER).maybeSingle();
       if (error || !data) return local;
@@ -355,14 +433,17 @@ export const store = {
   },
   async saveIstighfar(data) {
     lsSet("masar_istighfar", data);
-    if (hasSupabase) {
-      try { await supabase.from("istighfar").upsert({ owner: CURRENT_OWNER, daily: data.daily, total: data.total, updated_at: new Date().toISOString() }); } catch {}
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("istighfar").upsert({ owner: CURRENT_OWNER, daily: data.daily, total: data.total, updated_at: new Date().toISOString() });
+        if (error) console.warn("istighfar sync error:", error.message);
+      } catch (e) { console.warn("istighfar write failed:", e); }
     }
   },
 
   async loadPointsLog() {
     const local = lsGet("masar_points_log", []);
-    if (!hasSupabase) return local;
+    if (!useCloud()) return local;
     try {
       const { data, error } = await supabase.from("points_log").select("*").eq("owner", CURRENT_OWNER).order("date", { ascending: false }).limit(200);
       if (error || !data) return local;
@@ -375,14 +456,17 @@ export const store = {
     const log = lsGet("masar_points_log", []);
     const next = [entry, ...log].slice(0, 200);
     lsSet("masar_points_log", next);
-    if (hasSupabase) {
-      try { await supabase.from("points_log").insert({ id: entry.id, date: entry.date, amount: entry.amount, reason: entry.reason, owner: CURRENT_OWNER }); } catch {}
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("points_log").insert({ id: entry.id, date: entry.date, amount: entry.amount, reason: entry.reason, owner: CURRENT_OWNER });
+        if (error) console.warn("points_log sync error:", error.message);
+      } catch (e) { console.warn("points_log write failed:", e); }
     }
   },
 
   async loadGamify() {
     const local = lsGet(LS.gamify, { points: 0, badges: [] });
-    if (!hasSupabase) return local;
+    if (!useCloud()) return local;
     const { data, error } = await supabase.from("gamify").select("*").eq("owner", CURRENT_OWNER).maybeSingle();
     if (error || !data) return local;
     const g = { points: data.points, badges: data.badges || [] };
@@ -391,12 +475,15 @@ export const store = {
   },
   async saveGamify(g) {
     lsSet(LS.gamify, g);
-    if (hasSupabase) await supabase.from("gamify").upsert({ owner: CURRENT_OWNER, points: g.points, badges: g.badges, updated_at: new Date().toISOString() });
+    if (useCloud()) {
+      const { error } = await supabase.from("gamify").upsert({ owner: CURRENT_OWNER, points: g.points, badges: g.badges, updated_at: new Date().toISOString() });
+      if (error) console.error("[saveGamify] Supabase error:", error.message);
+    }
   },
 
   async loadHealth() {
     const local = lsGet("masar_health", []);
-    if (!hasSupabase) return local;
+    if (!useCloud()) return local;
     try {
       const { data, error } = await supabase.from("health_log").select("*").eq("owner", CURRENT_OWNER).order("date", { ascending: false });
       if (error || !data) return local;
@@ -410,7 +497,7 @@ export const store = {
     const next = local.some((x) => x.id === h.id) ? local.map((x) => (x.id === h.id ? h : x)) : [h, ...local];
     next.sort((a, b) => (a.date < b.date ? 1 : -1));
     lsSet("masar_health", next);
-    if (hasSupabase) {
+    if (useCloud()) {
       try {
         const { error } = await supabase.from("health_log").upsert(
           { id: h.id, date: h.date, steps: h.steps || 0, sleep_hours: h.sleepHours || 0, water_cups: h.waterCups || 0, weight: h.weight ?? null, energy: h.energy ?? null, note: h.note || "", owner: CURRENT_OWNER, updated_at: new Date().toISOString() },

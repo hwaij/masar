@@ -31,22 +31,43 @@ exports.handler = async (event) => {
     };
   }
 
+  // gemini-2.0-flash was deprecated and shut down on 2026-06-01. Use the
+  // current stable free-tier model. Auth keys (the new "AQ." prefix format
+  // that AI Studio now issues by default) must be sent via the
+  // x-goog-api-key header — the legacy "?key=" query-string form is only
+  // reliable for old "AIza..." standard keys and returns 401
+  // UNAUTHENTICATED for auth keys on some routes.
+  const MODEL = "gemini-3.5-flash";
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+
   try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      }
-    );
-    const data = await res.json();
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey,
+      },
+      body: JSON.stringify(payload),
+    });
+    const rawBody = await res.text();
+    let data = {};
+    try { data = JSON.parse(rawBody); } catch { /* non-JSON body, keep raw for logging */ }
+
+    console.log(`[gemini] ${MODEL} -> HTTP ${res.status}`, res.ok ? "OK" : rawBody);
+
     if (!res.ok) {
       const status = res.status === 429 ? 429 : res.status >= 500 ? 502 : 400;
       return {
         statusCode: status,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ error: data.error?.message || "تعذّر الاتصال بخدمة الذكاء الاصطناعي" }),
+        // TEMP: surfacing the real upstream error for diagnosis. Tighten
+        // this back to a generic Arabic message once auth is confirmed
+        // working end to end.
+        body: JSON.stringify({
+          error: data.error?.message || rawBody || "تعذّر الاتصال بخدمة الذكاء الاصطناعي",
+          upstreamStatus: res.status,
+          upstreamStatusText: data.error?.status,
+        }),
       };
     }
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
@@ -56,10 +77,11 @@ exports.handler = async (event) => {
       body: JSON.stringify({ text }),
     };
   } catch (err) {
+    console.error("[gemini] network/exception error:", err);
     return {
       statusCode: 502,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ error: "تعذّر الاتصال بخدمة الذكاء الاصطناعي الآن" }),
+      body: JSON.stringify({ error: `تعذّر الاتصال بخدمة الذكاء الاصطناعي الآن: ${err.message}` }),
     };
   }
 };

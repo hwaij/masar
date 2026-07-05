@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { fivePrayers, nextPrayer, to12h } from "../lib/prayer";
 import { store, setOwner } from "../lib/store";
-import { getSession, onAuthChange, signInWithGoogle, signOut, userFromSession, hasAuth } from "../lib/auth";
+import { getSession, onAuthChange, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut, userFromSession, hasAuth } from "../lib/auth";
 import {
   todayKey, fmtHM, uid, diffMinutes, arabicDate, computeStreak,
   COLOR_CHOICES, BADGES, DEFAULT_DAILY_TASKS, analyze, parseJsonLoose,
@@ -277,6 +277,12 @@ export default function MasarApp() {
   const handleSignIn = useCallback(async () => {
     try { await signInWithGoogle(); } catch { showToast("تعذّر تسجيل الدخول الآن"); }
   }, [showToast]);
+  const handleEmailSignIn = useCallback(async (email, password) => {
+    await signInWithEmail(email, password);
+  }, []);
+  const handleEmailSignUp = useCallback(async (email, password) => {
+    return signUpWithEmail(email, password);
+  }, []);
   const handleSignOut = useCallback(async () => {
     await signOut();
     userIdRef.current = null;
@@ -298,7 +304,7 @@ export default function MasarApp() {
 
   if (showSplash) return <SplashScreen />;
   if (!loaded) return <div style={{ ...S.app, ...S.loaderWrap }}><Loader2 size={28} color="#C9A24B" className="spin" /></div>;
-  if (hasAuth && !user) return <LandingPage onSignIn={handleSignIn} />;
+  if (hasAuth && !user) return <LandingPage onSignIn={handleSignIn} onEmailSignIn={handleEmailSignIn} onEmailSignUp={handleEmailSignUp} />;
 
   return (
     <div style={S.app}>
@@ -391,7 +397,83 @@ const FEATURES = [
   { icon: "🤖", title: "مساعد ذكي", desc: "مستشار شخصي يعرف عاداتك ويقترح تحسينات" },
 ];
 
-function LandingPage({ onSignIn }) {
+function translateAuthError(err) {
+  const msg = String(err?.message || err || "");
+  if (msg.includes("Invalid login credentials")) return "البريد الإلكتروني أو كلمة المرور غير صحيحة";
+  if (msg.includes("User already registered")) return "هذا البريد مسجّل بالفعل، جرّب تسجيل الدخول";
+  if (msg.includes("Password should be at least")) return "كلمة المرور لازم تكون 6 أحرف على الأقل";
+  if (msg.includes("Unable to validate email address") || msg.includes("invalid")) return "البريد الإلكتروني غير صحيح";
+  if (msg.includes("Email not confirmed")) return "لازم تأكّد بريدك الإلكتروني أولاً، راجع رسالة التأكيد";
+  if (msg.includes("no-supabase")) return "الحساب غير مفعّل بهذا الموقع حالياً";
+  return "تعذّر تسجيل الدخول الآن، حاول مرة أخرى";
+}
+
+function EmailAuthForm({ onEmailSignIn, onEmailSignUp }) {
+  const [mode, setMode] = useState("signin");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!email.trim() || !password) return;
+    setSubmitting(true);
+    setError("");
+    setNotice("");
+    try {
+      if (mode === "signin") {
+        await onEmailSignIn(email.trim(), password);
+      } else {
+        const { needsEmailConfirmation } = await onEmailSignUp(email.trim(), password);
+        if (needsEmailConfirmation) {
+          setNotice("أنشأنا حسابك! افتح بريدك الإلكتروني وأكّد الحساب حتى تقدر تسجّل دخولك.");
+        }
+      }
+    } catch (err) {
+      setError(translateAuthError(err));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} style={{ width: "100%", display: "flex", flexDirection: "column", gap: 10, marginTop: 18 }}>
+      <input
+        type="email" required autoComplete="email" dir="ltr"
+        value={email} onChange={(e) => setEmail(e.target.value)}
+        placeholder="بريدك الإلكتروني"
+        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, padding: "12px 14px", color: "#E8E6E1", fontSize: 14, fontFamily: "inherit", outline: "none", textAlign: "right" }}
+      />
+      <input
+        type="password" required autoComplete={mode === "signin" ? "current-password" : "new-password"} dir="ltr"
+        value={password} onChange={(e) => setPassword(e.target.value)}
+        placeholder="كلمة المرور"
+        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, padding: "12px 14px", color: "#E8E6E1", fontSize: 14, fontFamily: "inherit", outline: "none", textAlign: "right" }}
+      />
+      {error && <div style={{ color: "#E07A6B", fontSize: 12.5, textAlign: "center" }}>{error}</div>}
+      {notice && <div style={{ color: "#5FA8A0", fontSize: 12.5, textAlign: "center", lineHeight: 1.6 }}>{notice}</div>}
+      <motion.button
+        whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+        type="submit" disabled={submitting}
+        style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "rgba(201,162,75,0.14)", border: "1px solid rgba(201,162,75,0.4)", color: "#C9A24B", borderRadius: 12, padding: "12px 0", fontSize: 14, fontWeight: 700, cursor: submitting ? "wait" : "pointer", fontFamily: "inherit" }}
+      >
+        {submitting ? <Loader2 size={16} className="spin" /> : null}
+        {mode === "signin" ? "تسجيل الدخول بالبريد" : "إنشاء حساب جديد"}
+      </motion.button>
+      <button
+        type="button"
+        onClick={() => { setMode((m) => (m === "signin" ? "signup" : "signin")); setError(""); setNotice(""); }}
+        style={{ background: "none", border: "none", color: "#8A8782", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", padding: "4px 0" }}
+      >
+        {mode === "signin" ? "ما عندك حساب؟ أنشئ واحد" : "عندك حساب؟ سجّل دخولك"}
+      </button>
+    </form>
+  );
+}
+
+function LandingPage({ onSignIn, onEmailSignIn, onEmailSignUp }) {
   const [signing, setSigning] = useState(false);
   async function handleClick() {
     setSigning(true);
@@ -417,7 +499,13 @@ function LandingPage({ onSignIn }) {
             )}
             {signing ? "جارٍ التحميل..." : "ابدأ مع Google"}
           </motion.button>
-          <p style={{ marginTop: 14, fontSize: 12, color: "#4A4845" }}>بياناتك محفوظة لديك فقط · لا إعلانات · مجاني</p>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", marginTop: 22 }}>
+            <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.08)" }} />
+            <span style={{ fontSize: 12, color: "#6B6863" }}>أو</span>
+            <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.08)" }} />
+          </div>
+          <EmailAuthForm onEmailSignIn={onEmailSignIn} onEmailSignUp={onEmailSignUp} />
+          <p style={{ marginTop: 14, fontSize: 12, color: "#4A4845" }}>بياناتك محفوظة لديك فقط · لا إعلانات</p>
         </motion.div>
 
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3, duration: 0.6 }}>
@@ -448,7 +536,7 @@ function LandingPage({ onSignIn }) {
             onClick={handleClick} disabled={signing}
             style={{ display: "flex", alignItems: "center", gap: 10, background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.35)", color: "#C9A24B", borderRadius: 14, padding: "13px 32px", fontSize: 15, fontWeight: 700, cursor: signing ? "wait" : "pointer", fontFamily: "inherit" }}>
             <LogIn size={18} />
-            سجّل دخولك الآن — مجاناً
+            سجّل دخولك الآن
           </motion.button>
         </motion.div>
       </div>
@@ -622,7 +710,7 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
         <span>السجل</span>
         <button onClick={() => { setEditingEntry(null); setModalOpen(true); }} style={S.addBtn}><Plus size={16} /><span>إضافة نشاط</span></button>
       </div>
-      <div style={S.entryList}>
+      <div style={S.entryList} className="stagger-in">
         {dayEntries.length === 0 && <div style={S.emptyState}><div style={S.emptyStateTitle}>ابدأ يومك</div><div style={S.emptyStateSub}>سجّل أول نشاط لترى عجلة يومك تنبض</div></div>}
         {dayEntries.map((e) => {
           const cat = catMap[e.catId] || { name: "غير محدد", color: "#9A968F" };
@@ -768,7 +856,7 @@ function TasksView({ tasks, setTasks, categories, addPoints, showToast }) {
         ))}
         <button onClick={addDefaults} style={S.defaultsBtn} title="أضف أساسيات اليوم"><ListPlus size={14} /> أساسيات اليوم</button>
       </div>
-      <div style={S.taskList}>
+      <div style={S.taskList} className="stagger-in">
         {filtered.length === 0 && <div style={S.emptyState}><div style={S.emptyStateTitle}>لا مهام هنا</div><div style={S.emptyStateSub}>أضف مهمة لتبدأ</div></div>}
         {filtered.map((t) => {
           const cat = catMap[t.catId];
@@ -1951,7 +2039,7 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
         {loading ? <Loader2 size={16} className="spin" /> : <Sparkles size={16} />}
         {loading ? "يصمّم لك الآن..." : `اقترح ${tab === "challenges" ? "تحديات" : tab === "projects" ? "مشاريع" : "مسارات"} جديدة`}
       </button>
-      <div style={S.achieveList}>
+      <div style={S.achieveList} className="stagger-in">
         {filtered.length === 0 && !loading && <div style={S.emptyState}><div style={S.emptyStateTitle}>لا شيء بعد</div><div style={S.emptyStateSub}>اضغط الزر أعلاه</div></div>}
         {filtered.map((item) => <AchieveCard key={item.id} item={item} kindLabel={kindMap[item.kind]} onToggle={() => toggleDone(item)} onRemove={() => remove(item.id)} />)}
       </div>
@@ -2019,7 +2107,7 @@ function GeminiKeyCard({ showToast }) {
         <span style={{ fontSize: 14, fontWeight: 700, color: "#5FA8A0" }}>مفتاح Gemini AI</span>
       </div>
       <p style={{ fontSize: 12, color: "#6B6863", lineHeight: 1.7, margin: "0 0 10px" }}>
-        مطلوب لتفعيل المساعد الذكي والتحليل. احصل على مفتاح مجاني من{" "}
+        مطلوب لتفعيل المساعد الذكي والتحليل. احصل على مفتاح من{" "}
         <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" style={{ color: "#5FA8A0" }}>aistudio.google.com</a>
       </p>
       <div style={{ display: "flex", gap: 8 }}>
@@ -2072,7 +2160,7 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
       )}
       <div style={S.badgesCard}>
         <div style={S.chartTitle}>شاراتك</div>
-        <div style={S.badgesGrid}>
+        <div style={S.badgesGrid} className="stagger-in">
           {BADGES.map((b) => {
             const earned = gamify.badges.includes(b.id);
             return (

@@ -7,7 +7,13 @@ const anonKey =
 
 export const supabase =
   url && anonKey && !url.includes("YOUR_PROJECT")
-    ? createClient(url, anonKey)
+    ? createClient(url, anonKey, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+        },
+      })
     : null;
 
 export const hasSupabase = !!supabase;

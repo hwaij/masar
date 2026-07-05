@@ -27,5 +27,31 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.6); }
 button:disabled { opacity: 0.6; cursor: default; }
 input::placeholder { color: #5A5650; }
 a { color: inherit; }
-.view-fade { animation: viewFade 0.18s ease; }
-@keyframes viewFade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+/* View-to-view transitions: fires whenever MasarApp remounts a view via key={view} */
+.view-fade { animation: viewFade 0.28s cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes viewFade { from { opacity: 0; transform: translateY(8px) scale(0.99); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+/* Tactile press feedback across every real <button> in the app (RTL-safe: uniform scale, no directional slide) */
+button {
+  transition: transform 0.12s ease, opacity 0.12s ease;
+}
+button:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+/* Gentle staggered entrance for list-like groups; opt-in via className="stagger-in" */
+.stagger-in > * {
+  animation: staggerFadeIn 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.stagger-in > *:nth-child(1) { animation-delay: 0.02s; }
+.stagger-in > *:nth-child(2) { animation-delay: 0.06s; }
+.stagger-in > *:nth-child(3) { animation-delay: 0.1s; }
+.stagger-in > *:nth-child(4) { animation-delay: 0.14s; }
+.stagger-in > *:nth-child(5) { animation-delay: 0.18s; }
+.stagger-in > *:nth-child(n+6) { animation-delay: 0.2s; }
+@keyframes staggerFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .view-fade, .stagger-in > *, button { animation: none !important; transition: none !important; }
+}

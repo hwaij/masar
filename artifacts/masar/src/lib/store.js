@@ -41,16 +41,9 @@ function lsSet(key, value) {
 
 const DEFAULT_CATEGORIES = [
   { id: "prayer", name: "الصلاة", color: "#5FA8A0" },
-  { id: "quran", name: "القرآن", color: "#8A7BD1" },
-  { id: "istighfar", name: "الاستغفار", color: "#9AA84C" },
-  { id: "teeth", name: "الأسنان", color: "#6FA8DC" },
-  { id: "bed", name: "ترتيب السرير", color: "#D17B5F" },
-  { id: "shoot", name: "تصوير وتنفيذ", color: "#C9A24B" },
-  { id: "edit", name: "مونتاج وتعديل", color: "#8A7BD1" },
-  { id: "study", name: "دراسة جامعية", color: "#5FA8A0" },
-  { id: "client", name: "تواصل مع عملاء", color: "#D17B5F" },
-  { id: "fitness", name: "تمرين", color: "#6FA8DC" },
-  { id: "rest", name: "راحة", color: "#9A968F" },
+  { id: "study", name: "الدراسة", color: "#8A7BD1" },
+  { id: "reading", name: "القراءة", color: "#C9A24B" },
+  { id: "learning", name: "التعلم", color: "#6FA8DC" },
 ];
 
 const fromDbEntry = (r) => ({ id: r.id, date: r.date, catId: r.cat_id, start: r.start_time, end: r.end_time, note: r.note || "" });

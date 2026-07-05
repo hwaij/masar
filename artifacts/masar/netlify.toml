@@ -1,6 +1,6 @@
 [build]
   command   = "pnpm --filter @workspace/masar run build"
-  publish   = "artifacts/masar/dist"
+  publish   = "artifacts/masar/dist/public"
   base      = "."
 
 [build.environment]

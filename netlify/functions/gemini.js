@@ -53,23 +53,24 @@ exports.handler = async (event) => {
     let data = {};
     try { data = JSON.parse(rawBody); } catch { /* non-JSON body, keep raw for logging */ }
 
-    console.log(`[gemini] ${MODEL} -> HTTP ${res.status}`, res.ok ? "OK" : rawBody);
-
+    // Full detail always goes to the Netlify function logs (Netlify UI ->
+    // Functions -> gemini -> Logs). The client only ever gets a friendly
+    // generic Arabic message, never Gemini's raw error text.
     if (!res.ok) {
+      console.error(`[gemini] ${MODEL} -> HTTP ${res.status}:`, rawBody);
       const status = res.status === 429 ? 429 : res.status >= 500 ? 502 : 400;
+      const friendly =
+        res.status === 429
+          ? "الطلبات كثيرة الآن، جرّب بعد قليل."
+          : "تعذّر الاتصال بالمساعد الذكي الآن.";
       return {
         statusCode: status,
         headers: { "Content-Type": "application/json" },
-        // TEMP: surfacing the real upstream error for diagnosis. Tighten
-        // this back to a generic Arabic message once auth is confirmed
-        // working end to end.
-        body: JSON.stringify({
-          error: data.error?.message || rawBody || "تعذّر الاتصال بخدمة الذكاء الاصطناعي",
-          upstreamStatus: res.status,
-          upstreamStatusText: data.error?.status,
-        }),
+        body: JSON.stringify({ error: friendly }),
       };
     }
+
+    console.log(`[gemini] ${MODEL} -> HTTP ${res.status} OK`);
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
     return {
       statusCode: 200,
@@ -81,7 +82,7 @@ exports.handler = async (event) => {
     return {
       statusCode: 502,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ error: `تعذّر الاتصال بخدمة الذكاء الاصطناعي الآن: ${err.message}` }),
+      body: JSON.stringify({ error: "تعذّر الاتصال بخدمة الذكاء الاصطناعي الآن." }),
     };
   }
 };

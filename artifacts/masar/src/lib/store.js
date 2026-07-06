@@ -474,4 +474,28 @@ export const store = {
     }
   },
 
+  async loadChatMessages() {
+    const local = lsGet("masar_chat_messages", []);
+    if (!useCloud()) return local;
+    const { data, error } = await supabase.from("chat_messages").select("*").eq("owner", CURRENT_OWNER).order("created_at");
+    if (error || !data) return local;
+    const items = data.map((r) => ({ id: r.id, role: r.role, content: r.content }));
+    lsSet("masar_chat_messages", items);
+    return items;
+  },
+  async saveChatMessage(msg) {
+    const local = lsGet("masar_chat_messages", []);
+    lsSet("masar_chat_messages", [...local, msg]);
+    if (useCloud()) {
+      const { error } = await supabase.from("chat_messages").insert({ id: msg.id, owner: CURRENT_OWNER, role: msg.role, content: msg.content });
+      if (error) console.error("[saveChatMessage] Supabase error:", error.message);
+    }
+  },
+  async clearChatMessages() {
+    lsSet("masar_chat_messages", []);
+    if (useCloud()) {
+      const { error } = await supabase.from("chat_messages").delete().eq("owner", CURRENT_OWNER);
+      if (error) console.error("[clearChatMessages] Supabase error:", error.message);
+    }
+  },
 };

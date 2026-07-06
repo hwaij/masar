@@ -189,6 +189,16 @@ create table if not exists health_log (
   unique (owner, date)
 );
 
+-- محادثة مساعد أنجز (كل رسالة سطر مستقل، لا تُحذف تلقائياً أبداً)
+create table if not exists chat_messages (
+  id          text primary key,
+  owner       text not null default 'solo',
+  role        text not null check (role in ('user', 'assistant')),
+  content     text not null,
+  created_at  timestamptz default now()
+);
+create index if not exists chat_messages_owner_created on chat_messages (owner, created_at);
+
 -- ============================================================
 -- ترقية المفاتيح لتكون مخصّصة لكل مستخدم (تمنع تصادم بيانات حسابين)
 -- categories: المفتاح صار (owner, id) لأن التصنيفات الافتراضية تشترك بنفس id.
@@ -296,3 +306,8 @@ alter table health_log enable row level security;
 drop policy if exists health_log_anon_solo on health_log;
 drop policy if exists health_log_user_own on health_log;
 create policy health_log_user_own on health_log for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
+alter table chat_messages enable row level security;
+drop policy if exists chat_messages_anon_solo on chat_messages;
+drop policy if exists chat_messages_user_own on chat_messages;
+create policy chat_messages_user_own on chat_messages for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);

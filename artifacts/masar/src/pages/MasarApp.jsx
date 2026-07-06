@@ -995,9 +995,20 @@ function AssistantView({ entries, tasks, categories, focus, prayerLog, religious
   const today = todayKey();
 
   const [messages, setMessages] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const scrollRef = useRef(null);
+
+  useEffect(() => {
+    let active = true;
+    store.loadChatMessages().then((msgs) => {
+      if (!active) return;
+      setMessages(msgs);
+      setLoadingHistory(false);
+    });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -1033,18 +1044,29 @@ function AssistantView({ entries, tasks, categories, focus, prayerLog, religious
   async function send(text) {
     const content = (text ?? input).trim();
     if (!content || sending) return;
-    const next = [...messages, { role: "user", content }];
+    const userMsg = { id: uid(), role: "user", content };
+    const next = [...messages, userMsg];
     setMessages(next);
     setInput("");
     setSending(true);
+    store.saveChatMessage(userMsg);
     try {
       const reply = await coachChat(next, buildContext());
-      setMessages([...next, { role: "assistant", content: reply }]);
+      const botMsg = { id: uid(), role: "assistant", content: reply };
+      setMessages([...next, botMsg]);
+      store.saveChatMessage(botMsg);
     } catch {
-      setMessages([...next, { role: "assistant", content: "تعذّر الاتصال بالمساعد الآن. تأكد من اتصالك وحاول مرة أخرى." }]);
+      // Transient failures aren't saved — retrying shouldn't clutter the
+      // permanent conversation history with dead-end error bubbles.
+      setMessages([...next, { id: uid(), role: "assistant", content: "تعذّر الاتصال بالمساعد الآن. تأكد من اتصالك وحاول مرة أخرى." }]);
     } finally {
       setSending(false);
     }
+  }
+
+  async function clearChat() {
+    setMessages([]);
+    await store.clearChatMessages();
   }
 
   const suggestions = ["كيف أحسّن يومي؟", "خطط لي يومي", "اقترح نشاطاً يناسب هواياتي", "كيف أنظّم وقتي؟"];
@@ -1061,13 +1083,27 @@ function AssistantView({ entries, tasks, categories, focus, prayerLog, religious
         </div>
 
         <div style={HS.chatCard}>
-          <div style={HS.chatHead}><Sparkles size={15} color="#C9A24B" /><span style={HS.chatTitle}>تحدّث مع أنجز</span></div>
-          <div style={HS.chatScroll} ref={scrollRef}>
-            {messages.length === 0 && (
-              <div style={HS.msgBot}>أهلاً بك. أنا أنجز، مدرّبك الشخصي. اسألني كيف تحسّن يومك أو صحتك أو إنتاجيتك، أو دعني أخطط لك يومك.</div>
+          <div style={{ ...HS.chatHead, justifyContent: "space-between" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+              <Sparkles size={15} color="#C9A24B" /><span style={HS.chatTitle}>تحدّث مع أنجز</span>
+            </div>
+            {messages.length > 0 && (
+              <button onClick={clearChat} style={{ background: "none", border: "none", color: "#6B6863", fontSize: 11.5, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 4 }}>
+                <Trash2 size={12} /> مسح المحادثة
+              </button>
             )}
-            {messages.map((m, i) => (
-              <div key={i} style={m.role === "user" ? HS.msgUser : HS.msgBot}>{m.content}</div>
+          </div>
+          <div style={HS.chatScroll} ref={scrollRef}>
+            {loadingHistory && (
+              <div style={{ ...HS.msgBot, color: "#8A8782", display: "flex", alignItems: "center", gap: 6 }}>
+                <Loader2 size={14} className="spin" /> يحمّل المحادثة...
+              </div>
+            )}
+            {!loadingHistory && messages.length === 0 && (
+              <div style={HS.msgBot}>أهلاً بك. أنا أنجز، مدرّبك الشخصي. اسألني كيف تحسّن يومك أو إنتاجيتك، أو دعني أخطط لك يومك.</div>
+            )}
+            {messages.map((m) => (
+              <div key={m.id} style={m.role === "user" ? HS.msgUser : HS.msgBot}>{m.content}</div>
             ))}
             {sending && (
               <div style={{ ...HS.msgBot, color: "#8A8782", display: "flex", alignItems: "center", gap: 6 }}>
@@ -1075,7 +1111,7 @@ function AssistantView({ entries, tasks, categories, focus, prayerLog, religious
               </div>
             )}
           </div>
-          {messages.length === 0 && (
+          {!loadingHistory && messages.length === 0 && (
             <div style={HS.suggestionRow}>
               {suggestions.map((s) => (
                 <button key={s} onClick={() => send(s)} style={HS.suggestionChip}>{s}</button>

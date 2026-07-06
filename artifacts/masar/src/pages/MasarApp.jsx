@@ -16,6 +16,7 @@ import {
   LogIn, LogOut,
 } from "lucide-react";
 import { fivePrayers, nextPrayer, to12h } from "../lib/prayer";
+import { ADHKAR_CATEGORIES, ADHKAR } from "../lib/adhkar";
 import { store, setOwner } from "../lib/store";
 import { getSession, onAuthChange, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut, userFromSession, hasAuth } from "../lib/auth";
 import {
@@ -307,6 +308,7 @@ export default function MasarApp() {
           />
         )}
         {view === "prayer" && <PrayerView prayerLog={prayerLog} setPrayerLog={setPrayerLog} religious={religious} setReligious={setReligious} addPoints={addPoints} showToast={showToast} />}
+        {view === "adhkar" && <AdhkarView showToast={showToast} />}
         {view === "essentials" && (
           <EssentialsView
             mandatoryLog={mandatoryLog} setMandatoryLog={setMandatoryLog}
@@ -529,10 +531,15 @@ function LandingPage({ onSignIn, onEmailSignIn, onEmailSignUp }) {
   );
 }
 
+function TasbihIcon({ size = 15 }) {
+  return <span style={{ fontSize: size, lineHeight: 1 }}>📿</span>;
+}
+
 function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSignOut }) {
   const tabs = [
     { id: "today", label: "اليوم", icon: Clock },
     { id: "prayer", label: "الصلاة", icon: Moon },
+    { id: "adhkar", label: "أذكار", icon: TasbihIcon },
     { id: "essentials", label: "الأساسيات", icon: CheckCircle2 },
     { id: "focus", label: "تركيز", icon: Timer },
     { id: "tasks", label: "المهام", icon: ListChecks },
@@ -1414,6 +1421,156 @@ function ReligiousTask({ task, onUpdate, onRemove, addPoints, showToast }) {
         </div>
       )}
       {task.done && <div style={PS.religiousDoneRow}><CheckCircle2 size={15} color="#5FA8A0" /> مكتملة</div>}
+    </div>
+  );
+}
+
+const AS = {
+  wrap: { display: "flex", flexDirection: "column", gap: 16 },
+  hero: { display: "flex", flexDirection: "column", gap: 4, marginBottom: 4 },
+  heroTitle: { fontFamily: "'Amiri', serif", fontSize: 22, fontWeight: 700 },
+  heroSub: { fontSize: 12, color: "#8A8782", lineHeight: 1.5 },
+  grid: { display: "flex", flexDirection: "column", gap: 12 },
+  catCard: { display: "flex", alignItems: "center", gap: 14, background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 18, padding: "18px 16px", cursor: "pointer", textAlign: "right", fontFamily: "inherit" },
+  catIcon: { fontSize: 32, width: 52, height: 52, borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(201,162,75,0.08)", flexShrink: 0 },
+  catInfo: { flex: 1, minWidth: 0 },
+  catTitle: { fontFamily: "'Amiri', serif", fontSize: 17, fontWeight: 700, color: "var(--ink)" },
+  catSub: { fontSize: 11.5, color: "#8A8782", marginTop: 3 },
+  catBadge: { fontSize: 12, fontWeight: 700, color: "#5FA8A0", background: "rgba(95,168,160,0.1)", border: "1px solid rgba(95,168,160,0.3)", borderRadius: 20, padding: "5px 12px", flexShrink: 0, fontVariantNumeric: "tabular-nums" },
+  backRow: { display: "flex", alignItems: "center", gap: 8, marginBottom: 4 },
+  backBtn: { display: "flex", alignItems: "center", gap: 5, background: "none", border: "none", color: "#8A8782", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", padding: "4px 0" },
+  progressWrap: { marginBottom: 6 },
+  progressTop: { display: "flex", justifyContent: "space-between", fontSize: 12, color: "#8A8782", marginBottom: 6 },
+  progressBar: { height: 8, background: "#1F1F22", borderRadius: 4, overflow: "hidden" },
+  progressFill: { height: "100%", borderRadius: 4, transition: "width 0.4s ease" },
+  itemCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "16px 14px", transition: "opacity 0.3s ease, transform 0.3s ease" },
+  itemCardDone: { opacity: 0.55 },
+  itemText: { fontFamily: "'Amiri', serif", fontSize: 19, lineHeight: 2.1, color: "var(--ink)", whiteSpace: "pre-line", textAlign: "center" },
+  itemNote: { fontSize: 11.5, color: "#6B6863", textAlign: "center", marginTop: 8, lineHeight: 1.6 },
+  itemFooter: { display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14, gap: 10 },
+  itemLabel: { fontSize: 12, color: "#8A8782" },
+  counterBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, minWidth: 96, background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.35)", color: "#C9A24B", borderRadius: 14, padding: "10px 18px", fontSize: 18, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", fontVariantNumeric: "tabular-nums" },
+  counterBtnDone: { background: "rgba(95,168,160,0.12)", borderColor: "rgba(95,168,160,0.4)", color: "#5FA8A0" },
+  doneMsg: { display: "flex", flexDirection: "column", alignItems: "center", gap: 8, textAlign: "center", background: "linear-gradient(160deg, #15130E, #121214)", border: "1px solid rgba(201,162,75,0.35)", borderRadius: 18, padding: "28px 16px" },
+  doneMsgIcon: { fontSize: 34 },
+  doneMsgText: { fontFamily: "'Amiri', serif", fontSize: 18, fontWeight: 700, color: "#C9A24B" },
+};
+
+function AdhkarView({ showToast }) {
+  const today = todayKey();
+  const [selected, setSelected] = useState(null);
+  const [progress, setProgress] = useState({});
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    store.loadAdhkarProgress(today).then((p) => {
+      if (!active) return;
+      setProgress(p);
+      setLoaded(true);
+    });
+    return () => { active = false; };
+  }, [today]);
+
+  function stateFor(catId, item) {
+    return progress[catId]?.[item.id] || { remaining: item.count, done: false };
+  }
+
+  async function decrement(catId, item) {
+    const cur = stateFor(catId, item);
+    if (cur.done) return;
+    const nextRemaining = Math.max(0, cur.remaining - 1);
+    const done = nextRemaining === 0;
+    setProgress((prev) => ({
+      ...prev,
+      [catId]: { ...(prev[catId] || {}), [item.id]: { remaining: nextRemaining, done } },
+    }));
+    await store.saveAdhkarProgressItem(today, catId, item.id, nextRemaining, done);
+    if (done) showToast("أُتمّ الذكر ✓");
+  }
+
+  function categoryStats(catId) {
+    const items = ADHKAR[catId] || [];
+    const doneCount = items.filter((it) => stateFor(catId, it).done).length;
+    return { done: doneCount, total: items.length };
+  }
+
+  if (!loaded) {
+    return <div style={S.view}><div style={{ color: "#8A8782", textAlign: "center", marginTop: 40 }}><Loader2 size={20} className="spin" /></div></div>;
+  }
+
+  if (!selected) {
+    return (
+      <div style={S.view}>
+        <div style={AS.wrap}>
+          <div style={AS.hero}>
+            <div style={AS.heroTitle}>أذكار</div>
+            <div style={AS.heroSub}>اختر فئة لتبدأ، وعدّاد كل ذكر يحفظ تقدّمك تلقائياً طوال اليوم.</div>
+          </div>
+          <div style={AS.grid}>
+            {ADHKAR_CATEGORIES.map((cat) => {
+              const stats = categoryStats(cat.id);
+              return (
+                <button key={cat.id} onClick={() => setSelected(cat.id)} style={AS.catCard}>
+                  <span style={AS.catIcon}>{cat.icon}</span>
+                  <div style={AS.catInfo}>
+                    <div style={AS.catTitle}>{cat.title}</div>
+                    <div style={AS.catSub}>{cat.subtitle} · {(ADHKAR[cat.id] || []).length} ذكرًا</div>
+                  </div>
+                  <span style={AS.catBadge}>{stats.done}/{stats.total}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const cat = ADHKAR_CATEGORIES.find((c) => c.id === selected);
+  const items = ADHKAR[selected] || [];
+  const stats = categoryStats(selected);
+  const allDone = stats.total > 0 && stats.done === stats.total;
+  const pct = stats.total ? Math.round((stats.done / stats.total) * 100) : 0;
+
+  return (
+    <div style={S.view}>
+      <div style={AS.wrap}>
+        <div style={AS.backRow}>
+          <button onClick={() => setSelected(null)} style={AS.backBtn}><ChevronRight size={16} /> الفئات</button>
+        </div>
+        <div style={AS.hero}>
+          <div style={AS.heroTitle}>{cat.icon} {cat.title}</div>
+          <div style={AS.heroSub}>{cat.subtitle}</div>
+        </div>
+        <div style={AS.progressWrap}>
+          <div style={AS.progressTop}><span>{stats.done} من {stats.total}</span><span>{pct}%</span></div>
+          <div style={AS.progressBar}><div style={{ ...AS.progressFill, width: `${pct}%`, background: allDone ? "#5FA8A0" : "#C9A24B" }} /></div>
+        </div>
+
+        {allDone && (
+          <div style={AS.doneMsg}>
+            <span style={AS.doneMsgIcon}>🤍</span>
+            <span style={AS.doneMsgText}>تقبل الله</span>
+          </div>
+        )}
+
+        {items.map((item) => {
+          const st = stateFor(selected, item);
+          return (
+            <div key={item.id} style={{ ...AS.itemCard, ...(st.done ? AS.itemCardDone : {}) }}>
+              <div style={AS.itemText}>{item.text}</div>
+              {item.note && <div style={AS.itemNote}>{item.note}</div>}
+              <div style={AS.itemFooter}>
+                <span style={AS.itemLabel}>{item.countLabel}</span>
+                <button onClick={() => decrement(selected, item)} disabled={st.done} style={{ ...AS.counterBtn, ...(st.done ? AS.counterBtnDone : {}) }}>
+                  {st.done ? <><Check size={18} /> تم</> : st.remaining}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

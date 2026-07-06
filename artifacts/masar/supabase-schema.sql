@@ -199,6 +199,20 @@ create table if not exists chat_messages (
 );
 create index if not exists chat_messages_owner_created on chat_messages (owner, created_at);
 
+-- تقدّم قسم "أذكار" اليومي (عدّاد كل ذكر لكل فئة، يُعاد ضبطه تلقائياً كل يوم لأنه مرتبط بالتاريخ)
+create table if not exists adhkar_progress (
+  id          text primary key default gen_random_uuid()::text,
+  owner       text not null default 'solo',
+  date        text not null,
+  category    text not null,
+  item_id     text not null,
+  remaining   integer not null default 0,
+  done        boolean not null default false,
+  updated_at  timestamptz default now(),
+  unique (owner, date, category, item_id)
+);
+create index if not exists adhkar_progress_owner_date on adhkar_progress (owner, date);
+
 -- ============================================================
 -- ترقية المفاتيح لتكون مخصّصة لكل مستخدم (تمنع تصادم بيانات حسابين)
 -- categories: المفتاح صار (owner, id) لأن التصنيفات الافتراضية تشترك بنفس id.
@@ -311,3 +325,8 @@ alter table chat_messages enable row level security;
 drop policy if exists chat_messages_anon_solo on chat_messages;
 drop policy if exists chat_messages_user_own on chat_messages;
 create policy chat_messages_user_own on chat_messages for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
+alter table adhkar_progress enable row level security;
+drop policy if exists adhkar_progress_anon_solo on adhkar_progress;
+drop policy if exists adhkar_progress_user_own on adhkar_progress;
+create policy adhkar_progress_user_own on adhkar_progress for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);

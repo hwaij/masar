@@ -498,4 +498,37 @@ export const store = {
       if (error) console.error("[clearChatMessages] Supabase error:", error.message);
     }
   },
+
+  async loadAdhkarProgress(date) {
+    const key = `masar_adhkar_progress_${date}`;
+    const local = lsGet(key, {});
+    if (!useCloud()) return local;
+    try {
+      const { data, error } = await supabase.from("adhkar_progress").select("*").eq("owner", CURRENT_OWNER).eq("date", date);
+      if (error || !data) return local;
+      const progress = {};
+      data.forEach((r) => {
+        if (!progress[r.category]) progress[r.category] = {};
+        progress[r.category][r.item_id] = { remaining: r.remaining, done: r.done };
+      });
+      lsSet(key, progress);
+      return progress;
+    } catch { return local; }
+  },
+  async saveAdhkarProgressItem(date, category, itemId, remaining, done) {
+    const key = `masar_adhkar_progress_${date}`;
+    const progress = lsGet(key, {});
+    if (!progress[category]) progress[category] = {};
+    progress[category][itemId] = { remaining, done };
+    lsSet(key, progress);
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("adhkar_progress").upsert(
+          { date, category, item_id: itemId, remaining, done, owner: CURRENT_OWNER, updated_at: new Date().toISOString() },
+          { onConflict: "owner,date,category,item_id" }
+        );
+        if (error) console.warn("adhkar_progress sync error:", error.message);
+      } catch (e) { console.warn("adhkar_progress write failed:", e); }
+    }
+  },
 };

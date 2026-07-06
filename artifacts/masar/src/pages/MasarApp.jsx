@@ -2058,6 +2058,7 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
   const [coachReply, setCoachReply] = useState(null);
   const [smartUnavailable, setSmartUnavailable] = useState(false);
   const [debugMsg, setDebugMsg] = useState("");
+  const [promptText, setPromptText] = useState("");
   const hasProfile = profile.hobbies || profile.field || profile.about;
 
   async function askCoach(mood) {
@@ -2087,23 +2088,24 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
   });
   const kindForTab = tab === "challenges" ? "challenge" : tab === "projects" ? "project" : "path";
 
-  async function generate(kind) {
+  async function generate(kind, userRequest) {
     setLoading(true);
     try {
       const who = `نبذة: ${profile.about || "غير محدد"}. الهوايات: ${profile.hobbies || "غير محدد"}. التخصص: ${profile.field || "غير محدد"}.`;
       const existing = achieve.slice(0, 8).map((a) => a.title).join(" / ");
       const kindAr = kind === "challenge" ? "تحديات أسبوعية عملية" : kind === "project" ? "مشاريع صغيرة قابلة للتنفيذ" : "مسارات تعلّم متدرجة";
-      const prompt = `أنت مدرب تطوير مهارات يكتب بالعربية الفصحى البسيطة بدون أي شرطات طويلة. المستخدم التالي يريد أن يتطور في هواياته وتخصصه.\n${who}\n\nاقترح 3 ${kindAr} مرتبطة مباشرة بهواياته أو تخصصه.\n\n${existing ? `لا تكرر هذه العناصر الموجودة: ${existing}` : ""}\n\nأعد فقط JSON بدون أي نص أو markdown:\n{"items":[{"title":"عنوان قصير","detail":"وصف من جملتين","steps":["خطوة 1","خطوة 2","خطوة 3"],"topic":"الهواية أو التخصص المرتبط"}]}`;
+      const prompt = `أنت مدرب تطوير مهارات يكتب بالعربية الفصحى البسيطة بدون أي شرطات طويلة. طلب المستخدم بالضبط: "${userRequest}"\n\nسياق إضافي عن المستخدم، استخدمه لتخصيص الاقتراحات إن كان مناسباً: ${who}\n\nبناءً على طلب المستخدم أعلاه بالدرجة الأولى، اقترح 3 ${kindAr} تلبي طلبه بدقة.\n\n${existing ? `لا تكرر هذه العناصر الموجودة: ${existing}` : ""}\n\nأعد فقط JSON بدون أي نص أو markdown:\n{"items":[{"title":"عنوان قصير","detail":"وصف من جملتين","steps":["خطوة 1","خطوة 2","خطوة 3"],"topic":"الهواية أو التخصص المرتبط"}]}`;
       const text = await analyze(prompt, 2048);
       const parsed = parseJsonLoose(text);
       const newItems = (parsed.items || []).map((it) => ({ id: uid(), kind, title: it.title, detail: it.detail, steps: it.steps || [], topic: it.topic || "", done: false }));
       for (const it of newItems) await store.saveAchieve(it);
       setAchieve((prev) => [...newItems, ...prev]);
       setSmartUnavailable(false);
+      setPromptText("");
       showToast(`أضفت ${newItems.length} عناصر جديدة`);
     } catch (err) {
       console.error("[AchieveView] generate failed:", err, err?.debug);
-      setDebugMsg(err?.debug ? `${err.message} [DEBUG: ${JSON.stringify(err.debug)}]` : err?.message || "");
+      setDebugMsg("");
       setSmartUnavailable(true);
       const existing = achieve.slice(0, 8).map((a) => a.title);
       const localItems = localAchieveSuggestions(profile, kind, existing);
@@ -2113,6 +2115,11 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
       showToast(`أضفت ${newItems.length} مهام جاهزة`);
     }
     finally { setLoading(false); }
+  }
+
+  function handleGenerate() {
+    if (!promptText.trim()) { showToast("اكتب ما تريد أولاً"); return; }
+    generate(kindForTab, promptText.trim());
   }
 
   async function toggleDone(item) {
@@ -2126,13 +2133,10 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
     await store.deleteAchieve(id); showToast("تم الحذف");
   }
 
-  useEffect(() => {
-    if (filtered.length === 0 && !loading) {
-      generate(kindForTab);
-    }
-  }, [tab]);
+  useEffect(() => { setPromptText(""); }, [tab]);
 
   const kindMap = { challenge: "تحدي", project: "مشروع", path: "مسار تعلّم" };
+  const promptPlaceholder = tab === "challenges" ? "مثال: أبي تحدي رياضة خفيف" : tab === "projects" ? "مثال: مشروع تصوير بسيط لنهاية الأسبوع" : "مثال: أبي أتعلم أساسيات التصميم";
 
   return (
     <div style={S.view}>
@@ -2179,12 +2183,21 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
           );
         })}
       </div>
-      <button onClick={() => generate(kindForTab)} disabled={loading} style={S.aiButton}>
-        {loading ? <Loader2 size={16} className="spin" /> : <Sparkles size={16} />}
-        {loading ? "يصمّم لك الآن..." : `اقترح ${tab === "challenges" ? "تحديات" : tab === "projects" ? "مشاريع" : "مسارات"} جديدة`}
-      </button>
+      <div style={HS.chatInputRow}>
+        <input
+          value={promptText}
+          onChange={(e) => setPromptText(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && !loading) handleGenerate(); }}
+          placeholder={promptPlaceholder}
+          style={HS.chatInput}
+          disabled={loading}
+        />
+        <button onClick={handleGenerate} disabled={loading || !promptText.trim()} style={{ ...HS.chatSend, ...(loading || !promptText.trim() ? { opacity: 0.5, cursor: "default" } : {}) }}>
+          {loading ? <Loader2 size={16} className="spin" /> : <Send size={17} />}
+        </button>
+      </div>
       <div style={S.achieveList} className="stagger-in">
-        {filtered.length === 0 && !loading && <div style={S.emptyState}><div style={S.emptyStateTitle}>لا شيء بعد</div><div style={S.emptyStateSub}>اضغط الزر أعلاه</div></div>}
+        {filtered.length === 0 && !loading && <div style={S.emptyState}><div style={S.emptyStateTitle}>لا شيء بعد</div><div style={S.emptyStateSub}>اكتب طلبك في الأعلى ثم اضغط إرسال</div></div>}
         {filtered.map((item) => <AchieveCard key={item.id} item={item} kindLabel={kindMap[item.kind]} onToggle={() => toggleDone(item)} onRemove={() => remove(item.id)} />)}
       </div>
     </div>

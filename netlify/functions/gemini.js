@@ -63,10 +63,16 @@ exports.handler = async (event) => {
         res.status === 429
           ? "الطلبات كثيرة الآن، جرّب بعد قليل."
           : "تعذّر الاتصال بالمساعد الذكي الآن.";
+      // TEMP DIAGNOSTIC (remove once the AI-everywhere regression is
+      // confirmed fixed): include Gemini's real status/body so we can see
+      // the exact upstream failure instead of guessing at it.
       return {
         statusCode: status,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ error: friendly }),
+        body: JSON.stringify({
+          error: friendly,
+          debug: { upstreamStatus: res.status, upstreamBody: rawBody.slice(0, 800) },
+        }),
       };
     }
 

@@ -775,7 +775,10 @@ function DailyEvolution({ date, dayEntries, catMap, report, aiHistory, onSave })
       const text = await analyze(prompt, 800);
       const parsed = parseJsonLoose(text);
       setLocal(parsed); onSave(parsed, parsed.gist);
-    } catch { setLocal({ error: "تعذّر التحليل الآن، جرّب مرة أخرى." }); }
+    } catch (err) {
+      console.error("[DailyEvolution] analyze failed:", err, err?.debug);
+      setLocal({ error: `تعذّر التحليل الآن، جرّب مرة أخرى.${err?.debug ? ` [DEBUG: ${JSON.stringify(err.debug)}]` : ""}` });
+    }
     finally { setLoading(false); }
   }
 
@@ -1076,10 +1079,12 @@ function AssistantView({ entries, tasks, categories, focus, prayerLog, religious
       const botMsg = { id: uid(), role: "assistant", content: reply };
       setMessages([...next, botMsg]);
       store.saveChatMessage(botMsg);
-    } catch {
+    } catch (err) {
       // Transient failures aren't saved — retrying shouldn't clutter the
       // permanent conversation history with dead-end error bubbles.
-      setMessages([...next, { id: uid(), role: "assistant", content: "تعذّر الاتصال بالمساعد الآن. تأكد من اتصالك وحاول مرة أخرى." }]);
+      console.error("[AssistantView] coachChat failed:", err, err?.debug);
+      const debugSuffix = err?.debug ? ` [DEBUG: ${JSON.stringify(err.debug)}]` : "";
+      setMessages([...next, { id: uid(), role: "assistant", content: `تعذّر الاتصال بالمساعد الآن. تأكد من اتصالك وحاول مرة أخرى.${debugSuffix}` }]);
     } finally {
       setSending(false);
     }
@@ -1162,6 +1167,7 @@ function AIView({ entries, tasks, categories, reports, setReports, aiHistory, fo
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
   const [smartUnavailable, setSmartUnavailable] = useState(false);
+  const [debugMsg, setDebugMsg] = useState("");
   const catMap = useMemo(() => Object.fromEntries(categories.map((c) => [c.id, c])), [categories]);
 
   async function generate() {
@@ -1188,7 +1194,9 @@ function AIView({ entries, tasks, categories, reports, setReports, aiHistory, fo
       setSmartUnavailable(false);
       const rep = { id: uid(), kind: "deep", date: todayKey(), payload: parsed, gist: parsed.gist || parsed.headline };
       setReports((prev2) => [rep, ...prev2]); await store.saveReport(rep);
-    } catch {
+    } catch (err) {
+      console.error("[AIView] analyze failed:", err, err?.debug);
+      setDebugMsg(err?.debug ? `${err.message} [DEBUG: ${JSON.stringify(err.debug)}]` : err?.message || "");
       setSmartUnavailable(true);
       const s = localAnalysisSummary({ tasks, focus, prayerLog, religious });
       setReport({
@@ -1211,7 +1219,7 @@ function AIView({ entries, tasks, categories, reports, setReports, aiHistory, fo
       {smartUnavailable && (
         <div style={S.smartBanner}>
           <Zap size={14} color="#C9A24B" />
-          <span>الوضع الذكي غير متاح الآن، نعرض لك إحصائيات مباشرة من بياناتك لحين تفعيل الذكاء الاصطناعي.</span>
+          <span>الوضع الذكي غير متاح الآن، نعرض لك إحصائيات مباشرة من بياناتك لحين تفعيل الذكاء الاصطناعي.{debugMsg ? ` [DEBUG: ${debugMsg}]` : ""}</span>
         </div>
       )}
       <button onClick={generate} disabled={loading} style={S.aiButton}>
@@ -2049,6 +2057,7 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
   const [coachLoading, setCoachLoading] = useState(false);
   const [coachReply, setCoachReply] = useState(null);
   const [smartUnavailable, setSmartUnavailable] = useState(false);
+  const [debugMsg, setDebugMsg] = useState("");
   const hasProfile = profile.hobbies || profile.field || profile.about;
 
   async function askCoach(mood) {
@@ -2061,7 +2070,9 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
       const text = await analyze(prompt, 800);
       setCoachReply(parseJsonLoose(text));
       setSmartUnavailable(false);
-    } catch {
+    } catch (err) {
+      console.error("[AchieveView] askCoach failed:", err, err?.debug);
+      setDebugMsg(err?.debug ? `${err.message} [DEBUG: ${JSON.stringify(err.debug)}]` : err?.message || "");
       setSmartUnavailable(true);
       setCoachReply(localCoachReply(mood));
     }
@@ -2090,7 +2101,9 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
       setAchieve((prev) => [...newItems, ...prev]);
       setSmartUnavailable(false);
       showToast(`أضفت ${newItems.length} عناصر جديدة`);
-    } catch {
+    } catch (err) {
+      console.error("[AchieveView] generate failed:", err, err?.debug);
+      setDebugMsg(err?.debug ? `${err.message} [DEBUG: ${JSON.stringify(err.debug)}]` : err?.message || "");
       setSmartUnavailable(true);
       const existing = achieve.slice(0, 8).map((a) => a.title);
       const localItems = localAchieveSuggestions(profile, kind, existing);
@@ -2131,7 +2144,7 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
         </div>
       </div>
       {smartUnavailable && (
-        <div style={S.smartBanner}><Zap size={14} color="#C9A24B" /><span>الوضع الذكي غير متاح الآن، نعرض لك مهام جاهزة.</span></div>
+        <div style={S.smartBanner}><Zap size={14} color="#C9A24B" /><span>الوضع الذكي غير متاح الآن، نعرض لك مهام جاهزة.{debugMsg ? ` [DEBUG: ${debugMsg}]` : ""}</span></div>
       )}
       {!hasProfile && (
         <div style={S.setupCard}>

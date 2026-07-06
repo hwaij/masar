@@ -36,9 +36,18 @@ async function callGemini(body) {
   }
 
   if (!res.ok) {
-    if (res.status === 429) throw new Error("الطلبات كثيرة الآن، جرّب بعد قليل.");
-    if (res.status === 500) throw new Error("المساعد الذكي غير مفعّل على هذا الموقع حالياً.");
-    throw new Error(data.error || "تعذّر الاتصال بالمساعد الذكي الآن.");
+    // TEMP DIAGNOSTIC (remove once the AI-everywhere regression is
+    // confirmed fixed): log the real upstream status/body to the console
+    // so we can see exactly what Gemini is rejecting instead of guessing.
+    console.error("[gemini] request failed:", res.status, data);
+    const err = new Error(
+      (res.status === 429 && "الطلبات كثيرة الآن، جرّب بعد قليل.") ||
+      (res.status === 500 && "المساعد الذكي غير مفعّل على هذا الموقع حالياً.") ||
+      data.error ||
+      "تعذّر الاتصال بالمساعد الذكي الآن.",
+    );
+    err.debug = data.debug;
+    throw err;
   }
   return data.text || "";
 }

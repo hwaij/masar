@@ -1443,13 +1443,14 @@ const AS = {
   progressTop: { display: "flex", justifyContent: "space-between", fontSize: 12, color: "#8A8782", marginBottom: 6 },
   progressBar: { height: 8, background: "#1F1F22", borderRadius: 4, overflow: "hidden" },
   progressFill: { height: "100%", borderRadius: 4, transition: "width 0.4s ease" },
-  itemCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "16px 14px", transition: "opacity 0.3s ease, transform 0.3s ease" },
+  itemCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 18, padding: "24px 20px", transition: "opacity 0.3s ease, transform 0.3s ease" },
   itemCardDone: { opacity: 0.55 },
-  itemText: { fontFamily: "'Amiri', serif", fontSize: 19, lineHeight: 2.1, color: "var(--ink)", whiteSpace: "pre-line", textAlign: "center" },
-  itemNote: { fontSize: 11.5, color: "#6B6863", textAlign: "center", marginTop: 8, lineHeight: 1.6 },
-  itemFooter: { display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14, gap: 10 },
-  itemLabel: { fontSize: 12, color: "#8A8782" },
-  counterBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, minWidth: 96, background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.35)", color: "#C9A24B", borderRadius: 14, padding: "10px 18px", fontSize: 18, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", fontVariantNumeric: "tabular-nums" },
+  itemText: { fontFamily: "'Amiri', 'Scheherazade New', serif", fontSize: 21, lineHeight: 2.3, letterSpacing: 0.2, color: "var(--ink)", whiteSpace: "pre-line", textAlign: "center" },
+  itemTextQuran: { fontSize: 25, lineHeight: 2.6 },
+  itemNote: { fontFamily: "'Amiri', serif", fontSize: 13, color: "#8A8782", textAlign: "center", marginTop: 12, lineHeight: 1.9 },
+  itemFooter: { display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 18, gap: 10 },
+  itemLabel: { fontFamily: "'Amiri', serif", fontSize: 14, color: "#8A8782" },
+  counterBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, minWidth: 96, background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.35)", color: "#C9A24B", borderRadius: 14, padding: "10px 18px", fontSize: 19, fontWeight: 700, cursor: "pointer", fontFamily: "'Amiri', serif", fontVariantNumeric: "tabular-nums" },
   counterBtnDone: { background: "rgba(95,168,160,0.12)", borderColor: "rgba(95,168,160,0.4)", color: "#5FA8A0" },
   doneMsg: { display: "flex", flexDirection: "column", alignItems: "center", gap: 8, textAlign: "center", background: "linear-gradient(160deg, #15130E, #121214)", border: "1px solid rgba(201,162,75,0.35)", borderRadius: 18, padding: "28px 16px" },
   doneMsgIcon: { fontSize: 34 },
@@ -1557,9 +1558,10 @@ function AdhkarView({ showToast }) {
 
         {items.map((item) => {
           const st = stateFor(selected, item);
+          const isQuran = /^\[/.test(item.note || "");
           return (
             <div key={item.id} style={{ ...AS.itemCard, ...(st.done ? AS.itemCardDone : {}) }}>
-              <div style={AS.itemText}>{item.text}</div>
+              <div style={{ ...AS.itemText, ...(isQuran ? AS.itemTextQuran : {}) }}>{item.text}</div>
               {item.note && <div style={AS.itemNote}>{item.note}</div>}
               <div style={AS.itemFooter}>
                 <span style={AS.itemLabel}>{item.countLabel}</span>

@@ -532,7 +532,21 @@ function LandingPage({ onSignIn, onEmailSignIn, onEmailSignUp }) {
 }
 
 function TasbihIcon({ size = 15 }) {
-  return <span style={{ fontSize: size, lineHeight: 1 }}>📿</span>;
+  // A ring of prayer-bead dots, drawn with fill="currentColor" so it
+  // inherits the tab's active/inactive color exactly like the lucide-react
+  // icons used by every other tab (emoji glyphs can't be recolored via CSS).
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="4.5" r="1.7" fill="currentColor" />
+      <circle cx="17.2" cy="7" r="1.7" fill="currentColor" />
+      <circle cx="19.5" cy="12.2" r="1.7" fill="currentColor" />
+      <circle cx="17.2" cy="17.4" r="1.7" fill="currentColor" />
+      <circle cx="12" cy="19.9" r="1.7" fill="currentColor" />
+      <circle cx="6.8" cy="17.4" r="1.7" fill="currentColor" />
+      <circle cx="4.5" cy="12.2" r="1.7" fill="currentColor" />
+      <circle cx="6.8" cy="7" r="1.7" fill="currentColor" />
+    </svg>
+  );
 }
 
 function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSignOut }) {

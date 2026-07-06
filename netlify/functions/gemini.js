@@ -77,11 +77,34 @@ exports.handler = async (event) => {
     }
 
     console.log(`[gemini] ${MODEL} -> HTTP ${res.status} OK`);
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const candidate = data.candidates?.[0];
+    // Thinking-capable models can return the internal reasoning as a
+    // separate part (marked `thought: true`) before the real answer part —
+    // only parts[0] would silently grab the thought instead of the answer.
+    // Filter those out and join whatever text part(s) remain.
+    const text = (candidate?.content?.parts || [])
+      .filter((p) => p && !p.thought && typeof p.text === "string")
+      .map((p) => p.text)
+      .join("");
+    const finishReason = candidate?.finishReason;
+    if (!text) {
+      // Empty text with a 200 OK almost always means the model's thinking
+      // consumed the whole maxOutputTokens budget before it could write the
+      // actual answer (finishReason "MAX_TOKENS" with no visible output).
+      console.error(`[gemini] ${MODEL} -> empty text, finishReason=${finishReason}`, rawBody.slice(0, 500));
+      return {
+        statusCode: 502,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          error: "تعذّر الحصول على رد من المساعد الذكي الآن.",
+          debug: { finishReason, note: "empty text from Gemini", upstreamBody: rawBody.slice(0, 800) },
+        }),
+      };
+    }
     return {
       statusCode: 200,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, finishReason }),
     };
   } catch (err) {
     console.error("[gemini] network/exception error:", err);

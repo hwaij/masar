@@ -55,7 +55,17 @@ async function callGemini(body) {
 export async function geminiAnalyze(prompt, maxTokens = 1000) {
   return callGemini({
     contents: [{ role: "user", parts: [{ text: prompt }] }],
-    generationConfig: { maxOutputTokens: Math.min(maxTokens, 4096) },
+    // thinkingBudget: 0 disables the model's internal "thinking" pass.
+    // Thinking tokens are counted against maxOutputTokens, and for a
+    // structured-JSON prompt like this one the model was spending most of
+    // the budget reasoning internally before writing any of the actual
+    // JSON, so the visible output kept coming back empty/truncated no
+    // matter how high maxOutputTokens was raised. This task doesn't need
+    // deliberation, just direct formatted output.
+    generationConfig: {
+      maxOutputTokens: Math.min(maxTokens, 4096),
+      thinkingConfig: { thinkingBudget: 0 },
+    },
   });
 }
 

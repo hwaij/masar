@@ -203,7 +203,19 @@ export async function coachChat(messages, context) {
 }
 
 export function parseJsonLoose(text) {
-  return JSON.parse(text.replace(/```json|```/g, "").trim());
+  const cleaned = String(text || "").replace(/```json|```/g, "").trim();
+  // Models sometimes add a preamble/postamble sentence despite instructions
+  // not to, or the JSON gets cut off if the response hits the token limit.
+  // Extracting the outermost {...} span (instead of assuming the whole
+  // trimmed string is valid JSON) makes this tolerant of stray text around
+  // the object; it still throws (and callers fall back) on a genuinely
+  // truncated or missing object.
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start === -1 || end === -1 || end < start) {
+    throw new Error("لم يتم العثور على JSON صالح في رد النموذج");
+  }
+  return JSON.parse(cleaned.slice(start, end + 1));
 }
 
 const LOCAL_TASK_BANK = {

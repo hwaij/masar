@@ -325,7 +325,7 @@ export default function MasarApp() {
         {view === "achieve" && <AchieveView achieve={achieve} setAchieve={setAchieve} profile={profile} focus={focus} tasks={tasks} prayerLog={prayerLog} religious={religious} addPoints={addPoints} showToast={showToast} />}
         {view === "reports" && <ReportsView entries={entries} categories={categories} focus={focus} profile={profile} showToast={showToast} />}
         {view === "assistant" && <AssistantView entries={entries} tasks={tasks} categories={categories} focus={focus} prayerLog={prayerLog} religious={religious} profile={profile} stats={stats} azkarLog={azkarLog} quranProgress={quranProgress} istighfar={istighfar} />}
-        {view === "ai" && <AIView entries={entries} tasks={tasks} categories={categories} reports={reports} setReports={setReports} aiHistory={aiHistory} focus={focus} commitments={commitments} prayerLog={prayerLog} religious={religious} />}
+        {view === "ai" && <AIView entries={entries} tasks={tasks} categories={categories} reports={reports} setReports={setReports} aiHistory={aiHistory} focus={focus} commitments={commitments} prayerLog={prayerLog} religious={religious} profile={profile} />}
         {view === "settings" && <SettingsView categories={categories} setCategories={setCategories} gamify={gamify} hasCloud={store.hasCloud} showToast={showToast} profile={profile} setProfile={setProfile} pointsLog={pointsLog} />}
       </div>
       {toast && <div style={S.toast}>{toast}</div>}
@@ -772,7 +772,7 @@ function DailyEvolution({ date, dayEntries, catMap, report, aiHistory, onSave })
       const summary = dayEntries.map((e) => `${catMap[e.catId]?.name || "غير محدد"} | ${e.start}-${e.end} | ${e.note || ""}`).join("\n");
       const prevGists = aiHistory.slice(0, 3).map((h) => h.gist).join(" / ");
       const prompt = `أنت مرشد تطوير ذاتي يكتب بالعربية الفصحى البسيطة بدون أي شرطات طويلة. هذا سجل أنشطة المستخدم ليوم واحد:\n${summary}\n\n${prevGists ? `ملخصات أيام سابقة لا تكررها بل تبني عليها: ${prevGists}` : ""}\n\nاكتب ملخصاً ملهماً قصيراً عن أداء اليوم مع نصيحة عملية للغد. أعد فقط JSON بدون أي نص أو markdown:\n{"summary":"جملتان عن أداء اليوم","tip":"نصيحة واحدة قصيرة للغد","mood":"كلمة واحدة تصف اليوم","gist":"ملخص 6 كلمات"}`;
-      const text = await analyze(prompt, 500);
+      const text = await analyze(prompt, 800);
       const parsed = parseJsonLoose(text);
       setLocal(parsed); onSave(parsed, parsed.gist);
     } catch { setLocal({ error: "تعذّر التحليل الآن، جرّب مرة أخرى." }); }
@@ -1158,7 +1158,7 @@ function AssistantView({ entries, tasks, categories, focus, prayerLog, religious
   );
 }
 
-function AIView({ entries, tasks, categories, reports, setReports, aiHistory, focus, commitments, prayerLog, religious }) {
+function AIView({ entries, tasks, categories, reports, setReports, aiHistory, focus, commitments, prayerLog, religious, profile }) {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
   const [smartUnavailable, setSmartUnavailable] = useState(false);
@@ -1179,9 +1179,10 @@ function AIView({ entries, tasks, categories, reports, setReports, aiHistory, fo
       const religiousDone = (religious || []).filter((r) => r.done).length;
       const religiousInfo = religiousDone ? `المهام الدينية المنجزة: ${religiousDone}` : "";
       const prev = aiHistory.slice(0, 3).map((h, i) => `${i + 1}: ${h.gist}`).join("\n");
+      const who = `نبذة: ${profile?.about || "غير محدد"}. الهوايات: ${profile?.hobbies || "غير محدد"}. التخصص: ${profile?.field || "غير محدد"}.`;
 
-      const prompt = `أنت مرشد تطوير ذاتي وخبير إنتاجية يكتب بالعربية الفصحى البسيطة بدون أي شرطات طويلة. حلل أداء مستخدم هو مصور ومصمم محتوى بصري وطالب جامعي تحليلاً حياً وعملياً.\n\nسجل الأنشطة (تاريخ | فئة | وقت | ملاحظة):\n${summary || "لا يوجد"}\n\n${taskInfo}\n${focusInfo}\n${commitInfo}\n${prayerInfo}\n${religiousInfo}\n\n${prev ? `تقارير سابقة لا تكررها بل تتجاوزها برؤى جديدة:\n${prev}` : ""}\n\nركّز تحليلك على: مدى الالتزام بالمهام، معدل التركيز اليومي، عدد الإنجازات، والتوازن بين الدراسة والعمل والروحانية. أعد فقط JSON بدون أي نص أو markdown:\n{"headline":"جملة قوية تلخص الأداء","insights":["رؤية محددة بالأرقام 1","رؤية 2","رؤية 3"],"warning":"تحذير من نمط غير صحي أو null","recommendations":["توصية عملية 1","توصية 2","توصية 3"],"focus_area":"مجال تركيز للأسبوع القادم","gist":"ملخص 10 كلمات"}`;
-      const text = await analyze(prompt, 1100);
+      const prompt = `أنت مرشد تطوير ذاتي وخبير إنتاجية يكتب بالعربية الفصحى البسيطة بدون أي شرطات طويلة. حلل أداء المستخدم التالي تحليلاً حياً وعملياً.\nعن المستخدم: ${who}\n\nسجل الأنشطة (تاريخ | فئة | وقت | ملاحظة):\n${summary || "لا يوجد"}\n\n${taskInfo}\n${focusInfo}\n${commitInfo}\n${prayerInfo}\n${religiousInfo}\n\n${prev ? `تقارير سابقة لا تكررها بل تتجاوزها برؤى جديدة:\n${prev}` : ""}\n\nركّز تحليلك على: مدى الالتزام بالمهام، معدل التركيز اليومي، عدد الإنجازات، والتوازن بين الدراسة والعمل والروحانية. أعد فقط JSON بدون أي نص أو markdown:\n{"headline":"جملة قوية تلخص الأداء","insights":["رؤية محددة بالأرقام 1","رؤية 2","رؤية 3"],"warning":"تحذير من نمط غير صحي أو null","recommendations":["توصية عملية 1","توصية 2","توصية 3"],"focus_area":"مجال تركيز للأسبوع القادم","gist":"ملخص 10 كلمات"}`;
+      const text = await analyze(prompt, 2048);
       const parsed = parseJsonLoose(text);
       setReport(parsed);
       setSmartUnavailable(false);
@@ -2057,7 +2058,7 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
       const todayFocus = (focus || []).filter((f) => f.date === todayKey()).reduce((s, f) => s + f.minutes, 0);
       const doneToday = (tasks || []).filter((t) => t.done && t.due === todayKey()).length;
       const prompt = `أنت "أنجز"، مدرب شخصي ذكي ودود يكتب بالعربية الفصحى البسيطة بدون أي شرطات طويلة. المستخدم: ${who}\nمزاجه الآن: ${mood}. ركّز اليوم ${todayFocus} دقيقة وأنجز ${doneToday} مهمة.\n\nتحدّث معه بجملة تتفهّم مزاجه، ثم اقترح له نشاطاً واحداً محدداً وقصيراً يحسّن مزاجه أو إنتاجيته الآن، مرتبطاً بهواياته أو تخصصه إن أمكن. أعد فقط JSON بدون أي نص أو markdown:\n{"message":"جملة تتفهم مزاجه","activity":"نشاط واحد محدد مقترح الآن","why":"سبب قصير لماذا هذا النشاط"}`;
-      const text = await analyze(prompt, 500);
+      const text = await analyze(prompt, 800);
       setCoachReply(parseJsonLoose(text));
       setSmartUnavailable(false);
     } catch {
@@ -2082,7 +2083,7 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
       const existing = achieve.slice(0, 8).map((a) => a.title).join(" / ");
       const kindAr = kind === "challenge" ? "تحديات أسبوعية عملية" : kind === "project" ? "مشاريع صغيرة قابلة للتنفيذ" : "مسارات تعلّم متدرجة";
       const prompt = `أنت مدرب تطوير مهارات يكتب بالعربية الفصحى البسيطة بدون أي شرطات طويلة. المستخدم التالي يريد أن يتطور في هواياته وتخصصه.\n${who}\n\nاقترح 3 ${kindAr} مرتبطة مباشرة بهواياته أو تخصصه.\n\n${existing ? `لا تكرر هذه العناصر الموجودة: ${existing}` : ""}\n\nأعد فقط JSON بدون أي نص أو markdown:\n{"items":[{"title":"عنوان قصير","detail":"وصف من جملتين","steps":["خطوة 1","خطوة 2","خطوة 3"],"topic":"الهواية أو التخصص المرتبط"}]}`;
-      const text = await analyze(prompt, 1100);
+      const text = await analyze(prompt, 2048);
       const parsed = parseJsonLoose(text);
       const newItems = (parsed.items || []).map((it) => ({ id: uid(), kind, title: it.title, detail: it.detail, steps: it.steps || [], topic: it.topic || "", done: false }));
       for (const it of newItems) await store.saveAchieve(it);

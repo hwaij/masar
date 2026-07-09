@@ -137,6 +137,7 @@ export const S = {
 
   setupCard: { background: "var(--teal)", border: "1px solid #2A4A4A", borderRadius: 14, padding: "14px", marginBottom: 16, display: "flex", gap: 10, alignItems: "flex-start" },
   setupText: { fontSize: 12.5, color: "#BFD8D4", lineHeight: 1.7 },
+  linkBtn: { background: "var(--gold)", color: "var(--bg)", border: "none", borderRadius: 10, padding: "8px 14px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
 
   roadmapCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 12px" },
   roadmapPhaseRow: { marginBottom: 14, paddingBottom: 14, borderBottom: "1px solid #161618" },

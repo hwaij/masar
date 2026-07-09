@@ -253,7 +253,7 @@ export default function MasarApp() {
   }, [stats, loaded]);
 
   const addPoints = useCallback((n, reason = "") => {
-    setGamify((g) => { const next = { ...g, points: g.points + n }; store.saveGamify(next); return next; });
+    setGamify((g) => { const next = { ...g, points: Math.max(0, g.points + n) }; store.saveGamify(next); return next; });
     const logReason = reason || (n >= 0 ? "نقاط مكتسبة" : "خصم نقاط");
     const logEntry = { id: uid(), date: todayKey(), amount: n, reason: logReason };
     setPointsLog((prev) => [logEntry, ...prev].slice(0, 200));
@@ -322,9 +322,9 @@ export default function MasarApp() {
         )}
         {view === "tasks" && <TasksView tasks={tasks} setTasks={setTasks} categories={categories} addPoints={addPoints} showToast={showToast} />}
         {view === "focus" && <FocusView focus={focus} setFocus={setFocus} commitments={commitments} setCommitments={setCommitments} categories={categories} entries={entries} addPoints={addPoints} showToast={showToast} />}
-        {view === "achieve" && <AchieveView achieve={achieve} setAchieve={setAchieve} profile={profile} focus={focus} tasks={tasks} prayerLog={prayerLog} religious={religious} addPoints={addPoints} showToast={showToast} />}
+        {view === "achieve" && <AchieveView achieve={achieve} setAchieve={setAchieve} profile={profile} focus={focus} tasks={tasks} prayerLog={prayerLog} religious={religious} addPoints={addPoints} showToast={showToast} setView={setView} />}
         {view === "reports" && <ReportsView entries={entries} categories={categories} focus={focus} profile={profile} showToast={showToast} />}
-        {view === "assistant" && <AssistantView entries={entries} tasks={tasks} categories={categories} focus={focus} prayerLog={prayerLog} religious={religious} profile={profile} stats={stats} azkarLog={azkarLog} quranProgress={quranProgress} istighfar={istighfar} />}
+        {view === "assistant" && <AssistantView entries={entries} tasks={tasks} categories={categories} focus={focus} prayerLog={prayerLog} religious={religious} profile={profile} stats={stats} azkarLog={azkarLog} quranProgress={quranProgress} istighfar={istighfar} setView={setView} />}
         {view === "ai" && <AIView entries={entries} tasks={tasks} categories={categories} reports={reports} setReports={setReports} aiHistory={aiHistory} focus={focus} commitments={commitments} prayerLog={prayerLog} religious={religious} profile={profile} />}
         {view === "settings" && <SettingsView categories={categories} setCategories={setCategories} gamify={gamify} hasCloud={store.hasCloud} showToast={showToast} profile={profile} setProfile={setProfile} pointsLog={pointsLog} />}
       </div>
@@ -628,6 +628,7 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
     if (setMandatoryLog) setMandatoryLog(newLog);
     await store.saveMandatoryItem(today, task.key, done);
     if (done) { addPoints(task.points, task.label); showToast(`+${task.points} نقطة`); }
+    else addPoints(-task.points, `التراجع عن ${task.label}`);
   }
 
   async function saveEntry(entry) {
@@ -638,13 +639,16 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
   }
   async function deleteEntry(id) {
     setEntries((prev) => prev.filter((e) => e.id !== id));
-    await store.deleteEntry(id); showToast("تم الحذف");
+    await store.deleteEntry(id);
+    addPoints(-15, "حذف نشاط");
+    showToast("تم الحذف");
   }
   async function toggleTask(t) {
     const updated = { ...t, done: !t.done };
     setTasks((prev) => prev.map((x) => x.id === t.id ? updated : x));
     await store.saveTask(updated);
     if (!t.done) addPoints(10);
+    else addPoints(-10, "التراجع عن مهمة");
   }
 
   const byCategory = useMemo(() => {
@@ -828,10 +832,16 @@ function TasksView({ tasks, setTasks, categories, addPoints, showToast }) {
   async function toggle(t) {
     const updated = { ...t, done: !t.done };
     setTasks((prev) => prev.map((x) => x.id === t.id ? updated : x));
-    await store.saveTask(updated); if (!t.done) addPoints(10);
+    await store.saveTask(updated);
+    if (!t.done) addPoints(10);
+    else addPoints(-10, "التراجع عن مهمة");
   }
   async function remove(id) {
-    setTasks((prev) => prev.filter((t) => t.id !== id)); await store.deleteTask(id); showToast("تم الحذف");
+    const removed = tasks.find((t) => t.id === id);
+    setTasks((prev) => prev.filter((t) => t.id !== id));
+    await store.deleteTask(id);
+    if (removed?.done) addPoints(-10, "حذف مهمة منجزة");
+    showToast("تم الحذف");
   }
 
   const filtered = useMemo(() => {
@@ -1015,8 +1025,9 @@ function ReportsView({ entries, categories, focus, profile, showToast }) {
   );
 }
 
-function AssistantView({ entries, tasks, categories, focus, prayerLog, religious, profile, stats, azkarLog, quranProgress, istighfar }) {
+function AssistantView({ entries, tasks, categories, focus, prayerLog, religious, profile, stats, azkarLog, quranProgress, istighfar, setView }) {
   const today = todayKey();
+  const hasIdentity = !!(profile?.hobbies?.trim() || profile?.about?.trim());
 
   const [messages, setMessages] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
@@ -1067,7 +1078,7 @@ function AssistantView({ entries, tasks, categories, focus, prayerLog, religious
 
   async function send(text) {
     const content = (text ?? input).trim();
-    if (!content || sending) return;
+    if (!content || sending || !hasIdentity) return;
     const userMsg = { id: uid(), role: "user", content };
     const next = [...messages, userMsg];
     setMessages(next);
@@ -1108,6 +1119,19 @@ function AssistantView({ entries, tasks, categories, focus, prayerLog, religious
           </div>
         </div>
 
+        {!hasIdentity && (
+          <div style={S.setupCard}>
+            <User size={16} color="#5FA8A0" style={{ flexShrink: 0, marginTop: 2 }} />
+            <div style={S.setupText}>
+              اكتب هواياتك ونبذتك في التخصيص أولاً ليساعدك أنجز بشكل مخصّص.
+              <div>
+                <button onClick={() => setView("settings")} style={{ ...S.linkBtn, marginTop: 8 }}>الذهاب إلى التخصيص</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {hasIdentity && (
         <div style={HS.chatCard}>
           <div style={{ ...HS.chatHead, justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
@@ -1158,6 +1182,7 @@ function AssistantView({ entries, tasks, categories, focus, prayerLog, religious
             </button>
           </div>
         </div>
+        )}
       </div>
     </div>
   );
@@ -1311,6 +1336,7 @@ function PrayerView({ prayerLog, setPrayerLog, religious, setReligious, addPoint
     if (isDone(p.id)) {
       setPrayerLog((prev) => prev.filter((x) => !(x.date === today && x.prayerId === p.id)));
       await store.removePrayer(today, p.id);
+      addPoints(-20, `التراجع عن ${p.name}`);
     } else {
       const entry = { id: uid(), date: today, prayerId: p.id };
       setPrayerLog((prev) => [entry, ...prev]);
@@ -1616,21 +1642,29 @@ function FocusView({ focus, setFocus, commitments, setCommitments, categories, e
   useEffect(() => {
     (async () => {
       const active = await store.loadActiveSession();
-      if (active && active.startedAt) {
-        const startedMs = new Date(active.startedAt).getTime();
-        const elapsedSec = Math.floor((Date.now() - startedMs) / 1000);
-        const totalTargetSec = active.targetMinutes * 60;
+      if (active) {
         sessionRef.current = active;
         setTargetMin(active.targetMinutes);
         setLabel(active.label || "");
         setIsStudy(active.isStudy);
-        if (elapsedSec >= totalTargetSec) {
-          setRemaining(0);
-          await completeSession(active, active.targetMinutes, true);
+        if (active.running && active.startedAt) {
+          const startedMs = new Date(active.startedAt).getTime();
+          const elapsedSec = Math.floor((Date.now() - startedMs) / 1000);
+          const totalTargetSec = active.remainingAtStart ?? active.targetMinutes * 60;
+          if (elapsedSec >= totalTargetSec) {
+            setRemaining(0);
+            await completeSession(active, active.targetMinutes, true);
+            sessionRef.current = null;
+          } else {
+            setRemaining(totalTargetSec - elapsedSec);
+            setRunning(true);
+            showToast("استمرنا في حساب وقتك أثناء غيابك");
+          }
         } else {
-          setRemaining(totalTargetSec - elapsedSec);
-          setRunning(true);
-          showToast("استمرنا في حساب وقتك أثناء غيابك");
+          // Paused: the countdown is frozen exactly where the user left it.
+          // Only an explicit reset() clears this, never a refresh/navigation.
+          setRemaining(active.remainingSec ?? active.targetMinutes * 60);
+          setRunning(false);
         }
       }
       setLoaded(true);
@@ -1657,21 +1691,36 @@ function FocusView({ focus, setFocus, commitments, setCommitments, categories, e
 
   async function startTimer() {
     const startedAt = new Date().toISOString();
-    const session = { startedAt, targetMinutes: targetMin, label: label.trim(), isStudy };
+    const session = { startedAt, remainingAtStart: targetMin * 60, running: true, targetMinutes: targetMin, label: label.trim(), isStudy };
     sessionRef.current = session;
     await store.saveActiveSession(session);
     setRemaining(targetMin * 60);
     setRunning(true);
   }
 
-  function pauseTimer() {
+  // Continues an existing (paused) session from whatever time is left,
+  // instead of restarting it from the full target duration.
+  async function resumeTimer() {
+    const startedAt = new Date().toISOString();
+    const session = { startedAt, remainingAtStart: remaining, running: true, targetMinutes: targetMin, label: label.trim(), isStudy };
+    sessionRef.current = session;
+    await store.saveActiveSession(session);
+    setRunning(true);
+  }
+
+  async function pauseTimer() {
     setRunning(false);
-    store.saveActiveSession(null);
-    sessionRef.current = null;
+    // Freeze and persist the exact remaining time so a refresh, a tab
+    // switch, or closing the browser while paused never loses progress —
+    // only the explicit reset() button below clears it.
+    const session = { ...(sessionRef.current || {}), running: false, remainingSec: remaining, targetMinutes: targetMin, label: label.trim(), isStudy };
+    sessionRef.current = session;
+    await store.saveActiveSession(session);
   }
 
   function toggle() {
     if (running) pauseTimer();
+    else if (sessionRef.current) resumeTimer();
     else startTimer();
   }
 
@@ -1769,7 +1818,7 @@ function FocusView({ focus, setFocus, commitments, setCommitments, categories, e
                 <button onClick={reset} style={S.timerSecondary}><RotateCcw size={18} /></button>
                 <button onClick={toggle} style={S.timerPrimary}>
                   {running ? <Pause size={20} /> : <Play size={20} />}
-                  {running ? "إيقاف مؤقت" : "ابدأ"}
+                  {running ? "إيقاف مؤقت" : sessionRef.current ? "متابعة" : "ابدأ"}
                 </button>
               </div>
             </div>
@@ -2051,7 +2100,7 @@ function CommitmentsSection({ commitments, setCommitments, categories, focus, sh
   );
 }
 
-function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, religious, addPoints, showToast }) {
+function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, religious, addPoints, showToast, setView }) {
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState("challenges");
   const [coachLoading, setCoachLoading] = useState(false);
@@ -2059,9 +2108,11 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
   const [smartUnavailable, setSmartUnavailable] = useState(false);
   const [debugMsg, setDebugMsg] = useState("");
   const [promptText, setPromptText] = useState("");
-  const hasProfile = profile.hobbies || profile.field || profile.about;
+  const hasIdentity = !!(profile?.hobbies?.trim() || profile?.about?.trim());
+  const IDENTITY_NUDGE = "اكتب هواياتك ونبذتك في التخصيص أولاً ليساعدك أنجز بشكل مخصّص";
 
   async function askCoach(mood) {
+    if (!hasIdentity) { showToast(IDENTITY_NUDGE); return; }
     setCoachLoading(true); setCoachReply(null);
     try {
       const who = `نبذة: ${profile.about || "غير محدد"}. الهوايات: ${profile.hobbies || "غير محدد"}. التخصص: ${profile.field || "غير محدد"}.`;
@@ -2118,6 +2169,7 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
   }
 
   function handleGenerate() {
+    if (!hasIdentity) { showToast(IDENTITY_NUDGE); return; }
     if (!promptText.trim()) { showToast("اكتب ما تريد أولاً"); return; }
     generate(kindForTab, promptText.trim());
   }
@@ -2127,10 +2179,14 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
     setAchieve((prev) => prev.map((a) => a.id === item.id ? updated : a));
     await store.saveAchieve(updated);
     if (!item.done) { addPoints(25); showToast("أحسنت! +25 نقطة"); }
+    else addPoints(-25, "التراجع عن إنجاز");
   }
   async function remove(id) {
+    const removed = achieve.find((a) => a.id === id);
     setAchieve((prev) => prev.filter((a) => a.id !== id));
-    await store.deleteAchieve(id); showToast("تم الحذف");
+    await store.deleteAchieve(id);
+    if (removed?.done) addPoints(-25, "حذف إنجاز مكتمل");
+    showToast("تم الحذف");
   }
 
   useEffect(() => { setPromptText(""); }, [tab]);
@@ -2150,12 +2206,18 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
       {smartUnavailable && (
         <div style={S.smartBanner}><Zap size={14} color="#C9A24B" /><span>الوضع الذكي غير متاح الآن، نعرض لك مهام جاهزة.{debugMsg ? ` [DEBUG: ${debugMsg}]` : ""}</span></div>
       )}
-      {!hasProfile && (
+      {!hasIdentity && (
         <div style={S.setupCard}>
           <User size={16} color="#5FA8A0" style={{ flexShrink: 0, marginTop: 2 }} />
-          <div style={S.setupText}>عرّف عن نفسك في التخصيص حتى تكون اقتراحات أنجز مرتبطة بك فعلاً.</div>
+          <div style={S.setupText}>
+            {IDENTITY_NUDGE}.
+            <div>
+              <button onClick={() => setView("settings")} style={{ ...S.linkBtn, marginTop: 8 }}>الذهاب إلى التخصيص</button>
+            </div>
+          </div>
         </div>
       )}
+      {hasIdentity && (
       <div style={S.coachCard}>
         <div style={S.coachTitleRow}><Sparkles size={15} color="#C9A24B" /><span style={S.coachTitle}>كيف يومك؟</span></div>
         <p style={S.profileHint}>أخبر أنجز بمزاجك ليقترح لك نشاطاً يحسّنه الآن.</p>
@@ -2173,6 +2235,7 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
           </div>
         )}
       </div>
+      )}
       <div style={S.achieveTabs}>
         {[{ id: "challenges", label: "تحديات", icon: Trophy }, { id: "projects", label: "مشاريع", icon: Target }, { id: "paths", label: "مسارات", icon: BookOpen }].map((t) => {
           const Icon = t.icon;
@@ -2183,6 +2246,7 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
           );
         })}
       </div>
+      {hasIdentity && (
       <div style={HS.chatInputRow}>
         <input
           value={promptText}
@@ -2196,6 +2260,7 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
           {loading ? <Loader2 size={16} className="spin" /> : <Send size={17} />}
         </button>
       </div>
+      )}
       <div style={S.achieveList} className="stagger-in">
         {filtered.length === 0 && !loading && <div style={S.emptyState}><div style={S.emptyStateTitle}>لا شيء بعد</div><div style={S.emptyStateSub}>اكتب طلبك في الأعلى ثم اضغط إرسال</div></div>}
         {filtered.map((item) => <AchieveCard key={item.id} item={item} kindLabel={kindMap[item.kind]} onToggle={() => toggleDone(item)} onRemove={() => remove(item.id)} />)}
@@ -2387,11 +2452,21 @@ function EntryModal({ entry, date, categories, onSave, onClose }) {
   const [catId, setCatId] = useState(entry?.catId || categories[0]?.id);
   const [minutes, setMinutes] = useState(initMins);
   const [note, setNote] = useState(entry?.note || "");
+  // Once the user taps a category chip themselves, the note's auto-guess
+  // must stop overriding it — otherwise typing after picking category #5
+  // silently snaps the selection back to whatever autoClassify guesses.
+  const [userPickedCat, setUserPickedCat] = useState(!!entry);
 
   function handleNoteChange(val) {
     setNote(val);
+    if (userPickedCat) return;
     const guessedCat = autoClassify(val, categories);
     if (guessedCat) setCatId(guessedCat);
+  }
+
+  function selectCat(id) {
+    setCatId(id);
+    setUserPickedCat(true);
   }
 
   function handleSave() {
@@ -2417,7 +2492,7 @@ function EntryModal({ entry, date, categories, onSave, onClose }) {
           <label style={S.label}>الفئة</label>
           <div style={S.catGrid}>
             {categories.map((c) => (
-              <button key={c.id} onClick={() => setCatId(c.id)} style={{ ...S.catChip, borderColor: catId === c.id ? c.color : "#2A2A2D", background: catId === c.id ? `${c.color}22` : "transparent" }}>
+              <button key={c.id} onClick={() => selectCat(c.id)} style={{ ...S.catChip, borderColor: catId === c.id ? c.color : "#2A2A2D", background: catId === c.id ? `${c.color}22` : "transparent" }}>
                 <span style={{ ...S.legendDot, background: c.color }} />{c.name}
               </button>
             ))}
@@ -2446,6 +2521,7 @@ function EssentialsView({ mandatoryLog, setMandatoryLog, azkarLog, setAzkarLog, 
     setMandatoryLog(newLog);
     await store.saveMandatoryItem(today, task.key, done);
     if (done) { addPoints(task.points, task.label); showToast(`+${task.points} نقطة`); }
+    else addPoints(-task.points, `التراجع عن ${task.label}`);
   }
 
   async function toggleAzkarItem(itemId, session, allSessionIds) {
@@ -2467,6 +2543,7 @@ function EssentialsView({ mandatoryLog, setMandatoryLog, azkarLog, setAzkarLog, 
       const newLog = { ...azkarLog, [today]: { ...todayAzkar, [session]: false } };
       setAzkarLog(newLog);
       await store.saveAzkarLog(today, session, false);
+      addPoints(-15, `التراجع عن أذكار ${session === "morning" ? "الصباح" : "المساء"}`);
     }
   }
 
@@ -2476,6 +2553,7 @@ function EssentialsView({ mandatoryLog, setMandatoryLog, azkarLog, setAzkarLog, 
     setQuranProgress(next);
     await store.saveQuranJuz(juzNum, done);
     if (done) { addPoints(20, `الجزء ${juzNum} من القرآن`); showToast(`الجزء ${juzNum} مكتمل! +20 نقطة`); }
+    else addPoints(-20, `التراجع عن الجزء ${juzNum} من القرآن`);
   }
 
   async function addIstighfar(amount) {
@@ -2492,9 +2570,13 @@ function EssentialsView({ mandatoryLog, setMandatoryLog, azkarLog, setAzkarLog, 
   }
 
   async function resetIstighfarDay() {
+    const wasDone = todayIstighfar === 0;
     const newData = { daily: { ...(istighfar.daily || {}), [today]: ISTIGHFAR_TARGET }, total: istighfar.total || 0 };
     setIstighfar(newData);
     await store.saveIstighfar(newData);
+    // Resetting an already-completed day undoes the completion, so undo the
+    // points it earned too — otherwise reset+redo would farm +10 endlessly.
+    if (wasDone) addPoints(-10, "إعادة تعيين الاستغفار");
     showToast("تم إعادة العداد إلى 1000");
   }
 

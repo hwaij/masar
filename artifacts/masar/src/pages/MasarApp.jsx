@@ -739,12 +739,25 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
   const now = new Date();
   const dayLengthMinutes = date === todayKey() ? now.getHours() * 60 + now.getMinutes() : 1440;
   const unrecordedMinutes = isFutureDay ? 0 : Math.max(0, dayLengthMinutes - totalTrackedMinutes);
-  const currentHour = new Date().getHours();
-  const autoPeriod = (currentHour >= 5 && currentHour < 17) ? "morning" : "evening";
+  const currentHour = now.getHours();
+  // A real clock face only shows one 12-hour lap at a time, so the auto
+  // period follows the classic AM/PM split (not a workday-ish 5–17 window).
+  const autoPeriod = currentHour < 12 ? "morning" : "evening";
   const period = manualPeriod || autoPeriod;
   const periodLabel = period === "morning" ? "الصباح" : "المساء";
   const periodGlow = period === "morning" ? "rgba(201,162,75,0.4)" : "rgba(94,150,224,0.4)";
   function togglePeriod() { setManualPeriod(period === "morning" ? "evening" : "morning"); }
+  const isAmTime = (hhmm) => parseInt(hhmm.split(":")[0], 10) < 12;
+  const halfEntries = useMemo(
+    () => dayEntries.filter((e) => isAmTime(e.start) === (period === "morning")),
+    [dayEntries, period]
+  );
+  const halfFocusSessions = useMemo(
+    () => dayFocusSessions.filter((f) => isAmTime(f.start) === (period === "morning")),
+    [dayFocusSessions, period]
+  );
+  const halfTrackedMinutes = halfEntries.reduce((s, e) => s + diffMinutes(e.start, e.end), 0)
+    + halfFocusSessions.reduce((s, f) => s + diffMinutes(f.start, f.end), 0);
   const dayTasks = tasks.filter((t) => t.due === date);
   const isToday = date === todayKey();
   const dailyReport = reports.find((r) => r.kind === "daily" && r.date === date);
@@ -822,13 +835,14 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
 
       <div style={S.wheelSection}>
         <DayWheel
-          entries={dayEntries}
-          focusSessions={dayFocusSessions}
+          entries={halfEntries}
+          focusSessions={halfFocusSessions}
           catMap={catMap}
           size={224}
           glow={periodGlow}
-          centerLabel={(dayEntries.length === 0 && dayFocusSessions.length === 0) ? "ابدأ يومك" : periodLabel}
-          centerValue={fmtHM(totalTrackedMinutes)}
+          period={period}
+          centerLabel={(halfEntries.length === 0 && halfFocusSessions.length === 0) ? "ابدأ يومك" : periodLabel}
+          centerValue={fmtHM(halfTrackedMinutes)}
         />
       </div>
       <div style={{ display: "flex", justifyContent: "center", marginBottom: 10, marginTop: -4 }}>
@@ -2676,7 +2690,18 @@ function EntryModal({ entry, date, categories, onSave, onClose }) {
           <label style={S.label}>ملاحظة</label>
           <input value={note} onChange={(e) => handleNoteChange(e.target.value)} placeholder="مثال: تصوير جلسة تخرج، دراسة..." style={S.input} />
           <label style={S.label}>متى؟</label>
-          <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} style={{ ...S.input, marginBottom: 14 }} />
+          <div style={{ position: "relative", marginBottom: 14 }}>
+            <div style={{ ...S.input, display: "flex", alignItems: "center", justifyContent: "space-between", boxSizing: "border-box" }}>
+              <span>{to12h(startTime)}</span>
+              <Clock size={15} color="#8A8782" />
+            </div>
+            <input
+              type="time"
+              value={startTime}
+              onChange={(e) => setStartTime(e.target.value)}
+              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, border: "none", padding: 0, margin: 0, cursor: "pointer", colorScheme: "dark" }}
+            />
+          </div>
           <label style={S.label}>كم دقيقة؟</label>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
             <button onClick={() => setMinutes((m) => Math.max(5, m - 5))} style={{ ...PS.miniTimerBtn, flex: "none", width: 40, height: 40 }}>-5</button>

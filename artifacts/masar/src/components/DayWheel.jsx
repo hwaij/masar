@@ -1,14 +1,22 @@
 import React, { useState } from "react";
 import { fmtHM, diffMinutes } from "../lib/helpers";
 
-export default function DayWheel({ entries, catMap, size = 224, onSelect, glow, centerLabel, centerValue, focusSessions = [] }) {
+const THEME = {
+  morning: { strong: "#E0B868", soft: "#C9A24B", tint: "rgba(224,184,104,0.05)" },
+  evening: { strong: "#7FB0EE", soft: "#5E96E0", tint: "rgba(94,150,224,0.06)" },
+};
+
+export default function DayWheel({ entries, catMap, size = 224, onSelect, glow, centerLabel, centerValue, focusSessions = [], period = "morning" }) {
   const [active, setActive] = useState(null);
   const cx = size / 2, cy = size / 2;
   const rOuter = size * 0.455, rInner = size * 0.28;
+  const theme = THEME[period] || THEME.morning;
 
+  // Standard 12-hour analog face: "12" sits at the top, hours run clockwise.
   const timeToAngle = (hm) => {
     const [h, m] = hm.split(":").map(Number);
-    return ((h * 60 + m) / 1440) * 360 - 90;
+    const hourFloat = (h % 12) + m / 60;
+    return hourFloat * 30 - 90;
   };
   function arcPath(a1, a2, rO, rI) {
     const toRad = (a) => (a * Math.PI) / 180;
@@ -26,9 +34,6 @@ export default function DayWheel({ entries, catMap, size = 224, onSelect, glow, 
   const activeEntry = entries.find((e) => e.id === active) || focusSessions.find((f) => f.id === active);
   const activeIsSession = !entries.find((e) => e.id === active) && !!focusSessions.find((f) => f.id === active);
 
-  const dayHalfStart = timeToAngle("06:00");
-  const dayHalfEnd = timeToAngle("18:00");
-
   return (
     <div
       style={{
@@ -41,18 +46,41 @@ export default function DayWheel({ entries, catMap, size = 224, onSelect, glow, 
       }}
     >
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        <path d={arcPath(dayHalfStart, dayHalfEnd, rOuter, 0)} fill="rgba(224,184,104,0.05)" />
-        <path d={arcPath(dayHalfEnd, dayHalfStart + 360, rOuter, 0)} fill="rgba(95,140,205,0.06)" />
-        <circle cx={cx} cy={cy} r={rOuter} fill="none" stroke="#222226" strokeWidth={1} />
+        <circle cx={cx} cy={cy} r={rOuter} fill={theme.tint} style={{ transition: "fill 0.6s ease" }} />
+        <circle cx={cx} cy={cy} r={rOuter} fill="none" stroke={theme.soft} strokeOpacity={0.35} strokeWidth={1.4} style={{ transition: "stroke 0.6s ease" }} />
         <circle cx={cx} cy={cy} r={rInner} fill="none" stroke="#1A1A1D" strokeWidth={1} />
-        {Array.from({ length: 24 }, (_, h) => h).map((h) => {
-          const a = (h / 24) * 360 - 90, rad = (a * Math.PI) / 180, isMajor = h % 6 === 0;
-          const r1 = isMajor ? rOuter + 4 : rOuter + 2, r2 = rOuter + (isMajor ? 10 : 6);
-          return <line key={h} x1={cx + r1 * Math.cos(rad)} y1={cy + r1 * Math.sin(rad)} x2={cx + r2 * Math.cos(rad)} y2={cy + r2 * Math.sin(rad)} stroke={isMajor ? "#5A5650" : "#2A2A2D"} strokeWidth={isMajor ? 1.4 : 1} />;
+        {Array.from({ length: 60 }, (_, i) => i).map((i) => {
+          const isMajor = i % 5 === 0;
+          const a = i * 6 - 90, rad = (a * Math.PI) / 180;
+          const r1 = isMajor ? rOuter + 3 : rOuter + 1, r2 = rOuter + (isMajor ? 9 : 4);
+          return (
+            <line
+              key={i}
+              x1={cx + r1 * Math.cos(rad)} y1={cy + r1 * Math.sin(rad)}
+              x2={cx + r2 * Math.cos(rad)} y2={cy + r2 * Math.sin(rad)}
+              stroke={isMajor ? theme.soft : "#2A2A2D"}
+              strokeWidth={isMajor ? 1.6 : 1}
+              style={{ transition: "stroke 0.5s ease" }}
+            />
+          );
         })}
-        {[0, 6, 12, 18].map((h) => {
-          const a = (h / 24) * 360 - 90, rad = (a * Math.PI) / 180, r = rOuter + 20;
-          return <text key={h} x={cx + r * Math.cos(rad)} y={cy + r * Math.sin(rad)} fill="#6B6863" fontSize="9" textAnchor="middle" dominantBaseline="middle" fontFamily="Tajawal">{h.toString().padStart(2, "0")}</text>;
+        {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => {
+          const a = (n % 12) * 30 - 90, rad = (a * Math.PI) / 180, r = rOuter + 19;
+          return (
+            <text
+              key={n}
+              x={cx + r * Math.cos(rad)} y={cy + r * Math.sin(rad)}
+              fill={theme.strong}
+              fontSize="12"
+              fontWeight="700"
+              textAnchor="middle"
+              dominantBaseline="middle"
+              fontFamily="Tajawal"
+              style={{ transition: "fill 0.5s ease" }}
+            >
+              {n}
+            </text>
+          );
         })}
         {entries.map((e) => {
           const a1 = timeToAngle(e.start); let a2 = timeToAngle(e.end); if (a2 <= a1) a2 += 360;
@@ -95,7 +123,7 @@ export default function DayWheel({ entries, catMap, size = 224, onSelect, glow, 
           <div style={{ fontSize: 12.5, fontWeight: 700, color: activeIsSession ? (activeEntry.isStudy ? "#5FA8A0" : "#C9A24B") : (catMap[activeEntry.catId]?.color || "#9A968F") }}>
             {activeIsSession ? (activeEntry.label || (activeEntry.isStudy ? "جلسة دراسة" : "جلسة تركيز")) : (catMap[activeEntry.catId]?.name || "غير محدد")}
           </div>
-          <div style={{ fontSize: 11, color: "#8A8782", marginTop: 3 }}>{activeEntry.start} {"\u2013"} {activeEntry.end}</div>
+          <div style={{ fontSize: 11, color: "#8A8782", marginTop: 3 }}>{activeEntry.start} {"–"} {activeEntry.end}</div>
           <div style={{ fontSize: 11, color: "#C9A24B", marginTop: 2 }}>{fmtHM(diffMinutes(activeEntry.start, activeEntry.end))}</div>
         </div>
       ) : (centerLabel || centerValue) ? (

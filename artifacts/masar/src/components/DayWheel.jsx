@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { fmtHM, diffMinutes } from "../lib/helpers";
 
-export default function DayWheel({ entries, catMap, size = 224, onSelect, glow, centerLabel, centerValue }) {
+export default function DayWheel({ entries, catMap, size = 224, onSelect, glow, centerLabel, centerValue, focusSessions = [] }) {
   const [active, setActive] = useState(null);
   const cx = size / 2, cy = size / 2;
   const rOuter = size * 0.455, rInner = size * 0.28;
@@ -23,7 +23,11 @@ export default function DayWheel({ entries, catMap, size = 224, onSelect, glow, 
     if (onSelect) onSelect(e);
   }
 
-  const activeEntry = entries.find((e) => e.id === active);
+  const activeEntry = entries.find((e) => e.id === active) || focusSessions.find((f) => f.id === active);
+  const activeIsSession = !entries.find((e) => e.id === active) && !!focusSessions.find((f) => f.id === active);
+
+  const dayHalfStart = timeToAngle("06:00");
+  const dayHalfEnd = timeToAngle("18:00");
 
   return (
     <div
@@ -37,6 +41,8 @@ export default function DayWheel({ entries, catMap, size = 224, onSelect, glow, 
       }}
     >
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <path d={arcPath(dayHalfStart, dayHalfEnd, rOuter, 0)} fill="rgba(224,184,104,0.05)" />
+        <path d={arcPath(dayHalfEnd, dayHalfStart + 360, rOuter, 0)} fill="rgba(95,140,205,0.06)" />
         <circle cx={cx} cy={cy} r={rOuter} fill="none" stroke="#222226" strokeWidth={1} />
         <circle cx={cx} cy={cy} r={rInner} fill="none" stroke="#1A1A1D" strokeWidth={1} />
         {Array.from({ length: 24 }, (_, h) => h).map((h) => {
@@ -65,12 +71,29 @@ export default function DayWheel({ entries, catMap, size = 224, onSelect, glow, 
             />
           );
         })}
+        {focusSessions.map((f) => {
+          const a1 = timeToAngle(f.start); let a2 = timeToAngle(f.end); if (a2 <= a1) a2 += 360;
+          const color = f.isStudy ? "#5FA8A0" : "#C9A24B";
+          const isActive = f.id === active;
+          return (
+            <path
+              key={f.id}
+              d={arcPath(a1, a2, rOuter, rInner)}
+              fill={color}
+              opacity={active && !isActive ? 0.35 : 0.85}
+              stroke="#0A0A0B"
+              strokeWidth={isActive ? 2 : 1}
+              style={{ cursor: "pointer", transition: "opacity 0.15s" }}
+              onClick={() => handleClick(f)}
+            />
+          );
+        })}
         <circle cx={cx} cy={cy} r={rInner - 2} fill="#101012" />
       </svg>
       {activeEntry ? (
         <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", textAlign: "center", pointerEvents: "none", width: rInner * 1.6 }}>
-          <div style={{ fontSize: 12.5, fontWeight: 700, color: catMap[activeEntry.catId]?.color || "#9A968F" }}>
-            {catMap[activeEntry.catId]?.name || "غير محدد"}
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: activeIsSession ? (activeEntry.isStudy ? "#5FA8A0" : "#C9A24B") : (catMap[activeEntry.catId]?.color || "#9A968F") }}>
+            {activeIsSession ? (activeEntry.label || (activeEntry.isStudy ? "جلسة دراسة" : "جلسة تركيز")) : (catMap[activeEntry.catId]?.name || "غير محدد")}
           </div>
           <div style={{ fontSize: 11, color: "#8A8782", marginTop: 3 }}>{activeEntry.start} {"\u2013"} {activeEntry.end}</div>
           <div style={{ fontSize: 11, color: "#C9A24B", marginTop: 2 }}>{fmtHM(diffMinutes(activeEntry.start, activeEntry.end))}</div>

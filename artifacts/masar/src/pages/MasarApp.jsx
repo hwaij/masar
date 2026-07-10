@@ -321,6 +321,7 @@ export default function MasarApp() {
             reports={reports} setReports={setReports}
             aiHistory={aiHistory}
             mandatoryLog={mandatoryLog} setMandatoryLog={setMandatoryLog}
+            focus={focus}
             addPoints={addPoints} showToast={showToast}
           />
         )}
@@ -722,13 +723,22 @@ function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSign
   );
 }
 
-function TodayView({ date, setDate, entries, setEntries, categories, tasks, setTasks, reports, setReports, aiHistory, mandatoryLog, setMandatoryLog, addPoints, showToast }) {
+function TodayView({ date, setDate, entries, setEntries, categories, tasks, setTasks, reports, setReports, aiHistory, mandatoryLog, setMandatoryLog, focus, addPoints, showToast }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState(null);
   const [manualPeriod, setManualPeriod] = useState(null);
   const catMap = useMemo(() => Object.fromEntries(categories.map((c) => [c.id, c])), [categories]);
   const dayEntries = useMemo(() => entries.filter((e) => e.date === date).sort((a, b) => a.start.localeCompare(b.start)), [entries, date]);
+  const dayFocusSessions = useMemo(
+    () => (focus || []).filter((f) => f.date === date && f.start && f.end).sort((a, b) => a.start.localeCompare(b.start)),
+    [focus, date]
+  );
   const totalMinutes = dayEntries.reduce((s, e) => s + diffMinutes(e.start, e.end), 0);
+  const totalTrackedMinutes = totalMinutes + dayFocusSessions.reduce((s, f) => s + diffMinutes(f.start, f.end), 0);
+  const isFutureDay = date > todayKey();
+  const now = new Date();
+  const dayLengthMinutes = date === todayKey() ? now.getHours() * 60 + now.getMinutes() : 1440;
+  const unrecordedMinutes = isFutureDay ? 0 : Math.max(0, dayLengthMinutes - totalTrackedMinutes);
   const currentHour = new Date().getHours();
   const autoPeriod = (currentHour >= 5 && currentHour < 17) ? "morning" : "evening";
   const period = manualPeriod || autoPeriod;
@@ -813,11 +823,12 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
       <div style={S.wheelSection}>
         <DayWheel
           entries={dayEntries}
+          focusSessions={dayFocusSessions}
           catMap={catMap}
           size={224}
           glow={periodGlow}
-          centerLabel={dayEntries.length === 0 ? "ابدأ يومك" : periodLabel}
-          centerValue={fmtHM(totalMinutes)}
+          centerLabel={(dayEntries.length === 0 && dayFocusSessions.length === 0) ? "ابدأ يومك" : periodLabel}
+          centerValue={fmtHM(totalTrackedMinutes)}
         />
       </div>
       <div style={{ display: "flex", justifyContent: "center", marginBottom: 10, marginTop: -4 }}>
@@ -828,6 +839,13 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
       <div style={{ textAlign: "center", marginBottom: 14 }}>
         <span style={{ fontSize: 11, color: "var(--muted)" }}>اضغط أي قوس في العجلة لتفاصيل ذلك النشاط</span>
       </div>
+      {!isFutureDay && unrecordedMinutes > 30 && (
+        <div style={{ background: "rgba(201,162,75,0.08)", border: "1px solid rgba(201,162,75,0.25)", borderRadius: 12, padding: "10px 14px", marginBottom: 14, textAlign: "center" }}>
+          <span style={{ fontSize: 12.5, color: "#C9A24B", lineHeight: 1.7 }}>
+            لديك {fmtHM(unrecordedMinutes)} غير مسجّلة {date === todayKey() ? "اليوم" : "في هذا اليوم"} — سجّل أنشطتك لتعرف أين يذهب وقتك.
+          </span>
+        </div>
+      )}
 
       <div style={S.legendRow}>
         {byCategory.map((c) => (
@@ -1724,6 +1742,9 @@ function FocusView({ focus, setFocus, commitments, setCommitments, categories, e
   const [manualMode, setManualMode] = useState(false);
   const [manualMinutes, setManualMinutes] = useState("25");
   const [loaded, setLoaded] = useState(false);
+  const [pendingCompletion, setPendingCompletion] = useState(null);
+  const [pickingTime, setPickingTime] = useState(false);
+  const [customEndTime, setCustomEndTime] = useState(nowHHMM());
   const intervalRef = useRef(null);
   const sessionRef = useRef(null);
 
@@ -1741,7 +1762,12 @@ function FocusView({ focus, setFocus, commitments, setCommitments, categories, e
           const totalTargetSec = active.remainingAtStart ?? active.targetMinutes * 60;
           if (elapsedSec >= totalTargetSec) {
             setRemaining(0);
-            await completeSession(active, active.targetMinutes, true);
+            // Session actually finished while the user was away — use the
+            // mathematically correct end time (start + target duration)
+            // rather than "now", since real time may have passed since then.
+            const endDate = new Date(startedMs + totalTargetSec * 1000);
+            const naturalEnd = `${String(endDate.getHours()).padStart(2, "0")}:${String(endDate.getMinutes()).padStart(2, "0")}`;
+            await completeSession(active, active.targetMinutes, true, naturalEnd);
             sessionRef.current = null;
           } else {
             setRemaining(totalTargetSec - elapsedSec);
@@ -1819,8 +1845,10 @@ function FocusView({ focus, setFocus, commitments, setCommitments, categories, e
     sessionRef.current = null;
   }
 
-  async function completeSession(sess, minutesDone, wasAway) {
-    const session = { id: uid(), date: todayKey(), minutes: minutesDone, label: (sess?.label || "").trim(), isStudy: sess?.isStudy ?? isStudy };
+  async function completeSession(sess, minutesDone, wasAway, endTime) {
+    const end = endTime || nowHHMM();
+    const start = addMinutesToTime(end, -minutesDone);
+    const session = { id: uid(), date: todayKey(), minutes: minutesDone, label: (sess?.label || "").trim(), isStudy: sess?.isStudy ?? isStudy, start, end };
     setFocus((prev) => [session, ...prev]);
     await store.saveFocus(session);
     await store.saveActiveSession(null);
@@ -1834,16 +1862,32 @@ function FocusView({ focus, setFocus, commitments, setCommitments, categories, e
     }));
   }
 
-  async function finishSession() {
+  function finishSession() {
     setRunning(false);
-    await completeSession(sessionRef.current, targetMin, false);
+    setCustomEndTime(nowHHMM());
+    setPendingCompletion({ sess: sessionRef.current, minutesDone: targetMin });
     sessionRef.current = null;
   }
 
-  async function logManual() {
+  function logManual() {
     const mins = Math.max(1, Math.min(600, parseInt(manualMinutes, 10) || 0));
     if (!mins) { showToast("أدخل عدد دقائق صحيح"); return; }
-    await completeSession({ label: label.trim(), isStudy }, mins, false);
+    setCustomEndTime(nowHHMM());
+    setPendingCompletion({ sess: { label: label.trim(), isStudy }, minutesDone: mins });
+  }
+
+  async function confirmCompletionNow() {
+    if (!pendingCompletion) return;
+    await completeSession(pendingCompletion.sess, pendingCompletion.minutesDone, false, nowHHMM());
+    setPendingCompletion(null);
+    setPickingTime(false);
+  }
+
+  async function confirmCompletionCustomTime() {
+    if (!pendingCompletion) return;
+    await completeSession(pendingCompletion.sess, pendingCompletion.minutesDone, false, customEndTime);
+    setPendingCompletion(null);
+    setPickingTime(false);
   }
 
   const mm = String(Math.floor(remaining / 60)).padStart(2, "0");
@@ -1933,6 +1977,28 @@ function FocusView({ focus, setFocus, commitments, setCommitments, categories, e
       {subTab === "study" && <FocusReport focus={focus.filter((f) => f.isStudy)} studyEntries={studyEntries} title="تقرير الدراسة" color="#5FA8A0" emptyMsg="لا جلسات دراسة بعد. شغّل المؤقت بوضع دراسة." />}
       {subTab === "general" && <FocusReport focus={focus.filter((f) => !f.isStudy)} title="التقرير العام" color="#C9A24B" emptyMsg="لا جلسات عامة بعد. شغّل المؤقت بوضع نشاط عام." />}
       {subTab === "bots" && <BotsChallenge focus={focus} entries={entries} categories={categories} />}
+      {pendingCompletion && (
+        <div style={S.modalOverlay} onClick={() => { setPendingCompletion(null); setPickingTime(false); }}>
+          <div style={S.modal} onClick={(e) => e.stopPropagation()}>
+            <div style={S.modalHeader}>أحسنت! 🎉</div>
+            <div style={{ fontSize: 13.5, color: "#C9C6C0", lineHeight: 1.7, marginBottom: 16 }}>
+              هل نسجّلها بوقت انتهائها الآن، أم تريد تحديد وقت آخر؟
+            </div>
+            {!pickingTime ? (
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={confirmCompletionNow} style={{ ...S.saveBtn, marginTop: 0, flex: 1 }}>الآن</button>
+                <button onClick={() => setPickingTime(true)} style={{ ...S.saveBtn, marginTop: 0, flex: 1, background: "#1F1F22", color: "var(--ink)", border: "1px solid #2A2A2D" }}>وقت آخر</button>
+              </div>
+            ) : (
+              <>
+                <label style={S.label}>متى انتهت؟</label>
+                <input type="time" value={customEndTime} onChange={(e) => setCustomEndTime(e.target.value)} style={{ ...S.input, marginBottom: 4 }} />
+                <button onClick={confirmCompletionCustomTime} style={S.saveBtn}>تأكيد</button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2578,6 +2644,7 @@ function EntryModal({ entry, date, categories, onSave, onClose }) {
   const initMins = entry ? diffMinutes(entry.start, entry.end) : 60;
   const [catId, setCatId] = useState(entry?.catId || categories[0]?.id);
   const [minutes, setMinutes] = useState(initMins);
+  const [startTime, setStartTime] = useState(entry?.start || nowHHMM());
   const [note, setNote] = useState(entry?.note || "");
   // Once the user taps a category chip themselves, the note's auto-guess
   // must stop overriding it — otherwise typing after picking category #5
@@ -2597,9 +2664,8 @@ function EntryModal({ entry, date, categories, onSave, onClose }) {
   }
 
   function handleSave() {
-    const start = entry?.start || nowHHMM();
-    const end = addMinutesToTime(start, Math.max(1, minutes));
-    onSave({ id: entry?.id || uid(), date: entry?.date || date, catId, start, end, note: note.trim() });
+    const end = addMinutesToTime(startTime, Math.max(1, minutes));
+    onSave({ id: entry?.id || uid(), date: entry?.date || date, catId, start: startTime, end, note: note.trim() });
   }
 
   return (
@@ -2609,6 +2675,8 @@ function EntryModal({ entry, date, categories, onSave, onClose }) {
         <div style={S.modalBody}>
           <label style={S.label}>ملاحظة</label>
           <input value={note} onChange={(e) => handleNoteChange(e.target.value)} placeholder="مثال: تصوير جلسة تخرج، دراسة..." style={S.input} />
+          <label style={S.label}>متى؟</label>
+          <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} style={{ ...S.input, marginBottom: 14 }} />
           <label style={S.label}>كم دقيقة؟</label>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
             <button onClick={() => setMinutes((m) => Math.max(5, m - 5))} style={{ ...PS.miniTimerBtn, flex: "none", width: 40, height: 40 }}>-5</button>

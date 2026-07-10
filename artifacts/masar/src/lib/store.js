@@ -240,7 +240,7 @@ export const store = {
     if (!useCloud()) return local;
     const { data, error } = await supabase.from("focus_sessions").select("*").eq("owner", CURRENT_OWNER).order("created_at", { ascending: false });
     if (error || !data) return local;
-    const items = data.map((r) => ({ id: r.id, date: r.date, minutes: r.minutes, label: r.label || "", isStudy: !!r.is_study }));
+    const items = data.map((r) => ({ id: r.id, date: r.date, minutes: r.minutes, label: r.label || "", isStudy: !!r.is_study, start: r.start_time || null, end: r.end_time || null }));
     lsSet("masar_focus", items);
     return items;
   },
@@ -248,7 +248,7 @@ export const store = {
     const local = lsGet("masar_focus", []);
     lsSet("masar_focus", [session, ...local]);
     if (useCloud()) {
-      const { error } = await supabase.from("focus_sessions").upsert({ id: session.id, date: session.date, minutes: session.minutes, label: session.label || "", is_study: !!session.isStudy, owner: CURRENT_OWNER });
+      const { error } = await supabase.from("focus_sessions").upsert({ id: session.id, date: session.date, minutes: session.minutes, label: session.label || "", is_study: !!session.isStudy, start_time: session.start || null, end_time: session.end || null, owner: CURRENT_OWNER });
       if (error) console.error("[saveFocus] Supabase error:", error.message);
     }
   },

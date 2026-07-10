@@ -80,8 +80,15 @@ create table if not exists focus_sessions (
   minutes     integer not null default 0,
   label       text default '',
   is_study    boolean not null default false,
+  start_time  text,
+  end_time    text,
   created_at  timestamptz default now()
 );
+-- ترقية للجداول القديمة: وقت الجلسة اختياري (NULL) للجلسات المسجّلة قبل
+-- هذه الإضافة، فلا تُفقد أي بيانات — فقط لن تظهر تلك الجلسات القديمة في
+-- دائرة اليوم لأنها لم تُسجَّل بوقت محدد أصلاً.
+alter table focus_sessions add column if not exists start_time text;
+alter table focus_sessions add column if not exists end_time text;
 
 -- الالتزامات
 create table if not exists commitments (

@@ -20,9 +20,9 @@ import { ADHKAR_CATEGORIES, ADHKAR } from "../lib/adhkar";
 import { store, setOwner } from "../lib/store";
 import { getSession, onAuthChange, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut, userFromSession, hasAuth } from "../lib/auth";
 import {
-  todayKey, fmtHM, uid, diffMinutes, arabicDate, computeStreak,
+  todayKey, fmtHM, uid, diffMinutes, arabicDate, computeStreak, escapeHtml,
   COLOR_CHOICES, BADGES, DEFAULT_DAILY_TASKS, analyze, parseJsonLoose,
-  localAchieveSuggestions, localCoachReply, localAnalysisSummary,
+  localAchieveSuggestions, localCoachReply,
   getLevel, addMinutesToTime, nowHHMM, autoClassify,
   MANDATORY_TASKS, AZKAR_MORNING, AZKAR_EVENING, coachChat,
 } from "../lib/helpers";
@@ -325,7 +325,6 @@ export default function MasarApp() {
         {view === "achieve" && <AchieveView achieve={achieve} setAchieve={setAchieve} profile={profile} focus={focus} tasks={tasks} prayerLog={prayerLog} religious={religious} addPoints={addPoints} showToast={showToast} setView={setView} />}
         {view === "reports" && <ReportsView entries={entries} categories={categories} focus={focus} profile={profile} showToast={showToast} />}
         {view === "assistant" && <AssistantView entries={entries} tasks={tasks} categories={categories} focus={focus} prayerLog={prayerLog} religious={religious} profile={profile} stats={stats} azkarLog={azkarLog} quranProgress={quranProgress} istighfar={istighfar} setView={setView} />}
-        {view === "ai" && <AIView entries={entries} tasks={tasks} categories={categories} reports={reports} setReports={setReports} aiHistory={aiHistory} focus={focus} commitments={commitments} prayerLog={prayerLog} religious={religious} profile={profile} />}
         {view === "settings" && <SettingsView categories={categories} setCategories={setCategories} gamify={gamify} hasCloud={store.hasCloud} showToast={showToast} profile={profile} setProfile={setProfile} pointsLog={pointsLog} />}
       </div>
       {toast && <div style={S.toast}>{toast}</div>}
@@ -560,7 +559,6 @@ function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSign
     { id: "achieve", label: "أنجز", icon: Rocket },
     { id: "reports", label: "التقارير", icon: TrendingUp },
     { id: "assistant", label: "مساعد", icon: MessageCircle },
-    { id: "ai", label: "التحليل", icon: Sparkles },
     { id: "settings", label: "التخصيص", icon: Settings },
   ];
   const lv = getLevel(gamify.points);
@@ -923,7 +921,7 @@ function ReportsView({ entries, categories, focus, profile, showToast }) {
 
   function exportPdf() {
     const rangeLabel = range === "week" ? "الأسبوعي" : "الشهري";
-    const rows = catTotals.map((c) => `<tr><td>${c.name}</td><td>${fmtHM(c.value)}</td></tr>`).join("");
+    const rows = catTotals.map((c) => `<tr><td>${escapeHtml(c.name)}</td><td>${fmtHM(c.value)}</td></tr>`).join("");
     const dayRows = barData.filter((d) => d.hours > 0).map((d) => `<tr><td>${d.label}</td><td>${d.hours} ساعة</td></tr>`).join("");
     const html = `<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>تقرير مسار ${rangeLabel}</title>
       <style>
@@ -942,7 +940,7 @@ function ReportsView({ entries, categories, focus, profile, showToast }) {
         .footer{margin-top:40px;color:#999;font-size:11px;text-align:center}
       </style></head><body>
       <h1>◐ تقرير مسار ${rangeLabel}</h1>
-      <div class="meta">${profile?.about ? profile.about + " · " : ""}صدر بتاريخ ${arabicDate(todayKey(), { day: "numeric", month: "long", year: "numeric" })}</div>
+      <div class="meta">${profile?.about ? escapeHtml(profile.about) + " · " : ""}صدر بتاريخ ${arabicDate(todayKey(), { day: "numeric", month: "long", year: "numeric" })}</div>
       <div class="kpis">
         <div class="kpi"><div class="v">${fmtHM(totalMin)}</div><div class="l">إجمالي الوقت المسجّل</div></div>
         <div class="kpi"><div class="v">${activeDays}</div><div class="l">أيام نشطة</div></div>
@@ -1184,111 +1182,6 @@ function AssistantView({ entries, tasks, categories, focus, prayerLog, religious
         </div>
         )}
       </div>
-    </div>
-  );
-}
-
-function AIView({ entries, tasks, categories, reports, setReports, aiHistory, focus, commitments, prayerLog, religious, profile }) {
-  const [report, setReport] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [smartUnavailable, setSmartUnavailable] = useState(false);
-  const [debugMsg, setDebugMsg] = useState("");
-  const catMap = useMemo(() => Object.fromEntries(categories.map((c) => [c.id, c])), [categories]);
-
-  async function generate() {
-    if (entries.length === 0 && (!focus || focus.length === 0)) { setReport({ error: "سجّل بعض الأنشطة أو جلسات التركيز أولاً حتى أقدر أحلّل أداءك." }); return; }
-    setLoading(true);
-    try {
-      const summary = entries.slice(-120).map((e) => `${e.date} | ${catMap[e.catId]?.name || "غير محدد"} | ${e.start}-${e.end} | ${e.note || ""}`).join("\n");
-      const doneTasks = tasks.filter((t) => t.done).length;
-      const taskInfo = `المهام: ${doneTasks} منجزة من ${tasks.length} (نسبة الالتزام ${tasks.length ? Math.round((doneTasks / tasks.length) * 100) : 0}%)`;
-      const focusMin = (focus || []).reduce((s, f) => s + f.minutes, 0);
-      const studyMin = (focus || []).filter((f) => f.isStudy).reduce((s, f) => s + f.minutes, 0);
-      const focusInfo = `التركيز: ${focusMin} دقيقة إجمالاً، منها ${studyMin} دقيقة دراسة، عبر ${(focus || []).length} جلسة`;
-      const commitInfo = (commitments || []).length ? `تحديات الالتزام: ${commitments.map((c) => c.title).join("، ")}` : "";
-      const prayerInfo = (prayerLog || []).length ? `الصلوات المسجّلة: ${prayerLog.filter((p) => p.date === todayKey()).length} اليوم` : "";
-      const religiousDone = (religious || []).filter((r) => r.done).length;
-      const religiousInfo = religiousDone ? `المهام الدينية المنجزة: ${religiousDone}` : "";
-      const prev = aiHistory.slice(0, 3).map((h, i) => `${i + 1}: ${h.gist}`).join("\n");
-      const who = `نبذة: ${profile?.about || "غير محدد"}. الهوايات: ${profile?.hobbies || "غير محدد"}. التخصص: ${profile?.field || "غير محدد"}.`;
-
-      const prompt = `أنت مرشد تطوير ذاتي وخبير إنتاجية يكتب بالعربية الفصحى البسيطة بدون أي شرطات طويلة. حلل أداء المستخدم التالي تحليلاً حياً وعملياً.\nعن المستخدم: ${who}\n\nسجل الأنشطة (تاريخ | فئة | وقت | ملاحظة):\n${summary || "لا يوجد"}\n\n${taskInfo}\n${focusInfo}\n${commitInfo}\n${prayerInfo}\n${religiousInfo}\n\n${prev ? `تقارير سابقة لا تكررها بل تتجاوزها برؤى جديدة:\n${prev}` : ""}\n\nركّز تحليلك على: مدى الالتزام بالمهام، معدل التركيز اليومي، عدد الإنجازات، والتوازن بين الدراسة والعمل والروحانية. أعد فقط JSON بدون أي نص أو markdown:\n{"headline":"جملة قوية تلخص الأداء","insights":["رؤية محددة بالأرقام 1","رؤية 2","رؤية 3"],"warning":"تحذير من نمط غير صحي أو null","recommendations":["توصية عملية 1","توصية 2","توصية 3"],"focus_area":"مجال تركيز للأسبوع القادم","gist":"ملخص 10 كلمات"}`;
-      const text = await analyze(prompt, 2048);
-      const parsed = parseJsonLoose(text);
-      setReport(parsed);
-      setSmartUnavailable(false);
-      const rep = { id: uid(), kind: "deep", date: todayKey(), payload: parsed, gist: parsed.gist || parsed.headline };
-      setReports((prev2) => [rep, ...prev2]); await store.saveReport(rep);
-    } catch (err) {
-      console.error("[AIView] analyze failed:", err, err?.debug);
-      setDebugMsg(err?.debug ? `${err.message} [DEBUG: ${JSON.stringify(err.debug)}]` : err?.message || "");
-      setSmartUnavailable(true);
-      const s = localAnalysisSummary({ tasks, focus, prayerLog, religious });
-      setReport({
-        local: true,
-        headline: `أنجزت ${s.doneTasksToday} من ${s.totalTasksToday} مهمة اليوم`,
-        insights: [
-          `دقائق الدراسة الإجمالية: ${s.studyMinutes} دقيقة`,
-          `إجمالي دقائق التركيز: ${s.totalFocusMinutes} دقيقة`,
-          `صلوات اليوم المسجّلة: ${s.prayersToday} من 5`,
-        ],
-      });
-    }
-    finally { setLoading(false); }
-  }
-
-  return (
-    <div style={S.view}>
-      <div style={S.sectionTitle}>التحليل العميق</div>
-      <p style={S.aiIntro}>نظرة شاملة على نمطك عبر الزمن. كل تحليل يبني على ما سبقه ويضيف رؤى جديدة.</p>
-      {smartUnavailable && (
-        <div style={S.smartBanner}>
-          <Zap size={14} color="#C9A24B" />
-          <span>الوضع الذكي غير متاح الآن، نعرض لك إحصائيات مباشرة من بياناتك لحين تفعيل الذكاء الاصطناعي.{debugMsg ? ` [DEBUG: ${debugMsg}]` : ""}</span>
-        </div>
-      )}
-      <button onClick={generate} disabled={loading} style={S.aiButton}>
-        {loading ? <Loader2 size={16} className="spin" /> : <Sparkles size={16} />}
-        {loading ? "يحلّل الآن..." : report ? "تحليل جديد" : "ابدأ التحليل"}
-      </button>
-      {report && !report.error && (
-        <div style={S.reportCard}>
-          <div style={S.reportHeadline}>{report.headline}</div>
-          {report.warning && <div style={S.warningBox}>{report.warning}</div>}
-          {report.insights?.length > 0 && (
-            <div style={S.reportBlock}>
-              <div style={S.reportBlockTitle}>رؤى</div>
-              {report.insights.map((ins, i) => <div key={i} style={S.reportItem}><span style={S.reportDot}>◆</span>{ins}</div>)}
-            </div>
-          )}
-          {report.recommendations?.length > 0 && (
-            <div style={S.reportBlock}>
-              <div style={S.reportBlockTitle}>توصيات</div>
-              {report.recommendations.map((r, i) => <div key={i} style={S.reportItem}><span style={S.reportDot}>◆</span>{r}</div>)}
-            </div>
-          )}
-          {report.focus_area && (
-            <div style={S.focusBox}>
-              <div style={S.focusLabel}>مجال التركيز القادم</div>
-              <div style={S.focusValue}>{report.focus_area}</div>
-            </div>
-          )}
-        </div>
-      )}
-      {report?.error && <div style={S.reportCard}>{report.error}</div>}
-      {aiHistory.length > 0 && (
-        <div style={S.reportCard}>
-          <div style={S.reportBlockTitle}>سجل التحليلات السابقة</div>
-          <div style={S.historyBlock}>
-            {aiHistory.slice(0, 7).map((h, i) => (
-              <div key={i} style={S.historyRow}>
-                <span style={S.historyDate}>{arabicDate(h.date, { day: "numeric", month: "short" })}</span>
-                <span>{h.gist}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

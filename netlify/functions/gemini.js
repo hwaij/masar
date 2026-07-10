@@ -20,6 +20,19 @@ exports.handler = async (event) => {
     };
   }
 
+  // This endpoint is reachable directly (not only from the app's own UI),
+  // so it must not be usable as a free unrestricted Gemini passthrough with
+  // our key. Cap the raw request size before even parsing it — no
+  // legitimate prompt this app builds gets close to this.
+  const MAX_BODY_BYTES = 60_000;
+  if ((event.body || "").length > MAX_BODY_BYTES) {
+    return {
+      statusCode: 413,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ error: "الطلب كبير جداً" }),
+    };
+  }
+
   let payload;
   try {
     payload = JSON.parse(event.body || "{}");
@@ -30,6 +43,24 @@ exports.handler = async (event) => {
       body: JSON.stringify({ error: "طلب غير صالح" }),
     };
   }
+
+  if (!Array.isArray(payload.contents) || payload.contents.length === 0 || payload.contents.length > 50) {
+    return {
+      statusCode: 400,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ error: "طلب غير صالح" }),
+    };
+  }
+
+  // Regardless of what the client asks for, never let a request generate
+  // more than our own app ever needs — closes off using this key to run up
+  // large, expensive completions through this endpoint.
+  const MAX_OUTPUT_TOKENS_CEILING = 4096;
+  const requestedTokens = payload.generationConfig?.maxOutputTokens;
+  payload.generationConfig = {
+    ...(payload.generationConfig || {}),
+    maxOutputTokens: Math.max(1, Math.min(Number(requestedTokens) || 1024, MAX_OUTPUT_TOKENS_CEILING)),
+  };
 
   // gemini-2.0-flash was deprecated and shut down on 2026-06-01. Use the
   // current stable free-tier model. Auth keys (the new "AQ." prefix format

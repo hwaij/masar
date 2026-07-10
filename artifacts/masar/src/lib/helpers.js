@@ -14,6 +14,11 @@ export function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
+const HTML_ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+export function escapeHtml(str) {
+  return String(str ?? "").replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]);
+}
+
 export function diffMinutes(start, end) {
   const [sh, sm] = start.split(":").map(Number);
   const [eh, em] = end.split(":").map(Number);
@@ -305,22 +310,4 @@ export function localCoachReply(mood) {
     "مشتّت": { message: "التشتت طبيعي، يحتاج فقط نقطة ارتكاز واحدة.", activity: "اختر مهمة واحدة فقط واطفئ كل الإشعارات لـ 10 دقائق", why: "تضييق التركيز لمهمة واحدة يكسر حلقة التشتت بسرعة." },
   };
   return replies[mood] || replies["عادي"];
-}
-
-export function localAnalysisSummary({ tasks, focus, prayerLog, religious }) {
-  const today = todayKey();
-  const tasksToday = (tasks || []).filter((t) => t.due === today);
-  const doneTasksToday = tasksToday.filter((t) => t.done).length;
-  const studyMinutes = (focus || []).filter((f) => f.isStudy).reduce((s, f) => s + f.minutes, 0);
-  const totalFocusMinutes = (focus || []).reduce((s, f) => s + f.minutes, 0);
-  const prayersToday = (prayerLog || []).filter((p) => p.date === today).length;
-  const religiousDoneTotal = (religious || []).filter((r) => r.done).length;
-  return {
-    doneTasksToday,
-    totalTasksToday: tasksToday.length,
-    studyMinutes,
-    totalFocusMinutes,
-    prayersToday,
-    religiousDoneTotal,
-  };
 }

@@ -214,6 +214,21 @@ create table if not exists adhkar_progress (
 create index if not exists adhkar_progress_owner_date on adhkar_progress (owner, date);
 
 -- ============================================================
+-- فهارس الأداء: هذه الجداول مفتاحها الأساسي id فقط (بدون owner)، وكل
+-- قراءة تفلتر بـ owner ثم ترتّب بعمود تاريخ — بدون فهرس هنا كل تحميل
+-- صفحة يفحص الجدول كاملاً (كل المستخدمين) بدل صف هذا المستخدم فقط.
+-- الجداول الأخرى مفهرسة أصلاً لأن owner جزء من مفتاحها الأساسي أو من
+-- قيد unique عليها. آمنة لإعادة التشغيل.
+-- ============================================================
+create index if not exists entries_owner_date on entries (owner, date);
+create index if not exists tasks_owner_created on tasks (owner, created_at);
+create index if not exists reports_owner_created on reports (owner, created_at);
+create index if not exists achieve_owner_created on achieve (owner, created_at);
+create index if not exists focus_sessions_owner_created on focus_sessions (owner, created_at);
+create index if not exists commitments_owner_created on commitments (owner, created_at);
+create index if not exists religious_tasks_owner_created on religious_tasks (owner, created_at);
+
+-- ============================================================
 -- ترقية المفاتيح لتكون مخصّصة لكل مستخدم (تمنع تصادم بيانات حسابين)
 -- categories: المفتاح صار (owner, id) لأن التصنيفات الافتراضية تشترك بنفس id.
 -- health_log: نزيل مفتاح id العام ونعتمد على فرادة (owner, date) للحفظ.

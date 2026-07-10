@@ -2514,21 +2514,50 @@ function AchieveCard({ item, kindLabel, onToggle, onRemove }) {
 
 function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, profile, setProfile, pointsLog, onStartTour }) {
   const [editing, setEditing] = useState(null);
+  // While a category is being renamed, edits live here only — nothing is
+  // persisted per keystroke. Firing a save on every character raced N
+  // concurrent upserts against each other with no ordering guarantee, so a
+  // stale, shorter keystroke could land in the database *after* the final
+  // one and silently overwrite it — the exact "dropped/scrambled letters
+  // after refresh" bug. Now there's a single save on explicit confirm.
+  const [editDraft, setEditDraft] = useState({ name: "", color: "" });
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState(COLOR_CHOICES[0]);
 
   async function addCategory() {
-    if (!newName.trim()) return;
-    const cat = { id: uid(), name: newName.trim(), color: newColor };
-    setCategories((prev) => [...prev, cat]); await store.saveCategory(cat); setNewName(""); showToast("تمت إضافة الفئة");
+    const name = newName.trim();
+    if (!name) return;
+    const cat = { id: uid(), name, color: newColor };
+    setCategories((prev) => [...prev, cat]);
+    const ok = await store.saveCategory(cat);
+    if (ok) { setNewName(""); showToast("تمت إضافة الفئة"); }
+    else {
+      setCategories((prev) => prev.filter((c) => c.id !== cat.id));
+      showToast("تعذّر حفظ الفئة، حاول مرة أخرى");
+    }
   }
-  async function updateCategory(id, patch) {
+  function startEditing(c) {
+    setEditing(c.id);
+    setEditDraft({ name: c.name, color: c.color });
+  }
+  async function confirmEditing(id) {
+    const name = editDraft.name.trim();
+    if (!name) { showToast("اسم الفئة لا يمكن أن يكون فارغاً"); return; }
     let updated;
-    setCategories((prev) => prev.map((c) => { if (c.id === id) { updated = { ...c, ...patch }; return updated; } return c; }));
-    if (updated) await store.saveCategory(updated);
+    setCategories((prev) => prev.map((c) => { if (c.id === id) { updated = { ...c, name, color: editDraft.color }; return updated; } return c; }));
+    const ok = updated ? await store.saveCategory(updated) : true;
+    if (ok) setEditing(null);
+    else showToast("تعذّر حفظ التعديل، حاول مرة أخرى");
   }
   async function removeCategory(id) {
-    setCategories((prev) => prev.filter((c) => c.id !== id)); await store.deleteCategory(id); showToast("تم حذف الفئة");
+    const removed = categories.find((c) => c.id === id);
+    setCategories((prev) => prev.filter((c) => c.id !== id));
+    const ok = await store.deleteCategory(id);
+    if (ok) showToast("تم حذف الفئة");
+    else {
+      if (removed) setCategories((prev) => [...prev, removed]);
+      showToast("تعذّر حذف الفئة، حاول مرة أخرى");
+    }
   }
 
   return (
@@ -2564,15 +2593,21 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
             <div key={c.id} style={S.catEditRow}>
               {editing === c.id ? (
                 <>
-                  <div style={S.colorPickRow}>{COLOR_CHOICES.map((col) => <button key={col} onClick={() => updateCategory(c.id, { color: col })} style={{ ...S.colorDot, background: col, outline: c.color === col ? "2px solid #fff" : "none" }} />)}</div>
-                  <input value={c.name} onChange={(e) => updateCategory(c.id, { name: e.target.value })} style={S.catEditInput} />
-                  <button onClick={() => setEditing(null)} style={S.catSaveBtn}><Check size={14} /></button>
+                  <div style={S.colorPickRow}>{COLOR_CHOICES.map((col) => <button key={col} onClick={() => setEditDraft((d) => ({ ...d, color: col }))} style={{ ...S.colorDot, background: col, outline: editDraft.color === col ? "2px solid #fff" : "none" }} />)}</div>
+                  <input
+                    value={editDraft.name}
+                    onChange={(e) => setEditDraft((d) => ({ ...d, name: e.target.value }))}
+                    onKeyDown={(e) => e.key === "Enter" && confirmEditing(c.id)}
+                    style={S.catEditInput}
+                    autoFocus
+                  />
+                  <button onClick={() => confirmEditing(c.id)} style={S.catSaveBtn}><Check size={14} /></button>
                 </>
               ) : (
                 <>
                   <span style={{ ...S.legendDot, background: c.color, width: 12, height: 12 }} />
                   <span style={S.catEditName}>{c.name}</span>
-                  <button onClick={() => setEditing(c.id)} style={S.catIconBtn}><Edit3 size={13} /></button>
+                  <button onClick={() => startEditing(c)} style={S.catIconBtn}><Edit3 size={13} /></button>
                   <button onClick={() => removeCategory(c.id)} style={S.catIconBtn}><Trash2 size={13} /></button>
                 </>
               )}

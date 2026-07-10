@@ -91,6 +91,9 @@ export const store = {
     }
     return DEFAULT_CATEGORIES;
   },
+  // Returns true/false so callers can tell a silent cloud failure apart from
+  // success — a caller that always assumes success can show a "saved" toast
+  // for a write that never actually landed, then have it vanish on refresh.
   async saveCategory(cat) {
     const local = lsGet(LS.categories, DEFAULT_CATEGORIES);
     const next = local.some((c) => c.id === cat.id) ? local.map((c) => (c.id === cat.id ? cat : c)) : [...local, cat];
@@ -101,8 +104,9 @@ export const store = {
         { id: cat.id, name: cat.name, color: cat.color, owner: CURRENT_OWNER },
         { onConflict: "owner,id" }
       );
-      if (error) console.error("[saveCategory] Supabase error:", error.message);
+      if (error) { console.error("[saveCategory] Supabase error:", error.message); return false; }
     }
+    return true;
   },
   async deleteCategory(id) {
     const local = lsGet(LS.categories, DEFAULT_CATEGORIES).filter((c) => c.id !== id);
@@ -110,8 +114,9 @@ export const store = {
     if (useCloud()) {
       lsSet("masar_categories_seeded", true);
       const { error } = await supabase.from("categories").delete().eq("id", id).eq("owner", CURRENT_OWNER);
-      if (error) console.error("[deleteCategory] Supabase error:", error.message);
+      if (error) { console.error("[deleteCategory] Supabase error:", error.message); return false; }
     }
+    return true;
   },
 
   async loadEntries() {

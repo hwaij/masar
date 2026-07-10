@@ -544,4 +544,31 @@ export const store = {
       } catch (e) { console.warn("adhkar_progress write failed:", e); }
     }
   },
+
+  async loadTipsLog() {
+    const local = lsGet("masar_tips_log", {});
+    if (!useCloud()) return local;
+    try {
+      const { data, error } = await supabase.from("tips_log").select("*").eq("owner", CURRENT_OWNER).order("date");
+      if (error || !data) return local;
+      const log = {};
+      data.forEach((r) => { log[r.date] = r.tip_id; });
+      lsSet("masar_tips_log", log);
+      return log;
+    } catch { return local; }
+  },
+  async saveTipsLog(date, tipId) {
+    const log = lsGet("masar_tips_log", {});
+    log[date] = tipId;
+    lsSet("masar_tips_log", log);
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("tips_log").upsert(
+          { date, tip_id: tipId, owner: CURRENT_OWNER, seen_at: new Date().toISOString() },
+          { onConflict: "owner,date" }
+        );
+        if (error) console.warn("tips_log sync error:", error.message);
+      } catch (e) { console.warn("tips_log write failed:", e); }
+    }
+  },
 };

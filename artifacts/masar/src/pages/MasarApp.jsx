@@ -14,11 +14,12 @@ import {
   Moon, Bell, BookMarked, CheckCircle2,
   MessageCircle, Send,
   LogIn, LogOut,
-  Heart, GraduationCap,
+  Heart, GraduationCap, Eye,
 } from "lucide-react";
 import { fivePrayers, nextPrayer, to12h } from "../lib/prayer";
 import { ADHKAR_CATEGORIES, ADHKAR } from "../lib/adhkar";
-import { store, setOwner } from "../lib/store";
+import { store, setOwner, getOwner } from "../lib/store";
+import { pickDailyTip, TIP_CATEGORY_LABELS } from "../lib/tips";
 import { getSession, onAuthChange, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut, userFromSession, hasAuth } from "../lib/auth";
 import {
   todayKey, fmtHM, uid, diffMinutes, arabicDate, computeStreak, escapeHtml,
@@ -126,25 +127,26 @@ export default function MasarApp() {
   const [quranProgress, setQuranProgress] = useState({});
   const [istighfar, setIstighfar] = useState({ daily: {}, total: 0 });
   const [pointsLog, setPointsLog] = useState([]);
+  const [tipsLog, setTipsLog] = useState({});
   const [user, setUser] = useState(null);
   const userIdRef = useRef(undefined);
   const loadVersionRef = useRef(0);
 
   const loadAll = useCallback(async () => {
       const myVersion = ++loadVersionRef.current;
-      const [c, e, t, r, g, p, a, f, cm, pl, rel, ml, al, ai, qp, isf, plog] = await Promise.all([
+      const [c, e, t, r, g, p, a, f, cm, pl, rel, ml, al, ai, qp, isf, plog, tl] = await Promise.all([
         store.loadCategories(), store.loadEntries(), store.loadTasks(),
         store.loadReports(), store.loadGamify(), store.loadProfile(), store.loadAchieve(),
         store.loadFocus(), store.loadCommitments(), store.loadPrayerLog(), store.loadReligious(),
         store.loadMandatoryLog(), store.loadAzkarLog(), store.loadAzkarItems(), store.loadQuranProgress(),
-        store.loadIstighfar(), store.loadPointsLog(),
+        store.loadIstighfar(), store.loadPointsLog(), store.loadTipsLog(),
       ]);
       if (loadVersionRef.current !== myVersion) return;
       setCategories(c); setEntries(e); setTasks(t); setReports(r); setGamify(g);
       setProfile(p); setAchieve(a); setFocus(f); setCommitments(cm);
       setPrayerLog(pl); setReligious(rel);
       setMandatoryLog(ml); setAzkarLog(al); setAzkarItems(ai); setQuranProgress(qp);
-      setIstighfar(isf); setPointsLog(plog);
+      setIstighfar(isf); setPointsLog(plog); setTipsLog(tl);
 
       const today = todayKey();
       const lastOpen = localStorage.getItem("masar_last_open");
@@ -310,9 +312,9 @@ export default function MasarApp() {
   if (hasAuth && !user) return <LandingPage onSignIn={handleSignIn} onEmailSignIn={handleEmailSignIn} onEmailSignUp={handleEmailSignUp} />;
 
   return (
-    <div style={S.app}>
+    <div style={S.app} className="masar-app">
       <Header view={view} setView={setView} gamify={gamify} stats={stats} hasCloud={store.hasCloud} user={user} onSignIn={handleSignIn} onSignOut={handleSignOut} />
-      <div style={S.body} key={view} className="view-fade">
+      <div style={S.body} key={view} className="view-fade masar-body">
         {view === "today" && (
           <TodayView
             date={selectedDate} setDate={setSelectedDate}
@@ -338,6 +340,7 @@ export default function MasarApp() {
             addPoints={addPoints} showToast={showToast}
           />
         )}
+        {view === "tips" && <TipsView tipsLog={tipsLog} setTipsLog={setTipsLog} showToast={showToast} />}
         {view === "tasks" && <TasksView tasks={tasks} setTasks={setTasks} categories={categories} addPoints={addPoints} showToast={showToast} />}
         {view === "focus" && <FocusView focus={focus} setFocus={setFocus} commitments={commitments} setCommitments={setCommitments} categories={categories} entries={entries} addPoints={addPoints} showToast={showToast} />}
         {view === "achieve" && <AchieveView achieve={achieve} setAchieve={setAchieve} profile={profile} focus={focus} tasks={tasks} prayerLog={prayerLog} religious={religious} addPoints={addPoints} showToast={showToast} setView={setView} />}
@@ -372,6 +375,11 @@ const TOUR_STEPS = [
     Icon: Moon,
     title: "عباداتك اليومية",
     body: "تابع صلواتك في \"الصلاة\"، أذكارك في \"أذكار\"، وباقي عاداتك الدينية وتقدّم القرآن في \"الأساسيات\".",
+  },
+  {
+    Icon: Eye,
+    title: "بصيرة",
+    body: "نصيحة جديدة تنتظرك كل يوم في \"بصيرة\"، تجمع بين حكمة دينية ودنيوية — نصيحة واحدة مختارة ليومك، لا تتكرر لفترة طويلة.",
   },
   {
     Icon: Timer,
@@ -672,6 +680,7 @@ function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSign
     { id: "prayer", label: "الصلاة", icon: Moon },
     { id: "adhkar", label: "أذكار", icon: TasbihIcon },
     { id: "essentials", label: "الأساسيات", icon: CheckCircle2 },
+    { id: "tips", label: "بصيرة", icon: Eye },
     { id: "focus", label: "تركيز", icon: Timer },
     { id: "tasks", label: "المهام", icon: ListChecks },
     { id: "reports", label: "التقارير", icon: TrendingUp },
@@ -682,7 +691,7 @@ function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSign
   const lv = getLevel(gamify.points);
   const lvProgress = lv.next ? (gamify.points - lv.current) / (lv.next - lv.current) : 1;
   return (
-    <div style={S.header}>
+    <div style={S.header} className="masar-header">
       <div style={S.headerTop}>
         <div style={S.brand}><span style={S.brandMark}>◐</span><span style={S.brandText}>مسار</span></div>
         <div style={S.headerStats}>
@@ -1746,6 +1755,60 @@ function AdhkarView({ showToast }) {
   );
 }
 
+const TS = {
+  wrap: { display: "flex", flexDirection: "column", gap: 16 },
+  hero: { display: "flex", alignItems: "center", gap: 12, marginBottom: 4 },
+  heroIcon: { width: 46, height: 46, borderRadius: "50%", background: "radial-gradient(circle at 32% 28%, #E7C378, #C9A24B 65%, #A9822F)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 0 0 1px rgba(201,162,75,0.25), 0 4px 14px rgba(201,162,75,0.25)" },
+  heroTitle: { fontFamily: "'Amiri', serif", fontSize: 22, fontWeight: 700 },
+  heroSub: { fontSize: 12, color: "#8A8782", lineHeight: 1.5, marginTop: 2 },
+  dateLabel: { fontSize: 12.5, color: "#8A8782", textAlign: "center" },
+  card: { position: "relative", background: "linear-gradient(180deg, var(--panel), #131315)", border: "1px solid var(--line)", borderRadius: 22, padding: "30px 22px 24px", boxShadow: "0 6px 24px rgba(0,0,0,0.22)" },
+  ornament: { display: "flex", alignItems: "center", gap: 10, marginBottom: 18 },
+  ornamentLine: { flex: 1, height: 1, background: "linear-gradient(90deg, transparent, rgba(201,162,75,0.4))" },
+  ornamentLineRev: { flex: 1, height: 1, background: "linear-gradient(270deg, transparent, rgba(201,162,75,0.4))" },
+  ornamentDot: { color: "#C9A24B", fontSize: 11, flexShrink: 0 },
+  quoteText: { fontFamily: "'Amiri', serif", fontSize: 21, lineHeight: 2.1, letterSpacing: 0.2, color: "var(--ink)", textAlign: "center", margin: 0 },
+  footerRow: { display: "flex", alignItems: "center", justifyContent: "center", marginTop: 20 },
+  categoryPill: { fontSize: 11.5, fontWeight: 700, color: "#C9A24B", background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.3)", borderRadius: 20, padding: "5px 14px" },
+  footerNote: { fontSize: 11.5, color: "#6B6863", textAlign: "center", marginTop: 4 },
+};
+
+function TipsView({ tipsLog, setTipsLog, showToast }) {
+  const today = todayKey();
+  const todayTip = useMemo(() => pickDailyTip(today, getOwner()), [today]);
+
+  useEffect(() => {
+    if (tipsLog[today] === todayTip.id) return;
+    setTipsLog((prev) => ({ ...prev, [today]: todayTip.id }));
+    store.saveTipsLog(today, todayTip.id);
+  }, [today, todayTip.id]);
+
+  return (
+    <div style={S.view}>
+      <div style={TS.wrap}>
+        <div style={TS.hero}>
+          <div style={TS.heroIcon}><Eye size={22} color="#0A0A0B" /></div>
+          <div>
+            <div style={TS.heroTitle}>بصيرة</div>
+            <div style={TS.heroSub}>نصيحة جديدة كل يوم، بين الدنيا والدين.</div>
+          </div>
+        </div>
+        <div style={TS.dateLabel}>{arabicDate(today, { weekday: "long", day: "numeric", month: "long" })}</div>
+        <div style={TS.card}>
+          <div style={TS.ornament}>
+            <span style={TS.ornamentLine} /><span style={TS.ornamentDot}>◆</span><span style={TS.ornamentLineRev} />
+          </div>
+          <p style={TS.quoteText}>{todayTip.text}</p>
+          <div style={TS.footerRow}>
+            <span style={TS.categoryPill}>{TIP_CATEGORY_LABELS[todayTip.category]}</span>
+          </div>
+        </div>
+        <div style={TS.footerNote}>عد غداً لتجد نصيحة جديدة بانتظارك</div>
+      </div>
+    </div>
+  );
+}
+
 function FocusView({ focus, setFocus, commitments, setCommitments, categories, entries, addPoints, showToast }) {
   const [targetMin, setTargetMin] = useState(25);
   const [remaining, setRemaining] = useState(25 * 60);
@@ -2564,7 +2627,7 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
     <div style={S.view}>
       <div style={S.sectionTitle}>التخصيص</div>
       <ProfileCard profile={profile} setProfile={setProfile} showToast={showToast} />
-      <button onClick={onStartTour} style={S.exportBtn}><GraduationCap size={15} /> تعليم: أعد الجولة التعريفية</button>
+      <button onClick={onStartTour} style={S.exportBtn}><GraduationCap size={15} /> إعادة الجولة التعريفية</button>
       {!hasCloud && (
         <div style={S.setupCard}>
           <Cloud size={16} color="#5FA8A0" style={{ flexShrink: 0, marginTop: 2 }} />

@@ -55,3 +55,20 @@ button:active:not(:disabled) {
 @media (prefers-reduced-motion: reduce) {
   .view-fade, .stagger-in > *, button { animation: none !important; transition: none !important; }
 }
+
+/* Desktop responsiveness: the app is built mobile-first at a fixed 480px
+   column (set inline via S.header/S.body). On larger viewports that inline
+   max-width is widened here so the app grows into a comfortable reading
+   column instead of staying pinned at phone width in the middle of the
+   screen — the layout itself stays single-column and mobile behavior
+   below 640px is completely untouched. */
+@media (min-width: 640px) {
+  .masar-header, .masar-body { max-width: 640px !important; }
+}
+@media (min-width: 900px) {
+  .masar-header, .masar-body { max-width: 760px !important; }
+}
+@media (min-width: 1200px) {
+  .masar-header, .masar-body { max-width: 920px !important; }
+  .masar-app { background: radial-gradient(ellipse 900px 500px at 50% 0%, rgba(201,162,75,0.045), transparent 70%), var(--bg); }
+}

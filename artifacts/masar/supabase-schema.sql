@@ -223,6 +223,17 @@ create table if not exists adhkar_progress (
 );
 create index if not exists adhkar_progress_owner_date on adhkar_progress (owner, date);
 
+-- سجل نصيحة اليوم (قسم "بصيرة"): صف واحد لكل مستخدم لكل تاريخ — نفس
+-- النصيحة تُحفظ فور ظهورها ولا تُعاد لاحقاً حتى لو تغيّر يوم الدخول،
+-- ويوم لم يدخل فيه المستخدم لا يترك أثراً (لا تراكم لنصائح فائتة).
+create table if not exists tips_log (
+  owner       text not null default 'solo',
+  date        text not null,
+  tip_id      text not null,
+  seen_at     timestamptz default now(),
+  primary key (owner, date)
+);
+
 -- ============================================================
 -- فهارس الأداء: هذه الجداول مفتاحها الأساسي id فقط (بدون owner)، وكل
 -- قراءة تفلتر بـ owner ثم ترتّب بعمود تاريخ — بدون فهرس هنا كل تحميل
@@ -355,3 +366,8 @@ alter table adhkar_progress enable row level security;
 drop policy if exists adhkar_progress_anon_solo on adhkar_progress;
 drop policy if exists adhkar_progress_user_own on adhkar_progress;
 create policy adhkar_progress_user_own on adhkar_progress for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
+alter table tips_log enable row level security;
+drop policy if exists tips_log_anon_solo on tips_log;
+drop policy if exists tips_log_user_own on tips_log;
+create policy tips_log_user_own on tips_log for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);

@@ -185,11 +185,11 @@ export const store = {
   },
 
   async loadProfile() {
-    const local = lsGet("masar_profile", { about: "", hobbies: "", field: "" });
+    const local = lsGet("masar_profile", { about: "", hobbies: "", field: "", tourSeen: false });
     if (!useCloud()) return local;
     const { data, error } = await supabase.from("profile").select("*").eq("owner", CURRENT_OWNER).maybeSingle();
     if (error || !data) return local;
-    const p = { about: data.about || "", hobbies: data.hobbies || "", field: data.field || "" };
+    const p = { about: data.about || "", hobbies: data.hobbies || "", field: data.field || "", tourSeen: !!data.tour_seen };
     lsSet("masar_profile", p);
     return p;
   },
@@ -198,6 +198,14 @@ export const store = {
     if (useCloud()) {
       const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, about: p.about, hobbies: p.hobbies, field: p.field, updated_at: new Date().toISOString() });
       if (error) console.error("[saveProfile] Supabase error:", error.message);
+    }
+  },
+  async saveTourSeen(seen) {
+    const local = lsGet("masar_profile", { about: "", hobbies: "", field: "", tourSeen: false });
+    lsSet("masar_profile", { ...local, tourSeen: seen });
+    if (useCloud()) {
+      const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, tour_seen: seen, updated_at: new Date().toISOString() });
+      if (error) console.error("[saveTourSeen] Supabase error:", error.message);
     }
   },
 

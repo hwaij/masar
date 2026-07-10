@@ -53,8 +53,11 @@ create table if not exists profile (
   about       text default '',
   hobbies     text default '',
   field       text default '',
+  tour_seen   boolean not null default false,
   updated_at  timestamptz default now()
 );
+-- ترقية للجداول القديمة التي أُنشئت قبل إضافة الجولة التعريفية.
+alter table profile add column if not exists tour_seen boolean not null default false;
 
 -- الإنجازات والأهداف
 create table if not exists achieve (

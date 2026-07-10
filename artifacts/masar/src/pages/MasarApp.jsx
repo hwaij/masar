@@ -14,6 +14,7 @@ import {
   Moon, Bell, BookMarked, CheckCircle2,
   MessageCircle, Send,
   LogIn, LogOut,
+  Heart, GraduationCap,
 } from "lucide-react";
 import { fivePrayers, nextPrayer, to12h } from "../lib/prayer";
 import { ADHKAR_CATEGORIES, ADHKAR } from "../lib/adhkar";
@@ -110,7 +111,8 @@ export default function MasarApp() {
   const [categories, setCategories] = useState([]);
   const [reports, setReports] = useState([]);
   const [gamify, setGamify] = useState({ points: 0, badges: [] });
-  const [profile, setProfile] = useState({ about: "", hobbies: "", field: "" });
+  const [profile, setProfile] = useState({ about: "", hobbies: "", field: "", tourSeen: false });
+  const [tourOpen, setTourOpen] = useState(false);
   const [achieve, setAchieve] = useState([]);
   const [focus, setFocus] = useState([]);
   const [commitments, setCommitments] = useState([]);
@@ -206,6 +208,21 @@ export default function MasarApp() {
     setToast(msg);
     setTimeout(() => setToast(null), 2200);
   }, []);
+
+  // Show the onboarding tour once per first-time profile (guest-local or
+  // per Supabase account) — re-evaluated only when a fresh load completes,
+  // so it never reopens just from navigating between views.
+  useEffect(() => {
+    if (loaded && !profile.tourSeen) setTourOpen(true);
+  }, [loaded]);
+
+  const closeTour = useCallback(() => {
+    setTourOpen(false);
+    setProfile((p) => ({ ...p, tourSeen: true }));
+    store.saveTourSeen(true);
+  }, []);
+
+  const startTour = useCallback(() => setTourOpen(true), []);
 
   const aiHistory = useMemo(() => reports.filter((r) => r.gist).map((r) => ({ date: r.date, gist: r.gist })), [reports]);
 
@@ -325,12 +342,112 @@ export default function MasarApp() {
         {view === "achieve" && <AchieveView achieve={achieve} setAchieve={setAchieve} profile={profile} focus={focus} tasks={tasks} prayerLog={prayerLog} religious={religious} addPoints={addPoints} showToast={showToast} setView={setView} />}
         {view === "reports" && <ReportsView entries={entries} categories={categories} focus={focus} profile={profile} showToast={showToast} />}
         {view === "assistant" && <AssistantView entries={entries} tasks={tasks} categories={categories} focus={focus} prayerLog={prayerLog} religious={religious} profile={profile} stats={stats} azkarLog={azkarLog} quranProgress={quranProgress} istighfar={istighfar} setView={setView} />}
-        {view === "settings" && <SettingsView categories={categories} setCategories={setCategories} gamify={gamify} hasCloud={store.hasCloud} showToast={showToast} profile={profile} setProfile={setProfile} pointsLog={pointsLog} />}
+        {view === "settings" && <SettingsView categories={categories} setCategories={setCategories} gamify={gamify} hasCloud={store.hasCloud} showToast={showToast} profile={profile} setProfile={setProfile} pointsLog={pointsLog} onStartTour={startTour} />}
       </div>
       {toast && <div style={S.toast}>{toast}</div>}
+      {tourOpen && <OnboardingTour onClose={closeTour} />}
     </div>
   );
 }
+
+const TOUR_STEPS = [
+  {
+    icon: "◐",
+    title: "أهلاً بك في مسار",
+    body: "مساحتك الشخصية للإنتاجية والعبادة. جولة قصيرة (نصف دقيقة) لتتعرف على أهم أقسام التطبيق.",
+  },
+  {
+    Icon: User,
+    title: "ابدأ بالتخصيص أولاً",
+    body: "اكتب هواياتك ونبذتك في \"التخصيص\" — هذه الخطوة مهمة جداً: بدونها لن يعمل المساعد الذكي (أنجز والمساعد) بشكل مخصّص لك، وستبدو اقتراحاته عامة وغير مرتبطة بك.",
+    emphasize: true,
+  },
+  {
+    Icon: Clock,
+    title: "اليوم",
+    body: "سجّل أنشطتك اليومية وشاهدها في دائرة الوقت التفاعلية، إلى جانب مهامك الأساسية اليومية.",
+  },
+  {
+    Icon: Moon,
+    title: "عباداتك اليومية",
+    body: "تابع صلواتك في \"الصلاة\"، أذكارك في \"أذكار\"، وباقي عاداتك الدينية وتقدّم القرآن في \"الأساسيات\".",
+  },
+  {
+    Icon: Timer,
+    title: "أدوات إنتاجيتك",
+    body: "شغّل جلسات تركيز ودراسة في \"تركيز\"، ونظّم مهامك اليومية في \"المهام\".",
+  },
+  {
+    Icon: Sparkles,
+    title: "الذكاء الاصطناعي",
+    body: "\"أنجز\" يقترح لك تحديات ومشاريع تناسبك، و\"مساعد\" مدرّبك الشخصي للمحادثة — كلاهما يعتمد على هواياتك ونبذتك في التخصيص لتكون النصائح مخصّصة فعلاً.",
+  },
+  {
+    Icon: Heart,
+    title: "جاهز؟",
+    body: "ابدأ رحلتك الآن 🤍",
+    isLast: true,
+  },
+];
+
+function OnboardingTour({ onClose }) {
+  const [step, setStep] = useState(0);
+  const s = TOUR_STEPS[step];
+  const isLast = step === TOUR_STEPS.length - 1;
+  const Icon = s.Icon;
+
+  return (
+    <div style={OT.overlay} onClick={onClose}>
+      <motion.div
+        key={step}
+        initial={{ opacity: 0, y: 14, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+        style={OT.card}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button onClick={onClose} style={OT.skipX}><X size={18} /></button>
+        <div style={{ ...OT.iconBadge, ...(s.emphasize ? OT.iconBadgeEmphasize : {}) }}>
+          {Icon ? <Icon size={26} color="#0A0A0B" /> : <span style={{ fontSize: 30 }}>{s.icon}</span>}
+        </div>
+        <div style={OT.title}>{s.title}</div>
+        <p style={{ ...OT.body, ...(s.emphasize ? OT.bodyEmphasize : {}) }}>{s.body}</p>
+        <div style={OT.dots}>
+          {TOUR_STEPS.map((_, i) => (
+            <span key={i} style={{ ...OT.dot, ...(i === step ? OT.dotActive : {}) }} />
+          ))}
+        </div>
+        <div style={OT.actions}>
+          {!isLast && <button onClick={onClose} style={OT.skipBtn}>تخطّي</button>}
+          <button
+            onClick={() => (isLast ? onClose() : setStep((n) => n + 1))}
+            style={{ ...OT.nextBtn, ...(isLast ? OT.nextBtnLast : {}) }}
+          >
+            {isLast ? "ابدأ رحلتك الآن 🤍" : "التالي"}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+const OT = {
+  overlay: { position: "fixed", inset: 0, background: "rgba(6,6,7,0.78)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 20 },
+  card: { position: "relative", width: "100%", maxWidth: 360, background: "linear-gradient(165deg, #17171a, #101012)", border: "1px solid var(--line)", borderRadius: 24, padding: "32px 22px 22px", textAlign: "center", boxShadow: "0 20px 60px rgba(0,0,0,0.5)" },
+  skipX: { position: "absolute", top: 14, left: 14, background: "none", border: "none", color: "#5A5650", cursor: "pointer", padding: 6, display: "flex" },
+  iconBadge: { width: 56, height: 56, borderRadius: "50%", background: "linear-gradient(140deg, #E0B868, #C9A24B)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 18px" },
+  iconBadgeEmphasize: { background: "linear-gradient(140deg, #6FC4B8, #3E7E78)" },
+  title: { fontFamily: "'Amiri', serif", fontSize: 20, fontWeight: 700, color: "var(--ink)", marginBottom: 10 },
+  body: { fontSize: 13.5, color: "#B8B5AF", lineHeight: 1.9, marginBottom: 22 },
+  bodyEmphasize: { color: "#BFD8D4" },
+  dots: { display: "flex", justifyContent: "center", gap: 6, marginBottom: 20 },
+  dot: { width: 6, height: 6, borderRadius: "50%", background: "#2A2A2D" },
+  dotActive: { background: "#C9A24B", width: 18 },
+  actions: { display: "flex", alignItems: "center", justifyContent: "center", gap: 10 },
+  skipBtn: { background: "none", border: "none", color: "#8A8782", fontSize: 13.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", padding: "13px 14px" },
+  nextBtn: { flex: 1, background: "var(--gold)", color: "var(--bg)", border: "none", borderRadius: 12, padding: "13px 0", fontSize: 14.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
+  nextBtnLast: { flex: "1 0 auto" },
+};
 
 function SplashScreen() {
   return (
@@ -2227,7 +2344,7 @@ function AchieveCard({ item, kindLabel, onToggle, onRemove }) {
   );
 }
 
-function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, profile, setProfile, pointsLog }) {
+function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, profile, setProfile, pointsLog, onStartTour }) {
   const [editing, setEditing] = useState(null);
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState(COLOR_CHOICES[0]);
@@ -2250,6 +2367,7 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
     <div style={S.view}>
       <div style={S.sectionTitle}>التخصيص</div>
       <ProfileCard profile={profile} setProfile={setProfile} showToast={showToast} />
+      <button onClick={onStartTour} style={S.exportBtn}><GraduationCap size={15} /> تعليم: أعد الجولة التعريفية</button>
       {!hasCloud && (
         <div style={S.setupCard}>
           <Cloud size={16} color="#5FA8A0" style={{ flexShrink: 0, marginTop: 2 }} />

@@ -7,7 +7,7 @@ import {
 } from "recharts";
 import {
   Sparkles, Clock, TrendingUp, ListChecks, Settings, ChevronLeft, ChevronRight,
-  Loader2, Plus, X, Trash2, Check, Flame, Star, Edit3, Calendar,
+  Loader2, Plus, X, Trash2, Check, Flame, Star, Edit3,
   Sun, Target, Palette, Cloud, CloudOff,
   Rocket, BookOpen, User, Trophy, ChevronDown, ExternalLink,
   Timer, Play, Pause, RotateCcw, Zap, Download, ListPlus, Save,
@@ -938,22 +938,54 @@ function DailyEvolution({ date, dayEntries, catMap, report, aiHistory, onSave })
   );
 }
 
+const WEEKDAY_SHORT = ["السبت", "الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة"];
+
+function startOfWeekKey(dateKey) {
+  const d = new Date(dateKey);
+  const daysSinceSaturday = (d.getDay() + 1) % 7; // Sat=6 -> 0, Sun=0 -> 1, ... Fri=5 -> 6
+  d.setDate(d.getDate() - daysSinceSaturday);
+  return todayKey(d);
+}
+function addDaysKey(dateKey, delta) {
+  const d = new Date(dateKey);
+  d.setDate(d.getDate() + delta);
+  return todayKey(d);
+}
+
 function TasksView({ tasks, setTasks, categories, addPoints, showToast }) {
   const [title, setTitle] = useState("");
   const [catId, setCatId] = useState(categories[0]?.id);
-  const [due, setDue] = useState(todayKey());
-  const [filter, setFilter] = useState("all");
+  const [weekStart, setWeekStart] = useState(() => startOfWeekKey(todayKey()));
+  const [selectedDay, setSelectedDay] = useState(() => todayKey());
   const catMap = useMemo(() => Object.fromEntries(categories.map((c) => [c.id, c])), [categories]);
+  const today = todayKey();
+  const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDaysKey(weekStart, i)), [weekStart]);
+
+  function shiftWeek(delta) {
+    const dayOffset = Math.max(0, weekDays.indexOf(selectedDay));
+    const nextStart = addDaysKey(weekStart, delta * 7);
+    setWeekStart(nextStart);
+    setSelectedDay(addDaysKey(nextStart, dayOffset));
+  }
+
+  function tasksForDay(dayKey) {
+    return tasks.filter((t) => t.due === dayKey).sort((a, b) => (a.done !== b.done ? (a.done ? 1 : -1) : 0));
+  }
+  function dayStats(dayKey) {
+    const list = tasksForDay(dayKey);
+    const done = list.filter((t) => t.done).length;
+    return { total: list.length, done, complete: list.length > 0 && done === list.length };
+  }
 
   async function addTask() {
     if (!title.trim()) return;
-    const t = { id: uid(), title: title.trim(), catId, due, done: false, created: todayKey() };
+    const t = { id: uid(), title: title.trim(), catId, due: selectedDay, done: false, created: todayKey() };
     setTasks((prev) => [...prev, t]); await store.saveTask(t); setTitle(""); showToast("تمت إضافة المهمة");
   }
   async function addDefaults() {
-    const existing = new Set(tasks.filter((t) => t.due === todayKey()).map((t) => t.title));
+    const existing = new Set(tasksForDay(selectedDay).map((t) => t.title));
     const toAdd = DEFAULT_DAILY_TASKS.filter((title) => !existing.has(title))
-      .map((title) => ({ id: uid(), title, catId, due: todayKey(), done: false, created: todayKey() }));
+      .map((title) => ({ id: uid(), title, catId, due: selectedDay, done: false, created: todayKey() }));
     if (toAdd.length === 0) { showToast("الأساسيات مضافة بالفعل"); return; }
     setTasks((prev) => [...prev, ...toAdd]);
     for (const t of toAdd) await store.saveTask(t);
@@ -963,8 +995,13 @@ function TasksView({ tasks, setTasks, categories, addPoints, showToast }) {
     const updated = { ...t, done: !t.done };
     setTasks((prev) => prev.map((x) => x.id === t.id ? updated : x));
     await store.saveTask(updated);
-    if (!t.done) addPoints(10);
-    else addPoints(-10, "التراجع عن مهمة");
+    if (!t.done) {
+      addPoints(10);
+      const after = tasksForDay(t.due).map((x) => (x.id === t.id ? updated : x));
+      if (after.length > 0 && after.every((x) => x.done)) showToast("🎉 أكملت كل مهام هذا اليوم!");
+    } else {
+      addPoints(-10, "التراجع عن مهمة");
+    }
   }
   async function remove(id) {
     const removed = tasks.find((t) => t.id === id);
@@ -974,19 +1011,37 @@ function TasksView({ tasks, setTasks, categories, addPoints, showToast }) {
     showToast("تم الحذف");
   }
 
-  const filtered = useMemo(() => {
-    let list = [...tasks];
-    if (filter === "active") list = list.filter((t) => !t.done);
-    if (filter === "done") list = list.filter((t) => t.done);
-    return list.sort((a, b) => a.done !== b.done ? (a.done ? 1 : -1) : (a.due || "").localeCompare(b.due || ""));
-  }, [tasks, filter]);
-  const activeCount = tasks.filter((t) => !t.done).length;
+  const selectedList = tasksForDay(selectedDay);
+  const selectedStats = dayStats(selectedDay);
+  const selectedIdx = Math.max(0, weekDays.indexOf(selectedDay));
 
   return (
     <div style={S.view}>
       <div style={S.sectionTitle}>دفترك الذكي</div>
+
+      <div style={S.dateRow}>
+        <button onClick={() => shiftWeek(-1)} style={S.iconBtn}><ChevronRight size={18} /></button>
+        <div style={S.dateLabel}>{arabicDate(weekDays[0], { day: "numeric", month: "short" })} – {arabicDate(weekDays[6], { day: "numeric", month: "short" })}</div>
+        <button onClick={() => shiftWeek(1)} style={S.iconBtn}><ChevronLeft size={18} /></button>
+      </div>
+
+      <div style={S.weekStrip}>
+        {weekDays.map((d, i) => {
+          const stats = dayStats(d);
+          const isSelected = d === selectedDay;
+          const isToday = d === today;
+          return (
+            <button key={d} onClick={() => setSelectedDay(d)} style={{ ...S.dayChip, ...(isSelected ? S.dayChipActive : {}) }}>
+              <span style={S.dayChipWeekday}>{WEEKDAY_SHORT[i]}</span>
+              <span style={S.dayChipNum}>{new Date(d).getDate()}</span>
+              {stats.complete ? <Check size={11} color="#5FA8A0" /> : isToday ? <span style={S.dayChipTodayDot} /> : <span style={{ height: 11 }} />}
+            </button>
+          );
+        })}
+      </div>
+
       <div style={S.taskComposer}>
-        <input value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addTask()} placeholder="أضف مهمة جديدة..." style={S.taskInput} />
+        <input value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addTask()} placeholder={`أضف مهمة ليوم ${WEEKDAY_SHORT[selectedIdx]}...`} style={S.taskInput} />
         <button onClick={addTask} style={S.taskAddBtn}><Plus size={18} /></button>
       </div>
       <div style={S.taskMeta}>
@@ -997,32 +1052,25 @@ function TasksView({ tasks, setTasks, categories, addPoints, showToast }) {
             </button>
           ))}
         </div>
-        <input type="date" value={due} onChange={(e) => setDue(e.target.value)} style={S.dateInput} />
+        <button onClick={addDefaults} style={S.defaultsBtn} title="أضف الأساسيات لهذا اليوم"><ListPlus size={14} /> الأساسيات</button>
       </div>
-      <div style={S.filterRow}>
-        {[{ id: "all", label: "الكل" }, { id: "active", label: `النشطة (${activeCount})` }, { id: "done", label: "المنجزة" }].map((f) => (
-          <button key={f.id} onClick={() => setFilter(f.id)} style={{ ...S.filterBtn, ...(filter === f.id ? S.filterBtnActive : {}) }}>{f.label}</button>
-        ))}
-        <button onClick={addDefaults} style={S.defaultsBtn} title="أضف أساسيات اليوم"><ListPlus size={14} /> أساسيات اليوم</button>
-      </div>
+
       <div style={S.taskList} className="stagger-in">
-        {filtered.length === 0 && <div style={S.emptyState}><div style={S.emptyStateTitle}>لا مهام هنا</div><div style={S.emptyStateSub}>أضف مهمة لتبدأ</div></div>}
-        {filtered.map((t) => {
+        {selectedList.length === 0 && <div style={S.emptyState}><div style={S.emptyStateTitle}>لا مهام هذا اليوم</div><div style={S.emptyStateSub}>أضف مهمة لتبدأ التخطيط</div></div>}
+        {selectedList.map((t) => {
           const cat = catMap[t.catId];
           return (
             <div key={t.id} style={S.taskRow}>
               <span onClick={() => toggle(t)} style={{ ...S.checkbox, ...(t.done ? S.checkboxDone : {}) }}>{t.done && <Check size={12} />}</span>
               <div style={S.taskInfo}>
                 <div style={{ ...S.taskTitle, ...(t.done ? S.taskTitleDone : {}) }}>{t.title}</div>
-                <div style={S.taskTags}>
-                  {cat && <span style={S.taskTag}><span style={{ ...S.legendDot, background: cat.color, width: 6, height: 6 }} />{cat.name}</span>}
-                  {t.due && <span style={S.taskTag}><Calendar size={10} />{arabicDate(t.due, { day: "numeric", month: "short" })}</span>}
-                </div>
+                {cat && <div style={S.taskTags}><span style={S.taskTag}><span style={{ ...S.legendDot, background: cat.color, width: 6, height: 6 }} />{cat.name}</span></div>}
               </div>
               <button onClick={() => remove(t.id)} style={S.deleteBtn}><Trash2 size={14} /></button>
             </div>
           );
         })}
+        {selectedStats.complete && <div style={S.dayCompleteBanner}>🎉 أكملت كل مهام هذا اليوم! أحسنت.</div>}
       </div>
     </div>
   );

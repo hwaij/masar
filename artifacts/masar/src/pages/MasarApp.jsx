@@ -556,8 +556,8 @@ function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSign
     { id: "essentials", label: "الأساسيات", icon: CheckCircle2 },
     { id: "focus", label: "تركيز", icon: Timer },
     { id: "tasks", label: "المهام", icon: ListChecks },
-    { id: "achieve", label: "أنجز", icon: Rocket },
     { id: "reports", label: "التقارير", icon: TrendingUp },
+    { id: "achieve", label: "أنجز", icon: Rocket },
     { id: "assistant", label: "مساعد", icon: MessageCircle },
     { id: "settings", label: "التخصيص", icon: Settings },
   ];
@@ -608,9 +608,16 @@ function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSign
 function TodayView({ date, setDate, entries, setEntries, categories, tasks, setTasks, reports, setReports, aiHistory, mandatoryLog, setMandatoryLog, addPoints, showToast }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState(null);
+  const [manualPeriod, setManualPeriod] = useState(null);
   const catMap = useMemo(() => Object.fromEntries(categories.map((c) => [c.id, c])), [categories]);
   const dayEntries = useMemo(() => entries.filter((e) => e.date === date).sort((a, b) => a.start.localeCompare(b.start)), [entries, date]);
   const totalMinutes = dayEntries.reduce((s, e) => s + diffMinutes(e.start, e.end), 0);
+  const currentHour = new Date().getHours();
+  const autoPeriod = (currentHour >= 5 && currentHour < 17) ? "morning" : "evening";
+  const period = manualPeriod || autoPeriod;
+  const periodLabel = period === "morning" ? "الصباح" : "المساء";
+  const periodGlow = period === "morning" ? "rgba(201,162,75,0.4)" : "rgba(94,150,224,0.4)";
+  function togglePeriod() { setManualPeriod(period === "morning" ? "evening" : "morning"); }
   const dayTasks = tasks.filter((t) => t.due === date);
   const isToday = date === todayKey();
   const dailyReport = reports.find((r) => r.kind === "daily" && r.date === date);
@@ -687,14 +694,22 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
       )}
 
       <div style={S.wheelSection}>
-        <DayWheel entries={dayEntries} catMap={catMap} size={224} />
-        {dayEntries.length === 0 && (
-          <div style={S.wheelStats}><div style={S.wheelTotal}>{fmtHM(0)}</div><div style={S.wheelTotalLabel}>ابدأ يومك</div></div>
-        )}
+        <DayWheel
+          entries={dayEntries}
+          catMap={catMap}
+          size={224}
+          glow={periodGlow}
+          centerLabel={dayEntries.length === 0 ? "ابدأ يومك" : periodLabel}
+          centerValue={fmtHM(totalMinutes)}
+        />
       </div>
-      <div style={{ textAlign: "center", marginBottom: 14, marginTop: -4 }}>
-        <span style={{ fontFamily: "'Amiri', serif", fontSize: 22, fontWeight: 700 }}>{fmtHM(totalMinutes)}</span>
-        <span style={{ fontSize: 11, color: "#6B6863", marginRight: 8 }}>إجمالي اليوم · اضغط أي قوس لتفاصيله</span>
+      <div style={{ display: "flex", justifyContent: "center", marginBottom: 10, marginTop: -4 }}>
+        <button onClick={togglePeriod} style={{ ...S.periodToggle, ...(period === "morning" ? S.periodToggleMorning : S.periodToggleEvening) }}>
+          {period === "morning" ? "☀️" : "🌙"} {periodLabel}
+        </button>
+      </div>
+      <div style={{ textAlign: "center", marginBottom: 14 }}>
+        <span style={{ fontSize: 11, color: "var(--muted)" }}>اضغط أي قوس في العجلة لتفاصيل ذلك النشاط</span>
       </div>
 
       <div style={S.legendRow}>
@@ -1369,12 +1384,13 @@ function ReligiousTask({ task, onUpdate, onRemove, addPoints, showToast }) {
 
 const AS = {
   wrap: { display: "flex", flexDirection: "column", gap: 16 },
-  hero: { display: "flex", flexDirection: "column", gap: 4, marginBottom: 4 },
+  hero: { display: "flex", alignItems: "center", gap: 12, marginBottom: 4 },
+  heroIcon: { width: 46, height: 46, borderRadius: "50%", background: "radial-gradient(circle at 32% 28%, #E7C378, #C9A24B 65%, #A9822F)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 0 0 1px rgba(201,162,75,0.25), 0 4px 14px rgba(201,162,75,0.25)" },
   heroTitle: { fontFamily: "'Amiri', serif", fontSize: 22, fontWeight: 700 },
-  heroSub: { fontSize: 12, color: "#8A8782", lineHeight: 1.5 },
+  heroSub: { fontSize: 12, color: "#8A8782", lineHeight: 1.5, marginTop: 2 },
   grid: { display: "flex", flexDirection: "column", gap: 12 },
-  catCard: { display: "flex", alignItems: "center", gap: 14, background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 18, padding: "18px 16px", cursor: "pointer", textAlign: "right", fontFamily: "inherit" },
-  catIcon: { fontSize: 32, width: 52, height: 52, borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(201,162,75,0.08)", flexShrink: 0 },
+  catCard: { display: "flex", alignItems: "center", gap: 14, background: "linear-gradient(165deg, var(--panel), #141416)", border: "1px solid var(--line)", borderRadius: 20, padding: "18px 16px", cursor: "pointer", textAlign: "right", fontFamily: "inherit", boxShadow: "0 4px 16px rgba(0,0,0,0.18)" },
+  catIcon: { fontSize: 26, width: 54, height: 54, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: "radial-gradient(circle at 35% 30%, rgba(201,162,75,0.24), rgba(201,162,75,0.05))", border: "1px solid rgba(201,162,75,0.25)", flexShrink: 0 },
   catInfo: { flex: 1, minWidth: 0 },
   catTitle: { fontFamily: "'Amiri', serif", fontSize: 17, fontWeight: 700, color: "var(--ink)" },
   catSub: { fontSize: 11.5, color: "#8A8782", marginTop: 3 },
@@ -1385,8 +1401,12 @@ const AS = {
   progressTop: { display: "flex", justifyContent: "space-between", fontSize: 12, color: "#8A8782", marginBottom: 6 },
   progressBar: { height: 8, background: "#1F1F22", borderRadius: 4, overflow: "hidden" },
   progressFill: { height: "100%", borderRadius: 4, transition: "width 0.4s ease" },
-  itemCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 18, padding: "24px 20px", transition: "opacity 0.3s ease, transform 0.3s ease" },
+  itemCard: { position: "relative", background: "linear-gradient(180deg, var(--panel), #131315)", border: "1px solid var(--line)", borderRadius: 20, padding: "24px 20px", boxShadow: "0 6px 20px rgba(0,0,0,0.2)", transition: "opacity 0.3s ease, transform 0.3s ease" },
   itemCardDone: { opacity: 0.55 },
+  itemOrnament: { display: "flex", alignItems: "center", gap: 10, marginBottom: 16 },
+  itemOrnamentLine: { flex: 1, height: 1, background: "linear-gradient(90deg, transparent, rgba(201,162,75,0.4))" },
+  itemOrnamentLineRev: { flex: 1, height: 1, background: "linear-gradient(270deg, transparent, rgba(201,162,75,0.4))" },
+  itemOrnamentDot: { color: "#C9A24B", fontSize: 11, flexShrink: 0 },
   itemText: { fontFamily: "'Amiri', 'Scheherazade New', serif", fontSize: 21, lineHeight: 2.3, letterSpacing: 0.2, color: "var(--ink)", whiteSpace: "pre-line", textAlign: "center" },
   itemTextQuran: { fontSize: 25, lineHeight: 2.6 },
   itemNote: { fontFamily: "'Amiri', serif", fontSize: 13, color: "#8A8782", textAlign: "center", marginTop: 12, lineHeight: 1.9 },
@@ -1447,8 +1467,11 @@ function AdhkarView({ showToast }) {
       <div style={S.view}>
         <div style={AS.wrap}>
           <div style={AS.hero}>
-            <div style={AS.heroTitle}>أذكار</div>
-            <div style={AS.heroSub}>اختر فئة لتبدأ، وعدّاد كل ذكر يحفظ تقدّمك تلقائياً طوال اليوم.</div>
+            <div style={{ ...AS.heroIcon, color: "#0A0A0B" }}><TasbihIcon size={22} /></div>
+            <div>
+              <div style={AS.heroTitle}>أذكار</div>
+              <div style={AS.heroSub}>اختر فئة لتبدأ، وعدّاد كل ذكر يحفظ تقدّمك تلقائياً طوال اليوم.</div>
+            </div>
           </div>
           <div style={AS.grid}>
             {ADHKAR_CATEGORIES.map((cat) => {
@@ -1503,6 +1526,11 @@ function AdhkarView({ showToast }) {
           const isQuran = /^\[/.test(item.note || "");
           return (
             <div key={item.id} style={{ ...AS.itemCard, ...(st.done ? AS.itemCardDone : {}) }}>
+              <div style={AS.itemOrnament}>
+                <div style={AS.itemOrnamentLine} />
+                <span style={AS.itemOrnamentDot}>◆</span>
+                <div style={AS.itemOrnamentLineRev} />
+              </div>
               <div style={{ ...AS.itemText, ...(isQuran ? AS.itemTextQuran : {}) }}>{item.text}</div>
               {item.note && <div style={AS.itemNote}>{item.note}</div>}
               <div style={AS.itemFooter}>

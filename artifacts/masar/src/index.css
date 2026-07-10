@@ -147,7 +147,7 @@
 
   --secondary-foreground: red; /*replace with H S L */
 
-  --muted: red; /*replace with H S L */
+  --muted: 37 4% 40%; /* muted warm gray matching masar.css's --muted (#6B6863) */
 
   --muted-foreground: red; /*replace with H S L */
 
@@ -265,7 +265,7 @@
 
   --secondary-foreground: red; /*replace with H S L */
 
-  --muted: red; /*replace with H S L */
+  --muted: 37 4% 40%; /* muted warm gray matching masar.css's --muted (#6B6863) */
 
   --muted-foreground: red; /*replace with H S L */
 

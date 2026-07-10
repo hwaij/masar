@@ -20,9 +20,9 @@ export const S = {
   iconBtn: { background: "#161618", border: "1px solid #1F1F22", borderRadius: 8, color: "#B8B5AF", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" },
 
   wheelSection: { display: "flex", justifyContent: "center", position: "relative", marginBottom: 8 },
-  wheelStats: { position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", textAlign: "center", pointerEvents: "none" },
-  wheelTotal: { fontFamily: "'Amiri', serif", fontSize: 26, fontWeight: 700 },
-  wheelTotalLabel: { fontSize: 10, color: "var(--muted)", marginTop: 2 },
+  periodToggle: { display: "flex", alignItems: "center", gap: 6, border: "1px solid var(--line)", borderRadius: 20, padding: "6px 16px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", background: "var(--panel)", transition: "background 0.5s ease, border-color 0.5s ease, color 0.5s ease" },
+  periodToggleMorning: { color: "#C9A24B", borderColor: "rgba(201,162,75,0.4)", background: "rgba(201,162,75,0.08)" },
+  periodToggleEvening: { color: "#7FAEEE", borderColor: "rgba(94,150,224,0.4)", background: "rgba(94,150,224,0.08)" },
   legendRow: { display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", marginBottom: 18 },
   legendChip: { display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#B8B5AF", background: "#141416", border: "1px solid #1F1F22", borderRadius: 20, padding: "5px 10px" },
   legendDot: { width: 8, height: 8, borderRadius: "50%", display: "inline-block", flexShrink: 0 },

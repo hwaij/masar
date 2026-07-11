@@ -1775,12 +1775,27 @@ const TS = {
 
 function TipsView({ tipsLog, setTipsLog, showToast }) {
   const today = todayKey();
-  const todayTip = useMemo(() => pickDailyTip(today, getOwner()), [today]);
+  // pickDailyTip already falls back internally on any error, but the owner
+  // lookup itself runs here, so guard it too — the card must never go
+  // blank just because logging or owner resolution had a bad day.
+  const todayTip = useMemo(() => {
+    try {
+      const tip = pickDailyTip(today, getOwner());
+      return (tip && tip.text) ? tip : pickDailyTip(today);
+    } catch (e) {
+      console.error("[TipsView] falling back to a safe tip after error:", e);
+      return pickDailyTip(today);
+    }
+  }, [today]);
 
   useEffect(() => {
-    if (tipsLog[today] === todayTip.id) return;
-    setTipsLog((prev) => ({ ...prev, [today]: todayTip.id }));
-    store.saveTipsLog(today, todayTip.id);
+    try {
+      if ((tipsLog || {})[today] === todayTip.id) return;
+      setTipsLog((prev) => ({ ...(prev || {}), [today]: todayTip.id }));
+      store.saveTipsLog(today, todayTip.id).catch((e) => console.warn("[TipsView] tips_log save failed:", e));
+    } catch (e) {
+      console.warn("[TipsView] could not record today's tip in the log:", e);
+    }
   }, [today, todayTip.id]);
 
   return (
@@ -1800,7 +1815,7 @@ function TipsView({ tipsLog, setTipsLog, showToast }) {
           </div>
           <p style={TS.quoteText}>{todayTip.text}</p>
           <div style={TS.footerRow}>
-            <span style={TS.categoryPill}>{TIP_CATEGORY_LABELS[todayTip.category]}</span>
+            <span style={TS.categoryPill}>{TIP_CATEGORY_LABELS[todayTip.category] || "حكمة"}</span>
           </div>
         </div>
         <div style={TS.footerNote}>عد غداً لتجد نصيحة جديدة بانتظارك</div>

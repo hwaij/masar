@@ -207,6 +207,11 @@ function hashString(str) {
   return h;
 }
 
+// Guaranteed non-empty fallback: used only if TIPS is ever empty/malformed
+// or the date-based computation below throws for some unforeseen reason,
+// so the card always has something real to show instead of going blank.
+const FALLBACK_TIP = { id: "fallback", category: "selfdev", text: TIPS[0]?.text || "ابدأ يومك بنية طيبة، فالنية الصالحة نصف العمل." };
+
 // يختار نصيحة اليوم بشكل حتمي من التاريخ فقط (بدون الحاجة لتخزين "آخر
 // نصيحة" في أي مكان): كل تاريخ يقابله فهرس ثابت، فلا تتكرر النصائح إلا
 // بعد أن تكتمل دورة القائمة، ولا تظهر نصيحة يوم فات لم يدخل فيه المستخدم
@@ -214,8 +219,16 @@ function hashString(str) {
 // الإزاحة المشتقة من هوية المستخدم تمنع أيضاً تطابق نصيحة اليوم بين كل
 // المستخدمين في نفس التاريخ.
 export function pickDailyTip(dateKey, ownerId = "solo") {
-  const dayIndex = Math.floor(Date.parse(`${dateKey}T00:00:00Z`) / 86400000);
-  const offset = hashString(ownerId || "solo") % TIPS.length;
-  const idx = (((dayIndex + offset) % TIPS.length) + TIPS.length) % TIPS.length;
-  return TIPS[idx];
+  try {
+    if (!Array.isArray(TIPS) || TIPS.length === 0) return FALLBACK_TIP;
+    const parsed = Date.parse(`${dateKey}T00:00:00Z`);
+    const dayIndex = Number.isFinite(parsed) ? Math.floor(parsed / 86400000) : 0;
+    const offset = hashString(String(ownerId || "solo")) % TIPS.length;
+    const idx = (((dayIndex + offset) % TIPS.length) + TIPS.length) % TIPS.length;
+    const tip = TIPS[idx];
+    return (tip && tip.text) ? tip : FALLBACK_TIP;
+  } catch (e) {
+    console.error("[pickDailyTip] fell back after error:", e);
+    return FALLBACK_TIP;
+  }
 }

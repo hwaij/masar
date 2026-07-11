@@ -298,16 +298,12 @@ export default function MasarApp() {
     showToast("تم تسجيل الخروج");
   }, [loadAll, showToast]);
 
-  useEffect(() => {
-    if (!showSplash) return;
-    const t = setTimeout(() => {
-      setShowSplash(false);
-      sessionStorage.setItem("masar_splash_done", "1");
-    }, 3600);
-    return () => clearTimeout(t);
-  }, [showSplash]);
+  const dismissSplash = useCallback(() => {
+    setShowSplash(false);
+    sessionStorage.setItem("masar_splash_done", "1");
+  }, []);
 
-  if (showSplash) return <SplashScreen />;
+  if (showSplash) return <SplashScreen onDone={dismissSplash} />;
   if (!loaded) return <div style={{ ...S.app, ...S.loaderWrap }}><Loader2 size={28} color="#C9A24B" className="spin" /></div>;
   if (hasAuth && !user) return <LandingPage onSignIn={handleSignIn} onEmailSignIn={handleEmailSignIn} onEmailSignUp={handleEmailSignUp} />;
 
@@ -458,45 +454,48 @@ const OT = {
   nextBtnLast: { flex: "1 0 auto" },
 };
 
-function SplashScreen() {
+function SplashScreen({ onDone }) {
+  const [hiding, setHiding] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setHiding(true), 1700);
+    return () => clearTimeout(t);
+  }, []);
+
   return (
-    <div style={{ minHeight: "100vh", background: "#0A0A0B", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 0, overflow: "hidden", direction: "rtl" }}>
-      <motion.div
-        initial={{ scale: 0.4, opacity: 0 }}
+    <motion.div
+      animate={{ opacity: hiding ? 0 : 1 }}
+      transition={{ duration: 0.45, ease: "easeInOut" }}
+      onAnimationComplete={() => { if (hiding) onDone?.(); }}
+      style={{ minHeight: "100vh", background: "#0A0A0B", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 0, overflow: "hidden", direction: "rtl" }}
+    >
+      <motion.img
+        src="/logo-mark.png"
+        alt=""
+        initial={{ scale: 0.5, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        transition={{ duration: 0.7, ease: [0.34, 1.56, 0.64, 1] }}
-        style={{ fontSize: 80, lineHeight: 1, color: "#C9A24B", marginBottom: 24, filter: "drop-shadow(0 0 32px rgba(201,162,75,0.45))" }}
-      >◐</motion.div>
+        transition={{ duration: 0.6, ease: [0.34, 1.56, 0.64, 1] }}
+        style={{ width: 110, height: 110, marginBottom: 20, filter: "drop-shadow(0 0 28px rgba(201,162,75,0.4))" }}
+      />
       <motion.div
-        initial={{ opacity: 0, y: 18 }}
+        initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.5, duration: 0.6 }}
-        style={{ fontFamily: "'Amiri', serif", fontSize: 48, fontWeight: 700, color: "#E8E6E1", letterSpacing: 2 }}
+        transition={{ delay: 0.35, duration: 0.45 }}
+        style={{ fontFamily: "'Amiri', serif", fontSize: 42, fontWeight: 700, color: "#E8E6E1", letterSpacing: 2 }}
       >مسار</motion.div>
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 1.1, duration: 0.7 }}
-        style={{ fontSize: 15, color: "#6B6863", marginTop: 10, letterSpacing: 1 }}
+        transition={{ delay: 0.7, duration: 0.4 }}
+        style={{ fontSize: 14, color: "#6B6863", marginTop: 8, letterSpacing: 1 }}
       >تتبّع وقتك · ارتقِ بيومك</motion.div>
       <motion.div
         initial={{ scaleX: 0, opacity: 0 }}
         animate={{ scaleX: 1, opacity: 1 }}
-        transition={{ delay: 1.8, duration: 1.4, ease: "easeInOut" }}
-        style={{ marginTop: 52, width: 120, height: 2, background: "linear-gradient(90deg, transparent, #C9A24B, transparent)", borderRadius: 2, transformOrigin: "center" }}
+        transition={{ delay: 1.0, duration: 0.6, ease: "easeInOut" }}
+        style={{ marginTop: 36, width: 100, height: 2, background: "linear-gradient(90deg, transparent, #C9A24B, transparent)", borderRadius: 2, transformOrigin: "center" }}
       />
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: [0, 0.5, 0] }}
-        transition={{ delay: 2.4, duration: 1, repeat: Infinity }}
-        style={{ marginTop: 18, display: "flex", gap: 7 }}
-      >
-        {[0, 1, 2].map((i) => (
-          <motion.div key={i} animate={{ opacity: [0.2, 1, 0.2] }} transition={{ delay: i * 0.2, duration: 0.8, repeat: Infinity }}
-            style={{ width: 6, height: 6, borderRadius: "50%", background: "#C9A24B" }} />
-        ))}
-      </motion.div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -693,7 +692,7 @@ function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSign
   return (
     <div style={S.header} className="masar-header">
       <div style={S.headerTop}>
-        <div style={S.brand}><span style={S.brandMark}>◐</span><span style={S.brandText}>مسار</span></div>
+        <div style={S.brand}><img src="/logo-mark.png" alt="" style={S.brandLogo} /><span style={S.brandText}>مسار</span></div>
         <div style={S.headerStats}>
           <span style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.25)", borderRadius: 10, padding: "3px 8px", fontSize: 11.5, color: "#C9A24B", fontWeight: 700 }}>
             <Star size={11} color="#C9A24B" /> {lv.label} {lv.level}

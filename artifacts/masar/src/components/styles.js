@@ -3,7 +3,7 @@ export const S = {
   header: { position: "sticky", top: 0, background: "rgba(10,10,11,0.95)", backdropFilter: "blur(10px)", borderBottom: "1px solid var(--line)", zIndex: 20, maxWidth: 480, margin: "0 auto", padding: "16px 18px 0" },
   headerTop: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
   brand: { display: "flex", alignItems: "center", gap: 8 },
-  brandMark: { color: "var(--gold)", fontSize: 19 },
+  brandLogo: { width: 30, height: 30, flexShrink: 0, filter: "drop-shadow(0 0 6px rgba(201,162,75,0.35))" },
   brandText: { fontFamily: "'Amiri', serif", fontSize: 22, fontWeight: 700 },
   headerStats: { display: "flex", gap: 8, alignItems: "center" },
   cloudDot: { fontSize: 10, padding: "3px 8px", borderRadius: 20, fontWeight: 700 },

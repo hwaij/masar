@@ -1778,7 +1778,35 @@ function TipsView({ tipsLog, setTipsLog, showToast }) {
   // the app) — the daily tip must flip at the user's own local midnight,
   // not at UTC midnight, so this uses the local calendar date throughout:
   // picking the tip, the tips_log key, and the "already logged?" check.
-  const today = localDayKey();
+  //
+  // This is state, not a plain const, on purpose: a plain const only gets
+  // recomputed when React re-renders this component for some other reason
+  // (navigating away and back, a manual reload). If the tab/app is simply
+  // left open and mounted across real midnight — very common for a PWA
+  // left in the background overnight — nothing would ever trigger that
+  // re-render, and the card would keep showing yesterday's already-computed
+  // tip indefinitely. The effect below re-checks the local day whenever the
+  // page becomes visible again and on a periodic timer, so a long-lived
+  // mounted view still catches the day change without any reload.
+  const [today, setToday] = useState(() => localDayKey());
+
+  useEffect(() => {
+    function syncToday() {
+      setToday((prev) => {
+        const now = localDayKey();
+        return prev === now ? prev : now;
+      });
+    }
+    const interval = setInterval(syncToday, 60000);
+    document.addEventListener("visibilitychange", syncToday);
+    window.addEventListener("focus", syncToday);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", syncToday);
+      window.removeEventListener("focus", syncToday);
+    };
+  }, []);
+
   // pickDailyTip already falls back internally on any error, but the owner
   // lookup itself runs here, so guard it too — the card must never go
   // blank just because logging or owner resolution had a bad day.

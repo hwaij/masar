@@ -234,6 +234,25 @@ create table if not exists tips_log (
   primary key (owner, date)
 );
 
+-- قسم "أهداف": كل هدف يحمل خطته الكاملة محسوبة عند الإنشاء (خلايا
+-- التقويم ومواعيد المراجعة)، فلا تتأثر أهداف قديمة إن تغيّر منطق
+-- البناء لاحقاً. failures يجمع كل مرات "لم أحقق الهدف" لهذا الهدف
+-- بعينه (يتكرر أكثر من مرة للهدف السنوي ذي المراجعات الشهرية).
+create table if not exists goals (
+  id                text primary key,
+  owner             text not null default 'solo',
+  title             text not null,
+  period            text not null check (period in ('weekly', 'monthly', 'yearly')),
+  created_date      text not null,
+  cells             jsonb not null default '[]',
+  checkpoints       jsonb not null default '[]',
+  checkpoint_index  integer not null default 0,
+  status            text not null default 'active' check (status in ('active', 'done', 'failed')),
+  failures          jsonb not null default '[]',
+  created_at        timestamptz default now()
+);
+create index if not exists goals_owner_created on goals (owner, created_at desc);
+
 -- ============================================================
 -- فهارس الأداء: هذه الجداول مفتاحها الأساسي id فقط (بدون owner)، وكل
 -- قراءة تفلتر بـ owner ثم ترتّب بعمود تاريخ — بدون فهرس هنا كل تحميل
@@ -371,3 +390,8 @@ alter table tips_log enable row level security;
 drop policy if exists tips_log_anon_solo on tips_log;
 drop policy if exists tips_log_user_own on tips_log;
 create policy tips_log_user_own on tips_log for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
+alter table goals enable row level security;
+drop policy if exists goals_anon_solo on goals;
+drop policy if exists goals_user_own on goals;
+create policy goals_user_own on goals for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);

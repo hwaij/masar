@@ -571,4 +571,49 @@ export const store = {
       } catch (e) { console.warn("tips_log write failed:", e); }
     }
   },
+
+  async loadGoals() {
+    const local = lsGet("masar_goals", []);
+    if (!useCloud()) return local;
+    try {
+      const { data, error } = await supabase.from("goals").select("*").eq("owner", CURRENT_OWNER).order("created_at", { ascending: false });
+      if (error || !data) return local;
+      const items = data.map((r) => ({
+        id: r.id, title: r.title, period: r.period, createdDate: r.created_date,
+        cells: r.cells || [], checkpoints: r.checkpoints || [], checkpointIndex: r.checkpoint_index || 0,
+        unit: r.period === "yearly" ? "month" : "day",
+        status: r.status, failures: r.failures || [],
+      }));
+      lsSet("masar_goals", items);
+      return items;
+    } catch { return local; }
+  },
+  // Returns true/false (like saveCategory) so the UI can tell a silent
+  // cloud failure apart from success instead of assuming it always worked.
+  async saveGoal(goal) {
+    const local = lsGet("masar_goals", []);
+    const next = local.some((g) => g.id === goal.id) ? local.map((g) => (g.id === goal.id ? goal : g)) : [goal, ...local];
+    lsSet("masar_goals", next);
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("goals").upsert({
+          id: goal.id, title: goal.title, period: goal.period, created_date: goal.createdDate,
+          cells: goal.cells, checkpoints: goal.checkpoints, checkpoint_index: goal.checkpointIndex,
+          status: goal.status, failures: goal.failures, owner: CURRENT_OWNER,
+        });
+        if (error) { console.error("[saveGoal] Supabase error:", error.message); return false; }
+      } catch (e) { console.error("[saveGoal] write failed:", e); return false; }
+    }
+    return true;
+  },
+  async deleteGoal(id) {
+    lsSet("masar_goals", lsGet("masar_goals", []).filter((g) => g.id !== id));
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("goals").delete().eq("id", id).eq("owner", CURRENT_OWNER);
+        if (error) { console.error("[deleteGoal] Supabase error:", error.message); return false; }
+      } catch (e) { console.error("[deleteGoal] write failed:", e); return false; }
+    }
+    return true;
+  },
 };

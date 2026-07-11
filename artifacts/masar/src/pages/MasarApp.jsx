@@ -14,12 +14,13 @@ import {
   Moon, Bell, BookMarked, CheckCircle2,
   MessageCircle, Send,
   LogIn, LogOut,
-  Heart, GraduationCap, Eye,
+  Heart, GraduationCap, Eye, AlertTriangle,
 } from "lucide-react";
 import { fivePrayers, nextPrayer, to12h } from "../lib/prayer";
 import { ADHKAR_CATEGORIES, ADHKAR } from "../lib/adhkar";
 import { store, setOwner, getOwner } from "../lib/store";
 import { pickDailyTip, TIP_CATEGORY_LABELS, localDayKey } from "../lib/tips";
+import { createGoal, isReviewDue, GOAL_PERIODS, GOAL_POINTS_SUCCESS, GOAL_POINTS_FAILURE } from "../lib/goals";
 import { getSession, onAuthChange, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut, userFromSession, hasAuth } from "../lib/auth";
 import {
   todayKey, fmtHM, uid, diffMinutes, arabicDate, computeStreak, escapeHtml,
@@ -128,25 +129,26 @@ export default function MasarApp() {
   const [istighfar, setIstighfar] = useState({ daily: {}, total: 0 });
   const [pointsLog, setPointsLog] = useState([]);
   const [tipsLog, setTipsLog] = useState({});
+  const [goals, setGoals] = useState([]);
   const [user, setUser] = useState(null);
   const userIdRef = useRef(undefined);
   const loadVersionRef = useRef(0);
 
   const loadAll = useCallback(async () => {
       const myVersion = ++loadVersionRef.current;
-      const [c, e, t, r, g, p, a, f, cm, pl, rel, ml, al, ai, qp, isf, plog, tl] = await Promise.all([
+      const [c, e, t, r, g, p, a, f, cm, pl, rel, ml, al, ai, qp, isf, plog, tl, gl] = await Promise.all([
         store.loadCategories(), store.loadEntries(), store.loadTasks(),
         store.loadReports(), store.loadGamify(), store.loadProfile(), store.loadAchieve(),
         store.loadFocus(), store.loadCommitments(), store.loadPrayerLog(), store.loadReligious(),
         store.loadMandatoryLog(), store.loadAzkarLog(), store.loadAzkarItems(), store.loadQuranProgress(),
-        store.loadIstighfar(), store.loadPointsLog(), store.loadTipsLog(),
+        store.loadIstighfar(), store.loadPointsLog(), store.loadTipsLog(), store.loadGoals(),
       ]);
       if (loadVersionRef.current !== myVersion) return;
       setCategories(c); setEntries(e); setTasks(t); setReports(r); setGamify(g);
       setProfile(p); setAchieve(a); setFocus(f); setCommitments(cm);
       setPrayerLog(pl); setReligious(rel);
       setMandatoryLog(ml); setAzkarLog(al); setAzkarItems(ai); setQuranProgress(qp);
-      setIstighfar(isf); setPointsLog(plog); setTipsLog(tl);
+      setIstighfar(isf); setPointsLog(plog); setTipsLog(tl); setGoals(gl);
 
       const today = todayKey();
       const lastOpen = localStorage.getItem("masar_last_open");
@@ -337,6 +339,7 @@ export default function MasarApp() {
           />
         )}
         {view === "tips" && <TipsView tipsLog={tipsLog} setTipsLog={setTipsLog} showToast={showToast} />}
+        {view === "goals" && <GoalsView goals={goals} setGoals={setGoals} addPoints={addPoints} showToast={showToast} />}
         {view === "tasks" && <TasksView tasks={tasks} setTasks={setTasks} categories={categories} addPoints={addPoints} showToast={showToast} />}
         {view === "focus" && <FocusView focus={focus} setFocus={setFocus} commitments={commitments} setCommitments={setCommitments} categories={categories} entries={entries} addPoints={addPoints} showToast={showToast} />}
         {view === "achieve" && <AchieveView achieve={achieve} setAchieve={setAchieve} profile={profile} focus={focus} tasks={tasks} prayerLog={prayerLog} religious={religious} addPoints={addPoints} showToast={showToast} setView={setView} />}
@@ -682,6 +685,7 @@ function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSign
     { id: "tips", label: "بصيرة", icon: Eye },
     { id: "focus", label: "تركيز", icon: Timer },
     { id: "tasks", label: "المهام", icon: ListChecks },
+    { id: "goals", label: "أهداف", icon: Target },
     { id: "reports", label: "التقارير", icon: TrendingUp },
     { id: "achieve", label: "أنجز", icon: Rocket },
     { id: "assistant", label: "مساعد", icon: MessageCircle },
@@ -1850,6 +1854,223 @@ function TipsView({ tipsLog, setTipsLog, showToast }) {
           </div>
         </div>
         <div style={TS.footerNote}>عد غداً لتجد نصيحة جديدة بانتظارك</div>
+      </div>
+    </div>
+  );
+}
+
+const GS = {
+  wrap: { display: "flex", flexDirection: "column", gap: 16 },
+  hero: { display: "flex", alignItems: "center", gap: 12, marginBottom: 4 },
+  heroIcon: { width: 46, height: 46, borderRadius: "50%", background: "radial-gradient(circle at 32% 28%, #E7C378, #C9A24B 65%, #A9822F)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 0 0 1px rgba(201,162,75,0.25), 0 4px 14px rgba(201,162,75,0.25)" },
+  heroTitle: { fontFamily: "'Amiri', serif", fontSize: 22, fontWeight: 700 },
+  heroSub: { fontSize: 12, color: "#8A8782", lineHeight: 1.5, marginTop: 2 },
+  addCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 12px" },
+  periodRow: { display: "flex", gap: 8, marginTop: 10, marginBottom: 12 },
+  periodChip: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "transparent", border: "1px solid #2A2A2D", borderRadius: 10, padding: "9px 0", fontSize: 12.5, color: "#8A8782", cursor: "pointer", fontFamily: "inherit", fontWeight: 600 },
+  periodChipActive: { background: "rgba(201,162,75,0.1)", borderColor: "rgba(201,162,75,0.4)", color: "#C9A24B" },
+  goalsList: { display: "flex", flexDirection: "column", gap: 12 },
+  goalCard: { background: "#0F0F11", border: "1px solid var(--line)", borderRadius: 12, padding: 12, display: "flex", flexDirection: "column", gap: 10 },
+  goalTop: { display: "flex", alignItems: "flex-start", gap: 8 },
+  goalTitle: { fontSize: 14, fontWeight: 700, color: "var(--ink)", flex: 1 },
+  goalMeta: { fontSize: 11, color: "#7A776F", marginTop: 3 },
+  statusBadge: { fontSize: 10.5, fontWeight: 700, padding: "3px 8px", borderRadius: 20, height: "fit-content", flexShrink: 0 },
+  statusDone: { color: "#5FA8A0", background: "rgba(95,168,160,0.12)" },
+  statusFailed: { color: "#E05252", background: "rgba(224,82,82,0.1)" },
+  calendarRow: { display: "flex", flexWrap: "wrap", gap: 5 },
+  cell: { width: 22, height: 22, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9.5, fontWeight: 700, border: "1px solid #2A2A2D", color: "#5A5650", flexShrink: 0 },
+  cellMonth: { width: "auto", minWidth: 40, height: 22, padding: "0 6px", borderRadius: 8, fontSize: 9 },
+  cellPast: { background: "rgba(201,162,75,0.16)", borderColor: "rgba(201,162,75,0.3)", color: "#C9A24B" },
+  cellToday: { background: "#C9A24B", borderColor: "#C9A24B", color: "#0A0A0B", boxShadow: "0 0 0 2px rgba(201,162,75,0.3)" },
+  reviewCard: { background: "linear-gradient(160deg, rgba(201,162,75,0.12), rgba(201,162,75,0.03))", border: "1px solid rgba(201,162,75,0.35)", borderRadius: 14, padding: 14, display: "flex", flexDirection: "column", gap: 10 },
+  reviewTitle: { fontSize: 13.5, fontWeight: 700, color: "#C9A24B" },
+  reviewQuestion: { fontSize: 13, color: "var(--ink)", lineHeight: 1.6 },
+  reviewBtnRow: { display: "flex", gap: 10 },
+  reviewYesBtn: { flex: 1, background: "rgba(95,168,160,0.14)", border: "1px solid rgba(95,168,160,0.4)", color: "#5FA8A0", borderRadius: 10, padding: "10px 0", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" },
+  reviewNoBtn: { flex: 1, background: "rgba(224,82,82,0.1)", border: "1px solid rgba(224,82,82,0.35)", color: "#E05252", borderRadius: 10, padding: "10px 0", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" },
+  reasonBox: { display: "flex", flexDirection: "column", gap: 8 },
+  reasonInput: { width: "100%", background: "#0F0F11", border: "1px solid #2A2A2D", borderRadius: 10, padding: "10px 12px", color: "var(--ink)", fontSize: 13, fontFamily: "inherit", minHeight: 70, resize: "vertical" },
+  reasonConfirmBtn: { background: "var(--gold)", color: "var(--bg)", border: "none", borderRadius: 10, padding: "10px 0", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" },
+  reasonConfirmBtnDisabled: { opacity: 0.5, cursor: "default" },
+  failuresCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 12px" },
+  failuresList: { display: "flex", flexDirection: "column", gap: 8, marginTop: 10 },
+  failureItem: { background: "#0F0F11", border: "1px solid var(--line)", borderRadius: 10, padding: 10, display: "flex", flexDirection: "column", gap: 4 },
+  failureTop: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 },
+  failureTitle: { fontSize: 13, fontWeight: 700, color: "var(--ink)" },
+  failureDate: { fontSize: 10.5, color: "#7A776F", whiteSpace: "nowrap" },
+  failureReason: { fontSize: 12, color: "#B8B5AF", lineHeight: 1.6 },
+  pendingNote: { fontSize: 11.5, color: "#E05252", textAlign: "center" },
+};
+
+function GoalCalendar({ goal, today }) {
+  const isMonthUnit = goal.unit === "month";
+  const todayMonthKey = today.slice(0, 7);
+  return (
+    <div style={GS.calendarRow}>
+      {goal.cells.map((cell, i) => {
+        const isPast = isMonthUnit ? cell.slice(0, 7) < todayMonthKey : cell < today;
+        const isToday = isMonthUnit ? cell.slice(0, 7) === todayMonthKey : cell === today;
+        const label = isMonthUnit ? arabicDate(cell, { month: "short" }) : String(Number(cell.slice(8, 10)));
+        return (
+          <div key={i} style={{ ...GS.cell, ...(isMonthUnit ? GS.cellMonth : {}), ...(isPast ? GS.cellPast : {}), ...(isToday ? GS.cellToday : {}) }}>
+            {label}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function GoalsView({ goals, setGoals, addPoints, showToast }) {
+  const [title, setTitle] = useState("");
+  const [period, setPeriod] = useState("weekly");
+  const [reviewDrafts, setReviewDrafts] = useState({});
+  const today = localDayKey();
+
+  const hasPendingReason = Object.values(reviewDrafts).some((d) => d?.active);
+
+  async function addGoal() {
+    if (!title.trim()) return;
+    if (hasPendingReason) { showToast("أكمل كتابة سبب عدم التحقيق أولاً قبل إضافة هدف جديد"); return; }
+    const goal = createGoal({ id: uid(), title: title.trim(), period });
+    setGoals((prev) => [goal, ...prev]);
+    const ok = await store.saveGoal(goal);
+    if (ok) { setTitle(""); showToast("أضفت هدفاً جديداً"); }
+    else { setGoals((prev) => prev.filter((g) => g.id !== goal.id)); showToast("تعذّر حفظ الهدف، حاول مرة أخرى"); }
+  }
+
+  async function confirmSuccess(goal) {
+    const updated = { ...goal, status: "done" };
+    setGoals((prev) => prev.map((g) => (g.id === goal.id ? updated : g)));
+    const ok = await store.saveGoal(updated);
+    if (ok) { addPoints(GOAL_POINTS_SUCCESS, `تحقيق هدف: ${goal.title}`); showToast(`أحسنت! تحقّق هدفك. +${GOAL_POINTS_SUCCESS} نقطة`); }
+    else { setGoals((prev) => prev.map((g) => (g.id === goal.id ? goal : g))); showToast("تعذّر الحفظ، حاول مرة أخرى"); }
+  }
+
+  async function confirmFailure(goal) {
+    const reason = (reviewDrafts[goal.id]?.reason || "").trim();
+    if (!reason) return;
+    const isLast = goal.checkpointIndex >= goal.checkpoints.length - 1;
+    const failureEntry = { checkpointDate: goal.checkpoints[goal.checkpointIndex], reason, recordedAt: today };
+    const updated = {
+      ...goal,
+      failures: [...goal.failures, failureEntry],
+      checkpointIndex: isLast ? goal.checkpointIndex : goal.checkpointIndex + 1,
+      status: isLast ? "failed" : "active",
+    };
+    setGoals((prev) => prev.map((g) => (g.id === goal.id ? updated : g)));
+    const ok = await store.saveGoal(updated);
+    if (ok) {
+      addPoints(-GOAL_POINTS_FAILURE, `لم يتحقق هدف: ${goal.title}`);
+      setReviewDrafts((prev) => { const next = { ...prev }; delete next[goal.id]; return next; });
+      showToast(`سُجِّل. -${GOAL_POINTS_FAILURE} نقطة`);
+    } else {
+      setGoals((prev) => prev.map((g) => (g.id === goal.id ? goal : g)));
+      showToast("تعذّر الحفظ، حاول مرة أخرى");
+    }
+  }
+
+  async function removeGoal(id) {
+    setGoals((prev) => prev.filter((g) => g.id !== id));
+    await store.deleteGoal(id);
+  }
+
+  const activeGoals = goals.filter((g) => g.status === "active" || g.status === "done");
+  const allFailures = useMemo(
+    () => goals.flatMap((g) => g.failures.map((f) => ({ ...f, goalTitle: g.title, period: g.period })))
+      .sort((a, b) => b.recordedAt.localeCompare(a.recordedAt)),
+    [goals]
+  );
+
+  return (
+    <div style={S.view}>
+      <div style={GS.wrap}>
+        <div style={GS.hero}>
+          <div style={GS.heroIcon}><Target size={22} color="#0A0A0B" /></div>
+          <div>
+            <div style={GS.heroTitle}>أهداف</div>
+            <div style={GS.heroSub}>حدّد هدفك، وتابعه حتى تراجعه في وقته.</div>
+          </div>
+        </div>
+
+        <div style={GS.addCard}>
+          <label style={S.label}>هدف جديد</label>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addGoal()} placeholder="مثال: قراءة كتاب كامل" style={{ ...S.input, marginTop: 6 }} />
+          <div style={GS.periodRow}>
+            {Object.entries(GOAL_PERIODS).map(([key, p]) => (
+              <button key={key} onClick={() => setPeriod(key)} style={{ ...GS.periodChip, ...(period === key ? GS.periodChipActive : {}) }}>{p.label}</button>
+            ))}
+          </div>
+          {hasPendingReason && <div style={GS.pendingNote}>أكمل سبب عدم تحقيق الهدف المعلَّق أولاً قبل إضافة هدف جديد</div>}
+          <button onClick={addGoal} disabled={hasPendingReason} style={{ ...S.saveBtn, marginTop: hasPendingReason ? 8 : 0, ...(hasPendingReason ? { opacity: 0.5, cursor: "default" } : {}) }}>
+            <Plus size={16} style={{ display: "inline", verticalAlign: "-3px" }} /> إضافة الهدف
+          </button>
+        </div>
+
+        <div style={GS.goalsList}>
+          {activeGoals.length === 0 && <div style={S.emptyHint}>لا أهداف بعد. أضف هدفك الأول أعلاه.</div>}
+          {activeGoals.map((goal) => {
+            const due = isReviewDue(goal, today);
+            const draft = reviewDrafts[goal.id];
+            return (
+              <div key={goal.id} style={GS.goalCard}>
+                <div style={GS.goalTop}>
+                  <div>
+                    <div style={GS.goalTitle}>{goal.title}</div>
+                    <div style={GS.goalMeta}>{GOAL_PERIODS[goal.period].label} · {GOAL_PERIODS[goal.period].reviewLabel}</div>
+                  </div>
+                  {goal.status === "done" && <span style={{ ...GS.statusBadge, ...GS.statusDone }}><Check size={11} style={{ display: "inline", verticalAlign: "-1px" }} /> تحقّق</span>}
+                  <button onClick={() => removeGoal(goal.id)} style={S.deleteBtn}><Trash2 size={14} /></button>
+                </div>
+                <GoalCalendar goal={goal} today={today} />
+                {due && !draft?.active && (
+                  <div style={GS.reviewCard}>
+                    <div style={GS.reviewTitle}>حان وقت المراجعة</div>
+                    <div style={GS.reviewQuestion}>هل حققت هدفك "{goal.title}"؟</div>
+                    <div style={GS.reviewBtnRow}>
+                      <button onClick={() => confirmSuccess(goal)} style={GS.reviewYesBtn}>نعم</button>
+                      <button onClick={() => setReviewDrafts((prev) => ({ ...prev, [goal.id]: { active: true, reason: "" } }))} style={GS.reviewNoBtn}>لا</button>
+                    </div>
+                  </div>
+                )}
+                {due && draft?.active && (
+                  <div style={GS.reviewCard}>
+                    <div style={GS.reviewTitle}>ما سبب عدم تحقيق الهدف؟</div>
+                    <div style={GS.reasonBox}>
+                      <textarea
+                        value={draft.reason}
+                        onChange={(e) => setReviewDrafts((prev) => ({ ...prev, [goal.id]: { active: true, reason: e.target.value } }))}
+                        placeholder="اكتب السبب هنا (إلزامي)..."
+                        style={GS.reasonInput}
+                      />
+                      <button
+                        onClick={() => confirmFailure(goal)}
+                        disabled={!draft.reason.trim()}
+                        style={{ ...GS.reasonConfirmBtn, ...(!draft.reason.trim() ? GS.reasonConfirmBtnDisabled : {}) }}
+                      >تأكيد</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={GS.failuresCard}>
+          <div style={S.catEditorHeader}><AlertTriangle size={15} color="#E05252" /><span>أهداف لم تتحقق</span></div>
+          <div style={GS.failuresList}>
+            {allFailures.length === 0 && <div style={S.emptyHint}>لا يوجد أهداف غير محققة — استمر هكذا.</div>}
+            {allFailures.map((f, i) => (
+              <div key={i} style={GS.failureItem}>
+                <div style={GS.failureTop}>
+                  <span style={GS.failureTitle}>{f.goalTitle}</span>
+                  <span style={GS.failureDate}>{arabicDate(f.checkpointDate, { day: "numeric", month: "short" })}</span>
+                </div>
+                <span style={GS.failureReason}>{f.reason}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );

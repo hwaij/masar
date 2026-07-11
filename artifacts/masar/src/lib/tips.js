@@ -207,6 +207,24 @@ function hashString(str) {
   return h;
 }
 
+// The app's shared todayKey() (in helpers.js) returns the UTC calendar
+// date (d.toISOString().slice(0,10)) — a long-standing quirk relied on
+// elsewhere, but wrong for "بصيرة": a user ahead of UTC (e.g. Kuwait,
+// UTC+3) would still get yesterday's UTC date for the first few hours
+// after their own local midnight, and a user behind UTC would flip to
+// tomorrow's tip hours before their local midnight. "New calendar day"
+// for the daily tip must mean the user's own local midnight, so this
+// builds the key from local getFullYear/getMonth/getDate instead of any
+// UTC conversion. Used for picking today's tip, the tips_log key, and
+// the comparison against previously-logged days — never mix this with
+// todayKey() for anything tip-related.
+export function localDayKey(d = new Date()) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 // Guaranteed non-empty fallback: used only if TIPS is ever empty/malformed
 // or the date-based computation below throws for some unforeseen reason,
 // so the card always has something real to show instead of going blank.

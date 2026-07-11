@@ -19,7 +19,7 @@ import {
 import { fivePrayers, nextPrayer, to12h } from "../lib/prayer";
 import { ADHKAR_CATEGORIES, ADHKAR } from "../lib/adhkar";
 import { store, setOwner, getOwner } from "../lib/store";
-import { pickDailyTip, TIP_CATEGORY_LABELS } from "../lib/tips";
+import { pickDailyTip, TIP_CATEGORY_LABELS, localDayKey } from "../lib/tips";
 import { getSession, onAuthChange, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut, userFromSession, hasAuth } from "../lib/auth";
 import {
   todayKey, fmtHM, uid, diffMinutes, arabicDate, computeStreak, escapeHtml,
@@ -1774,7 +1774,11 @@ const TS = {
 };
 
 function TipsView({ tipsLog, setTipsLog, showToast }) {
-  const today = todayKey();
+  // Deliberately NOT todayKey() (UTC-based, a quirk relied on elsewhere in
+  // the app) — the daily tip must flip at the user's own local midnight,
+  // not at UTC midnight, so this uses the local calendar date throughout:
+  // picking the tip, the tips_log key, and the "already logged?" check.
+  const today = localDayKey();
   // pickDailyTip already falls back internally on any error, but the owner
   // lookup itself runs here, so guard it too — the card must never go
   // blank just because logging or owner resolution had a bad day.
@@ -1808,7 +1812,7 @@ function TipsView({ tipsLog, setTipsLog, showToast }) {
             <div style={TS.heroSub}>نصيحة جديدة كل يوم، بين الدنيا والدين.</div>
           </div>
         </div>
-        <div style={TS.dateLabel}>{arabicDate(today, { weekday: "long", day: "numeric", month: "long" })}</div>
+        <div style={TS.dateLabel}>{arabicDate(new Date(), { weekday: "long", day: "numeric", month: "long" })}</div>
         <div style={TS.card}>
           <div style={TS.ornament}>
             <span style={TS.ornamentLine} /><span style={TS.ornamentDot}>◆</span><span style={TS.ornamentLineRev} />

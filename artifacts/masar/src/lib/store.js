@@ -572,6 +572,16 @@ export const store = {
     }
   },
 
+  // Synchronous, local-only "already shown today" flag for the daily-tip
+  // popup — deliberately independent of the (async, cloud-loaded) tips_log
+  // state so the popup's gate never races with the network round-trip.
+  getDailyTipShownDate() {
+    return lsGet("masar_daily_tip_shown_date", null);
+  },
+  setDailyTipShownDate(date) {
+    lsSet("masar_daily_tip_shown_date", date);
+  },
+
   async loadGoals() {
     const local = lsGet("masar_goals", []);
     if (!useCloud()) return local;

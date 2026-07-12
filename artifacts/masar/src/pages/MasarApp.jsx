@@ -234,14 +234,18 @@ export default function MasarApp() {
   // onboarding tour (profile.tourSeen/tourOpen) so it never stacks on top
   // of either; for a first-time user this effect simply waits (bails while
   // !profile.tourSeen) and naturally re-fires once closeTour() flips both
-  // tourSeen and tourOpen. Recording tips_log[today] here is what makes it
-  // "once per day" — the exact same flag TipsView/the archive already use.
+  // tourSeen and tourOpen. The gate is a dedicated synchronous localStorage
+  // flag (store.getDailyTipShownDate), not the async cloud-loaded tipsLog —
+  // that avoids a race where the modal re-shows while tipsLog is still
+  // loading from Supabase. tipsLog[today] is kept as a secondary check for
+  // cross-device awareness once it has loaded.
   useEffect(() => {
     if (showSplash || !loaded || tourOpen || !profile.tourSeen) return;
     const today = localDayKey();
-    if (tipsLog[today]) return;
+    if (store.getDailyTipShownDate() === today || tipsLog[today]) return;
     const tip = pickDailyTip(today, getOwner());
     setDailyTip(tip);
+    store.setDailyTipShownDate(today);
     setTipsLog((prev) => ({ ...prev, [today]: tip.id }));
     store.saveTipsLog(today, tip.id);
   }, [showSplash, loaded, tourOpen, profile.tourSeen]);

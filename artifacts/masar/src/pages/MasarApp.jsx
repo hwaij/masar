@@ -19,7 +19,7 @@ import {
 import { fivePrayers, nextPrayer, to12h } from "../lib/prayer";
 import { ADHKAR_CATEGORIES, ADHKAR } from "../lib/adhkar";
 import { store, setOwner, getOwner } from "../lib/store";
-import { pickDailyTip, TIP_CATEGORY_LABELS, localDayKey } from "../lib/tips";
+import { pickDailyTip, TIP_CATEGORY_LABELS, localDayKey, TIPS } from "../lib/tips";
 import { createGoal, isReviewDue, GOAL_PERIODS, GOAL_POINTS_SUCCESS, GOAL_POINTS_FAILURE } from "../lib/goals";
 import { getSession, onAuthChange, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut, userFromSession, hasAuth } from "../lib/auth";
 import {
@@ -228,6 +228,24 @@ export default function MasarApp() {
 
   const startTour = useCallback(() => setTourOpen(true), []);
 
+  const [dailyTip, setDailyTip] = useState(null);
+  // Shows today's "بصيرة" tip once, automatically, the first time the app
+  // is opened on a new local day — gated behind the splash AND the
+  // onboarding tour (profile.tourSeen/tourOpen) so it never stacks on top
+  // of either; for a first-time user this effect simply waits (bails while
+  // !profile.tourSeen) and naturally re-fires once closeTour() flips both
+  // tourSeen and tourOpen. Recording tips_log[today] here is what makes it
+  // "once per day" — the exact same flag TipsView/the archive already use.
+  useEffect(() => {
+    if (showSplash || !loaded || tourOpen || !profile.tourSeen) return;
+    const today = localDayKey();
+    if (tipsLog[today]) return;
+    const tip = pickDailyTip(today, getOwner());
+    setDailyTip(tip);
+    setTipsLog((prev) => ({ ...prev, [today]: tip.id }));
+    store.saveTipsLog(today, tip.id);
+  }, [showSplash, loaded, tourOpen, profile.tourSeen]);
+
   const aiHistory = useMemo(() => reports.filter((r) => r.gist).map((r) => ({ date: r.date, gist: r.gist })), [reports]);
 
   const stats = useMemo(() => {
@@ -349,6 +367,7 @@ export default function MasarApp() {
       </div>
       {toast && <div style={S.toast}>{toast}</div>}
       {tourOpen && <OnboardingTour onClose={closeTour} />}
+      {dailyTip && <DailyTipModal tip={dailyTip} onClose={() => setDailyTip(null)} />}
     </div>
   );
 }
@@ -1774,6 +1793,13 @@ const TS = {
   footerRow: { display: "flex", alignItems: "center", justifyContent: "center", marginTop: 20 },
   categoryPill: { fontSize: 11.5, fontWeight: 700, color: "#C9A24B", background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.3)", borderRadius: 20, padding: "5px 14px" },
   footerNote: { fontSize: 11.5, color: "#6B6863", textAlign: "center", marginTop: 4 },
+  archiveHeader: { display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 12.5, fontWeight: 700, color: "#8A8782" },
+  archiveHeaderLine: { flex: 1, height: 1, background: "var(--line)" },
+  archiveList: { display: "flex", flexDirection: "column", gap: 8 },
+  archiveItem: { background: "#0F0F11", border: "1px solid var(--line)", borderRadius: 12, padding: "12px 14px", display: "flex", flexDirection: "column", gap: 6 },
+  archiveTop: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 },
+  archiveDate: { fontSize: 11, color: "#7A776F", whiteSpace: "nowrap" },
+  archiveText: { fontFamily: "'Amiri', serif", fontSize: 14.5, lineHeight: 1.8, color: "#C9C6C0" },
 };
 
 function TipsView({ tipsLog, setTipsLog, showToast }) {
@@ -1833,6 +1859,15 @@ function TipsView({ tipsLog, setTipsLog, showToast }) {
     }
   }, [today, todayTip.id]);
 
+  const archive = useMemo(
+    () => Object.entries(tipsLog || {})
+      .filter(([date]) => date !== today)
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([date, tipId]) => ({ date, tip: TIPS.find((t) => t.id === tipId) }))
+      .filter((entry) => entry.tip),
+    [tipsLog, today]
+  );
+
   return (
     <div style={S.view}>
       <div style={TS.wrap}>
@@ -1854,6 +1889,49 @@ function TipsView({ tipsLog, setTipsLog, showToast }) {
           </div>
         </div>
         <div style={TS.footerNote}>عد غداً لتجد نصيحة جديدة بانتظارك</div>
+
+        {archive.length > 0 && (
+          <>
+            <div style={TS.archiveHeader}><span style={TS.archiveHeaderLine} /><span>أرشيف النصائح</span><span style={TS.archiveHeaderLine} /></div>
+            <div style={TS.archiveList}>
+              {archive.map(({ date, tip }) => {
+                // arabicDate(dateString) would parse "YYYY-MM-DD" as UTC
+                // midnight, shifting the shown day back by one for anyone
+                // west of UTC — build the Date from local components instead.
+                const [y, m, d] = date.split("-").map(Number);
+                return (
+                  <div key={date} style={TS.archiveItem}>
+                    <div style={TS.archiveTop}>
+                      <span style={TS.categoryPill}>{TIP_CATEGORY_LABELS[tip.category] || "حكمة"}</span>
+                      <span style={TS.archiveDate}>{arabicDate(new Date(y, m - 1, d), { weekday: "long", day: "numeric", month: "long" })}</span>
+                    </div>
+                    <p style={TS.archiveText}>{tip.text}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DailyTipModal({ tip, onClose }) {
+  return (
+    <div style={S.modalOverlay} onClick={onClose}>
+      <div style={{ ...S.modal, borderRadius: 20, maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
+        <div style={S.modalHeader}><span>نصيحة اليوم</span><button onClick={onClose} style={S.iconBtn}><X size={18} /></button></div>
+        <div style={TS.card}>
+          <div style={TS.ornament}>
+            <span style={TS.ornamentLine} /><span style={TS.ornamentDot}>◆</span><span style={TS.ornamentLineRev} />
+          </div>
+          <p style={TS.quoteText}>{tip.text}</p>
+          <div style={TS.footerRow}>
+            <span style={TS.categoryPill}>{TIP_CATEGORY_LABELS[tip.category] || "حكمة"}</span>
+          </div>
+        </div>
+        <button onClick={onClose} style={S.saveBtn}>حسناً</button>
       </div>
     </div>
   );

@@ -289,7 +289,10 @@ export const store = {
     if (!useCloud()) return local;
     const { data, error } = await supabase.from("prayer_log").select("*").eq("owner", CURRENT_OWNER).order("done_at", { ascending: false });
     if (error || !data) return local;
-    const items = data.map((r) => ({ id: r.id, date: r.date, prayerId: r.prayer_id }));
+    const items = data.map((r) => ({
+      id: r.id, date: r.date, prayerId: r.prayer_id,
+      minutesAfterAdhan: typeof r.minutes_after_adhan === "number" ? r.minutes_after_adhan : undefined,
+    }));
     lsSet("masar_prayer_log", items);
     return items;
   },
@@ -298,7 +301,10 @@ export const store = {
     if (local.some((p) => p.date === entry.date && p.prayerId === entry.prayerId)) return;
     lsSet("masar_prayer_log", [entry, ...local]);
     if (useCloud()) {
-      const { error } = await supabase.from("prayer_log").upsert({ id: entry.id, date: entry.date, prayer_id: entry.prayerId, owner: CURRENT_OWNER });
+      const { error } = await supabase.from("prayer_log").upsert({
+        id: entry.id, date: entry.date, prayer_id: entry.prayerId, owner: CURRENT_OWNER,
+        minutes_after_adhan: typeof entry.minutesAfterAdhan === "number" ? entry.minutesAfterAdhan : null,
+      });
       if (error) console.error("[savePrayer] Supabase error:", error.message);
     }
   },

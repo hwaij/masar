@@ -110,6 +110,10 @@ create table if not exists prayer_log (
   done_at     timestamptz default now(),
   unique (owner, date, prayer_id)
 );
+-- عدد الدقائق بين وقت الأذان ووقت تسجيل الصلاة (يُحسب لحظة التسجيل على
+-- جهاز المستخدم) لعرض رسالة تحفيزية والإحصائية الأسبوعية. عمود قابل
+-- لأن يكون فارغاً حتى لا تتأثر أي صلوات مسجّلة قبل هذا التحديث.
+alter table prayer_log add column if not exists minutes_after_adhan integer;
 
 -- المهام الدينية
 create table if not exists religious_tasks (

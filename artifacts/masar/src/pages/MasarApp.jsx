@@ -54,6 +54,12 @@ const PS = {
   nextName: { fontFamily: "'Amiri', serif", fontSize: 26, fontWeight: 700, color: "#E8E6E1" },
   nextTime: { fontSize: 16, color: "#C9A24B", fontVariantNumeric: "tabular-nums", margin: "4px 0" },
   nextCountdown: { fontSize: 13, color: "#8A8782", fontVariantNumeric: "tabular-nums" },
+  weeklyCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 12px", marginBottom: 14 },
+  weeklyPercentText: { fontSize: 13.5, color: "var(--ink)", fontWeight: 700, lineHeight: 1.7 },
+  weeklyBarTrack: { height: 8, borderRadius: 4, background: "#1F1F22", overflow: "hidden", marginTop: 10 },
+  weeklyBarFill: { height: "100%", borderRadius: 4, background: "linear-gradient(90deg, #5FA8A0, #C9A24B)" },
+  weeklyMotivation: { fontSize: 12, color: "#8A8782", lineHeight: 1.7, marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--line)" },
+  prayerTimingNote: { fontSize: 11.5, color: "#5FA8A0", marginTop: 4, fontWeight: 600 },
   notifBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 7, width: "100%", border: "1px solid rgba(201,162,75,0.3)", background: "rgba(201,162,75,0.07)", color: "var(--gold)", borderRadius: 12, padding: "10px 0", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", marginBottom: 14 },
   prayerList: { display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 },
   prayerRow: { display: "flex", alignItems: "center", gap: 12, background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "12px 14px" },
@@ -1463,6 +1469,20 @@ const RELIGIOUS_PRESETS = [
   { key: "quran", title: "قراءة القرآن 30 دقيقة", targetCount: null, targetMinutes: 30 },
 ];
 
+// أول الوقت يُحتسب خلال أول ربع ساعة من الأذان — عتبة تحفيزية فقط، لا
+// علاقة لها بأي حكم شرعي، تُستخدم لصياغة رسالة مشجّعة عند التبكير.
+const PRAYER_ON_TIME_MINUTES = 15;
+
+// صياغات إيجابية فقط بلا أي لوم أو تخويف، سواء صلّى المستخدم في أول
+// وقته أو تأخّر قليلاً أو كثيراً — الاحتفاء دائماً بأصل الفعل نفسه.
+function prayerTimingMessage(prayerName, minutesAfterAdhan) {
+  if (minutesAfterAdhan <= PRAYER_ON_TIME_MINUTES) return `ما شاء الله، صليت ${prayerName} في أول الوقت 👏`;
+  return `صليت ${prayerName} بعد ${minutesAfterAdhan} دقيقة من الأذان`;
+}
+function prayerTimingNote(minutesAfterAdhan) {
+  return minutesAfterAdhan <= PRAYER_ON_TIME_MINUTES ? "صليت في أول الوقت 👏" : `صليت بعد ${minutesAfterAdhan} دقيقة من الأذان`;
+}
+
 function PrayerView({ prayerLog, setPrayerLog, religious, setReligious, addPoints, showToast }) {
   const [now, setNow] = useState(new Date());
   const [notifEnabled, setNotifEnabled] = useState(false);
@@ -1503,13 +1523,27 @@ function PrayerView({ prayerLog, setPrayerLog, religious, setReligious, addPoint
       await store.removePrayer(today, p.id);
       addPoints(-20, `التراجع عن ${p.name}`);
     } else {
-      const entry = { id: uid(), date: today, prayerId: p.id };
+      const [adhanH, adhanM] = p.time.split(":").map(Number);
+      const minutesAfterAdhan = Math.max(0, (now.getHours() * 60 + now.getMinutes()) - (adhanH * 60 + adhanM));
+      const entry = { id: uid(), date: today, prayerId: p.id, minutesAfterAdhan };
       setPrayerLog((prev) => [entry, ...prev]);
       await store.savePrayer(entry);
       addPoints(20);
-      showToast(`تُقبّل ${p.name}`);
+      showToast(prayerTimingMessage(p.name, minutesAfterAdhan));
     }
   }
+
+  // نافذة الأسبوع الحالي بالتاريخ المحلي (localDayKey) لا UTC، حتى لا
+  // تنزاح إحصائية "هذا الأسبوع" ساعات قرب منتصف الليل كما كان يحدث سابقاً
+  // في "بصيرة" قبل إصلاحها لنفس السبب.
+  const weekEntries = useMemo(() => {
+    const days = [];
+    const d = new Date();
+    for (let i = 0; i < 7; i++) { days.push(localDayKey(d)); d.setDate(d.getDate() - 1); }
+    return prayerLog.filter((p) => days.includes(p.date) && typeof p.minutesAfterAdhan === "number");
+  }, [prayerLog, today]);
+  const weekOnTimeCount = weekEntries.filter((p) => p.minutesAfterAdhan <= PRAYER_ON_TIME_MINUTES).length;
+  const weekOnTimePercent = weekEntries.length > 0 ? Math.round((weekOnTimeCount / weekEntries.length) * 100) : null;
 
   const todayReligious = religious.filter((r) => r.date === today);
   async function addReligiousPreset(preset) {
@@ -1542,6 +1576,18 @@ function PrayerView({ prayerLog, setPrayerLog, religious, setReligious, addPoint
         <div style={PS.nextTime}>{to12h(next.time)}</div>
         <div style={PS.nextCountdown}>بعد {hh}:{mm}</div>
       </div>
+      <div style={PS.weeklyCard}>
+        <div style={S.catEditorHeader}><Star size={14} color="#C9A24B" /><span>إنجازك هذا الأسبوع</span></div>
+        {weekOnTimePercent === null ? (
+          <div style={S.emptyHint}>سجّل صلواتك لتظهر إحصائيتك الأسبوعية هنا.</div>
+        ) : (
+          <>
+            <div style={PS.weeklyPercentText}>{weekOnTimePercent}% من صلواتك هذا الأسبوع في أول وقتها 👏</div>
+            <div style={PS.weeklyBarTrack}><div style={{ ...PS.weeklyBarFill, width: `${weekOnTimePercent}%` }} /></div>
+          </>
+        )}
+        <div style={PS.weeklyMotivation}>الصلاة في أول وقتها من أحب الأعمال إلى الله</div>
+      </div>
       {!notifEnabled && (
         <button onClick={enableNotifications} style={PS.notifBtn}><Bell size={15} /> فعّل إشعار الأذان</button>
       )}
@@ -1549,11 +1595,15 @@ function PrayerView({ prayerLog, setPrayerLog, religious, setReligious, addPoint
         {prayers.map((p) => {
           const done = isDone(p.id);
           const isNext = p.id === next.id && !next.tomorrow;
+          const entry = done ? todayLog.find((x) => x.prayerId === p.id) : null;
           return (
             <div key={p.id} style={{ ...PS.prayerRow, ...(isNext ? PS.prayerRowNext : {}), ...(done ? PS.prayerRowDone : {}) }}>
               <div style={PS.prayerInfo}>
                 <div style={PS.prayerName}>{p.name}</div>
                 <div style={PS.prayerTime}>{to12h(p.time)}</div>
+                {entry && typeof entry.minutesAfterAdhan === "number" && (
+                  <div style={PS.prayerTimingNote}>{prayerTimingNote(entry.minutesAfterAdhan)}</div>
+                )}
               </div>
               <button onClick={() => togglePrayer(p)} style={{ ...PS.prayerBtn, ...(done ? PS.prayerBtnDone : {}) }}>
                 {done ? <><CheckCircle2 size={15} /> تمت</> : "تمت الصلاة"}

@@ -626,4 +626,64 @@ export const store = {
     }
     return true;
   },
+
+  // قسم "خزنة": null يعني أن المستخدم لم يُعِدَّ رصيده بعد (شاشة الإعداد
+  // الأولى تظهر عندها)، أما بعد الإعداد فتُعاد دائماً { balance, currency }.
+  async loadVault() {
+    const local = lsGet("masar_vault", null);
+    if (!useCloud()) return local;
+    try {
+      const { data, error } = await supabase.from("vault").select("*").eq("owner", CURRENT_OWNER).maybeSingle();
+      if (error || !data) return local;
+      const v = { balance: Number(data.balance) || 0, currency: data.currency || "KWD" };
+      lsSet("masar_vault", v);
+      return v;
+    } catch { return local; }
+  },
+  async saveVault(vault) {
+    lsSet("masar_vault", vault);
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("vault").upsert(
+          { owner: CURRENT_OWNER, balance: vault.balance, currency: vault.currency, updated_at: new Date().toISOString() },
+          { onConflict: "owner" }
+        );
+        if (error) { console.error("[saveVault] Supabase error:", error.message); return false; }
+      } catch (e) { console.error("[saveVault] write failed:", e); return false; }
+    }
+    return true;
+  },
+  async loadVaultTransactions() {
+    const local = lsGet("masar_vault_transactions", []);
+    if (!useCloud()) return local;
+    try {
+      const { data, error } = await supabase.from("vault_transactions").select("*").eq("owner", CURRENT_OWNER).order("created_at", { ascending: false });
+      if (error || !data) return local;
+      const items = data.map((r) => ({ id: r.id, date: r.date, amount: Number(r.amount), type: r.type, reason: r.reason, createdAt: r.created_at }));
+      lsSet("masar_vault_transactions", items);
+      return items;
+    } catch { return local; }
+  },
+  async addVaultTransaction(tx) {
+    lsSet("masar_vault_transactions", [tx, ...lsGet("masar_vault_transactions", [])]);
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("vault_transactions").insert({
+          id: tx.id, owner: CURRENT_OWNER, date: tx.date, amount: tx.amount, type: tx.type, reason: tx.reason,
+        });
+        if (error) { console.error("[addVaultTransaction] Supabase error:", error.message); return false; }
+      } catch (e) { console.error("[addVaultTransaction] write failed:", e); return false; }
+    }
+    return true;
+  },
+  async deleteVaultTransaction(id) {
+    lsSet("masar_vault_transactions", lsGet("masar_vault_transactions", []).filter((t) => t.id !== id));
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("vault_transactions").delete().eq("id", id).eq("owner", CURRENT_OWNER);
+        if (error) { console.error("[deleteVaultTransaction] Supabase error:", error.message); return false; }
+      } catch (e) { console.error("[deleteVaultTransaction] write failed:", e); return false; }
+    }
+    return true;
+  },
 };

@@ -15,11 +15,13 @@ import {
   MessageCircle, Send,
   LogIn, LogOut,
   Heart, GraduationCap, Eye, AlertTriangle,
+  Wallet, ArrowDownCircle, ArrowUpCircle,
 } from "lucide-react";
 import { fivePrayers, nextPrayer, to12h } from "../lib/prayer";
 import { ADHKAR_CATEGORIES, ADHKAR } from "../lib/adhkar";
 import { store, setOwner, getOwner } from "../lib/store";
 import { pickDailyTip, TIP_CATEGORY_LABELS, localDayKey, TIPS } from "../lib/tips";
+import { pickDailyMoneyTip, MONEY_TIP_CATEGORY_LABELS } from "../lib/money-tips";
 import { createGoal, isReviewDue, GOAL_PERIODS, GOAL_POINTS_SUCCESS, GOAL_POINTS_FAILURE } from "../lib/goals";
 import { getSession, onAuthChange, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut, userFromSession, hasAuth } from "../lib/auth";
 import {
@@ -130,18 +132,21 @@ export default function MasarApp() {
   const [pointsLog, setPointsLog] = useState([]);
   const [tipsLog, setTipsLog] = useState({});
   const [goals, setGoals] = useState([]);
+  const [vault, setVault] = useState(null);
+  const [vaultTx, setVaultTx] = useState([]);
   const [user, setUser] = useState(null);
   const userIdRef = useRef(undefined);
   const loadVersionRef = useRef(0);
 
   const loadAll = useCallback(async () => {
       const myVersion = ++loadVersionRef.current;
-      const [c, e, t, r, g, p, a, f, cm, pl, rel, ml, al, ai, qp, isf, plog, tl, gl] = await Promise.all([
+      const [c, e, t, r, g, p, a, f, cm, pl, rel, ml, al, ai, qp, isf, plog, tl, gl, vlt, vtx] = await Promise.all([
         store.loadCategories(), store.loadEntries(), store.loadTasks(),
         store.loadReports(), store.loadGamify(), store.loadProfile(), store.loadAchieve(),
         store.loadFocus(), store.loadCommitments(), store.loadPrayerLog(), store.loadReligious(),
         store.loadMandatoryLog(), store.loadAzkarLog(), store.loadAzkarItems(), store.loadQuranProgress(),
         store.loadIstighfar(), store.loadPointsLog(), store.loadTipsLog(), store.loadGoals(),
+        store.loadVault(), store.loadVaultTransactions(),
       ]);
       if (loadVersionRef.current !== myVersion) return;
       setCategories(c); setEntries(e); setTasks(t); setReports(r); setGamify(g);
@@ -149,6 +154,7 @@ export default function MasarApp() {
       setPrayerLog(pl); setReligious(rel);
       setMandatoryLog(ml); setAzkarLog(al); setAzkarItems(ai); setQuranProgress(qp);
       setIstighfar(isf); setPointsLog(plog); setTipsLog(tl); setGoals(gl);
+      setVault(vlt); setVaultTx(vtx);
 
       const today = todayKey();
       const lastOpen = localStorage.getItem("masar_last_open");
@@ -362,6 +368,7 @@ export default function MasarApp() {
         )}
         {view === "tips" && <TipsView tipsLog={tipsLog} setTipsLog={setTipsLog} showToast={showToast} />}
         {view === "goals" && <GoalsView goals={goals} setGoals={setGoals} addPoints={addPoints} showToast={showToast} />}
+        {view === "vault" && <VaultView vault={vault} setVault={setVault} vaultTx={vaultTx} setVaultTx={setVaultTx} showToast={showToast} />}
         {view === "tasks" && <TasksView tasks={tasks} setTasks={setTasks} categories={categories} addPoints={addPoints} showToast={showToast} />}
         {view === "focus" && <FocusView focus={focus} setFocus={setFocus} commitments={commitments} setCommitments={setCommitments} categories={categories} entries={entries} addPoints={addPoints} showToast={showToast} />}
         {view === "achieve" && <AchieveView achieve={achieve} setAchieve={setAchieve} profile={profile} focus={focus} tasks={tasks} prayerLog={prayerLog} religious={religious} addPoints={addPoints} showToast={showToast} setView={setView} />}
@@ -709,6 +716,7 @@ function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSign
     { id: "focus", label: "تركيز", icon: Timer },
     { id: "tasks", label: "المهام", icon: ListChecks },
     { id: "goals", label: "أهداف", icon: Target },
+    { id: "vault", label: "خزنة", icon: Wallet },
     { id: "reports", label: "التقارير", icon: TrendingUp },
     { id: "achieve", label: "أنجز", icon: Rocket },
     { id: "assistant", label: "مساعد", icon: MessageCircle },
@@ -2157,6 +2165,258 @@ function GoalsView({ goals, setGoals, addPoints, showToast }) {
     </div>
   );
 }
+
+const VAULT_CURRENCIES = [
+  { code: "KWD", label: "دينار كويتي", symbol: "د.ك" },
+  { code: "SAR", label: "ريال سعودي", symbol: "ر.س" },
+  { code: "AED", label: "درهم إماراتي", symbol: "د.إ" },
+  { code: "QAR", label: "ريال قطري", symbol: "ر.ق" },
+  { code: "BHD", label: "دينار بحريني", symbol: "د.ب" },
+  { code: "OMR", label: "ريال عماني", symbol: "ر.ع" },
+  { code: "EGP", label: "جنيه مصري", symbol: "ج.م" },
+  { code: "JOD", label: "دينار أردني", symbol: "د.أ" },
+  { code: "USD", label: "دولار أمريكي", symbol: "$" },
+  { code: "EUR", label: "يورو", symbol: "€" },
+  { code: "GBP", label: "جنيه إسترليني", symbol: "£" },
+];
+
+function vaultCurrencySymbol(code) {
+  return (VAULT_CURRENCIES.find((c) => c.code === code) || VAULT_CURRENCIES[0]).symbol;
+}
+
+function formatVaultAmount(amount, code) {
+  const n = Number(amount) || 0;
+  return `${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${vaultCurrencySymbol(code)}`;
+}
+
+function VaultView({ vault, setVault, vaultTx, setVaultTx, showToast }) {
+  const [setupBalance, setSetupBalance] = useState("");
+  const [setupCurrency, setSetupCurrency] = useState("KWD");
+  const [editingSetup, setEditingSetup] = useState(false);
+  const [txType, setTxType] = useState(null); // 'expense' | 'income' | null
+  const [txAmount, setTxAmount] = useState("");
+  const [txReason, setTxReason] = useState("");
+
+  // نفس نمط تجدّد نصيحة "بصيرة" اليومية (TipsView): تاريخ محلي يُعاد
+  // فحصه دورياً وعند عودة التبويب للواجهة، فلا تبقى نصيحة الأمس ظاهرة إن
+  // تُرك التبويب مفتوحاً عبر منتصف الليل المحلي.
+  const [today, setToday] = useState(() => localDayKey());
+  useEffect(() => {
+    function syncToday() {
+      setToday((prev) => { const now = localDayKey(); return prev === now ? prev : now; });
+    }
+    const interval = setInterval(syncToday, 60000);
+    document.addEventListener("visibilitychange", syncToday);
+    window.addEventListener("focus", syncToday);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", syncToday);
+      window.removeEventListener("focus", syncToday);
+    };
+  }, []);
+  const todayMoneyTip = useMemo(() => {
+    try { return pickDailyMoneyTip(today, getOwner()); }
+    catch (e) { console.error("[VaultView] falling back after error:", e); return pickDailyMoneyTip(today); }
+  }, [today]);
+
+  async function submitSetup() {
+    const balance = parseFloat(setupBalance);
+    if (!Number.isFinite(balance) || balance < 0) { showToast("أدخل رصيداً صحيحاً"); return; }
+    const next = { balance, currency: setupCurrency };
+    const prev = vault;
+    setVault(next);
+    setEditingSetup(false);
+    const ok = await store.saveVault(next);
+    if (ok) showToast("تم حفظ رصيدك");
+    else { setVault(prev); showToast("تعذّر الحفظ، حاول مرة أخرى"); }
+  }
+
+  function startEditSetup() {
+    setSetupBalance(vault ? String(vault.balance) : "");
+    setSetupCurrency(vault ? vault.currency : "KWD");
+    setEditingSetup(true);
+  }
+
+  async function submitTransaction() {
+    const amount = parseFloat(txAmount);
+    const reason = txReason.trim();
+    if (!Number.isFinite(amount) || amount <= 0) { showToast("أدخل مبلغاً صحيحاً"); return; }
+    if (!reason) { showToast(txType === "expense" ? "اكتب سبب الصرف" : "اكتب سبب الإضافة"); return; }
+    const tx = { id: uid(), date: localDayKey(), amount, type: txType, reason, createdAt: new Date().toISOString() };
+    const prevVault = vault;
+    const newBalance = txType === "expense" ? vault.balance - amount : vault.balance + amount;
+    setVaultTx((prevTx) => [tx, ...prevTx]);
+    setVault({ ...vault, balance: newBalance });
+    const txOk = await store.addVaultTransaction(tx);
+    const balOk = await store.saveVault({ balance: newBalance, currency: vault.currency });
+    if (txOk && balOk) {
+      setTxType(null); setTxAmount(""); setTxReason("");
+      showToast(txType === "expense" ? "سُجِّل المصروف" : "سُجِّلت الإضافة");
+    } else {
+      setVaultTx((prevTx) => prevTx.filter((t) => t.id !== tx.id));
+      setVault(prevVault);
+      showToast("تعذّر الحفظ، حاول مرة أخرى");
+    }
+  }
+
+  async function removeTransaction(tx) {
+    const prevVault = vault;
+    const prevTx = vaultTx;
+    const revertedBalance = tx.type === "expense" ? vault.balance + tx.amount : vault.balance - tx.amount;
+    setVaultTx((list) => list.filter((t) => t.id !== tx.id));
+    setVault({ ...vault, balance: revertedBalance });
+    const delOk = await store.deleteVaultTransaction(tx.id);
+    const balOk = await store.saveVault({ balance: revertedBalance, currency: vault.currency });
+    if (!delOk || !balOk) { setVaultTx(prevTx); setVault(prevVault); showToast("تعذّر الحذف، حاول مرة أخرى"); }
+  }
+
+  const sortedTx = useMemo(
+    () => [...vaultTx].sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || "")),
+    [vaultTx]
+  );
+
+  if (!vault || editingSetup) {
+    return (
+      <div style={S.view}>
+        <div style={VS.wrap}>
+          <div style={VS.hero}>
+            <div style={VS.heroIcon}><Wallet size={22} color="#0A0A0B" /></div>
+            <div>
+              <div style={VS.heroTitle}>خزنة</div>
+              <div style={VS.heroSub}>تتبّع رصيدك ونفقاتك بوضوح.</div>
+            </div>
+          </div>
+          <div style={VS.setupCard}>
+            <label style={S.label}>رصيدك الحالي</label>
+            <input
+              type="number" step="0.01" inputMode="decimal"
+              value={setupBalance} onChange={(e) => setSetupBalance(e.target.value)}
+              placeholder="0.00" style={{ ...S.input, marginTop: 6 }}
+            />
+            <label style={S.label}>العملة</label>
+            <select value={setupCurrency} onChange={(e) => setSetupCurrency(e.target.value)} style={{ ...S.input, marginTop: 6 }}>
+              {VAULT_CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.label} ({c.symbol})</option>)}
+            </select>
+            <button onClick={submitSetup} style={{ ...S.saveBtn, marginTop: 14 }}>حفظ الرصيد</button>
+            {vault && editingSetup && (
+              <button onClick={() => setEditingSetup(false)} style={{ ...S.saveBtn, marginTop: 8, background: "transparent", border: "1px solid #2A2A2D", color: "#8A8782" }}>إلغاء</button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={S.view}>
+      <div style={VS.wrap}>
+        <div style={VS.hero}>
+          <div style={VS.heroIcon}><Wallet size={22} color="#0A0A0B" /></div>
+          <div>
+            <div style={VS.heroTitle}>خزنة</div>
+            <div style={VS.heroSub}>اعرف أين تذهب أموالك بالضبط.</div>
+          </div>
+        </div>
+
+        <div style={VS.balanceCard}>
+          <div style={VS.balanceLabel}>رصيدك الحالي</div>
+          <div style={VS.balanceAmount}>{formatVaultAmount(vault.balance, vault.currency)}</div>
+          <button onClick={startEditSetup} style={VS.editBalanceBtn}><Edit3 size={12} /> تعديل الرصيد أو العملة</button>
+          <div style={VS.actionRow}>
+            <button onClick={() => { setTxType("expense"); setTxAmount(""); setTxReason(""); }} style={VS.expenseBtn}>
+              <ArrowDownCircle size={16} /> تسجيل مصروف
+            </button>
+            <button onClick={() => { setTxType("income"); setTxAmount(""); setTxReason(""); }} style={VS.incomeBtn}>
+              <ArrowUpCircle size={16} /> تسجيل إضافة
+            </button>
+          </div>
+        </div>
+
+        {txType && (
+          <div style={VS.txForm}>
+            <div style={VS.txFormTitle}>{txType === "expense" ? "تسجيل مصروف" : "تسجيل إضافة"}</div>
+            <label style={S.label}>المبلغ</label>
+            <input
+              type="number" step="0.01" inputMode="decimal" autoFocus
+              value={txAmount} onChange={(e) => setTxAmount(e.target.value)}
+              placeholder="0.00" style={{ ...S.input, marginTop: 6 }}
+            />
+            <label style={S.label}>{txType === "expense" ? "سبب الصرف" : "سبب الإضافة"}</label>
+            <input
+              value={txReason} onChange={(e) => setTxReason(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && submitTransaction()}
+              placeholder={txType === "expense" ? "مثال: فاتورة كهرباء" : "مثال: راتب"}
+              style={{ ...S.input, marginTop: 6 }}
+            />
+            <div style={VS.txFormRow}>
+              <button onClick={() => setTxType(null)} style={VS.txCancelBtn}>إلغاء</button>
+              <button onClick={submitTransaction} style={{ ...S.saveBtn, marginTop: 0, flex: 1 }}>تأكيد</button>
+            </div>
+          </div>
+        )}
+
+        <div style={VS.tipCard}>
+          <div style={TS.ornament}>
+            <span style={TS.ornamentLine} /><span style={TS.ornamentDot}>◆</span><span style={TS.ornamentLineRev} />
+          </div>
+          <p style={TS.quoteText}>{todayMoneyTip.text}</p>
+          <div style={TS.footerRow}>
+            <span style={TS.categoryPill}>{MONEY_TIP_CATEGORY_LABELS[todayMoneyTip.category] || "نصيحة مالية"}</span>
+          </div>
+        </div>
+
+        <div style={VS.logHeader}><span style={VS.logHeaderLine} /><span>سجل الحركات</span><span style={VS.logHeaderLine} /></div>
+        <div style={VS.logList}>
+          {sortedTx.length === 0 && <div style={S.emptyHint}>لا حركات بعد. سجّل أول مصروف أو إضافة أعلاه.</div>}
+          {sortedTx.map((tx) => {
+            const [y, m, d] = tx.date.split("-").map(Number);
+            return (
+              <div key={tx.id} style={VS.logItem}>
+                <div style={VS.logTop}>
+                  <span style={{ ...VS.logAmount, color: tx.type === "expense" ? "#E05252" : "#5FA8A0" }}>
+                    {tx.type === "expense" ? "−" : "+"}{formatVaultAmount(tx.amount, vault.currency)}
+                  </span>
+                  <span style={VS.logDate}>{arabicDate(new Date(y, m - 1, d), { day: "numeric", month: "short" })}</span>
+                  <button onClick={() => removeTransaction(tx)} style={S.deleteBtn}><Trash2 size={13} /></button>
+                </div>
+                <span style={VS.logReason}>{tx.reason}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const VS = {
+  wrap: { display: "flex", flexDirection: "column", gap: 16 },
+  hero: { display: "flex", alignItems: "center", gap: 12, marginBottom: 4 },
+  heroIcon: { width: 46, height: 46, borderRadius: "50%", background: "radial-gradient(circle at 32% 28%, #E7C378, #C9A24B 65%, #A9822F)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 0 0 1px rgba(201,162,75,0.25), 0 4px 14px rgba(201,162,75,0.25)" },
+  heroTitle: { fontFamily: "'Amiri', serif", fontSize: 22, fontWeight: 700 },
+  heroSub: { fontSize: 12, color: "#8A8782", lineHeight: 1.5, marginTop: 2 },
+  setupCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 12px" },
+  balanceCard: { background: "linear-gradient(180deg, var(--panel), #131315)", border: "1px solid var(--line)", borderRadius: 22, padding: "26px 20px 20px", textAlign: "center", boxShadow: "0 6px 24px rgba(0,0,0,0.22)" },
+  balanceLabel: { fontSize: 12.5, color: "#8A8782", fontWeight: 600 },
+  balanceAmount: { fontFamily: "'Amiri', serif", fontSize: 36, fontWeight: 700, color: "#C9A24B", marginTop: 8, direction: "ltr" },
+  editBalanceBtn: { display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", color: "#7A776F", fontSize: 11.5, cursor: "pointer", fontFamily: "inherit", marginTop: 8, padding: 4 },
+  actionRow: { display: "flex", gap: 10, marginTop: 16 },
+  expenseBtn: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "rgba(224,82,82,0.1)", border: "1px solid rgba(224,82,82,0.35)", color: "#E05252", borderRadius: 12, padding: "12px 0", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" },
+  incomeBtn: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "rgba(95,168,160,0.14)", border: "1px solid rgba(95,168,160,0.4)", color: "#5FA8A0", borderRadius: 12, padding: "12px 0", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" },
+  txForm: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 12px" },
+  txFormTitle: { fontSize: 13.5, fontWeight: 700, color: "var(--ink)", marginBottom: 4 },
+  txFormRow: { display: "flex", gap: 10, marginTop: 14 },
+  txCancelBtn: { background: "transparent", border: "1px solid #2A2A2D", color: "#8A8782", borderRadius: 12, padding: "0 18px", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" },
+  tipCard: { position: "relative", background: "linear-gradient(180deg, var(--panel), #131315)", border: "1px solid var(--line)", borderRadius: 22, padding: "26px 20px 20px", boxShadow: "0 6px 24px rgba(0,0,0,0.22)" },
+  logHeader: { display: "flex", alignItems: "center", gap: 8, marginTop: 4, fontSize: 12.5, fontWeight: 700, color: "#8A8782" },
+  logHeaderLine: { flex: 1, height: 1, background: "var(--line)" },
+  logList: { display: "flex", flexDirection: "column", gap: 8 },
+  logItem: { background: "#0F0F11", border: "1px solid var(--line)", borderRadius: 12, padding: "12px 14px", display: "flex", flexDirection: "column", gap: 6 },
+  logTop: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 },
+  logAmount: { fontSize: 14, fontWeight: 700, direction: "ltr" },
+  logDate: { fontSize: 11, color: "#7A776F", whiteSpace: "nowrap", flex: 1, textAlign: "center" },
+  logReason: { fontSize: 12.5, color: "#C9C6C0", lineHeight: 1.6 },
+};
 
 function FocusView({ focus, setFocus, commitments, setCommitments, categories, entries, addPoints, showToast }) {
   const [targetMin, setTargetMin] = useState(25);

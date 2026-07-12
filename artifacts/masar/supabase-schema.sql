@@ -253,6 +253,28 @@ create table if not exists goals (
 );
 create index if not exists goals_owner_created on goals (owner, created_at desc);
 
+-- قسم "خزنة" (التتبّع المالي): صف واحد لكل مستخدم يحمل رصيده الحالي
+-- وعملته المختارة. كل حركة (صرف/إضافة) تُسجَّل كصف مستقل في
+-- vault_transactions بتاريخها ومبلغها وسببها الإلزامي، بترتيب زمني
+-- عكسي عند العرض.
+create table if not exists vault (
+  owner       text primary key default 'solo',
+  balance     numeric not null default 0,
+  currency    text not null default 'KWD',
+  updated_at  timestamptz default now()
+);
+
+create table if not exists vault_transactions (
+  id          text primary key,
+  owner       text not null default 'solo',
+  date        text not null,
+  amount      numeric not null,
+  type        text not null check (type in ('expense', 'income')),
+  reason      text not null,
+  created_at  timestamptz default now()
+);
+create index if not exists vault_transactions_owner_created on vault_transactions (owner, created_at desc);
+
 -- ============================================================
 -- فهارس الأداء: هذه الجداول مفتاحها الأساسي id فقط (بدون owner)، وكل
 -- قراءة تفلتر بـ owner ثم ترتّب بعمود تاريخ — بدون فهرس هنا كل تحميل
@@ -395,3 +417,13 @@ alter table goals enable row level security;
 drop policy if exists goals_anon_solo on goals;
 drop policy if exists goals_user_own on goals;
 create policy goals_user_own on goals for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
+alter table vault enable row level security;
+drop policy if exists vault_anon_solo on vault;
+drop policy if exists vault_user_own on vault;
+create policy vault_user_own on vault for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
+alter table vault_transactions enable row level security;
+drop policy if exists vault_transactions_anon_solo on vault_transactions;
+drop policy if exists vault_transactions_user_own on vault_transactions;
+create policy vault_transactions_user_own on vault_transactions for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);

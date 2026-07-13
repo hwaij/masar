@@ -371,88 +371,6 @@ export const store = {
     }
   },
 
-  async loadAzkarLog() {
-    const local = lsGet("masar_azkar_log", {});
-    if (!useCloud()) return local;
-    try {
-      const { data, error } = await supabase.from("azkar_log").select("*").eq("owner", CURRENT_OWNER).order("date");
-      if (error || !data) return local;
-      const log = {};
-      data.forEach((r) => { if (!log[r.date]) log[r.date] = {}; log[r.date][r.session] = r.done; });
-      lsSet("masar_azkar_log", log);
-      return log;
-    } catch { return local; }
-  },
-  async loadAzkarItems() {
-    return lsGet("masar_azkar_items", {});
-  },
-  async saveAzkarItem(date, itemId, done) {
-    const items = lsGet("masar_azkar_items", {});
-    if (!items[date]) items[date] = {};
-    items[date][itemId] = done;
-    lsSet("masar_azkar_items", items);
-  },
-  async saveAzkarLog(date, session, done) {
-    const log = lsGet("masar_azkar_log", {});
-    if (!log[date]) log[date] = {};
-    log[date][session] = done;
-    lsSet("masar_azkar_log", log);
-    if (useCloud()) {
-      try {
-        const { error } = await supabase.from("azkar_log").upsert(
-          { date, session, done, owner: CURRENT_OWNER, updated_at: new Date().toISOString() },
-          { onConflict: "owner,date,session" }
-        );
-        if (error) console.warn("azkar_log sync error:", error.message);
-      } catch (e) { console.warn("azkar_log write failed:", e); }
-    }
-  },
-
-  async loadQuranProgress() {
-    const local = lsGet("masar_quran_juz", {});
-    if (!useCloud()) return local;
-    try {
-      const { data, error } = await supabase.from("quran_progress").select("*").eq("owner", CURRENT_OWNER);
-      if (error || !data) return local;
-      const prog = {};
-      data.forEach((r) => { prog[r.juz_num] = r.done; });
-      lsSet("masar_quran_juz", prog);
-      return prog;
-    } catch { return local; }
-  },
-  async saveQuranJuz(juzNum, done) {
-    const data = lsGet("masar_quran_juz", {});
-    data[juzNum] = done;
-    lsSet("masar_quran_juz", data);
-    if (useCloud()) {
-      try {
-        const { error } = await supabase.from("quran_progress").upsert({ juz_num: juzNum, done, owner: CURRENT_OWNER });
-        if (error) console.warn("quran_progress sync error:", error.message);
-      } catch (e) { console.warn("quran_progress write failed:", e); }
-    }
-  },
-
-  async loadIstighfar() {
-    const local = lsGet("masar_istighfar", { daily: {}, total: 0 });
-    if (!useCloud()) return local;
-    try {
-      const { data, error } = await supabase.from("istighfar").select("*").eq("owner", CURRENT_OWNER).maybeSingle();
-      if (error || !data) return local;
-      const result = { daily: data.daily || {}, total: data.total || 0 };
-      lsSet("masar_istighfar", result);
-      return result;
-    } catch { return local; }
-  },
-  async saveIstighfar(data) {
-    lsSet("masar_istighfar", data);
-    if (useCloud()) {
-      try {
-        const { error } = await supabase.from("istighfar").upsert({ owner: CURRENT_OWNER, daily: data.daily, total: data.total, updated_at: new Date().toISOString() });
-        if (error) console.warn("istighfar sync error:", error.message);
-      } catch (e) { console.warn("istighfar write failed:", e); }
-    }
-  },
-
   async loadPointsLog() {
     const local = lsGet("masar_points_log", []);
     if (!useCloud()) return local;
@@ -556,12 +474,17 @@ export const store = {
     if (!useCloud()) return local;
     try {
       const { data, error } = await supabase.from("tips_log").select("*").eq("owner", CURRENT_OWNER).order("date");
-      if (error || !data) return local;
+      if (error) { console.error("[loadTipsLog] Supabase error:", error.message); return local; }
+      if (!data) return local;
       const log = {};
       data.forEach((r) => { log[r.date] = r.tip_id; });
-      lsSet("masar_tips_log", log);
-      return log;
-    } catch { return local; }
+      // Merge over the local cache instead of replacing it outright, so a
+      // transient/partial cloud read can never make a previously-seen day
+      // vanish from the archive — the cloud rows still win on conflicts.
+      const merged = { ...local, ...log };
+      lsSet("masar_tips_log", merged);
+      return merged;
+    } catch (e) { console.error("[loadTipsLog] read failed:", e); return local; }
   },
   async saveTipsLog(date, tipId) {
     const log = lsGet("masar_tips_log", {});
@@ -689,6 +612,46 @@ export const store = {
         const { error } = await supabase.from("vault_transactions").delete().eq("id", id).eq("owner", CURRENT_OWNER);
         if (error) { console.error("[deleteVaultTransaction] Supabase error:", error.message); return false; }
       } catch (e) { console.error("[deleteVaultTransaction] write failed:", e); return false; }
+    }
+    return true;
+  },
+
+  // قسم تتبّع النوم داخل "التقارير": صف واحد لكل تاريخ (يوم الاستيقاظ)،
+  // sleepTime/wakeTime اختياريان (فارغان إن أدخل المستخدم الساعات مباشرة).
+  async loadSleepLog() {
+    const local = lsGet("masar_sleep_log", []);
+    if (!useCloud()) return local;
+    try {
+      const { data, error } = await supabase.from("sleep_log").select("*").eq("owner", CURRENT_OWNER).order("date", { ascending: false });
+      if (error) { console.error("[loadSleepLog] Supabase error:", error.message); return local; }
+      if (!data) return local;
+      const items = data.map((r) => ({ id: r.id, date: r.date, sleepTime: r.sleep_time, wakeTime: r.wake_time, hours: Number(r.hours) }));
+      lsSet("masar_sleep_log", items);
+      return items;
+    } catch (e) { console.error("[loadSleepLog] read failed:", e); return local; }
+  },
+  async saveSleepEntry(entry) {
+    const local = lsGet("masar_sleep_log", []);
+    const next = local.some((s) => s.date === entry.date) ? local.map((s) => (s.date === entry.date ? entry : s)) : [entry, ...local];
+    lsSet("masar_sleep_log", next);
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("sleep_log").upsert(
+          { id: entry.id, date: entry.date, sleep_time: entry.sleepTime || null, wake_time: entry.wakeTime || null, hours: entry.hours, owner: CURRENT_OWNER },
+          { onConflict: "owner,date" }
+        );
+        if (error) { console.error("[saveSleepEntry] Supabase error:", error.message); return false; }
+      } catch (e) { console.error("[saveSleepEntry] write failed:", e); return false; }
+    }
+    return true;
+  },
+  async deleteSleepEntry(id) {
+    lsSet("masar_sleep_log", lsGet("masar_sleep_log", []).filter((s) => s.id !== id));
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("sleep_log").delete().eq("id", id).eq("owner", CURRENT_OWNER);
+        if (error) { console.error("[deleteSleepEntry] Supabase error:", error.message); return false; }
+      } catch (e) { console.error("[deleteSleepEntry] write failed:", e); return false; }
     }
     return true;
   },

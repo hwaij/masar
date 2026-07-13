@@ -279,6 +279,22 @@ create table if not exists vault_transactions (
 );
 create index if not exists vault_transactions_owner_created on vault_transactions (owner, created_at desc);
 
+-- تتبّع النوم (قسم "التقارير"): صف واحد لكل مستخدم لكل تاريخ — التاريخ
+-- هو يوم الاستيقاظ (بالتاريخ المحلي، localDayKey). sleep_time/wake_time
+-- تُملآن إن سجّل المستخدم الوقتين، وتبقيان فارغتين إن أدخل عدد الساعات
+-- مباشرة بدلاً من ذلك؛ hours محسوبة دائماً وتبقى المرجع الأساسي للعرض.
+create table if not exists sleep_log (
+  id          text primary key,
+  owner       text not null default 'solo',
+  date        text not null,
+  sleep_time  text,
+  wake_time   text,
+  hours       numeric not null,
+  created_at  timestamptz default now(),
+  unique (owner, date)
+);
+create index if not exists sleep_log_owner_date on sleep_log (owner, date);
+
 -- ============================================================
 -- فهارس الأداء: هذه الجداول مفتاحها الأساسي id فقط (بدون owner)، وكل
 -- قراءة تفلتر بـ owner ثم ترتّب بعمود تاريخ — بدون فهرس هنا كل تحميل
@@ -431,3 +447,8 @@ alter table vault_transactions enable row level security;
 drop policy if exists vault_transactions_anon_solo on vault_transactions;
 drop policy if exists vault_transactions_user_own on vault_transactions;
 create policy vault_transactions_user_own on vault_transactions for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
+alter table sleep_log enable row level security;
+drop policy if exists sleep_log_anon_solo on sleep_log;
+drop policy if exists sleep_log_user_own on sleep_log;
+create policy sleep_log_user_own on sleep_log for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);

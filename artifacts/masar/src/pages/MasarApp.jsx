@@ -131,36 +131,31 @@ export default function MasarApp() {
   const [selectedDate, setSelectedDate] = useState(todayKey());
   const [toast, setToast] = useState(null);
   const [mandatoryLog, setMandatoryLog] = useState({});
-  const [azkarLog, setAzkarLog] = useState({});
-  const [azkarItems, setAzkarItems] = useState({});
-  const [quranProgress, setQuranProgress] = useState({});
-  const [istighfar, setIstighfar] = useState({ daily: {}, total: 0 });
   const [pointsLog, setPointsLog] = useState([]);
   const [tipsLog, setTipsLog] = useState({});
   const [goals, setGoals] = useState([]);
   const [vault, setVault] = useState(null);
   const [vaultTx, setVaultTx] = useState([]);
+  const [sleepLog, setSleepLog] = useState([]);
   const [user, setUser] = useState(null);
   const userIdRef = useRef(undefined);
   const loadVersionRef = useRef(0);
 
   const loadAll = useCallback(async () => {
       const myVersion = ++loadVersionRef.current;
-      const [c, e, t, r, g, p, a, f, cm, pl, rel, ml, al, ai, qp, isf, plog, tl, gl, vlt, vtx] = await Promise.all([
+      const [c, e, t, r, g, p, a, f, cm, pl, rel, ml, plog, tl, gl, vlt, vtx, sl] = await Promise.all([
         store.loadCategories(), store.loadEntries(), store.loadTasks(),
         store.loadReports(), store.loadGamify(), store.loadProfile(), store.loadAchieve(),
         store.loadFocus(), store.loadCommitments(), store.loadPrayerLog(), store.loadReligious(),
-        store.loadMandatoryLog(), store.loadAzkarLog(), store.loadAzkarItems(), store.loadQuranProgress(),
-        store.loadIstighfar(), store.loadPointsLog(), store.loadTipsLog(), store.loadGoals(),
-        store.loadVault(), store.loadVaultTransactions(),
+        store.loadMandatoryLog(), store.loadPointsLog(), store.loadTipsLog(), store.loadGoals(),
+        store.loadVault(), store.loadVaultTransactions(), store.loadSleepLog(),
       ]);
       if (loadVersionRef.current !== myVersion) return;
       setCategories(c); setEntries(e); setTasks(t); setReports(r); setGamify(g);
       setProfile(p); setAchieve(a); setFocus(f); setCommitments(cm);
       setPrayerLog(pl); setReligious(rel);
-      setMandatoryLog(ml); setAzkarLog(al); setAzkarItems(ai); setQuranProgress(qp);
-      setIstighfar(isf); setPointsLog(plog); setTipsLog(tl); setGoals(gl);
-      setVault(vlt); setVaultTx(vtx);
+      setMandatoryLog(ml); setPointsLog(plog); setTipsLog(tl); setGoals(gl);
+      setVault(vlt); setVaultTx(vtx); setSleepLog(sl);
 
       const today = todayKey();
       const lastOpen = localStorage.getItem("masar_last_open");
@@ -178,12 +173,6 @@ export default function MasarApp() {
         const yPrayers = (pl || []).filter((p) => p.date === yesterday);
         const missedPrayers = PRAYER_IDS.filter((pid) => !yPrayers.some((p) => p.prayerId === pid)).length;
         if (missedPrayers > 0) { deduction += missedPrayers * 5; reasons.push(`${missedPrayers} صلوات فائتة`); }
-        const yAzkar = al[yesterday] || {};
-        if (!yAzkar.morning) { deduction += 5; reasons.push("أذكار الصباح"); }
-        if (!yAzkar.evening) { deduction += 5; reasons.push("أذكار المساء"); }
-        const ISTIGHFAR_TARGET = 1000;
-        const yIstighfar = (isf.daily || {})[yesterday];
-        if (yIstighfar === undefined || yIstighfar > 0) { deduction += 5; reasons.push("استغفار"); }
         if (deduction > 0) {
           const next = { ...g, points: Math.max(0, g.points - deduction) };
           setGamify(next);
@@ -268,16 +257,6 @@ export default function MasarApp() {
     const dayHours = {};
     entries.forEach((e) => { dayHours[e.date] = (dayHours[e.date] || 0) + diffMinutes(e.start, e.end); });
     const focusMinutes = focus.reduce((s, f) => s + f.minutes, 0);
-    const quranJuzDone = Object.values(quranProgress).filter(Boolean).length;
-    let azkarStreak = 0;
-    const today = new Date();
-    for (let i = 0; i < 60; i++) {
-      const d = new Date(today); d.setDate(d.getDate() - i);
-      const k = todayKey(d);
-      const dayAzkar = azkarLog[k] || {};
-      if (dayAzkar.morning && dayAzkar.evening) azkarStreak++;
-      else break;
-    }
     return {
       totalEntries: entries.length,
       streak: computeStreak([
@@ -290,11 +269,8 @@ export default function MasarApp() {
       maxDayHours: Math.max(0, ...Object.values(dayHours)) / 60,
       focusSessions: focus.length,
       focusHours: focusMinutes / 60,
-      quranJuzDone,
-      azkarStreak,
-      istighfarTotal: istighfar.total || 0,
     };
-  }, [entries, tasks, focus, prayerLog, quranProgress, azkarLog, istighfar]);
+  }, [entries, tasks, focus, prayerLog]);
 
   useEffect(() => {
     if (!loaded) return;
@@ -361,25 +337,14 @@ export default function MasarApp() {
         )}
         {view === "prayer" && <PrayerView prayerLog={prayerLog} setPrayerLog={setPrayerLog} religious={religious} setReligious={setReligious} addPoints={addPoints} showToast={showToast} />}
         {view === "adhkar" && <AdhkarView showToast={showToast} />}
-        {view === "essentials" && (
-          <EssentialsView
-            mandatoryLog={mandatoryLog} setMandatoryLog={setMandatoryLog}
-            azkarLog={azkarLog} setAzkarLog={setAzkarLog}
-            quranProgress={quranProgress} setQuranProgress={setQuranProgress}
-            azkarItems={azkarItems} setAzkarItems={setAzkarItems}
-            istighfar={istighfar} setIstighfar={setIstighfar}
-            prayerLog={prayerLog} setPrayerLog={setPrayerLog}
-            addPoints={addPoints} showToast={showToast}
-          />
-        )}
         {view === "tips" && <TipsView tipsLog={tipsLog} setTipsLog={setTipsLog} showToast={showToast} />}
         {view === "goals" && <GoalsView goals={goals} setGoals={setGoals} addPoints={addPoints} showToast={showToast} />}
         {view === "vault" && <VaultView vault={vault} setVault={setVault} vaultTx={vaultTx} setVaultTx={setVaultTx} showToast={showToast} />}
         {view === "tasks" && <TasksView tasks={tasks} setTasks={setTasks} categories={categories} addPoints={addPoints} showToast={showToast} />}
         {view === "focus" && <FocusView focus={focus} setFocus={setFocus} commitments={commitments} setCommitments={setCommitments} categories={categories} entries={entries} addPoints={addPoints} showToast={showToast} />}
         {view === "achieve" && <AchieveView achieve={achieve} setAchieve={setAchieve} profile={profile} focus={focus} tasks={tasks} prayerLog={prayerLog} religious={religious} addPoints={addPoints} showToast={showToast} setView={setView} />}
-        {view === "reports" && <ReportsView entries={entries} categories={categories} focus={focus} profile={profile} showToast={showToast} />}
-        {view === "assistant" && <AssistantView entries={entries} tasks={tasks} categories={categories} focus={focus} prayerLog={prayerLog} religious={religious} profile={profile} stats={stats} azkarLog={azkarLog} quranProgress={quranProgress} istighfar={istighfar} setView={setView} />}
+        {view === "reports" && <ReportsView entries={entries} categories={categories} focus={focus} profile={profile} sleepLog={sleepLog} setSleepLog={setSleepLog} showToast={showToast} />}
+        {view === "assistant" && <AssistantView entries={entries} tasks={tasks} categories={categories} focus={focus} prayerLog={prayerLog} religious={religious} profile={profile} stats={stats} setView={setView} />}
         {view === "settings" && <SettingsView categories={categories} setCategories={setCategories} gamify={gamify} hasCloud={store.hasCloud} showToast={showToast} profile={profile} setProfile={setProfile} pointsLog={pointsLog} onStartTour={startTour} />}
       </div>
       {toast && <div style={S.toast}>{toast}</div>}
@@ -409,7 +374,7 @@ const TOUR_STEPS = [
   {
     Icon: Moon,
     title: "عباداتك اليومية",
-    body: "تابع صلواتك في \"الصلاة\"، أذكارك في \"أذكار\"، وباقي عاداتك الدينية وتقدّم القرآن في \"الأساسيات\".",
+    body: "تابع صلواتك ومهامك الدينية اليومية كالاستغفار وقراءة القرآن في \"الصلاة\"، وأذكارك في \"أذكار\".",
   },
   {
     Icon: Eye,
@@ -732,7 +697,6 @@ function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSign
     { id: "today", label: "اليوم", icon: Clock },
     { id: "prayer", label: "الصلاة", icon: Moon },
     { id: "adhkar", label: "أذكار", icon: TasbihIcon },
-    { id: "essentials", label: "الأساسيات", icon: CheckCircle2 },
     { id: "tips", label: "بصيرة", icon: Eye },
     { id: "focus", label: "تركيز", icon: Timer },
     { id: "tasks", label: "المهام", icon: ListChecks },
@@ -1174,7 +1138,7 @@ function TasksView({ tasks, setTasks, categories, addPoints, showToast }) {
   );
 }
 
-function ReportsView({ entries, categories, focus, profile, showToast }) {
+function ReportsView({ entries, categories, focus, profile, sleepLog, setSleepLog, showToast }) {
   const [range, setRange] = useState("week");
   const catMap = useMemo(() => Object.fromEntries(categories.map((c) => [c.id, c])), [categories]);
   const span = range === "week" ? 7 : 30;
@@ -1297,11 +1261,120 @@ function ReportsView({ entries, categories, focus, profile, showToast }) {
           </LineChart>
         </ResponsiveContainer>
       </div>
+      <SleepSection sleepLog={sleepLog} setSleepLog={setSleepLog} days={days} range={range} showToast={showToast} />
     </div>
   );
 }
 
-function AssistantView({ entries, tasks, categories, focus, prayerLog, religious, profile, stats, azkarLog, quranProgress, istighfar, setView }) {
+function SleepSection({ sleepLog, setSleepLog, days, range, showToast }) {
+  const [mode, setMode] = useState("hours"); // 'hours' | 'times'
+  const [sleepTime, setSleepTime] = useState("23:00");
+  const [wakeTime, setWakeTime] = useState("07:00");
+  const [hoursInput, setHoursInput] = useState("7.5");
+
+  const today = localDayKey();
+  const todayEntry = sleepLog.find((s) => s.date === today);
+
+  async function submitEntry() {
+    let hours, sTime = null, wTime = null;
+    if (mode === "times") {
+      hours = +(diffMinutes(sleepTime, wakeTime) / 60).toFixed(2);
+      sTime = sleepTime; wTime = wakeTime;
+    } else {
+      hours = parseFloat(hoursInput);
+    }
+    if (!Number.isFinite(hours) || hours <= 0 || hours > 24) { showToast("أدخل عدد ساعات نوم صحيح"); return; }
+    const existing = sleepLog.find((s) => s.date === today);
+    const entry = { id: existing ? existing.id : uid(), date: today, sleepTime: sTime, wakeTime: wTime, hours };
+    const prevLog = sleepLog;
+    setSleepLog((prev) => existing ? prev.map((s) => (s.date === today ? entry : s)) : [entry, ...prev]);
+    const ok = await store.saveSleepEntry(entry);
+    if (ok) showToast("سُجِّل نومك، نتمنى لك راحة جيدة 🌙");
+    else { setSleepLog(prevLog); showToast("تعذّر الحفظ، حاول مرة أخرى"); }
+  }
+
+  const rangeEntries = useMemo(() => sleepLog.filter((s) => days.includes(s.date)), [sleepLog, days]);
+  const avgHours = rangeEntries.length ? rangeEntries.reduce((sum, s) => sum + s.hours, 0) / rangeEntries.length : null;
+  const typicalBedtime = useMemo(() => {
+    const bedtimes = rangeEntries.filter((s) => s.sleepTime).map((s) => s.sleepTime);
+    if (!bedtimes.length) return null;
+    const counts = {};
+    bedtimes.forEach((t) => { counts[t] = (counts[t] || 0) + 1; });
+    return Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
+  }, [rangeEntries]);
+
+  // إطار تحفيزي فقط: نحتفي بالنوم الكافي، ونشجّع بلطف دون أي لوم عندما
+  // يكون النوم أقل أو أكثر من المعتاد — لا رسالة تحذيرية إطلاقاً.
+  const rating = avgHours === null ? null
+    : (avgHours >= 7 && avgHours <= 9) ? { label: "نوم ممتاز", emoji: "👏" }
+    : { label: "حاول الاقتراب من 7-9 ساعات لنوم أفضل", emoji: "🌙" };
+
+  const chartData = days.map((day) => {
+    const e = sleepLog.find((s) => s.date === day);
+    return {
+      day,
+      label: range === "week" ? arabicDate(day, { weekday: "short" }) : arabicDate(day, { day: "numeric" }),
+      hours: e ? e.hours : 0,
+    };
+  });
+
+  return (
+    <div style={S.chartCard}>
+      <div style={S.chartTitle}>النوم</div>
+
+      <div style={S.rangeToggle}>
+        <button onClick={() => setMode("hours")} style={{ ...S.rangeBtn, flex: 1, ...(mode === "hours" ? S.rangeBtnActive : {}) }}>عدد الساعات</button>
+        <button onClick={() => setMode("times")} style={{ ...S.rangeBtn, flex: 1, ...(mode === "times" ? S.rangeBtnActive : {}) }}>وقت النوم والاستيقاظ</button>
+      </div>
+
+      {mode === "hours" ? (
+        <>
+          <label style={S.label}>كم ساعة نمت؟</label>
+          <input type="number" step="0.25" min="0" max="24" value={hoursInput} onChange={(e) => setHoursInput(e.target.value)} style={{ ...S.input, marginTop: 6 }} />
+        </>
+      ) : (
+        <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+          <div style={{ flex: 1 }}>
+            <label style={S.label}>وقت النوم</label>
+            <input type="time" value={sleepTime} onChange={(e) => setSleepTime(e.target.value)} style={{ ...S.input, marginTop: 6 }} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={S.label}>وقت الاستيقاظ</label>
+            <input type="time" value={wakeTime} onChange={(e) => setWakeTime(e.target.value)} style={{ ...S.input, marginTop: 6 }} />
+          </div>
+        </div>
+      )}
+      <button onClick={submitEntry} style={{ ...S.saveBtn, marginTop: 12 }}>{todayEntry ? "تحديث نوم الليلة الماضية" : "تسجيل نوم الليلة الماضية"}</button>
+
+      <div style={{ ...S.kpiRow, marginTop: 16 }}>
+        <div style={S.kpiCard}>
+          <div style={S.kpiValue}>{avgHours === null ? "—" : `${avgHours.toFixed(1)} س`}</div>
+          <div style={S.kpiLabel}>متوسط النوم</div>
+        </div>
+        <div style={S.kpiCard}>
+          <div style={S.kpiValue}>{typicalBedtime ? to12h(typicalBedtime) : "—"}</div>
+          <div style={S.kpiLabel}>وقت النوم المعتاد</div>
+        </div>
+        <div style={S.kpiCard}>
+          <div style={S.kpiValue}>{rating ? rating.emoji : "—"}</div>
+          <div style={S.kpiLabel}>{rating ? rating.label : "سجّل نومك لتظهر النتيجة"}</div>
+        </div>
+      </div>
+
+      <ResponsiveContainer width="100%" height={150}>
+        <BarChart data={chartData} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="2 4" stroke="#1F1F22" vertical={false} />
+          <XAxis dataKey="label" tick={{ fill: "#6B6863", fontSize: range === "week" ? 11 : 8, fontFamily: "Tajawal" }} axisLine={{ stroke: "#2A2A2D" }} tickLine={false} interval={range === "week" ? 0 : 3} />
+          <YAxis tick={{ fill: "#6B6863", fontSize: 10 }} axisLine={false} tickLine={false} />
+          <Tooltip contentStyle={{ background: "#1A1A1D", border: "1px solid #2A2A2D", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [`${v} ساعة`, ""]} />
+          <Bar dataKey="hours" radius={[3, 3, 3, 3]} fill="#5FA8A0" maxBarSize={range === "week" ? 28 : 12} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function AssistantView({ entries, tasks, categories, focus, prayerLog, religious, profile, stats, setView }) {
   const today = todayKey();
   const hasIdentity = !!(profile?.hobbies?.trim() || profile?.about?.trim());
 
@@ -1334,7 +1407,6 @@ function AssistantView({ entries, tasks, categories, focus, prayerLog, religious
     const focusToday = (focus || []).filter((f) => f.date === today).reduce((s, f) => s + f.minutes, 0);
     const prayersToday = (prayerLog || []).filter((p) => p.date === today).length;
     const religiousDone = (religious || []).filter((r) => r.date === today && r.done).length;
-    const azkar = azkarLog[today] || {};
     return [
       `التاريخ: ${arabicDate(today)}`,
       `أنشطة اليوم: ${entryLines}`,
@@ -1342,15 +1414,12 @@ function AssistantView({ entries, tasks, categories, focus, prayerLog, religious
       `دقائق التركيز اليوم: ${focusToday}`,
       `الصلوات المسجلة اليوم: ${prayersToday} من 5`,
       `الأعمال الروحية المنجزة اليوم: ${religiousDone}`,
-      `أذكار: صباح ${azkar.morning ? "نعم" : "لا"} / مساء ${azkar.evening ? "نعم" : "لا"}`,
-      `أجزاء القرآن المختومة: ${Object.values(quranProgress || {}).filter(Boolean).length} من 30`,
-      `إجمالي الاستغفار: ${istighfar?.total || 0}`,
       `سلسلة الالتزام: ${stats?.streak || 0} يوم`,
       profile?.field ? `مجال المستخدم: ${profile.field}` : "",
       profile?.hobbies ? `هوايات المستخدم: ${profile.hobbies}` : "",
       profile?.about ? `عن المستخدم: ${profile.about}` : "",
     ].filter(Boolean).join("\n");
-  }, [entries, tasks, categories, focus, prayerLog, religious, azkarLog, quranProgress, istighfar, stats, profile, today]);
+  }, [entries, tasks, categories, focus, prayerLog, religious, stats, profile, today]);
 
   async function send(text) {
     const content = (text ?? input).trim();
@@ -3496,257 +3565,3 @@ function EntryModal({ entry, date, categories, onSave, onClose }) {
   );
 }
 
-function EssentialsView({ mandatoryLog, setMandatoryLog, azkarLog, setAzkarLog, azkarItems, setAzkarItems, quranProgress, setQuranProgress, istighfar, setIstighfar, prayerLog, setPrayerLog, addPoints, showToast }) {
-  const today = todayKey();
-  const isFriday = new Date().getDay() === 5;
-  const todayMandatory = mandatoryLog[today] || {};
-  const todayAzkar = azkarLog[today] || {};
-  const quranDoneCount = Object.values(quranProgress).filter(Boolean).length;
-  const [azkarTab, setAzkarTab] = useState("morning");
-  const ISTIGHFAR_TARGET = 1000;
-  const todayIstighfarDone = (istighfar.daily || {})[today] ?? ISTIGHFAR_TARGET;
-  const todayIstighfar = todayIstighfarDone;
-
-  async function toggleMandatory(task) {
-    const done = !todayMandatory[task.key];
-    const newLog = { ...mandatoryLog, [today]: { ...todayMandatory, [task.key]: done } };
-    setMandatoryLog(newLog);
-    await store.saveMandatoryItem(today, task.key, done);
-    if (done) { addPoints(task.points, task.label); showToast(`+${task.points} نقطة`); }
-    else addPoints(-task.points, `التراجع عن ${task.label}`);
-  }
-
-  async function toggleAzkarItem(itemId, session, allSessionIds) {
-    const todayItems = (azkarItems || {})[today] || {};
-    const newDone = !todayItems[itemId];
-    const newTodayItems = { ...todayItems, [itemId]: newDone };
-    const newAzkarItems = { ...(azkarItems || {}), [today]: newTodayItems };
-    setAzkarItems(newAzkarItems);
-    await store.saveAzkarItem(today, itemId, newDone);
-    const wasSessionDone = allSessionIds.every((id) => !!todayItems[id]);
-    const isNowSessionDone = allSessionIds.every((id) => !!newTodayItems[id]);
-    if (!wasSessionDone && isNowSessionDone) {
-      const newLog = { ...azkarLog, [today]: { ...todayAzkar, [session]: true } };
-      setAzkarLog(newLog);
-      await store.saveAzkarLog(today, session, true);
-      addPoints(15, `أذكار ${session === "morning" ? "الصباح" : "المساء"}`);
-      showToast("أتممت الأذكار! +15 نقطة");
-    } else if (wasSessionDone && !isNowSessionDone && todayAzkar[session]) {
-      const newLog = { ...azkarLog, [today]: { ...todayAzkar, [session]: false } };
-      setAzkarLog(newLog);
-      await store.saveAzkarLog(today, session, false);
-      addPoints(-15, `التراجع عن أذكار ${session === "morning" ? "الصباح" : "المساء"}`);
-    }
-  }
-
-  async function toggleJuz(juzNum) {
-    const done = !quranProgress[juzNum];
-    const next = { ...quranProgress, [juzNum]: done };
-    setQuranProgress(next);
-    await store.saveQuranJuz(juzNum, done);
-    if (done) { addPoints(20, `الجزء ${juzNum} من القرآن`); showToast(`الجزء ${juzNum} مكتمل! +20 نقطة`); }
-    else addPoints(-20, `التراجع عن الجزء ${juzNum} من القرآن`);
-  }
-
-  async function addIstighfar(amount) {
-    const remaining = todayIstighfar;
-    if (remaining <= 0) return;
-    const newRemaining = Math.max(0, remaining - amount);
-    const newTotal = (istighfar.total || 0) + Math.min(amount, remaining);
-    const newData = { daily: { ...(istighfar.daily || {}), [today]: newRemaining }, total: newTotal };
-    setIstighfar(newData);
-    await store.saveIstighfar(newData);
-    if (remaining > 0 && newRemaining === 0) {
-      addPoints(10, "إتمام ألف استغفار"); showToast("أحسنت! أكملت ألف استغفار اليوم +10 نقطة");
-    }
-  }
-
-  async function resetIstighfarDay() {
-    const wasDone = todayIstighfar === 0;
-    const newData = { daily: { ...(istighfar.daily || {}), [today]: ISTIGHFAR_TARGET }, total: istighfar.total || 0 };
-    setIstighfar(newData);
-    await store.saveIstighfar(newData);
-    // Resetting an already-completed day undoes the completion, so undo the
-    // points it earned too — otherwise reset+redo would farm +10 endlessly.
-    if (wasDone) addPoints(-10, "إعادة تعيين الاستغفار");
-    showToast("تم إعادة العداد إلى 1000");
-  }
-
-  const todayPrayers = (prayerLog || []).filter((p) => p.date === today);
-  const PRAYER_NAMES = { fajr: "الفجر", dhuhr: "الظهر", asr: "العصر", maghrib: "المغرب", isha: "العشاء" };
-  const PRAYER_KEYS = ["fajr", "dhuhr", "asr", "maghrib", "isha"];
-
-  const mandatoryDone = MANDATORY_TASKS.filter((t) => {
-    if (t.fridayOnly && !isFriday) return true;
-    return !!todayMandatory[t.key];
-  }).length;
-  const mandatoryTotal = MANDATORY_TASKS.filter((t) => !t.fridayOnly || isFriday).length;
-  const azkarList = azkarTab === "morning" ? AZKAR_MORNING : AZKAR_EVENING;
-
-  const ES = {
-    section: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 12px", marginBottom: 14 },
-    sectionHead: { display: "flex", alignItems: "center", gap: 8, marginBottom: 12 },
-    sectionTitle: { fontSize: 14, fontWeight: 700, color: "var(--ink)" },
-    progressBadge: { marginRight: "auto", fontSize: 12, color: "#8A8782" },
-    taskRow: { display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" },
-    taskIcon: { fontSize: 18, width: 28, textAlign: "center" },
-    taskLabel: { flex: 1, fontSize: 14, color: "var(--ink)" },
-    taskPoints: { fontSize: 11, color: "#C9A24B" },
-    tabRow: { display: "flex", gap: 6, marginBottom: 12, background: "#0F0F11", borderRadius: 10, padding: 3 },
-    tab: { flex: 1, border: "none", borderRadius: 8, background: "transparent", color: "#8A8782", padding: "8px 0", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" },
-    tabActive: { background: "#1F1F22", color: "var(--gold)" },
-    azkarItem: { display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" },
-    azkarText: { flex: 1, fontSize: 13, color: "var(--ink)", lineHeight: 1.5 },
-    azkarCount: { fontSize: 11, color: "#8A8782", whiteSpace: "nowrap" },
-    completeBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 7, width: "100%", marginTop: 12, background: "rgba(95,168,160,0.1)", border: "1px solid rgba(95,168,160,0.3)", color: "#5FA8A0", borderRadius: 12, padding: "11px 0", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" },
-    completeBtnDone: { background: "rgba(95,168,160,0.07)", color: "#5FA8A0", opacity: 0.6 },
-    juzGrid: { display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 6, marginTop: 8 },
-    juzBtn: { border: "1px solid var(--line)", borderRadius: 8, padding: "6px 2px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", background: "transparent", color: "#8A8782", textAlign: "center" },
-    juzBtnDone: { background: "rgba(95,168,160,0.12)", borderColor: "rgba(95,168,160,0.4)", color: "#5FA8A0" },
-    juzCount: { fontSize: 12, color: "#8A8782", marginTop: 8, textAlign: "center" },
-  };
-
-  return (
-    <div style={S.view}>
-      <div style={{ ...S.sectionTitle, marginBottom: 4 }}>الأساسيات</div>
-      <p style={S.profileHint}>العادات اليومية الأساسية. إهمالها يُخصم من نقاطك صباح اليوم التالي.</p>
-
-      <div style={ES.section}>
-        <div style={ES.sectionHead}>
-          <CheckCircle2 size={16} color="#5FA8A0" />
-          <span style={ES.sectionTitle}>المهام الأساسية</span>
-          <span style={ES.progressBadge}>{mandatoryDone}/{mandatoryTotal} مكتمل</span>
-        </div>
-        {MANDATORY_TASKS.map((task) => {
-          if (task.fridayOnly && !isFriday) return null;
-          const done = !!todayMandatory[task.key];
-          return (
-            <div key={task.key} style={ES.taskRow}>
-              <span style={ES.taskIcon}>{task.icon}</span>
-              <span style={{ ...ES.taskLabel, textDecoration: done ? "line-through" : "none", color: done ? "#8A8782" : "var(--ink)" }}>{task.label}</span>
-              <span style={ES.taskPoints}>+{task.points}</span>
-              <span onClick={() => toggleMandatory(task)} style={{ ...S.checkbox, ...(done ? S.checkboxDone : {}), cursor: "pointer" }}>{done && <Check size={12} />}</span>
-            </div>
-          );
-        })}
-      </div>
-
-      <div style={ES.section}>
-        <div style={ES.sectionHead}>
-          <span style={{ fontSize: 16 }}>🕌</span>
-          <span style={ES.sectionTitle}>الصلوات</span>
-          <span style={ES.progressBadge}>{PRAYER_KEYS.filter((k) => todayPrayers.some((p) => p.prayerId === k)).length}/5 مؤداة</span>
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 6 }}>
-          {PRAYER_KEYS.map((key) => {
-            const prayed = todayPrayers.some((p) => p.prayerId === key);
-            return (
-              <div key={key} style={{ flex: 1, textAlign: "center" }}>
-                <div style={{ fontSize: 11, color: "#8A8782", marginBottom: 5 }}>{PRAYER_NAMES[key]}</div>
-                <div style={{ width: 34, height: 34, borderRadius: "50%", border: prayed ? "2px solid #5FA8A0" : "2px solid var(--line)", background: prayed ? "rgba(95,168,160,0.15)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto", fontSize: 16, color: "#5FA8A0" }}>
-                  {prayed ? "✓" : ""}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        <div style={{ fontSize: 11, color: "#6B6863", marginTop: 10, textAlign: "center" }}>للتسجيل اذهب إلى تبويب الصلاة</div>
-      </div>
-
-      <div style={ES.section}>
-        <div style={ES.sectionHead}>
-          <span style={{ fontSize: 16 }}>🤲</span>
-          <span style={ES.sectionTitle}>عداد الاستغفار</span>
-          <span style={ES.progressBadge}>{todayIstighfar === 0 ? "مكتمل ✓" : `متبقّ ${todayIstighfar}`}</span>
-        </div>
-        <div style={{ marginBottom: 10 }}>
-          <div style={{ height: 6, background: "#1F1F22", borderRadius: 3, overflow: "hidden" }}>
-            <div style={{ height: "100%", width: `${Math.min(100, ((ISTIGHFAR_TARGET - todayIstighfar) / ISTIGHFAR_TARGET) * 100)}%`, background: todayIstighfar === 0 ? "#5FA8A0" : "#C9A24B", borderRadius: 3, transition: "width 0.4s" }} />
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
-            <span style={{ fontSize: 11, color: "#8A8782" }}>
-              {todayIstighfar === 0 ? "أكملت ألف استغفار اليوم" : `أكملت ${(ISTIGHFAR_TARGET - todayIstighfar).toLocaleString("ar-SA")} من ${ISTIGHFAR_TARGET}`}
-            </span>
-            <span style={{ fontSize: 11, color: "#8A8782" }}>الكلي: {(istighfar.total || 0).toLocaleString("ar-SA")}</span>
-          </div>
-        </div>
-        {todayIstighfar === 0 ? (
-          <button onClick={resetIstighfarDay} style={{ ...ES.completeBtn }}>إعادة العداد إلى 1000</button>
-        ) : (
-          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-            {[1, 10, 33, 100].map((n) => (
-              <button key={n} onClick={() => addIstighfar(n)} style={{ flex: 1, border: "1px solid var(--gold)", borderRadius: 10, background: "rgba(201,162,75,0.08)", color: "var(--gold)", padding: "10px 0", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-                -{n}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div style={ES.section}>
-        <div style={ES.sectionHead}>
-          <BookMarked size={16} color="#C9A24B" />
-          <span style={ES.sectionTitle}>الأذكار</span>
-          <span style={ES.progressBadge}>
-            {todayAzkar.morning && "☀ "}
-            {todayAzkar.evening && "🌙"}
-          </span>
-        </div>
-        <div style={ES.tabRow}>
-          <button style={{ ...ES.tab, ...(azkarTab === "morning" ? ES.tabActive : {}) }} onClick={() => setAzkarTab("morning")}>
-            ☀ الصباح {todayAzkar.morning ? "✓" : ""}
-          </button>
-          <button style={{ ...ES.tab, ...(azkarTab === "evening" ? ES.tabActive : {}) }} onClick={() => setAzkarTab("evening")}>
-            🌙 المساء {todayAzkar.evening ? "✓" : ""}
-          </button>
-        </div>
-        {(() => {
-          const todayItems = (azkarItems || {})[today] || {};
-          const allIds = azkarList.map((z) => z.id);
-          const sessionDone = todayAzkar[azkarTab];
-          return azkarList.map((z) => {
-            const itemDone = !!todayItems[z.id];
-            return (
-              <div key={z.id} style={{ ...ES.azkarItem, cursor: "pointer" }} onClick={() => toggleAzkarItem(z.id, azkarTab, allIds)}>
-                <span style={{ ...ES.azkarText, textDecoration: itemDone ? "line-through" : "none", color: itemDone ? "#8A8782" : "var(--ink)" }}>{z.short}</span>
-                <span style={ES.azkarCount}>×{z.count}</span>
-                <span style={{ ...S.checkbox, ...(itemDone ? S.checkboxDone : {}), flexShrink: 0, marginRight: 4 }}>{itemDone && <Check size={12} />}</span>
-              </div>
-            );
-          });
-        })()}
-        {todayAzkar[azkarTab] && (
-          <div style={{ ...ES.completeBtn, ...ES.completeBtnDone, cursor: "default" }}>
-            <Check size={15} /> أتممت أذكار {azkarTab === "morning" ? "الصباح" : "المساء"}
-          </div>
-        )}
-      </div>
-
-      <div style={ES.section}>
-        <div style={ES.sectionHead}>
-          <BookOpen size={16} color="#C9A24B" />
-          <span style={ES.sectionTitle}>تقدّم القرآن</span>
-          <span style={ES.progressBadge}>{quranDoneCount}/30 جزء</span>
-        </div>
-        <div style={ES.juzGrid}>
-          {Array.from({ length: 30 }, (_, i) => i + 1).map((juz) => {
-            const done = !!quranProgress[juz];
-            return (
-              <button key={juz} onClick={() => toggleJuz(juz)} style={{ ...ES.juzBtn, ...(done ? ES.juzBtnDone : {}) }}>
-                {juz}
-              </button>
-            );
-          })}
-        </div>
-        <div style={ES.juzCount}>
-          <div style={{ height: 6, background: "#1F1F22", borderRadius: 3, marginTop: 10, overflow: "hidden" }}>
-            <div style={{ height: "100%", width: `${(quranDoneCount / 30) * 100}%`, background: "#C9A24B", borderRadius: 3, transition: "width 0.5s" }} />
-          </div>
-          <span style={{ fontSize: 12, color: "#8A8782", display: "block", marginTop: 4 }}>
-            {quranDoneCount === 30 ? "ختمت القرآن الكريم! مبارك" : `${30 - quranDoneCount} جزء متبقّ`}
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-}

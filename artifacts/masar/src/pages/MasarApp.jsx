@@ -10,7 +10,7 @@ import {
   Loader2, Plus, X, Trash2, Check, Flame, Star, Edit3,
   Sun, Target, Palette, Cloud, CloudOff,
   Rocket, BookOpen, User, Trophy, ChevronDown, ExternalLink,
-  Timer, Play, Pause, RotateCcw, Zap, Download, ListPlus, Save,
+  Timer, Play, Pause, RotateCcw, Zap, Download, Save,
   Moon, Bell, BookMarked, CheckCircle2,
   MessageCircle, Send,
   LogIn, LogOut,
@@ -26,7 +26,7 @@ import { createGoal, isReviewDue, GOAL_PERIODS, GOAL_POINTS_SUCCESS, GOAL_POINTS
 import { getSession, onAuthChange, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut, userFromSession, hasAuth } from "../lib/auth";
 import {
   todayKey, fmtHM, uid, diffMinutes, arabicDate, computeStreak, escapeHtml,
-  COLOR_CHOICES, BADGES, DEFAULT_DAILY_TASKS, analyze, parseJsonLoose,
+  COLOR_CHOICES, BADGES, analyze, parseJsonLoose,
   localAchieveSuggestions, localCoachReply,
   getLevel, addMinutesToTime, nowHHMM, autoClassify,
   MANDATORY_TASKS, AZKAR_MORNING, AZKAR_EVENING, coachChat,
@@ -1044,15 +1044,6 @@ function TasksView({ tasks, setTasks, categories, addPoints, showToast }) {
     const t = { id: uid(), title: title.trim(), catId, due: selectedDay, done: false, created: todayKey() };
     setTasks((prev) => [...prev, t]); await store.saveTask(t); setTitle(""); showToast("تمت إضافة المهمة");
   }
-  async function addDefaults() {
-    const existing = new Set(tasksForDay(selectedDay).map((t) => t.title));
-    const toAdd = DEFAULT_DAILY_TASKS.filter((title) => !existing.has(title))
-      .map((title) => ({ id: uid(), title, catId, due: selectedDay, done: false, created: todayKey() }));
-    if (toAdd.length === 0) { showToast("الأساسيات مضافة بالفعل"); return; }
-    setTasks((prev) => [...prev, ...toAdd]);
-    for (const t of toAdd) await store.saveTask(t);
-    showToast(`أضفت ${toAdd.length} مهام أساسية`);
-  }
   async function toggle(t) {
     const updated = { ...t, done: !t.done };
     setTasks((prev) => prev.map((x) => x.id === t.id ? updated : x));
@@ -1114,7 +1105,6 @@ function TasksView({ tasks, setTasks, categories, addPoints, showToast }) {
             </button>
           ))}
         </div>
-        <button onClick={addDefaults} style={S.defaultsBtn} title="أضف الأساسيات لهذا اليوم"><ListPlus size={14} /> الأساسيات</button>
       </div>
 
       <div style={S.taskList} className="stagger-in">

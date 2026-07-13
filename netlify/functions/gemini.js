@@ -2,6 +2,68 @@
 // reaches the browser. The client posts the same request body it would
 // have sent straight to Google (contents / system_instruction /
 // generationConfig) and gets back { text }.
+//
+// Gemini access is a paid feature (مسار الكامل). This is the real
+// enforcement boundary for it — the client-side UI gates are only a
+// courtesy shortcut, not security, since anyone could otherwise call this
+// URL directly with a valid login and burn through our Gemini quota for
+// free. Every request must carry a Supabase access token; it's verified
+// against Supabase Auth, then the caller's own subscriptions row is read
+// (using that same user token, so the existing owner-scoped RLS select
+// policy is what actually grants/denies the read) to decide is_vip / an
+// unexpired is_subscriber before Gemini is ever called.
+function readSupabaseEnv() {
+  const url = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").trim();
+  const anonKey = (
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.VITE_SUPABASE_ANON_KEY ||
+    process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+    ""
+  ).trim();
+  return { url, anonKey };
+}
+
+async function requireActiveSubscriber(accessToken) {
+  const { url, anonKey } = readSupabaseEnv();
+  if (!url || !anonKey) {
+    return { ok: false, status: 500, error: "الخدمة غير مهيأة على الخادم." };
+  }
+  if (!accessToken) {
+    return { ok: false, status: 401, error: "سجّل الدخول أولاً لاستخدام هذه الميزة." };
+  }
+
+  let userId;
+  try {
+    const userRes = await fetch(`${url}/auth/v1/user`, {
+      headers: { Authorization: `Bearer ${accessToken}`, apikey: anonKey },
+    });
+    if (!userRes.ok) return { ok: false, status: 401, error: "جلستك غير صالحة، سجّل الدخول مرة أخرى." };
+    const user = await userRes.json();
+    userId = user?.id;
+    if (!userId) return { ok: false, status: 401, error: "جلستك غير صالحة، سجّل الدخول مرة أخرى." };
+  } catch (e) {
+    console.error("[gemini] auth verification failed:", e);
+    return { ok: false, status: 502, error: "تعذّر التحقق من حسابك الآن، حاول مرة أخرى." };
+  }
+
+  try {
+    const subRes = await fetch(
+      `${url}/rest/v1/subscriptions?owner=eq.${encodeURIComponent(userId)}&select=is_subscriber,subscription_end,is_vip`,
+      { headers: { Authorization: `Bearer ${accessToken}`, apikey: anonKey } }
+    );
+    if (!subRes.ok) return { ok: false, status: 502, error: "تعذّر التحقق من اشتراكك الآن، حاول مرة أخرى." };
+    const rows = await subRes.json();
+    const sub = Array.isArray(rows) ? rows[0] : rows;
+    const today = new Date().toISOString().slice(0, 10);
+    const active = !!sub && (sub.is_vip === true || (sub.is_subscriber === true && sub.subscription_end && sub.subscription_end >= today));
+    if (!active) return { ok: false, status: 403, error: "هذه الميزة متاحة لمشتركي مسار الكامل. اشترك الآن لتفعيلها." };
+    return { ok: true };
+  } catch (e) {
+    console.error("[gemini] subscription check failed:", e);
+    return { ok: false, status: 502, error: "تعذّر التحقق من اشتراكك الآن، حاول مرة أخرى." };
+  }
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod !== "POST") {
     return {
@@ -17,6 +79,17 @@ exports.handler = async (event) => {
       statusCode: 500,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ error: "GEMINI_API_KEY غير مضبوط على الخادم" }),
+    };
+  }
+
+  const authHeader = event.headers?.authorization || event.headers?.Authorization || "";
+  const accessToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+  const gate = await requireActiveSubscriber(accessToken);
+  if (!gate.ok) {
+    return {
+      statusCode: gate.status,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ error: gate.error }),
     };
   }
 

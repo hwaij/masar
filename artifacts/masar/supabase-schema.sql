@@ -311,6 +311,80 @@ create table if not exists subscriptions (
   updated_at         timestamptz default now()
 );
 
+-- المرحلة الثانية: قفل فعلي على مستوى قاعدة البيانات، لا بصري فقط —
+-- هذا هو المصدر الوحيد للحقيقة على الخادم، مطابق لمنطق isActiveSubscriber()
+-- في src/lib/subscription.js من حيث الفكرة (VIP دائم، أو مشترك لم ينتهِ
+-- اشتراكه)، لكنه يقارن بتاريخ الخادم (current_date) لأن هذا فحص صلاحية
+-- خادم لا عرض واجهة. security definer عمداً: تُستدعى هذه الدالة من داخل
+-- سياسات RLS نفسها على جداول لا تملك المستخدم صلاحية قراءة subscriptions
+-- الخاصة بغيره أصلاً، لكن الدالة تحتاج قراءة صف اشتراكه هو تحديداً بمعزل
+-- عن أي سياسة أخرى قد تمنع ذلك أثناء تقييم شرط آخر.
+create or replace function is_active_subscriber(check_owner text)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from subscriptions s
+    where s.owner = check_owner
+      and (s.is_vip = true or (s.is_subscriber = true and s.subscription_end is not null and s.subscription_end >= current_date))
+  );
+$$;
+
+-- حدّ 3 مهام و5 فئات للنسخة المجانية — فحص "before insert" فقط (لا
+-- يعترض تعديل مهمة/فئة موجودة أصلاً عبر upsert، لأن ON CONFLICT DO
+-- UPDATE في Postgres يُشغّل مرحلة BEFORE INSERT أيضاً حتى لو انتهى الأمر
+-- تحديثاً لا إدراجاً — لذلك يُستثنى الصف إن كان معرّفه موجوداً سلفاً).
+create or replace function enforce_tasks_free_limit()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if is_active_subscriber(NEW.owner) then
+    return NEW;
+  end if;
+  if exists (select 1 from tasks where id = NEW.id) then
+    return NEW;
+  end if;
+  if (select count(*) from tasks where owner = NEW.owner) >= 3 then
+    raise exception 'FREE_TIER_TASK_LIMIT' using errcode = 'P0001';
+  end if;
+  return NEW;
+end;
+$$;
+
+drop trigger if exists tasks_free_limit on tasks;
+create trigger tasks_free_limit before insert on tasks
+  for each row execute function enforce_tasks_free_limit();
+
+create or replace function enforce_categories_free_limit()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if is_active_subscriber(NEW.owner) then
+    return NEW;
+  end if;
+  if exists (select 1 from categories where owner = NEW.owner and id = NEW.id) then
+    return NEW;
+  end if;
+  if (select count(*) from categories where owner = NEW.owner) >= 5 then
+    raise exception 'FREE_TIER_CATEGORY_LIMIT' using errcode = 'P0001';
+  end if;
+  return NEW;
+end;
+$$;
+
+drop trigger if exists categories_free_limit on categories;
+create trigger categories_free_limit before insert on categories
+  for each row execute function enforce_categories_free_limit();
+
 -- ============================================================
 -- فهارس الأداء: هذه الجداول مفتاحها الأساسي id فقط (بدون owner)، وكل
 -- قراءة تفلتر بـ owner ثم ترتّب بعمود تاريخ — بدون فهرس هنا كل تحميل
@@ -374,10 +448,15 @@ drop policy if exists profile_anon_solo on profile;
 drop policy if exists profile_user_own on profile;
 create policy profile_user_own on profile for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
 
+-- المرحلة الثانية: "أنجز" ميزة مدفوعة — لا يكفي إخفاؤها في الواجهة، إذ
+-- يستطيع مستخدم غير مشترك يتلاعب بالطلبات مباشرة القراءة/الكتابة هنا
+-- لولا هذا الشرط في RLS نفسه.
 alter table achieve enable row level security;
 drop policy if exists achieve_anon_solo on achieve;
 drop policy if exists achieve_user_own on achieve;
-create policy achieve_user_own on achieve for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+create policy achieve_user_own on achieve for all to authenticated
+  using (owner = auth.uid()::text and is_active_subscriber(auth.uid()::text))
+  with check (owner = auth.uid()::text and is_active_subscriber(auth.uid()::text));
 
 alter table focus_sessions enable row level security;
 drop policy if exists focus_sessions_anon_solo on focus_sessions;
@@ -434,10 +513,13 @@ drop policy if exists health_log_anon_solo on health_log;
 drop policy if exists health_log_user_own on health_log;
 create policy health_log_user_own on health_log for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
 
+-- المرحلة الثانية: "مساعد" ميزة مدفوعة (نفس مبرر achieve أعلاه).
 alter table chat_messages enable row level security;
 drop policy if exists chat_messages_anon_solo on chat_messages;
 drop policy if exists chat_messages_user_own on chat_messages;
-create policy chat_messages_user_own on chat_messages for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+create policy chat_messages_user_own on chat_messages for all to authenticated
+  using (owner = auth.uid()::text and is_active_subscriber(auth.uid()::text))
+  with check (owner = auth.uid()::text and is_active_subscriber(auth.uid()::text));
 
 alter table adhkar_progress enable row level security;
 drop policy if exists adhkar_progress_anon_solo on adhkar_progress;
@@ -449,25 +531,39 @@ drop policy if exists tips_log_anon_solo on tips_log;
 drop policy if exists tips_log_user_own on tips_log;
 create policy tips_log_user_own on tips_log for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
 
+-- المرحلة الثانية: "أهداف" ميزة مدفوعة (نفس مبرر achieve أعلاه).
 alter table goals enable row level security;
 drop policy if exists goals_anon_solo on goals;
 drop policy if exists goals_user_own on goals;
-create policy goals_user_own on goals for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+create policy goals_user_own on goals for all to authenticated
+  using (owner = auth.uid()::text and is_active_subscriber(auth.uid()::text))
+  with check (owner = auth.uid()::text and is_active_subscriber(auth.uid()::text));
 
+-- المرحلة الثانية: "خزنة" ميزة مدفوعة (نفس مبرر achieve أعلاه).
 alter table vault enable row level security;
 drop policy if exists vault_anon_solo on vault;
 drop policy if exists vault_user_own on vault;
-create policy vault_user_own on vault for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+create policy vault_user_own on vault for all to authenticated
+  using (owner = auth.uid()::text and is_active_subscriber(auth.uid()::text))
+  with check (owner = auth.uid()::text and is_active_subscriber(auth.uid()::text));
 
 alter table vault_transactions enable row level security;
 drop policy if exists vault_transactions_anon_solo on vault_transactions;
 drop policy if exists vault_transactions_user_own on vault_transactions;
-create policy vault_transactions_user_own on vault_transactions for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+create policy vault_transactions_user_own on vault_transactions for all to authenticated
+  using (owner = auth.uid()::text and is_active_subscriber(auth.uid()::text))
+  with check (owner = auth.uid()::text and is_active_subscriber(auth.uid()::text));
 
+-- المرحلة الثانية: تتبّع النوم (ضمن "التقارير") ميزة مدفوعة (نفس مبرر
+-- achieve أعلاه). ملاحظة: entries/focus_sessions/categories التي
+-- تعرضها بقية "التقارير" تبقى بلا قفل RLS لأنها مشتركة مع ميزات مجانية
+-- (اليوم، تركيز)، فالقفل هناك يكون في الواجهة فقط، لا هنا.
 alter table sleep_log enable row level security;
 drop policy if exists sleep_log_anon_solo on sleep_log;
 drop policy if exists sleep_log_user_own on sleep_log;
-create policy sleep_log_user_own on sleep_log for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+create policy sleep_log_user_own on sleep_log for all to authenticated
+  using (owner = auth.uid()::text and is_active_subscriber(auth.uid()::text))
+  with check (owner = auth.uid()::text and is_active_subscriber(auth.uid()::text));
 
 -- عمداً: سياسة قراءة فقط، بلا أي "with check" أو سياسة insert/update/
 -- delete — المستخدم يرى حالة اشتراكه ولا يقدر يعدّلها بأي شكل من

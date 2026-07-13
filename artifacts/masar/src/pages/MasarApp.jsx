@@ -130,6 +130,15 @@ const SUB = {
   planLabel: { fontSize: 12, color: "#8A8782", fontWeight: 600 },
   planPrice: { fontFamily: "'Amiri', serif", fontSize: 19, fontWeight: 700, color: "#C9A24B", marginTop: 4 },
   subscribeBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", background: "var(--gold)", color: "var(--bg)", border: "none", borderRadius: 12, padding: "13px 0", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", textDecoration: "none", boxSizing: "border-box" },
+  // بطاقة "التشجيع للاشتراك" التي تحلّ محل أي قسم/ميزة مدفوعة لغير
+  // المشتركين — تدرّج كحلي داكن (بدل التدرّج الدافئ المعتاد للبطاقات
+  // الأخرى) بحدود وأيقونة ذهبية، لتُقرأ كدعوة مميّزة لا كخطأ أو رسالة منع.
+  upsellCard: { background: "linear-gradient(160deg, #10131F, #0A0A0B)", border: "1px solid rgba(201,162,75,0.3)", borderRadius: 18, padding: "30px 20px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 },
+  upsellCardCompact: { padding: "20px 16px", borderRadius: 14, gap: 8 },
+  upsellIconBadge: { width: 48, height: 48, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, background: "linear-gradient(140deg, #E7C378, #C9A24B 60%, #A9822F)", boxShadow: "0 0 0 1px rgba(201,162,75,0.25), 0 4px 18px rgba(201,162,75,0.2)" },
+  upsellTitle: { fontFamily: "'Amiri', serif", fontSize: 18, fontWeight: 700, color: "var(--ink)" },
+  upsellMessage: { fontSize: 13, color: "#B8B5AF", lineHeight: 1.8, maxWidth: 320, margin: 0 },
+  upsellBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "var(--gold)", color: "var(--bg)", border: "none", borderRadius: 12, padding: "12px 22px", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", textDecoration: "none", marginTop: 6 },
 };
 
 export default function MasarApp() {
@@ -158,6 +167,7 @@ export default function MasarApp() {
   const [vaultTx, setVaultTx] = useState([]);
   const [sleepLog, setSleepLog] = useState([]);
   const [subscription, setSubscription] = useState({ isSubscriber: false, subscriptionEnd: null, isVip: false, subscriptionType: null });
+  const isSub = isActiveSubscriber(subscription);
   const [user, setUser] = useState(null);
   const userIdRef = useRef(undefined);
   const loadVersionRef = useRef(0);
@@ -265,12 +275,21 @@ export default function MasarApp() {
     if (showSplash || !loaded || tourOpen || !profile.tourSeen) return;
     const today = localDayKey();
     if (store.getDailyTipShownDate() === today || tipsLog[today]) return;
+    // مستخدم غير مشترك يرى نصيحة يومه الأول فقط (أول يوم استُخدم فيه
+    // الموقع) — أول مفتاح تاريخ في tipsLog، أو اليوم نفسه إن كان السجل
+    // فارغاً بعد (يعني هذا فعلاً أول يوم). الأيام التالية لا تُسجَّل هنا
+    // إطلاقاً حتى لا "يتقدّم" أول يوم محسوب خطأً لغير المشترك.
+    if (!isSub) {
+      const tipsLogKeys = Object.keys(tipsLog);
+      const firstDayKey = tipsLogKeys.length ? tipsLogKeys.sort()[0] : today;
+      if (today !== firstDayKey) return;
+    }
     const tip = pickDailyTip(today, getOwner());
     setDailyTip(tip);
     store.setDailyTipShownDate(today);
     setTipsLog((prev) => ({ ...prev, [today]: tip.id }));
     store.saveTipsLog(today, tip.id);
-  }, [showSplash, loaded, tourOpen, profile.tourSeen]);
+  }, [showSplash, loaded, tourOpen, profile.tourSeen, isSub]);
 
   const aiHistory = useMemo(() => reports.filter((r) => r.gist).map((r) => ({ date: r.date, gist: r.gist })), [reports]);
 
@@ -354,18 +373,29 @@ export default function MasarApp() {
             mandatoryLog={mandatoryLog} setMandatoryLog={setMandatoryLog}
             focus={focus}
             addPoints={addPoints} showToast={showToast}
+            subscription={subscription}
           />
         )}
         {view === "prayer" && <PrayerView prayerLog={prayerLog} setPrayerLog={setPrayerLog} religious={religious} setReligious={setReligious} addPoints={addPoints} showToast={showToast} />}
         {view === "adhkar" && <AdhkarView showToast={showToast} />}
-        {view === "tips" && <TipsView tipsLog={tipsLog} setTipsLog={setTipsLog} showToast={showToast} />}
-        {view === "goals" && <GoalsView goals={goals} setGoals={setGoals} addPoints={addPoints} showToast={showToast} />}
-        {view === "vault" && <VaultView vault={vault} setVault={setVault} vaultTx={vaultTx} setVaultTx={setVaultTx} showToast={showToast} />}
-        {view === "tasks" && <TasksView tasks={tasks} setTasks={setTasks} categories={categories} addPoints={addPoints} showToast={showToast} />}
-        {view === "focus" && <FocusView focus={focus} setFocus={setFocus} commitments={commitments} setCommitments={setCommitments} categories={categories} entries={entries} addPoints={addPoints} showToast={showToast} />}
-        {view === "achieve" && <AchieveView achieve={achieve} setAchieve={setAchieve} profile={profile} focus={focus} tasks={tasks} prayerLog={prayerLog} religious={religious} addPoints={addPoints} showToast={showToast} setView={setView} />}
-        {view === "reports" && <ReportsView entries={entries} categories={categories} focus={focus} profile={profile} sleepLog={sleepLog} setSleepLog={setSleepLog} showToast={showToast} />}
-        {view === "assistant" && <AssistantView entries={entries} tasks={tasks} categories={categories} focus={focus} prayerLog={prayerLog} religious={religious} profile={profile} stats={stats} setView={setView} />}
+        {view === "tips" && <TipsView tipsLog={tipsLog} setTipsLog={setTipsLog} showToast={showToast} subscription={subscription} />}
+        {view === "goals" && (isSub ? <GoalsView goals={goals} setGoals={setGoals} addPoints={addPoints} showToast={showToast} /> : (
+          <div style={S.view}><UpsellCard icon={Target} title="خطّط لأهدافك مع مسار الكامل" message="حدّد أهدافك الأسبوعية والشهرية والسنوية، وتابع إنجازك على تقويم بصري مع مراجعات دورية ومحاسبة بالنقاط." /></div>
+        ))}
+        {view === "vault" && (isSub ? <VaultView vault={vault} setVault={setVault} vaultTx={vaultTx} setVaultTx={setVaultTx} showToast={showToast} /> : (
+          <div style={S.view}><UpsellCard icon={Wallet} title="تتبّع أموالك مع مسار الكامل" message="سجّل رصيدك ومصروفاتك بعملتك، واعرف أين تذهب أموالك بالضبط، مع نصيحة مالية جديدة كل يوم." /></div>
+        ))}
+        {view === "tasks" && <TasksView tasks={tasks} setTasks={setTasks} categories={categories} addPoints={addPoints} showToast={showToast} subscription={subscription} />}
+        {view === "focus" && <FocusView focus={focus} setFocus={setFocus} commitments={commitments} setCommitments={setCommitments} categories={categories} entries={entries} addPoints={addPoints} showToast={showToast} subscription={subscription} />}
+        {view === "achieve" && (isSub ? <AchieveView achieve={achieve} setAchieve={setAchieve} profile={profile} focus={focus} tasks={tasks} prayerLog={prayerLog} religious={religious} addPoints={addPoints} showToast={showToast} setView={setView} /> : (
+          <div style={S.view}><UpsellCard icon={Rocket} title="أنجز ينتظرك في مسار الكامل" message="أنجز يعرف هواياتك ويقترح لك تحديات ومشاريع ومسارات تعلّم تناسبك أنت تحديداً." /></div>
+        ))}
+        {view === "reports" && (isSub ? <ReportsView entries={entries} categories={categories} focus={focus} profile={profile} sleepLog={sleepLog} setSleepLog={setSleepLog} showToast={showToast} /> : (
+          <div style={S.view}><UpsellCard icon={TrendingUp} title="تقاريرك التفصيلية في مسار الكامل" message="شاهد تقدّمك بأرقام وتحليلات واضحة، وتتبّع نومك ونمط راحتك عبر الأيام." /></div>
+        ))}
+        {view === "assistant" && (isSub ? <AssistantView entries={entries} tasks={tasks} categories={categories} focus={focus} prayerLog={prayerLog} religious={religious} profile={profile} stats={stats} setView={setView} /> : (
+          <div style={S.view}><UpsellCard icon={MessageCircle} title="مساعدك الذكي في مسار الكامل" message="مدرّب شخصي يحلّل يومك وعاداتك ويقترح خطوات عملية بناءً على بياناتك الفعلية." /></div>
+        ))}
         {view === "settings" && <SettingsView categories={categories} setCategories={setCategories} gamify={gamify} hasCloud={store.hasCloud} showToast={showToast} profile={profile} setProfile={setProfile} pointsLog={pointsLog} onStartTour={startTour} subscription={subscription} />}
       </div>
       {toast && <div style={S.toast}>{toast}</div>}
@@ -782,7 +812,7 @@ function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSign
   );
 }
 
-function TodayView({ date, setDate, entries, setEntries, categories, tasks, setTasks, reports, setReports, aiHistory, mandatoryLog, setMandatoryLog, focus, addPoints, showToast }) {
+function TodayView({ date, setDate, entries, setEntries, categories, tasks, setTasks, reports, setReports, aiHistory, mandatoryLog, setMandatoryLog, focus, addPoints, showToast, subscription }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState(null);
   const [manualPeriod, setManualPeriod] = useState(null);
@@ -930,6 +960,7 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
       <DailyEvolution
         date={date} dayEntries={dayEntries} catMap={catMap}
         report={dailyReport?.payload} aiHistory={aiHistory}
+        subscription={subscription}
         onSave={async (payload, gist) => {
           const rep = { id: uid(), kind: "daily", date, payload, gist };
           setReports((prev) => [rep, ...prev.filter((r) => !(r.kind === "daily" && r.date === date))]);
@@ -985,10 +1016,14 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
   );
 }
 
-function DailyEvolution({ date, dayEntries, catMap, report, aiHistory, onSave }) {
+function DailyEvolution({ date, dayEntries, catMap, report, aiHistory, onSave, subscription }) {
   const [loading, setLoading] = useState(false);
   const [local, setLocal] = useState(report || null);
   useEffect(() => { setLocal(report || null); }, [report, date]);
+
+  if (!isActiveSubscriber(subscription)) {
+    return <UpsellCard icon={Sun} title="تطوّرك اليوم في مسار الكامل" message="يلخّص مسار يومك ويقترح لك خطوة عملية واحدة للغد، بناءً على أنشطتك الفعلية." compact />;
+  }
 
   async function generate() {
     if (dayEntries.length === 0) { setLocal({ error: "سجّل بعض الأنشطة أولاً حتى أقدر ألخّص يومك." }); return; }
@@ -1045,7 +1080,10 @@ function addDaysKey(dateKey, delta) {
   return todayKey(d);
 }
 
-function TasksView({ tasks, setTasks, categories, addPoints, showToast }) {
+const FREE_TASK_LIMIT = 3;
+
+function TasksView({ tasks, setTasks, categories, addPoints, showToast, subscription }) {
+  const isSub = isActiveSubscriber(subscription);
   const [title, setTitle] = useState("");
   const [catId, setCatId] = useState(categories[0]?.id);
   const [weekStart, setWeekStart] = useState(() => startOfWeekKey(todayKey()));
@@ -1072,6 +1110,10 @@ function TasksView({ tasks, setTasks, categories, addPoints, showToast }) {
 
   async function addTask() {
     if (!title.trim()) return;
+    if (!isSub && tasks.length >= FREE_TASK_LIMIT) {
+      showToast("أنشئ مهامك بلا حدود مع مسار الكامل");
+      return;
+    }
     const t = { id: uid(), title: title.trim(), catId, due: selectedDay, done: false, created: todayKey() };
     setTasks((prev) => [...prev, t]); await store.saveTask(t); setTitle(""); showToast("تمت إضافة المهمة");
   }
@@ -1137,6 +1179,10 @@ function TasksView({ tasks, setTasks, categories, addPoints, showToast }) {
           ))}
         </div>
       </div>
+
+      {!isSub && tasks.length >= FREE_TASK_LIMIT && (
+        <UpsellCard icon={ListChecks} title="مهام بلا حدود مع مسار الكامل" message="نظّم كل مهامك بلا سقف، واحصل على تذكيرات ومتابعة كاملة لكل يوم." compact />
+      )}
 
       <div style={S.taskList} className="stagger-in">
         {selectedList.length === 0 && <div style={S.emptyState}><div style={S.emptyStateTitle}>لا مهام هذا اليوم</div><div style={S.emptyStateSub}>أضف مهمة لتبدأ التخطيط</div></div>}
@@ -1969,7 +2015,8 @@ const TS = {
   archiveText: { fontFamily: "'Amiri', serif", fontSize: 14.5, lineHeight: 1.8, color: "#C9C6C0" },
 };
 
-function TipsView({ tipsLog, setTipsLog, showToast }) {
+function TipsView({ tipsLog, setTipsLog, showToast, subscription }) {
+  const isSub = isActiveSubscriber(subscription);
   // Deliberately NOT todayKey() (UTC-based, a quirk relied on elsewhere in
   // the app) — the daily tip must flip at the user's own local midnight,
   // not at UTC midnight, so this uses the local calendar date throughout:
@@ -2016,7 +2063,17 @@ function TipsView({ tipsLog, setTipsLog, showToast }) {
     }
   }, [today]);
 
+  // مستخدم غير مشترك يرى نصيحة يومه الأول فقط — أول مفتاح تاريخ مسجّل
+  // في tipsLog، أو اليوم نفسه إن كان السجل فارغاً بعد (يعني هذا فعلاً
+  // أول يوم). المشترك/VIP لا يخضع لهذا الشرط إطلاقاً.
+  const firstDayKey = useMemo(() => {
+    const keys = Object.keys(tipsLog || {});
+    return keys.length ? keys.sort()[0] : today;
+  }, [tipsLog, today]);
+  const canSeeTodayTip = isSub || today === firstDayKey;
+
   useEffect(() => {
+    if (!canSeeTodayTip) return; // لا نسجّل نصيحة يوم لم يُعرَض له فعلاً
     try {
       if ((tipsLog || {})[today] === todayTip.id) return;
       setTipsLog((prev) => ({ ...(prev || {}), [today]: todayTip.id }));
@@ -2024,7 +2081,7 @@ function TipsView({ tipsLog, setTipsLog, showToast }) {
     } catch (e) {
       console.warn("[TipsView] could not record today's tip in the log:", e);
     }
-  }, [today, todayTip.id]);
+  }, [today, todayTip.id, canSeeTodayTip]);
 
   const archive = useMemo(
     () => Object.entries(tipsLog || {})
@@ -2045,17 +2102,23 @@ function TipsView({ tipsLog, setTipsLog, showToast }) {
             <div style={TS.heroSub}>نصيحة جديدة كل يوم، بين الدنيا والدين.</div>
           </div>
         </div>
-        <div style={TS.dateLabel}>{arabicDate(new Date(), { weekday: "long", day: "numeric", month: "long" })}</div>
-        <div style={TS.card}>
-          <div style={TS.ornament}>
-            <span style={TS.ornamentLine} /><span style={TS.ornamentDot}>◆</span><span style={TS.ornamentLineRev} />
-          </div>
-          <p style={TS.quoteText}>{todayTip.text}</p>
-          <div style={TS.footerRow}>
-            <span style={TS.categoryPill}>{TIP_CATEGORY_LABELS[todayTip.category] || "حكمة"}</span>
-          </div>
-        </div>
-        <div style={TS.footerNote}>عد غداً لتجد نصيحة جديدة بانتظارك</div>
+        {canSeeTodayTip ? (
+          <>
+            <div style={TS.dateLabel}>{arabicDate(new Date(), { weekday: "long", day: "numeric", month: "long" })}</div>
+            <div style={TS.card}>
+              <div style={TS.ornament}>
+                <span style={TS.ornamentLine} /><span style={TS.ornamentDot}>◆</span><span style={TS.ornamentLineRev} />
+              </div>
+              <p style={TS.quoteText}>{todayTip.text}</p>
+              <div style={TS.footerRow}>
+                <span style={TS.categoryPill}>{TIP_CATEGORY_LABELS[todayTip.category] || "حكمة"}</span>
+              </div>
+            </div>
+            <div style={TS.footerNote}>عد غداً لتجد نصيحة جديدة بانتظارك</div>
+          </>
+        ) : (
+          <UpsellCard icon={Eye} title="نصيحة يومية متجددة في مسار الكامل" message="استمتعت بنصيحة يومك الأول. احصل على حكمة جديدة كل يوم بين الدنيا والدين مع مشتركي مسار الكامل." />
+        )}
 
         {archive.length > 0 && (
           <>
@@ -2573,7 +2636,8 @@ const VS = {
   logReason: { fontSize: 12.5, color: "#C9C6C0", lineHeight: 1.6 },
 };
 
-function FocusView({ focus, setFocus, commitments, setCommitments, categories, entries, addPoints, showToast }) {
+function FocusView({ focus, setFocus, commitments, setCommitments, categories, entries, addPoints, showToast, subscription }) {
+  const isSub = isActiveSubscriber(subscription);
   const [targetMin, setTargetMin] = useState(25);
   const [remaining, setRemaining] = useState(25 * 60);
   const [running, setRunning] = useState(false);
@@ -2815,9 +2879,15 @@ function FocusView({ focus, setFocus, commitments, setCommitments, categories, e
           <CommitmentsSection commitments={commitments} setCommitments={setCommitments} categories={categories} focus={focus} showToast={showToast} />
         </>
       )}
-      {subTab === "study" && <FocusReport focus={focus.filter((f) => f.isStudy)} studyEntries={studyEntries} title="تقرير الدراسة" color="#5FA8A0" emptyMsg="لا جلسات دراسة بعد. شغّل المؤقت بوضع دراسة." />}
-      {subTab === "general" && <FocusReport focus={focus.filter((f) => !f.isStudy)} title="التقرير العام" color="#C9A24B" emptyMsg="لا جلسات عامة بعد. شغّل المؤقت بوضع نشاط عام." />}
-      {subTab === "bots" && <BotsChallenge focus={focus} entries={entries} categories={categories} />}
+      {subTab === "study" && (isSub ? <FocusReport focus={focus.filter((f) => f.isStudy)} studyEntries={studyEntries} title="تقرير الدراسة" color="#5FA8A0" emptyMsg="لا جلسات دراسة بعد. شغّل المؤقت بوضع دراسة." /> : (
+        <UpsellCard icon={BookOpen} title="تقرير الدراسة في مسار الكامل" message="تتبّع تفاصيل جلسات دراستك وتقدّمك فيها بشكل منظّم عبر الأيام." compact />
+      ))}
+      {subTab === "general" && (isSub ? <FocusReport focus={focus.filter((f) => !f.isStudy)} title="التقرير العام" color="#C9A24B" emptyMsg="لا جلسات عامة بعد. شغّل المؤقت بوضع نشاط عام." /> : (
+        <UpsellCard icon={BookOpen} title="التقرير العام في مسار الكامل" message="شاهد تفاصيل كل جلسات تركيزك العامة وتوزيعها عبر الأيام." compact />
+      ))}
+      {subTab === "bots" && (isSub ? <BotsChallenge focus={focus} entries={entries} categories={categories} /> : (
+        <UpsellCard icon={Zap} title="التحدي في مسار الكامل" message="نافس شخصيات تحدٍّ واقعية بوقت تركيزك اليومي، وشاهد ترتيبك بينها." compact />
+      ))}
       {pendingCompletion && (
         <div style={S.modalOverlay} onClick={() => { setPendingCompletion(null); setPickingTime(false); }}>
           <div style={S.modal} onClick={(e) => e.stopPropagation()}>
@@ -3339,7 +3409,10 @@ function AchieveCard({ item, kindLabel, onToggle, onRemove }) {
   );
 }
 
+const FREE_CATEGORY_LIMIT = 5;
+
 function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, profile, setProfile, pointsLog, onStartTour, subscription }) {
+  const isSub = isActiveSubscriber(subscription);
   const [editing, setEditing] = useState(null);
   // While a category is being renamed, edits live here only — nothing is
   // persisted per keystroke. Firing a save on every character raced N
@@ -3354,6 +3427,10 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
   async function addCategory() {
     const name = newName.trim();
     if (!name) return;
+    if (!isSub && categories.length >= FREE_CATEGORY_LIMIT) {
+      showToast("أنشئ فئاتك بلا حدود مع مسار الكامل");
+      return;
+    }
     const cat = { id: uid(), name, color: newColor };
     setCategories((prev) => [...prev, cat]);
     const ok = await store.saveCategory(cat);
@@ -3450,6 +3527,9 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
           </div>
         </div>
       </div>
+      {!isSub && categories.length >= FREE_CATEGORY_LIMIT && (
+        <UpsellCard icon={Palette} title="فئات بلا حدود مع مسار الكامل" message="نظّم أنشطتك بأي عدد من الفئات الملوّنة التي تناسب حياتك." compact />
+      )}
       {pointsLog && pointsLog.length > 0 && (
         <div style={S.catEditorCard}>
           <div style={S.catEditorHeader}><span style={{ fontSize: 14 }}>📋</span><span>سجل النقاط</span></div>
@@ -3474,6 +3554,22 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
 }
 
 const SUBSCRIBE_WHATSAPP_URL = "https://wa.me/96555765553";
+
+// بطاقة تشجيع عامة تحلّ محل أي قسم/ميزة مدفوعة لغير المشترك. الرسالة
+// تركّز دائماً على القيمة التي يفوّتها المستخدم، لا على "ادفع"، بأسلوب
+// دعوة راقية غير مُلحّة — انظر تعليق SUB.upsellCard أعلاه لتبرير التصميم.
+function UpsellCard({ icon: Icon = Crown, title, message, compact }) {
+  return (
+    <div style={{ ...SUB.upsellCard, ...(compact ? SUB.upsellCardCompact : {}) }}>
+      <div style={SUB.upsellIconBadge}><Icon size={compact ? 20 : 26} color="#0A0A0B" /></div>
+      <div style={SUB.upsellTitle}>{title}</div>
+      <p style={SUB.upsellMessage}>{message}</p>
+      <a href={SUBSCRIBE_WHATSAPP_URL} target="_blank" rel="noopener noreferrer" style={SUB.upsellBtn}>
+        <Send size={15} /> اشترك الآن
+      </a>
+    </div>
+  );
+}
 
 function SubscriptionCard({ subscription }) {
   const isVip = !!subscription?.isVip;

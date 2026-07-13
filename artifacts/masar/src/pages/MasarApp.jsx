@@ -15,13 +15,14 @@ import {
   MessageCircle, Send,
   LogIn, LogOut,
   Heart, GraduationCap, Eye, AlertTriangle,
-  Wallet, ArrowDownCircle, ArrowUpCircle,
+  Wallet, ArrowDownCircle, ArrowUpCircle, Crown,
 } from "lucide-react";
 import { fivePrayers, nextPrayer, to12h } from "../lib/prayer";
 import { ADHKAR_CATEGORIES, ADHKAR } from "../lib/adhkar";
 import { store, setOwner, getOwner } from "../lib/store";
 import { pickDailyTip, TIP_CATEGORY_LABELS, localDayKey, TIPS } from "../lib/tips";
 import { pickDailyMoneyTip, MONEY_TIP_CATEGORY_LABELS } from "../lib/money-tips";
+import { isActiveSubscriber } from "../lib/subscription";
 import { createGoal, isReviewDue, GOAL_PERIODS, GOAL_POINTS_SUCCESS, GOAL_POINTS_FAILURE } from "../lib/goals";
 import { getSession, onAuthChange, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut, userFromSession, hasAuth } from "../lib/auth";
 import {
@@ -112,6 +113,25 @@ const HS = {
   chatSend: { background: "var(--gold)", color: "var(--bg)", border: "none", borderRadius: 12, width: 46, height: 44, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 },
 };
 
+// شارة الاشتراك في الشريط العلوي، ونمط بطاقة الاشتراك في "التخصيص".
+const SUB = {
+  subBadge: { display: "flex", alignItems: "center", justifyContent: "center", width: 18, height: 18, borderRadius: "50%", background: "var(--gold)", color: "#0A0A0B", flexShrink: 0 },
+  vipBadge: { display: "flex", alignItems: "center", justifyContent: "center", width: 18, height: 18, borderRadius: "50%", background: "linear-gradient(140deg, #E7C378, #C9A24B 55%, #8B6914)", color: "#0A0A0B", flexShrink: 0, boxShadow: "0 0 0 1px rgba(201,162,75,0.4)" },
+  card: { background: "linear-gradient(160deg, #17140C, #121214)", border: "1px solid rgba(201,162,75,0.3)", borderRadius: 16, padding: "16px 14px", marginBottom: 16 },
+  head: { display: "flex", alignItems: "center", gap: 12, marginBottom: 14 },
+  iconBadge: { width: 42, height: 42, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, background: "linear-gradient(140deg, #E7C378, #C9A24B 60%, #A9822F)", boxShadow: "0 0 0 1px rgba(201,162,75,0.25)" },
+  title: { fontFamily: "'Amiri', serif", fontSize: 17, fontWeight: 700, color: "var(--ink)" },
+  subtitle: { fontSize: 12, color: "#B8B5AF", marginTop: 3, lineHeight: 1.6 },
+  statusRow: { display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(201,162,75,0.08)", border: "1px solid rgba(201,162,75,0.25)", borderRadius: 10, padding: "10px 12px" },
+  statusLabel: { fontSize: 12.5, color: "#8A8782" },
+  statusValue: { fontSize: 13, fontWeight: 700, color: "#C9A24B" },
+  plansRow: { display: "flex", gap: 10, marginBottom: 14 },
+  planCard: { flex: 1, background: "#0F0F11", border: "1px solid var(--line)", borderRadius: 12, padding: "12px 8px", textAlign: "center" },
+  planLabel: { fontSize: 12, color: "#8A8782", fontWeight: 600 },
+  planPrice: { fontFamily: "'Amiri', serif", fontSize: 19, fontWeight: 700, color: "#C9A24B", marginTop: 4 },
+  subscribeBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", background: "var(--gold)", color: "var(--bg)", border: "none", borderRadius: 12, padding: "13px 0", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", textDecoration: "none", boxSizing: "border-box" },
+};
+
 export default function MasarApp() {
   const [loaded, setLoaded] = useState(false);
   const [showSplash, setShowSplash] = useState(() => !sessionStorage.getItem("masar_splash_done"));
@@ -137,25 +157,26 @@ export default function MasarApp() {
   const [vault, setVault] = useState(null);
   const [vaultTx, setVaultTx] = useState([]);
   const [sleepLog, setSleepLog] = useState([]);
+  const [subscription, setSubscription] = useState({ isSubscriber: false, subscriptionEnd: null, isVip: false, subscriptionType: null });
   const [user, setUser] = useState(null);
   const userIdRef = useRef(undefined);
   const loadVersionRef = useRef(0);
 
   const loadAll = useCallback(async () => {
       const myVersion = ++loadVersionRef.current;
-      const [c, e, t, r, g, p, a, f, cm, pl, rel, ml, plog, tl, gl, vlt, vtx, sl] = await Promise.all([
+      const [c, e, t, r, g, p, a, f, cm, pl, rel, ml, plog, tl, gl, vlt, vtx, sl, sub] = await Promise.all([
         store.loadCategories(), store.loadEntries(), store.loadTasks(),
         store.loadReports(), store.loadGamify(), store.loadProfile(), store.loadAchieve(),
         store.loadFocus(), store.loadCommitments(), store.loadPrayerLog(), store.loadReligious(),
         store.loadMandatoryLog(), store.loadPointsLog(), store.loadTipsLog(), store.loadGoals(),
-        store.loadVault(), store.loadVaultTransactions(), store.loadSleepLog(),
+        store.loadVault(), store.loadVaultTransactions(), store.loadSleepLog(), store.loadSubscription(),
       ]);
       if (loadVersionRef.current !== myVersion) return;
       setCategories(c); setEntries(e); setTasks(t); setReports(r); setGamify(g);
       setProfile(p); setAchieve(a); setFocus(f); setCommitments(cm);
       setPrayerLog(pl); setReligious(rel);
       setMandatoryLog(ml); setPointsLog(plog); setTipsLog(tl); setGoals(gl);
-      setVault(vlt); setVaultTx(vtx); setSleepLog(sl);
+      setVault(vlt); setVaultTx(vtx); setSleepLog(sl); setSubscription(sub);
 
       const today = todayKey();
       const lastOpen = localStorage.getItem("masar_last_open");
@@ -321,7 +342,7 @@ export default function MasarApp() {
 
   return (
     <div style={S.app} className="masar-app">
-      <Header view={view} setView={setView} gamify={gamify} stats={stats} hasCloud={store.hasCloud} user={user} onSignIn={handleSignIn} onSignOut={handleSignOut} />
+      <Header view={view} setView={setView} gamify={gamify} stats={stats} hasCloud={store.hasCloud} user={user} onSignIn={handleSignIn} onSignOut={handleSignOut} subscription={subscription} />
       <div style={S.body} key={view} className="view-fade masar-body">
         {view === "today" && (
           <TodayView
@@ -345,7 +366,7 @@ export default function MasarApp() {
         {view === "achieve" && <AchieveView achieve={achieve} setAchieve={setAchieve} profile={profile} focus={focus} tasks={tasks} prayerLog={prayerLog} religious={religious} addPoints={addPoints} showToast={showToast} setView={setView} />}
         {view === "reports" && <ReportsView entries={entries} categories={categories} focus={focus} profile={profile} sleepLog={sleepLog} setSleepLog={setSleepLog} showToast={showToast} />}
         {view === "assistant" && <AssistantView entries={entries} tasks={tasks} categories={categories} focus={focus} prayerLog={prayerLog} religious={religious} profile={profile} stats={stats} setView={setView} />}
-        {view === "settings" && <SettingsView categories={categories} setCategories={setCategories} gamify={gamify} hasCloud={store.hasCloud} showToast={showToast} profile={profile} setProfile={setProfile} pointsLog={pointsLog} onStartTour={startTour} />}
+        {view === "settings" && <SettingsView categories={categories} setCategories={setCategories} gamify={gamify} hasCloud={store.hasCloud} showToast={showToast} profile={profile} setProfile={setProfile} pointsLog={pointsLog} onStartTour={startTour} subscription={subscription} />}
       </div>
       {toast && <div style={S.toast}>{toast}</div>}
       {tourOpen && <OnboardingTour onClose={closeTour} />}
@@ -692,7 +713,9 @@ function TasbihIcon({ size = 15 }) {
   );
 }
 
-function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSignOut }) {
+function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSignOut, subscription }) {
+  const isVip = !!subscription?.isVip;
+  const isSub = isActiveSubscriber(subscription);
   const tabs = [
     { id: "today", label: "اليوم", icon: Clock },
     { id: "prayer", label: "الصلاة", icon: Moon },
@@ -712,7 +735,15 @@ function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSign
   return (
     <div style={S.header} className="masar-header">
       <div style={S.headerTop}>
-        <div style={S.brand}><img src="/logo-mark.png" alt="" style={S.brandLogo} /><span style={S.brandText}>مسار</span></div>
+        <div style={S.brand}>
+          <img src="/logo-mark.png" alt="" style={S.brandLogo} />
+          <span style={S.brandText}>مسار</span>
+          {isVip ? (
+            <span title="عضو VIP دائم" style={SUB.vipBadge}><Crown size={11} /></span>
+          ) : isSub ? (
+            <span title="مشترك في مسار" style={SUB.subBadge}><Star size={11} fill="#0A0A0B" /></span>
+          ) : null}
+        </div>
         <div style={S.headerStats}>
           <span style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.25)", borderRadius: 10, padding: "3px 8px", fontSize: 11.5, color: "#C9A24B", fontWeight: 700 }}>
             <Star size={11} color="#C9A24B" /> {lv.label} {lv.level}
@@ -3308,7 +3339,7 @@ function AchieveCard({ item, kindLabel, onToggle, onRemove }) {
   );
 }
 
-function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, profile, setProfile, pointsLog, onStartTour }) {
+function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, profile, setProfile, pointsLog, onStartTour, subscription }) {
   const [editing, setEditing] = useState(null);
   // While a category is being renamed, edits live here only — nothing is
   // persisted per keystroke. Firing a save on every character raced N
@@ -3360,6 +3391,7 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
     <div style={S.view}>
       <div style={S.sectionTitle}>التخصيص</div>
       <ProfileCard profile={profile} setProfile={setProfile} showToast={showToast} />
+      <SubscriptionCard subscription={subscription} />
       <button onClick={onStartTour} style={S.exportBtn}><GraduationCap size={15} /> إعادة الجولة التعريفية</button>
       {!hasCloud && (
         <div style={S.setupCard}>
@@ -3437,6 +3469,62 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
         </div>
       )}
       <RoadmapCard />
+    </div>
+  );
+}
+
+const SUBSCRIBE_WHATSAPP_URL = "https://wa.me/96555765553";
+
+function SubscriptionCard({ subscription }) {
+  const isVip = !!subscription?.isVip;
+  const active = isActiveSubscriber(subscription);
+
+  let endLabel = null;
+  if (active && !isVip && subscription?.subscriptionEnd) {
+    const [y, m, d] = subscription.subscriptionEnd.split("-").map(Number);
+    endLabel = arabicDate(new Date(y, m - 1, d), { day: "numeric", month: "long", year: "numeric" });
+  }
+
+  return (
+    <div style={SUB.card}>
+      <div style={SUB.head}>
+        <div style={SUB.iconBadge}>{isVip ? <Crown size={20} color="#0A0A0B" /> : <Star size={20} color="#0A0A0B" />}</div>
+        <div>
+          <div style={SUB.title}>{isVip ? "عضويتك VIP" : active ? "اشتراكك في مسار" : "اشترك في مسار"}</div>
+          <div style={SUB.subtitle}>
+            {isVip
+              ? "عضوية دائمة مميزة، بلا أي تاريخ انتهاء 👑"
+              : active
+              ? `اشتراك ${subscription.subscriptionType === "yearly" ? "سنوي" : "شهري"} فعّال`
+              : "افتح كل إمكانيات مسار بأقل تكلفة"}
+          </div>
+        </div>
+      </div>
+
+      {active && !isVip && endLabel && (
+        <div style={SUB.statusRow}>
+          <span style={SUB.statusLabel}>ينتهي في</span>
+          <span style={SUB.statusValue}>{endLabel}</span>
+        </div>
+      )}
+
+      {!active && (
+        <>
+          <div style={SUB.plansRow}>
+            <div style={SUB.planCard}>
+              <div style={SUB.planLabel}>شهري</div>
+              <div style={SUB.planPrice}>3 د.ك</div>
+            </div>
+            <div style={SUB.planCard}>
+              <div style={SUB.planLabel}>سنوي</div>
+              <div style={SUB.planPrice}>25 د.ك</div>
+            </div>
+          </div>
+          <a href={SUBSCRIBE_WHATSAPP_URL} target="_blank" rel="noopener noreferrer" style={SUB.subscribeBtn}>
+            <Send size={15} /> اشترك الآن عبر واتساب
+          </a>
+        </>
+      )}
     </div>
   );
 }

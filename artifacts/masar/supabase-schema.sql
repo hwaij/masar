@@ -295,6 +295,22 @@ create table if not exists sleep_log (
 );
 create index if not exists sleep_log_owner_date on sleep_log (owner, date);
 
+-- نظام الاشتراكات (المرحلة الأولى: أساس الصلاحيات فقط، بلا قفل ميزات
+-- بعد). صف واحد لكل مستخدم. is_vip = عضوية دائمة مجانية لا تنتهي أبداً.
+-- subscription_end تاريخ تقويمي بسيط (لا وقت ولا منطقة زمنية) يقارَن
+-- بالتاريخ المحلي للمستخدم (localDayKey) في الكود، لا UTC.
+-- أمان متعمّد: لا توجد أي سياسة insert/update/delete لدور authenticated
+-- أدناه، فتُرفض هذه العمليات تلقائياً بمجرد تفعيل RLS — التفعيل يتم
+-- حصراً يدوياً من لوحة Supabase (بصلاحية service_role التي تتجاوز RLS).
+create table if not exists subscriptions (
+  owner              text primary key,
+  is_subscriber      boolean not null default false,
+  subscription_end   date,
+  is_vip             boolean not null default false,
+  subscription_type  text check (subscription_type in ('monthly', 'yearly')),
+  updated_at         timestamptz default now()
+);
+
 -- ============================================================
 -- فهارس الأداء: هذه الجداول مفتاحها الأساسي id فقط (بدون owner)، وكل
 -- قراءة تفلتر بـ owner ثم ترتّب بعمود تاريخ — بدون فهرس هنا كل تحميل
@@ -452,3 +468,12 @@ alter table sleep_log enable row level security;
 drop policy if exists sleep_log_anon_solo on sleep_log;
 drop policy if exists sleep_log_user_own on sleep_log;
 create policy sleep_log_user_own on sleep_log for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
+-- عمداً: سياسة قراءة فقط، بلا أي "with check" أو سياسة insert/update/
+-- delete — المستخدم يرى حالة اشتراكه ولا يقدر يعدّلها بأي شكل من
+-- الواجهة أو الشبكة مهما فعل، لا الآن ولا لاحقاً ما دامت هذه السياسة
+-- الوحيدة قائمة.
+alter table subscriptions enable row level security;
+drop policy if exists subscriptions_anon_solo on subscriptions;
+drop policy if exists subscriptions_select_own on subscriptions;
+create policy subscriptions_select_own on subscriptions for select to authenticated using (owner = auth.uid()::text);

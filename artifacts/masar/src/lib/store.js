@@ -655,4 +655,26 @@ export const store = {
     }
     return true;
   },
+
+  // نظام الاشتراكات: قراءة فقط، بلا أي دالة حفظ في هذا الملف عمداً — لا
+  // مسار برمجي في التطبيق يقدر يكتب لجدول subscriptions إطلاقاً، وحتى
+  // لو استُدعي كود عميل مُخترَق مباشرة، RLS في قاعدة البيانات (سياسة
+  // select فقط) يرفض أي محاولة تعديل بغض النظر عن الكود هنا. لا تخزين
+  // محلي أيضاً: حالة الاشتراك تُقرأ من الخادم مباشرة في كل تحميل، وتعود
+  // "غير مشترك" افتراضياً لأي حساب ضيف أو عند تعذّر القراءة.
+  async loadSubscription() {
+    const empty = { isSubscriber: false, subscriptionEnd: null, isVip: false, subscriptionType: null };
+    if (!useCloud()) return empty;
+    try {
+      const { data, error } = await supabase.from("subscriptions").select("*").eq("owner", CURRENT_OWNER).maybeSingle();
+      if (error) { console.error("[loadSubscription] Supabase error:", error.message); return empty; }
+      if (!data) return empty;
+      return {
+        isSubscriber: !!data.is_subscriber,
+        subscriptionEnd: data.subscription_end,
+        isVip: !!data.is_vip,
+        subscriptionType: data.subscription_type,
+      };
+    } catch (e) { console.error("[loadSubscription] read failed:", e); return empty; }
+  },
 };

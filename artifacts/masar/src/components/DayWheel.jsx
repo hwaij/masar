@@ -116,7 +116,7 @@ export default function DayWheel({ entries, catMap, size = 224, onSelect, glow, 
             />
           );
         })}
-        <circle cx={cx} cy={cy} r={rInner - 2} fill="#101012" />
+        <circle cx={cx} cy={cy} r={rInner - 2} fill="var(--surface-sunken)" />
       </svg>
       {activeEntry ? (
         <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", textAlign: "center", pointerEvents: "none", width: rInner * 1.6 }}>

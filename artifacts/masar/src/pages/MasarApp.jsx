@@ -830,24 +830,8 @@ function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSign
         <div style={S.brand}>
           <img src="/logo-mark.png" alt="" style={S.brandLogo} />
           <span style={S.brandText}>مسار</span>
-          {isVip ? (
-            <span title="عضو VIP دائم" style={SUB.vipBadge}><Crown size={11} /></span>
-          ) : isSub ? (
-            <span title="مشترك في مسار" style={SUB.subBadge}><Star size={11} fill="var(--on-accent)" /></span>
-          ) : null}
         </div>
-        <div style={S.headerStats}>
-          <span style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.25)", borderRadius: 10, padding: "3px 8px", fontSize: 11.5, color: "#C9A24B", fontWeight: 700 }}>
-            <Star size={11} color="#C9A24B" /> {lv.label} {lv.level}
-            <span style={{ width: 36, height: 4, borderRadius: 2, background: "var(--surface-raised)", overflow: "hidden", marginRight: 2 }}>
-              <span style={{ display: "block", height: "100%", width: `${Math.round(lvProgress * 100)}%`, background: "#C9A24B", borderRadius: 2 }} />
-            </span>
-          </span>
-          <span title={hasCloud ? "متصل بالسحابة" : "تخزين محلي"} style={{ ...S.cloudDot, background: hasCloud ? "rgba(95,168,160,0.15)" : "rgba(107,104,99,0.15)", color: hasCloud ? "#5FA8A0" : "var(--muted2)", display: "flex", alignItems: "center", gap: 4 }}>
-            {hasCloud ? <Cloud size={11} /> : <CloudOff size={11} />}
-          </span>
-          <span style={S.hStat}><Flame size={13} color="#D17B5F" /> {stats.streak}</span>
-          <span style={S.hStat}><Star size={13} color="#C9A24B" /> {gamify.points}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <button
             onClick={toggleTheme}
             title={theme === "dark" ? "التبديل إلى الوضع الفاتح" : "التبديل إلى الوضع الداكن"}
@@ -856,16 +840,39 @@ function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSign
             {theme === "dark" ? <Moon size={12} /> : <Sun size={12} />}
           </button>
           {hasAuth && (user ? (
-            <button onClick={onSignOut} title={`${user.name || user.email} · تسجيل الخروج`} style={{ display: "flex", alignItems: "center", gap: 4, background: "rgba(95,168,160,0.12)", border: "1px solid rgba(95,168,160,0.3)", color: "#5FA8A0", borderRadius: 10, padding: "3px 7px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-              {user.avatar ? <img src={user.avatar} alt="" style={{ width: 16, height: 16, borderRadius: "50%" }} /> : <User size={12} />}
+            <button onClick={onSignOut} title={`${user.name || user.email} · تسجيل الخروج`} style={{ position: "relative", display: "flex", alignItems: "center", gap: 4, background: "rgba(95,168,160,0.12)", border: "1px solid rgba(95,168,160,0.3)", color: "#5FA8A0", borderRadius: 10, padding: "3px 7px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+              {user.avatar ? <img src={user.avatar} alt="" style={{ width: 20, height: 20, borderRadius: "50%" }} /> : <User size={14} />}
+              {isVip ? (
+                <span title="عضو VIP دائم" style={{ ...SUB.vipBadge, position: "absolute", top: -6, insetInlineStart: -6, width: 15, height: 15 }}><Crown size={9} /></span>
+              ) : isSub ? (
+                <span title="مشترك في مسار" style={{ ...SUB.subBadge, position: "absolute", top: -6, insetInlineStart: -6, width: 15, height: 15 }}><Star size={9} fill="var(--on-accent)" /></span>
+              ) : null}
               <LogOut size={11} />
             </button>
           ) : (
-            <button onClick={onSignIn} title="تسجيل الدخول بحساب Google" style={{ display: "flex", alignItems: "center", gap: 4, background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.3)", color: "#C9A24B", borderRadius: 10, padding: "3px 8px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+            <button onClick={onSignIn} title="تسجيل الدخول بحساب Google" style={{ position: "relative", display: "flex", alignItems: "center", gap: 4, background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.3)", color: "#C9A24B", borderRadius: 10, padding: "3px 8px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+              {isVip ? (
+                <span title="عضو VIP دائم" style={{ ...SUB.vipBadge, position: "absolute", top: -6, insetInlineStart: -6, width: 15, height: 15 }}><Crown size={9} /></span>
+              ) : isSub ? (
+                <span title="مشترك في مسار" style={{ ...SUB.subBadge, position: "absolute", top: -6, insetInlineStart: -6, width: 15, height: 15 }}><Star size={9} fill="var(--on-accent)" /></span>
+              ) : null}
               <LogIn size={11} /> دخول
             </button>
           ))}
         </div>
+      </div>
+      <div style={S.headerStats}>
+        <span style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.25)", borderRadius: 10, padding: "3px 8px", fontSize: 11.5, color: "#C9A24B", fontWeight: 700 }}>
+          <Star size={11} color="#C9A24B" /> {lv.label} {lv.level}
+          <span style={{ width: 36, height: 4, borderRadius: 2, background: "var(--surface-raised)", overflow: "hidden", marginRight: 2 }}>
+            <span style={{ display: "block", height: "100%", width: `${Math.round(lvProgress * 100)}%`, background: "#C9A24B", borderRadius: 2 }} />
+          </span>
+        </span>
+        <span title={hasCloud ? "متصل بالسحابة" : "تخزين محلي"} style={{ ...S.cloudDot, background: hasCloud ? "rgba(95,168,160,0.15)" : "rgba(107,104,99,0.15)", color: hasCloud ? "#5FA8A0" : "var(--muted2)", display: "flex", alignItems: "center", gap: 4 }}>
+          {hasCloud ? <Cloud size={11} /> : <CloudOff size={11} />}
+        </span>
+        <span style={S.hStat}><Flame size={13} color="#D17B5F" /> {stats.streak}</span>
+        <span style={S.hStat}><Star size={13} color="#C9A24B" /> {gamify.points}</span>
       </div>
       <div style={S.tabs}>
         {tabs.map((t) => {

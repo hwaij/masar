@@ -5,7 +5,7 @@ export const S = {
   brand: { display: "flex", alignItems: "center", gap: 8 },
   brandLogo: { width: 30, height: 30, flexShrink: 0, filter: "drop-shadow(0 0 6px rgba(201,162,75,0.35))" },
   brandText: { fontFamily: "'Amiri', serif", fontSize: 22, fontWeight: 700 },
-  headerStats: { display: "flex", gap: 8, alignItems: "center" },
+  headerStats: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 12 },
   cloudDot: { fontSize: 10, padding: "3px 8px", borderRadius: 20, fontWeight: 700 },
   hStat: { display: "flex", alignItems: "center", gap: 4, fontSize: 12.5, color: "var(--muted2)", background: "var(--surface-sunken)", border: "1px solid var(--surface-raised)", borderRadius: 20, padding: "4px 10px", fontVariantNumeric: "tabular-nums" },
   tabs: { display: "flex", gap: 2, overflowX: "auto" },

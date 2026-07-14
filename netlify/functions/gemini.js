@@ -23,10 +23,31 @@ function readSupabaseEnv() {
   return { url, anonKey };
 }
 
+// راية الفتح المجاني المؤقت (app_flags.free_for_all). فحص عام لا يحتاج
+// أي رمز مصادقة، حتى تعمل للضيوف غير المسجّلين أيضاً — جدول app_flags
+// مقروء عامةً (anon) بحسب سياسة RLS الخاصة به.
+async function isFreeForAllActive(url, anonKey) {
+  try {
+    const res = await fetch(`${url}/rest/v1/app_flags?id=eq.global&select=free_for_all`, {
+      headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
+    });
+    if (!res.ok) return false;
+    const rows = await res.json();
+    const row = Array.isArray(rows) ? rows[0] : rows;
+    return !!row?.free_for_all;
+  } catch (e) {
+    console.error("[gemini] free_for_all flag check failed:", e);
+    return false;
+  }
+}
+
 async function requireActiveSubscriber(accessToken) {
   const { url, anonKey } = readSupabaseEnv();
   if (!url || !anonKey) {
     return { ok: false, status: 500, error: "الخدمة غير مهيأة على الخادم." };
+  }
+  if (await isFreeForAllActive(url, anonKey)) {
+    return { ok: true };
   }
   if (!accessToken) {
     return { ok: false, status: 401, error: "سجّل الدخول أولاً لاستخدام هذه الميزة." };

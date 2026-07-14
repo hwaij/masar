@@ -45,52 +45,79 @@ const activeSessionStore = {
 store.loadActiveSession = async () => activeSessionStore.load();
 store.saveActiveSession = async (s) => activeSessionStore.save(s);
 
+// يُطبَّق فوراً عند تحميل الوحدة (قبل أول رسم لـ React) حتى لا تظهر ومضة
+// بالمظهر الافتراضي الداكن قبل قراءة تفضيل المستخدم الفعلي من التخزين
+// المحلي.
+if (typeof document !== "undefined") {
+  document.documentElement.setAttribute("data-theme", store.getLocalTheme());
+}
+
 // Extra prayer-view styles not in styles.js
 const PS = {
   prayerHero: { display: "flex", alignItems: "center", gap: 10, marginBottom: 16 },
   prayerHeroTitle: { fontFamily: "'Amiri', serif", fontSize: 18, fontWeight: 700 },
-  prayerHeroSub: { fontSize: 12, color: "#8A8782" },
-  nextPrayerCard: { background: "linear-gradient(160deg, #15130E, #121214)", border: "1px solid rgba(201,162,75,0.35)", borderRadius: 16, padding: "18px 16px", textAlign: "center", marginBottom: 14 },
-  nextLabel: { fontSize: 11, fontWeight: 700, color: "#8A8782", letterSpacing: 0.5, marginBottom: 6 },
-  nextName: { fontFamily: "'Amiri', serif", fontSize: 26, fontWeight: 700, color: "#E8E6E1" },
+  prayerHeroSub: { fontSize: 12, color: "var(--muted2)" },
+  nextPrayerCard: { background: "linear-gradient(160deg, var(--warm-tint), var(--panel))", border: "1px solid rgba(201,162,75,0.35)", borderRadius: 16, padding: "18px 16px", textAlign: "center", marginBottom: 14 },
+  nextLabel: { fontSize: 11, fontWeight: 700, color: "var(--muted2)", letterSpacing: 0.5, marginBottom: 6 },
+  nextName: { fontFamily: "'Amiri', serif", fontSize: 26, fontWeight: 700, color: "var(--ink)" },
   nextTime: { fontSize: 16, color: "#C9A24B", fontVariantNumeric: "tabular-nums", margin: "4px 0" },
-  nextCountdown: { fontSize: 13, color: "#8A8782", fontVariantNumeric: "tabular-nums" },
+  nextCountdown: { fontSize: 13, color: "var(--muted2)", fontVariantNumeric: "tabular-nums" },
   weeklyCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 12px", marginBottom: 14 },
   weeklyPercentText: { fontSize: 13.5, color: "var(--ink)", fontWeight: 700, lineHeight: 1.7 },
-  weeklyBarTrack: { height: 8, borderRadius: 4, background: "#1F1F22", overflow: "hidden", marginTop: 10 },
+  weeklyBarTrack: { height: 8, borderRadius: 4, background: "var(--surface-raised)", overflow: "hidden", marginTop: 10 },
   weeklyBarFill: { height: "100%", borderRadius: 4, background: "linear-gradient(90deg, #5FA8A0, #C9A24B)" },
-  weeklyMotivation: { fontSize: 12, color: "#8A8782", lineHeight: 1.7, marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--line)" },
+  weeklyMotivation: { fontSize: 12, color: "var(--muted2)", lineHeight: 1.7, marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--line)" },
   prayerTimingNote: { fontSize: 11.5, color: "#5FA8A0", marginTop: 4, fontWeight: 600 },
   notifBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 7, width: "100%", border: "1px solid rgba(201,162,75,0.3)", background: "rgba(201,162,75,0.07)", color: "var(--gold)", borderRadius: 12, padding: "10px 0", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", marginBottom: 14 },
   prayerList: { display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 },
   prayerRow: { display: "flex", alignItems: "center", gap: 12, background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "12px 14px" },
-  prayerRowNext: { borderColor: "rgba(201,162,75,0.4)", background: "linear-gradient(160deg, #15130E, #121214)" },
+  prayerRowNext: { borderColor: "rgba(201,162,75,0.4)", background: "linear-gradient(160deg, var(--warm-tint), var(--panel))" },
   prayerRowDone: { opacity: 0.55 },
   prayerInfo: { flex: 1 },
   prayerName: { fontSize: 14, fontWeight: 700, color: "var(--ink)" },
-  prayerTime: { fontSize: 12.5, color: "#8A8782", marginTop: 2, fontVariantNumeric: "tabular-nums" },
+  prayerTime: { fontSize: 12.5, color: "var(--muted2)", marginTop: 2, fontVariantNumeric: "tabular-nums" },
   prayerBtn: { border: "1.5px solid rgba(201,162,75,0.4)", background: "transparent", color: "#C9A24B", borderRadius: 10, padding: "7px 14px", fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5 },
   prayerBtnDone: { background: "rgba(95,168,160,0.1)", borderColor: "rgba(95,168,160,0.4)", color: "#5FA8A0" },
   religiousCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 12px", marginBottom: 14 },
   religiousPresets: { display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 },
   presetAddBtn: { display: "flex", alignItems: "center", gap: 6, background: "rgba(201,162,75,0.07)", border: "1px dashed rgba(201,162,75,0.3)", color: "#C9A24B", borderRadius: 10, padding: "9px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" },
   religiousList: { display: "flex", flexDirection: "column", gap: 8 },
-  religiousItem: { background: "#0F0F11", border: "1px solid var(--line)", borderRadius: 12, padding: "12px" },
+  religiousItem: { background: "var(--surface-sunken)", border: "1px solid var(--line)", borderRadius: 12, padding: "12px" },
   religiousItemDone: { opacity: 0.6 },
   religiousTop: { display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 8 },
   religiousTitle: { fontSize: 14, fontWeight: 700, color: "var(--ink)" },
-  religiousMeta: { fontSize: 11.5, color: "#8A8782", marginTop: 3, fontVariantNumeric: "tabular-nums" },
+  religiousMeta: { fontSize: 11.5, color: "var(--muted2)", marginTop: 3, fontVariantNumeric: "tabular-nums" },
   timerControlsRow: { display: "flex", gap: 8 },
   miniTimerBtn: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.3)", color: "#C9A24B", borderRadius: 10, padding: "9px 0", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" },
-  miniDoneBtn: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, background: "rgba(107,104,99,0.1)", border: "1px solid #2A2A2D", color: "#8A8782", borderRadius: 10, padding: "9px 0", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" },
+  miniDoneBtn: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, background: "rgba(107,104,99,0.1)", border: "1px solid var(--border2)", color: "var(--muted2)", borderRadius: 10, padding: "9px 0", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" },
   miniDoneBtnReady: { background: "rgba(95,168,160,0.12)", borderColor: "rgba(95,168,160,0.4)", color: "#5FA8A0" },
   religiousDoneRow: { display: "flex", alignItems: "center", gap: 5, fontSize: 13, color: "#5FA8A0", fontWeight: 600 },
-  modeToggleRow: { display: "flex", gap: 6, marginBottom: 14, background: "#141416", borderRadius: 12, padding: 4 },
-  modeToggleBtn: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, border: "none", borderRadius: 9, background: "transparent", color: "#8A8782", padding: "9px 0", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" },
-  modeToggleBtnActive: { background: "#1F1F22", color: "var(--gold)" },
+  modeToggleRow: { display: "flex", gap: 6, marginBottom: 14, background: "var(--surface-sunken)", borderRadius: 12, padding: 4 },
+  modeToggleBtn: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, border: "none", borderRadius: 9, background: "transparent", color: "var(--muted2)", padding: "9px 0", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" },
+  modeToggleBtnActive: { background: "var(--surface-raised)", color: "var(--gold)" },
   manualEntryRow: { display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 14 },
-  manualInput: { background: "#0F0F11", border: "1px solid #2A2A2D", borderRadius: 10, padding: "12px 16px", color: "var(--ink)", fontSize: 28, fontFamily: "'Amiri', serif", fontWeight: 700, width: 100, textAlign: "center" },
-  manualUnit: { fontFamily: "'Amiri', serif", fontSize: 18, color: "#8A8782" },
+  manualInput: { background: "var(--surface-sunken)", border: "1px solid var(--border2)", borderRadius: 10, padding: "12px 16px", color: "var(--ink)", fontSize: 28, fontFamily: "'Amiri', serif", fontWeight: 700, width: 100, textAlign: "center" },
+  manualUnit: { fontFamily: "'Amiri', serif", fontSize: 18, color: "var(--muted2)" },
+  // بطاقات الأذكار وتقدّم القرآن وعداد الاستغفار — مُعادة من قسم
+  // "الأساسيات" السابق، بلا صفوف المهام الأساسية/الصلوات (موجودة أصلاً
+  // في اليوم وأعلى هذه الصفحة، فلا داعي لتكرارها).
+  essSection: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 12px", marginBottom: 14 },
+  essSectionHead: { display: "flex", alignItems: "center", gap: 8, marginBottom: 12 },
+  essSectionTitle: { fontSize: 14, fontWeight: 700, color: "var(--ink)" },
+  essProgressBadge: { marginRight: "auto", fontSize: 12, color: "var(--muted2)" },
+  essTabRow: { display: "flex", gap: 6, marginBottom: 12, background: "var(--surface-sunken)", borderRadius: 10, padding: 3 },
+  essTab: { flex: 1, border: "none", borderRadius: 8, background: "transparent", color: "var(--muted2)", padding: "8px 0", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" },
+  essTabActive: { background: "var(--surface-raised)", color: "var(--gold)" },
+  essAzkarItem: { display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: "1px solid var(--line)" },
+  essAzkarText: { flex: 1, fontSize: 13, color: "var(--ink)", lineHeight: 1.5 },
+  essAzkarCount: { fontSize: 11, color: "var(--muted2)", whiteSpace: "nowrap" },
+  essCompleteBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 7, width: "100%", marginTop: 12, background: "rgba(95,168,160,0.1)", border: "1px solid rgba(95,168,160,0.3)", color: "#5FA8A0", borderRadius: 12, padding: "11px 0", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" },
+  essCompleteBtnDone: { background: "rgba(95,168,160,0.07)", color: "#5FA8A0", opacity: 0.6 },
+  essJuzGrid: { display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 6, marginTop: 8 },
+  essJuzBtn: { border: "1px solid var(--line)", borderRadius: 8, padding: "6px 2px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", background: "transparent", color: "var(--muted2)", textAlign: "center" },
+  essJuzBtnDone: { background: "rgba(95,168,160,0.12)", borderColor: "rgba(95,168,160,0.4)", color: "#5FA8A0" },
+  essJuzCount: { fontSize: 12, color: "var(--muted2)", marginTop: 8, textAlign: "center" },
+  istighfarBtn: { flex: 1, border: "1px solid var(--gold)", borderRadius: 10, background: "rgba(201,162,75,0.08)", color: "var(--gold)", padding: "10px 0", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
 };
 
 // Assistant styles
@@ -99,35 +126,35 @@ const HS = {
   hero: { display: "flex", alignItems: "center", gap: 12 },
   heroIcon: { width: 44, height: 44, borderRadius: 14, background: "linear-gradient(140deg, #5FA8A0, #3E7E78)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
   heroTitle: { fontFamily: "'Amiri', serif", fontSize: 22, fontWeight: 700 },
-  heroSub: { fontSize: 12, color: "#8A8782", marginTop: 2, lineHeight: 1.5 },
+  heroSub: { fontSize: 12, color: "var(--muted2)", marginTop: 2, lineHeight: 1.5 },
   chatCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "14px", display: "flex", flexDirection: "column" },
   chatHead: { display: "flex", alignItems: "center", gap: 7, marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid var(--line)" },
-  chatTitle: { fontSize: 13, fontWeight: 700, color: "#B8B5AF" },
+  chatTitle: { fontSize: 13, fontWeight: 700, color: "var(--muted2)" },
   chatScroll: { display: "flex", flexDirection: "column", gap: 10, maxHeight: 380, overflowY: "auto", marginBottom: 12 },
-  msgUser: { alignSelf: "flex-start", maxWidth: "85%", background: "rgba(201,162,75,0.12)", border: "1px solid rgba(201,162,75,0.25)", borderRadius: "14px 4px 14px 14px", padding: "10px 12px", fontSize: 13.5, color: "#E8E6E1", lineHeight: 1.7, whiteSpace: "pre-wrap" },
-  msgBot: { alignSelf: "flex-end", maxWidth: "92%", background: "#0F0F11", border: "1px solid var(--line)", borderRadius: "4px 14px 14px 14px", padding: "10px 12px", fontSize: 13.5, color: "#D8D5CF", lineHeight: 1.8, whiteSpace: "pre-wrap" },
+  msgUser: { alignSelf: "flex-start", maxWidth: "85%", background: "rgba(201,162,75,0.12)", border: "1px solid rgba(201,162,75,0.25)", borderRadius: "14px 4px 14px 14px", padding: "10px 12px", fontSize: 13.5, color: "var(--ink)", lineHeight: 1.7, whiteSpace: "pre-wrap" },
+  msgBot: { alignSelf: "flex-end", maxWidth: "92%", background: "var(--surface-sunken)", border: "1px solid var(--line)", borderRadius: "4px 14px 14px 14px", padding: "10px 12px", fontSize: 13.5, color: "var(--ink-soft)", lineHeight: 1.8, whiteSpace: "pre-wrap" },
   suggestionRow: { display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 12 },
   suggestionChip: { background: "rgba(201,162,75,0.07)", border: "1px solid rgba(201,162,75,0.25)", color: "#C9A24B", borderRadius: 20, padding: "7px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", textAlign: "right" },
   chatInputRow: { display: "flex", gap: 8, alignItems: "center" },
-  chatInput: { flex: 1, background: "#0F0F11", border: "1px solid #2A2A2D", borderRadius: 12, padding: "11px 14px", color: "var(--ink)", fontSize: 14, fontFamily: "inherit", outline: "none" },
+  chatInput: { flex: 1, background: "var(--surface-sunken)", border: "1px solid var(--border2)", borderRadius: 12, padding: "11px 14px", color: "var(--ink)", fontSize: 14, fontFamily: "inherit", outline: "none" },
   chatSend: { background: "var(--gold)", color: "var(--bg)", border: "none", borderRadius: 12, width: 46, height: 44, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 },
 };
 
 // شارة الاشتراك في الشريط العلوي، ونمط بطاقة الاشتراك في "التخصيص".
 const SUB = {
-  subBadge: { display: "flex", alignItems: "center", justifyContent: "center", width: 18, height: 18, borderRadius: "50%", background: "var(--gold)", color: "#0A0A0B", flexShrink: 0 },
-  vipBadge: { display: "flex", alignItems: "center", justifyContent: "center", width: 18, height: 18, borderRadius: "50%", background: "linear-gradient(140deg, #E7C378, #C9A24B 55%, #8B6914)", color: "#0A0A0B", flexShrink: 0, boxShadow: "0 0 0 1px rgba(201,162,75,0.4)" },
-  card: { background: "linear-gradient(160deg, #17140C, #121214)", border: "1px solid rgba(201,162,75,0.3)", borderRadius: 16, padding: "16px 14px", marginBottom: 16 },
+  subBadge: { display: "flex", alignItems: "center", justifyContent: "center", width: 18, height: 18, borderRadius: "50%", background: "var(--gold)", color: "var(--on-accent)", flexShrink: 0 },
+  vipBadge: { display: "flex", alignItems: "center", justifyContent: "center", width: 18, height: 18, borderRadius: "50%", background: "linear-gradient(140deg, #E7C378, #C9A24B 55%, #8B6914)", color: "var(--on-accent)", flexShrink: 0, boxShadow: "0 0 0 1px rgba(201,162,75,0.4)" },
+  card: { background: "linear-gradient(160deg, var(--warm-tint), var(--panel))", border: "1px solid rgba(201,162,75,0.3)", borderRadius: 16, padding: "16px 14px", marginBottom: 16 },
   head: { display: "flex", alignItems: "center", gap: 12, marginBottom: 14 },
   iconBadge: { width: 42, height: 42, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, background: "linear-gradient(140deg, #E7C378, #C9A24B 60%, #A9822F)", boxShadow: "0 0 0 1px rgba(201,162,75,0.25)" },
   title: { fontFamily: "'Amiri', serif", fontSize: 17, fontWeight: 700, color: "var(--ink)" },
-  subtitle: { fontSize: 12, color: "#B8B5AF", marginTop: 3, lineHeight: 1.6 },
+  subtitle: { fontSize: 12, color: "var(--muted2)", marginTop: 3, lineHeight: 1.6 },
   statusRow: { display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(201,162,75,0.08)", border: "1px solid rgba(201,162,75,0.25)", borderRadius: 10, padding: "10px 12px" },
-  statusLabel: { fontSize: 12.5, color: "#8A8782" },
+  statusLabel: { fontSize: 12.5, color: "var(--muted2)" },
   statusValue: { fontSize: 13, fontWeight: 700, color: "#C9A24B" },
   plansRow: { display: "flex", gap: 10, marginBottom: 14 },
-  planCard: { flex: 1, background: "#0F0F11", border: "1px solid var(--line)", borderRadius: 12, padding: "12px 8px", textAlign: "center" },
-  planLabel: { fontSize: 12, color: "#8A8782", fontWeight: 600 },
+  planCard: { flex: 1, background: "var(--surface-sunken)", border: "1px solid var(--line)", borderRadius: 12, padding: "12px 8px", textAlign: "center" },
+  planLabel: { fontSize: 12, color: "var(--muted2)", fontWeight: 600 },
   planPrice: { fontFamily: "'Amiri', serif", fontSize: 19, fontWeight: 700, color: "#C9A24B", marginTop: 4 },
   subscribeBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", background: "var(--gold)", color: "var(--bg)", border: "none", borderRadius: 12, padding: "13px 0", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", textDecoration: "none", boxSizing: "border-box" },
   // بطاقة "التشجيع للاشتراك" التي تحلّ محل أي قسم/ميزة مدفوعة لغير
@@ -137,7 +164,7 @@ const SUB = {
   upsellCardCompact: { padding: "20px 16px", borderRadius: 14, gap: 8 },
   upsellIconBadge: { width: 48, height: 48, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, background: "linear-gradient(140deg, #E7C378, #C9A24B 60%, #A9822F)", boxShadow: "0 0 0 1px rgba(201,162,75,0.25), 0 4px 18px rgba(201,162,75,0.2)" },
   upsellTitle: { fontFamily: "'Amiri', serif", fontSize: 18, fontWeight: 700, color: "var(--ink)" },
-  upsellMessage: { fontSize: 13, color: "#B8B5AF", lineHeight: 1.8, maxWidth: 320, margin: 0 },
+  upsellMessage: { fontSize: 13, color: "var(--muted2)", lineHeight: 1.8, maxWidth: 320, margin: 0 },
   upsellBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "var(--gold)", color: "var(--bg)", border: "none", borderRadius: 12, padding: "12px 22px", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", textDecoration: "none", marginTop: 6 },
 };
 
@@ -150,13 +177,18 @@ export default function MasarApp() {
   const [categories, setCategories] = useState([]);
   const [reports, setReports] = useState([]);
   const [gamify, setGamify] = useState({ points: 0, badges: [] });
-  const [profile, setProfile] = useState({ about: "", hobbies: "", field: "", tourSeen: false });
+  const [profile, setProfile] = useState({ about: "", hobbies: "", field: "", tourSeen: false, theme: "dark" });
   const [tourOpen, setTourOpen] = useState(false);
+  const [theme, setTheme] = useState(() => store.getLocalTheme());
   const [achieve, setAchieve] = useState([]);
   const [focus, setFocus] = useState([]);
   const [commitments, setCommitments] = useState([]);
   const [prayerLog, setPrayerLog] = useState([]);
   const [religious, setReligious] = useState([]);
+  const [azkarLog, setAzkarLog] = useState({});
+  const [azkarItems, setAzkarItems] = useState({});
+  const [quranProgress, setQuranProgress] = useState({});
+  const [istighfar, setIstighfar] = useState({ daily: {}, total: 0 });
   const [selectedDate, setSelectedDate] = useState(todayKey());
   const [toast, setToast] = useState(null);
   const [mandatoryLog, setMandatoryLog] = useState({});
@@ -174,12 +206,13 @@ export default function MasarApp() {
 
   const loadAll = useCallback(async () => {
       const myVersion = ++loadVersionRef.current;
-      const [c, e, t, r, g, p, a, f, cm, pl, rel, ml, plog, tl, gl, vlt, vtx, sl, sub] = await Promise.all([
+      const [c, e, t, r, g, p, a, f, cm, pl, rel, ml, plog, tl, gl, vlt, vtx, sl, sub, azl, azi, qp, ist] = await Promise.all([
         store.loadCategories(), store.loadEntries(), store.loadTasks(),
         store.loadReports(), store.loadGamify(), store.loadProfile(), store.loadAchieve(),
         store.loadFocus(), store.loadCommitments(), store.loadPrayerLog(), store.loadReligious(),
         store.loadMandatoryLog(), store.loadPointsLog(), store.loadTipsLog(), store.loadGoals(),
         store.loadVault(), store.loadVaultTransactions(), store.loadSleepLog(), store.loadSubscription(),
+        store.loadAzkarLog(), store.loadAzkarItems(), store.loadQuranProgress(), store.loadIstighfar(),
       ]);
       if (loadVersionRef.current !== myVersion) return;
       setCategories(c); setEntries(e); setTasks(t); setReports(r); setGamify(g);
@@ -187,6 +220,7 @@ export default function MasarApp() {
       setPrayerLog(pl); setReligious(rel);
       setMandatoryLog(ml); setPointsLog(plog); setTipsLog(tl); setGoals(gl);
       setVault(vlt); setVaultTx(vtx); setSleepLog(sl); setSubscription(sub);
+      setAzkarLog(azl); setAzkarItems(azi); setQuranProgress(qp); setIstighfar(ist);
 
       const today = todayKey();
       const lastOpen = localStorage.getItem("masar_last_open");
@@ -259,6 +293,27 @@ export default function MasarApp() {
   }, []);
 
   const startTour = useCallback(() => setTourOpen(true), []);
+
+  // مزامنة المظهر مع الحساب بعد اكتمال كل تحميل — يغطي حالة تسجيل الدخول
+  // من متصفح/جهاز آخر كان قد اختار مظهراً مختلفاً سابقاً على هذا الحساب.
+  useEffect(() => {
+    if (loaded) setTheme(profile.theme === "light" ? "light" : "dark");
+  }, [loaded]);
+
+  // يُطبَّق فوراً على الجذر عند أي تغيّر (تبديل يدوي أو مزامنة من الحساب) —
+  // لا يحفظ هنا؛ الحفظ الفعلي (محلياً وسحابياً) يتم فقط عند تبديل صريح من
+  // المستخدم في toggleTheme، حتى لا تتكرر كتابة سحابية عند كل تحميل صفحة.
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+  }, [theme]);
+
+  const toggleTheme = useCallback(() => {
+    setTheme((t) => {
+      const next = t === "dark" ? "light" : "dark";
+      store.saveTheme(next);
+      return next;
+    });
+  }, []);
 
   const [dailyTip, setDailyTip] = useState(null);
   // Shows today's "بصيرة" tip once, automatically, the first time the app
@@ -361,7 +416,7 @@ export default function MasarApp() {
 
   return (
     <div style={S.app} className="masar-app">
-      <Header view={view} setView={setView} gamify={gamify} stats={stats} hasCloud={store.hasCloud} user={user} onSignIn={handleSignIn} onSignOut={handleSignOut} subscription={subscription} />
+      <Header view={view} setView={setView} gamify={gamify} stats={stats} hasCloud={store.hasCloud} user={user} onSignIn={handleSignIn} onSignOut={handleSignOut} subscription={subscription} theme={theme} toggleTheme={toggleTheme} />
       <div style={S.body} key={view} className="view-fade masar-body">
         {view === "today" && (
           <TodayView
@@ -376,7 +431,14 @@ export default function MasarApp() {
             subscription={subscription}
           />
         )}
-        {view === "prayer" && <PrayerView prayerLog={prayerLog} setPrayerLog={setPrayerLog} religious={religious} setReligious={setReligious} addPoints={addPoints} showToast={showToast} />}
+        {view === "prayer" && (
+          <PrayerView
+            prayerLog={prayerLog} setPrayerLog={setPrayerLog} religious={religious} setReligious={setReligious}
+            azkarLog={azkarLog} setAzkarLog={setAzkarLog} azkarItems={azkarItems} setAzkarItems={setAzkarItems}
+            quranProgress={quranProgress} setQuranProgress={setQuranProgress} istighfar={istighfar} setIstighfar={setIstighfar}
+            addPoints={addPoints} showToast={showToast}
+          />
+        )}
         {view === "adhkar" && <AdhkarView showToast={showToast} />}
         {view === "tips" && <TipsView tipsLog={tipsLog} setTipsLog={setTipsLog} showToast={showToast} subscription={subscription} />}
         {view === "goals" && (isSub ? <GoalsView goals={goals} setGoals={setGoals} addPoints={addPoints} showToast={showToast} /> : (
@@ -396,7 +458,7 @@ export default function MasarApp() {
         {view === "assistant" && (isSub ? <AssistantView entries={entries} tasks={tasks} categories={categories} focus={focus} prayerLog={prayerLog} religious={religious} profile={profile} stats={stats} setView={setView} /> : (
           <div style={S.view}><UpsellCard icon={MessageCircle} title="مساعدك الذكي في مسار الكامل" message="مدرّب شخصي يحلّل يومك وعاداتك ويقترح خطوات عملية بناءً على بياناتك الفعلية." /></div>
         ))}
-        {view === "settings" && <SettingsView categories={categories} setCategories={setCategories} gamify={gamify} hasCloud={store.hasCloud} showToast={showToast} profile={profile} setProfile={setProfile} pointsLog={pointsLog} onStartTour={startTour} subscription={subscription} />}
+        {view === "settings" && <SettingsView categories={categories} setCategories={setCategories} gamify={gamify} hasCloud={store.hasCloud} showToast={showToast} profile={profile} setProfile={setProfile} pointsLog={pointsLog} onStartTour={startTour} subscription={subscription} theme={theme} toggleTheme={toggleTheme} />}
       </div>
       {toast && <div style={S.toast}>{toast}</div>}
       {tourOpen && <OnboardingTour onClose={closeTour} />}
@@ -483,7 +545,7 @@ function OnboardingTour({ onClose }) {
       >
         <button onClick={onClose} style={OT.skipX}><X size={18} /></button>
         <div style={{ ...OT.iconBadge, ...(s.emphasize ? OT.iconBadgeEmphasize : {}) }}>
-          {Icon ? <Icon size={26} color="#0A0A0B" /> : <span style={{ fontSize: 30 }}>{s.icon}</span>}
+          {Icon ? <Icon size={26} color="var(--on-accent)" /> : <span style={{ fontSize: 30 }}>{s.icon}</span>}
         </div>
         <div style={OT.title}>{s.title}</div>
         <p style={{ ...OT.body, ...(s.emphasize ? OT.bodyEmphasize : {}) }}>{s.body}</p>
@@ -508,18 +570,18 @@ function OnboardingTour({ onClose }) {
 
 const OT = {
   overlay: { position: "fixed", inset: 0, background: "rgba(6,6,7,0.78)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 20 },
-  card: { position: "relative", width: "100%", maxWidth: 360, background: "linear-gradient(165deg, #17171a, #101012)", border: "1px solid var(--line)", borderRadius: 24, padding: "32px 22px 22px", textAlign: "center", boxShadow: "0 20px 60px rgba(0,0,0,0.5)" },
+  card: { position: "relative", width: "100%", maxWidth: 360, background: "linear-gradient(165deg, var(--panel), var(--surface-sunken))", border: "1px solid var(--line)", borderRadius: 24, padding: "32px 22px 22px", textAlign: "center", boxShadow: "0 20px 60px rgba(0,0,0,0.5)" },
   skipX: { position: "absolute", top: 14, left: 14, background: "none", border: "none", color: "#5A5650", cursor: "pointer", padding: 6, display: "flex" },
   iconBadge: { width: 56, height: 56, borderRadius: "50%", background: "linear-gradient(140deg, #E0B868, #C9A24B)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 18px" },
   iconBadgeEmphasize: { background: "linear-gradient(140deg, #6FC4B8, #3E7E78)" },
   title: { fontFamily: "'Amiri', serif", fontSize: 20, fontWeight: 700, color: "var(--ink)", marginBottom: 10 },
-  body: { fontSize: 13.5, color: "#B8B5AF", lineHeight: 1.9, marginBottom: 22 },
+  body: { fontSize: 13.5, color: "var(--muted2)", lineHeight: 1.9, marginBottom: 22 },
   bodyEmphasize: { color: "#BFD8D4" },
   dots: { display: "flex", justifyContent: "center", gap: 6, marginBottom: 20 },
-  dot: { width: 6, height: 6, borderRadius: "50%", background: "#2A2A2D" },
+  dot: { width: 6, height: 6, borderRadius: "50%", background: "var(--border2)" },
   dotActive: { background: "#C9A24B", width: 18 },
   actions: { display: "flex", alignItems: "center", justifyContent: "center", gap: 10 },
-  skipBtn: { background: "none", border: "none", color: "#8A8782", fontSize: 13.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", padding: "13px 14px" },
+  skipBtn: { background: "none", border: "none", color: "var(--muted2)", fontSize: 13.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", padding: "13px 14px" },
   nextBtn: { flex: 1, background: "var(--gold)", color: "var(--bg)", border: "none", borderRadius: 12, padding: "13px 0", fontSize: 14.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
   nextBtnLast: { flex: "1 0 auto" },
 };
@@ -557,7 +619,7 @@ function SplashScreen({ onDone }) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.7, duration: 0.4 }}
-        style={{ fontSize: 14, color: "#6B6863", marginTop: 8, letterSpacing: 1 }}
+        style={{ fontSize: 14, color: "var(--muted)", marginTop: 8, letterSpacing: 1 }}
       >تتبّع وقتك · ارتقِ بيومك</motion.div>
       <motion.div
         initial={{ scaleX: 0, opacity: 0 }}
@@ -646,7 +708,7 @@ function EmailAuthForm({ onEmailSignIn, onEmailSignUp }) {
       <button
         type="button"
         onClick={() => { setMode((m) => (m === "signin" ? "signup" : "signin")); setError(""); setNotice(""); }}
-        style={{ background: "none", border: "none", color: "#8A8782", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", padding: "4px 0" }}
+        style={{ background: "none", border: "none", color: "var(--muted2)", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", padding: "4px 0" }}
       >
         {mode === "signin" ? "ما عندك حساب؟ أنشئ واحد" : "عندك حساب؟ سجّل دخولك"}
       </button>
@@ -667,7 +729,7 @@ function LandingPage({ onSignIn, onEmailSignIn, onEmailSignUp }) {
           style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 64, paddingBottom: 40, textAlign: "center" }}>
           <div style={{ fontSize: 64, color: "#C9A24B", marginBottom: 16, filter: "drop-shadow(0 0 24px rgba(201,162,75,0.4))" }}>◐</div>
           <h1 style={{ fontFamily: "'Amiri', serif", fontSize: 42, fontWeight: 700, margin: 0, letterSpacing: 2 }}>مسار</h1>
-          <p style={{ fontSize: 16, color: "#8A8782", marginTop: 12, lineHeight: 1.8, maxWidth: 300 }}>
+          <p style={{ fontSize: 16, color: "var(--muted2)", marginTop: 12, lineHeight: 1.8, maxWidth: 300 }}>
             رفيقك اليومي لتنظيم وقتك وتعزيز عاداتك الإسلامية
           </p>
           <motion.button
@@ -682,7 +744,7 @@ function LandingPage({ onSignIn, onEmailSignIn, onEmailSignUp }) {
           </motion.button>
           <div style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", marginTop: 22 }}>
             <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.08)" }} />
-            <span style={{ fontSize: 12, color: "#6B6863" }}>أو</span>
+            <span style={{ fontSize: 12, color: "var(--muted)" }}>أو</span>
             <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.08)" }} />
           </div>
           <EmailAuthForm onEmailSignIn={onEmailSignIn} onEmailSignUp={onEmailSignUp} />
@@ -698,7 +760,7 @@ function LandingPage({ onSignIn, onEmailSignIn, onEmailSignUp }) {
                 style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: "16px 14px", textAlign: "center" }}>
                 <div style={{ fontSize: 30, marginBottom: 8 }}>{f.icon}</div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#E8E6E1", marginBottom: 5 }}>{f.title}</div>
-                <div style={{ fontSize: 11.5, color: "#6B6863", lineHeight: 1.6 }}>{f.desc}</div>
+                <div style={{ fontSize: 11.5, color: "var(--muted)", lineHeight: 1.6 }}>{f.desc}</div>
               </motion.div>
             ))}
           </div>
@@ -707,7 +769,7 @@ function LandingPage({ onSignIn, onEmailSignIn, onEmailSignUp }) {
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }}
           style={{ marginTop: 40, textAlign: "center", display: "flex", flexDirection: "column", gap: 20, alignItems: "center" }}>
           <div style={{ width: "100%", height: 1, background: "rgba(255,255,255,0.06)" }} />
-          <div style={{ display: "flex", gap: 24, justifyContent: "center", fontSize: 13, color: "#6B6863" }}>
+          <div style={{ display: "flex", gap: 24, justifyContent: "center", fontSize: 13, color: "var(--muted)" }}>
             <span>🔒 بدون إعلانات</span>
             <span>☁️ مزامنة سحابية</span>
             <span>📱 يشتغل أوفلاين</span>
@@ -743,7 +805,7 @@ function TasbihIcon({ size = 15 }) {
   );
 }
 
-function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSignOut, subscription }) {
+function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSignOut, subscription, theme, toggleTheme }) {
   const isVip = !!subscription?.isVip;
   const isSub = isActiveSubscriber(subscription);
   const tabs = [
@@ -771,21 +833,28 @@ function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSign
           {isVip ? (
             <span title="عضو VIP دائم" style={SUB.vipBadge}><Crown size={11} /></span>
           ) : isSub ? (
-            <span title="مشترك في مسار" style={SUB.subBadge}><Star size={11} fill="#0A0A0B" /></span>
+            <span title="مشترك في مسار" style={SUB.subBadge}><Star size={11} fill="var(--on-accent)" /></span>
           ) : null}
         </div>
         <div style={S.headerStats}>
           <span style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.25)", borderRadius: 10, padding: "3px 8px", fontSize: 11.5, color: "#C9A24B", fontWeight: 700 }}>
             <Star size={11} color="#C9A24B" /> {lv.label} {lv.level}
-            <span style={{ width: 36, height: 4, borderRadius: 2, background: "#1F1F22", overflow: "hidden", marginRight: 2 }}>
+            <span style={{ width: 36, height: 4, borderRadius: 2, background: "var(--surface-raised)", overflow: "hidden", marginRight: 2 }}>
               <span style={{ display: "block", height: "100%", width: `${Math.round(lvProgress * 100)}%`, background: "#C9A24B", borderRadius: 2 }} />
             </span>
           </span>
-          <span title={hasCloud ? "متصل بالسحابة" : "تخزين محلي"} style={{ ...S.cloudDot, background: hasCloud ? "rgba(95,168,160,0.15)" : "rgba(107,104,99,0.15)", color: hasCloud ? "#5FA8A0" : "#8A8782", display: "flex", alignItems: "center", gap: 4 }}>
+          <span title={hasCloud ? "متصل بالسحابة" : "تخزين محلي"} style={{ ...S.cloudDot, background: hasCloud ? "rgba(95,168,160,0.15)" : "rgba(107,104,99,0.15)", color: hasCloud ? "#5FA8A0" : "var(--muted2)", display: "flex", alignItems: "center", gap: 4 }}>
             {hasCloud ? <Cloud size={11} /> : <CloudOff size={11} />}
           </span>
           <span style={S.hStat}><Flame size={13} color="#D17B5F" /> {stats.streak}</span>
           <span style={S.hStat}><Star size={13} color="#C9A24B" /> {gamify.points}</span>
+          <button
+            onClick={toggleTheme}
+            title={theme === "dark" ? "التبديل إلى الوضع الفاتح" : "التبديل إلى الوضع الداكن"}
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: "50%", background: "var(--surface-raised)", border: "1px solid var(--line)", color: "var(--gold)", cursor: "pointer", flexShrink: 0, padding: 0 }}
+          >
+            {theme === "dark" ? <Moon size={12} /> : <Sun size={12} />}
+          </button>
           {hasAuth && (user ? (
             <button onClick={onSignOut} title={`${user.name || user.email} · تسجيل الخروج`} style={{ display: "flex", alignItems: "center", gap: 4, background: "rgba(95,168,160,0.12)", border: "1px solid rgba(95,168,160,0.3)", color: "#5FA8A0", borderRadius: 10, padding: "3px 7px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
               {user.avatar ? <img src={user.avatar} alt="" style={{ width: 16, height: 16, borderRadius: "50%" }} /> : <User size={12} />}
@@ -907,13 +976,13 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
         <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, padding: "10px 12px", marginBottom: 12 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: "var(--gold)" }}>المهام الأساسية اليومية</span>
-            <span style={{ fontSize: 11, color: mandatoryDoneCount === mandatoryVisible.length ? "#5FA8A0" : "#8A8782" }}>{mandatoryDoneCount}/{mandatoryVisible.length}</span>
+            <span style={{ fontSize: 11, color: mandatoryDoneCount === mandatoryVisible.length ? "#5FA8A0" : "var(--muted2)" }}>{mandatoryDoneCount}/{mandatoryVisible.length}</span>
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {mandatoryVisible.map((task) => {
               const done = !!todayMandatory[task.key];
               return (
-                <button key={task.key} onClick={() => toggleMandatoryToday(task)} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", borderRadius: 20, border: done ? "1px solid rgba(95,168,160,0.5)" : "1px solid var(--line)", background: done ? "rgba(95,168,160,0.1)" : "transparent", color: done ? "#5FA8A0" : "#8A8782", fontSize: 12, cursor: "pointer", fontFamily: "inherit", textDecoration: done ? "line-through" : "none" }}>
+                <button key={task.key} onClick={() => toggleMandatoryToday(task)} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", borderRadius: 20, border: done ? "1px solid rgba(95,168,160,0.5)" : "1px solid var(--line)", background: done ? "rgba(95,168,160,0.1)" : "transparent", color: done ? "#5FA8A0" : "var(--muted2)", fontSize: 12, cursor: "pointer", fontFamily: "inherit", textDecoration: done ? "line-through" : "none" }}>
                   <span>{task.icon}</span><span>{task.label}</span>
                 </button>
               );
@@ -990,7 +1059,7 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
               <div style={S.entryInfo}><div style={S.entryName}>{cat.name}</div>{e.note && <div style={S.entryNote}>{e.note}</div>}</div>
               <div style={S.entryTime}><div style={S.entryDuration}>{fmtHM(diffMinutes(e.start, e.end))}</div></div>
               <div style={{ display: "flex", gap: 3, alignItems: "center" }} onClick={(ev) => ev.stopPropagation()}>
-                <button onClick={() => adjustMins(-2)} style={{ ...S.deleteBtn, fontSize: 12, color: "#8A8782" }}>-2</button>
+                <button onClick={() => adjustMins(-2)} style={{ ...S.deleteBtn, fontSize: 12, color: "var(--muted2)" }}>-2</button>
                 <button onClick={() => adjustMins(2)} style={{ ...S.deleteBtn, fontSize: 12, color: "#C9A24B" }}>+2</button>
                 <button onClick={(ev) => { ev.stopPropagation(); deleteEntry(e.id); }} style={S.deleteBtn}><Trash2 size={14} /></button>
               </div>
@@ -1173,7 +1242,7 @@ function TasksView({ tasks, setTasks, categories, addPoints, showToast, subscrip
       <div style={S.taskMeta}>
         <div style={S.catScroll}>
           {categories.map((c) => (
-            <button key={c.id} onClick={() => setCatId(c.id)} style={{ ...S.catMini, borderColor: catId === c.id ? c.color : "#2A2A2D", background: catId === c.id ? `${c.color}22` : "transparent" }}>
+            <button key={c.id} onClick={() => setCatId(c.id)} style={{ ...S.catMini, borderColor: catId === c.id ? c.color : "var(--border2)", background: catId === c.id ? `${c.color}22` : "transparent" }}>
               <span style={{ ...S.legendDot, background: c.color }} />{c.name}
             </button>
           ))}
@@ -1232,10 +1301,18 @@ function ReportsView({ entries, categories, focus, profile, sleepLog, setSleepLo
     const rangeLabel = range === "week" ? "الأسبوعي" : "الشهري";
     const rows = catTotals.map((c) => `<tr><td>${escapeHtml(c.name)}</td><td>${fmtHM(c.value)}</td></tr>`).join("");
     const dayRows = barData.filter((d) => d.hours > 0).map((d) => `<tr><td>${d.label}</td><td>${d.hours} ساعة</td></tr>`).join("");
+    // على الجوال، window.open("", "_blank") لا يفتح تبويباً منفصلاً دائماً
+    // (بعض متصفحات الجوال تستبدل التبويب الحالي بدلاً منه)، فتضيع صفحة
+    // التطبيق كاملة دون أي رابط عودة. الزر أدناه يحاول إغلاق النافذة أولاً
+    // (يعمل إن كانت فعلاً تبويباً منفصلاً فتحه السكربت)، وإن بقيت مفتوحة
+    // (يعني أنها نفس التبويب) ينقل المستخدم فعلياً لرابط التطبيق نفسه —
+    // إخراج مضمون من الشاشة العالقة في الحالتين. مخفي عند الطباعة الفعلية
+    // حتى لا يظهر داخل ملف الـ PDF نفسه.
+    const appUrl = window.location.href;
     const html = `<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>تقرير مسار ${rangeLabel}</title>
       <style>
         @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&family=Amiri:wght@700&display=swap');
-        body{font-family:'Tajawal',sans-serif;color:#1a1a1a;padding:40px;max-width:700px;margin:auto}
+        body{font-family:'Tajawal',sans-serif;color:#1a1a1a;padding:76px 40px 40px;max-width:700px;margin:auto}
         h1{font-family:'Amiri',serif;color:#8a6d28;border-bottom:2px solid #C9A24B;padding-bottom:10px}
         .meta{color:#666;font-size:13px;margin-bottom:24px}
         .kpis{display:flex;gap:16px;margin-bottom:24px}
@@ -1247,7 +1324,10 @@ function ReportsView({ entries, categories, focus, profile, sleepLog, setSleepLo
         th{color:#8a6d28;font-size:12px}
         h2{font-size:16px;margin-top:24px}
         .footer{margin-top:40px;color:#999;font-size:11px;text-align:center}
+        .back-btn{position:fixed;top:14px;left:14px;z-index:999;display:flex;align-items:center;gap:6px;background:#8a6d28;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-family:'Tajawal',sans-serif;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,0.2)}
+        @media print{ body{padding-top:40px} .back-btn{display:none !important} }
       </style></head><body>
+      <button class="back-btn" onclick="window.close(); setTimeout(function(){ window.location.href='${appUrl}'; }, 250);">✕ إغلاق والعودة لمسار</button>
       <h1>◐ تقرير مسار ${rangeLabel}</h1>
       <div class="meta">${profile?.about ? escapeHtml(profile.about) + " · " : ""}صدر بتاريخ ${arabicDate(todayKey(), { day: "numeric", month: "long", year: "numeric" })}</div>
       <div class="kpis">
@@ -1288,10 +1368,10 @@ function ReportsView({ entries, categories, focus, profile, sleepLog, setSleepLo
         <div style={S.chartTitle}>الساعات {range === "week" ? "اليومية" : "خلال الشهر"}</div>
         <ResponsiveContainer width="100%" height={190}>
           <BarChart data={barData} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="2 4" stroke="#1F1F22" vertical={false} />
-            <XAxis dataKey="label" tick={{ fill: "#6B6863", fontSize: range === "week" ? 11 : 8, fontFamily: "Tajawal" }} axisLine={{ stroke: "#2A2A2D" }} tickLine={false} interval={range === "week" ? 0 : 3} />
-            <YAxis tick={{ fill: "#6B6863", fontSize: 10 }} axisLine={false} tickLine={false} />
-            <Tooltip contentStyle={{ background: "#1A1A1D", border: "1px solid #2A2A2D", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [`${v} ساعة`, ""]} />
+            <CartesianGrid strokeDasharray="2 4" stroke="var(--surface-raised)" vertical={false} />
+            <XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: range === "week" ? 11 : 8, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} interval={range === "week" ? 0 : 3} />
+            <YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
+            <Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [`${v} ساعة`, ""]} />
             <Bar dataKey="hours" radius={[3, 3, 3, 3]} fill="#C9A24B" maxBarSize={range === "week" ? 28 : 12} />
           </BarChart>
         </ResponsiveContainer>
@@ -1305,7 +1385,7 @@ function ReportsView({ entries, categories, focus, profile, sleepLog, setSleepLo
                 <Pie data={catTotals} dataKey="value" nameKey="name" innerRadius={38} outerRadius={62} paddingAngle={2} stroke="none">
                   {catTotals.map((c, i) => <Cell key={i} fill={c.color} />)}
                 </Pie>
-                <Tooltip contentStyle={{ background: "#1A1A1D", border: "1px solid #2A2A2D", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v, n) => [fmtHM(v), n]} />
+                <Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v, n) => [fmtHM(v), n]} />
               </PieChart>
             </ResponsiveContainer>
             <div style={S.pieLegend}>
@@ -1320,10 +1400,10 @@ function ReportsView({ entries, categories, focus, profile, sleepLog, setSleepLo
         <div style={S.chartTitle}>اتجاه الإنتاجية</div>
         <ResponsiveContainer width="100%" height={150}>
           <LineChart data={barData} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="2 4" stroke="#1F1F22" vertical={false} />
-            <XAxis dataKey="label" tick={{ fill: "#6B6863", fontSize: range === "week" ? 11 : 8, fontFamily: "Tajawal" }} axisLine={{ stroke: "#2A2A2D" }} tickLine={false} interval={range === "week" ? 0 : 3} />
-            <YAxis tick={{ fill: "#6B6863", fontSize: 10 }} axisLine={false} tickLine={false} />
-            <Tooltip contentStyle={{ background: "#1A1A1D", border: "1px solid #2A2A2D", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [`${v} ساعة`, ""]} />
+            <CartesianGrid strokeDasharray="2 4" stroke="var(--surface-raised)" vertical={false} />
+            <XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: range === "week" ? 11 : 8, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} interval={range === "week" ? 0 : 3} />
+            <YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
+            <Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [`${v} ساعة`, ""]} />
             <Line type="monotone" dataKey="hours" stroke="#C9A24B" strokeWidth={2} dot={{ fill: "#C9A24B", r: range === "week" ? 3 : 0 }} />
           </LineChart>
         </ResponsiveContainer>
@@ -1430,10 +1510,10 @@ function SleepSection({ sleepLog, setSleepLog, days, range, showToast }) {
 
       <ResponsiveContainer width="100%" height={150}>
         <BarChart data={chartData} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="2 4" stroke="#1F1F22" vertical={false} />
-          <XAxis dataKey="label" tick={{ fill: "#6B6863", fontSize: range === "week" ? 11 : 8, fontFamily: "Tajawal" }} axisLine={{ stroke: "#2A2A2D" }} tickLine={false} interval={range === "week" ? 0 : 3} />
-          <YAxis tick={{ fill: "#6B6863", fontSize: 10 }} axisLine={false} tickLine={false} />
-          <Tooltip contentStyle={{ background: "#1A1A1D", border: "1px solid #2A2A2D", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [`${v} ساعة`, ""]} />
+          <CartesianGrid strokeDasharray="2 4" stroke="var(--surface-raised)" vertical={false} />
+          <XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: range === "week" ? 11 : 8, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} interval={range === "week" ? 0 : 3} />
+          <YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
+          <Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [`${v} ساعة`, ""]} />
           <Bar dataKey="hours" radius={[3, 3, 3, 3]} fill="#5FA8A0" maxBarSize={range === "week" ? 28 : 12} />
         </BarChart>
       </ResponsiveContainer>
@@ -1524,7 +1604,7 @@ function AssistantView({ entries, tasks, categories, focus, prayerLog, religious
     <div style={S.view}>
       <div style={HS.wrap}>
         <div style={HS.hero}>
-          <div style={HS.heroIcon}><MessageCircle size={22} color="#0A0A0B" /></div>
+          <div style={HS.heroIcon}><MessageCircle size={22} color="var(--on-accent)" /></div>
           <div>
             <div style={HS.heroTitle}>مساعد أنجز</div>
             <div style={HS.heroSub}>مدرّبك الشخصي. يرى يومك ويساعدك تتطور.</div>
@@ -1550,14 +1630,14 @@ function AssistantView({ entries, tasks, categories, focus, prayerLog, religious
               <Sparkles size={15} color="#C9A24B" /><span style={HS.chatTitle}>تحدّث مع أنجز</span>
             </div>
             {messages.length > 0 && (
-              <button onClick={clearChat} style={{ background: "none", border: "none", color: "#6B6863", fontSize: 11.5, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 4 }}>
+              <button onClick={clearChat} style={{ background: "none", border: "none", color: "var(--muted)", fontSize: 11.5, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 4 }}>
                 <Trash2 size={12} /> مسح المحادثة
               </button>
             )}
           </div>
           <div style={HS.chatScroll} ref={scrollRef}>
             {loadingHistory && (
-              <div style={{ ...HS.msgBot, color: "#8A8782", display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ ...HS.msgBot, color: "var(--muted2)", display: "flex", alignItems: "center", gap: 6 }}>
                 <Loader2 size={14} className="spin" /> يحمّل المحادثة...
               </div>
             )}
@@ -1568,7 +1648,7 @@ function AssistantView({ entries, tasks, categories, focus, prayerLog, religious
               <div key={m.id} style={m.role === "user" ? HS.msgUser : HS.msgBot}>{m.content}</div>
             ))}
             {sending && (
-              <div style={{ ...HS.msgBot, color: "#8A8782", display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ ...HS.msgBot, color: "var(--muted2)", display: "flex", alignItems: "center", gap: 6 }}>
                 <Loader2 size={14} className="spin" /> أنجز يكتب...
               </div>
             )}
@@ -1619,10 +1699,16 @@ function prayerTimingNote(minutesAfterAdhan) {
   return minutesAfterAdhan <= PRAYER_ON_TIME_MINUTES ? "صليت في أول الوقت 👏" : `صليت بعد ${minutesAfterAdhan} دقيقة من الأذان`;
 }
 
-function PrayerView({ prayerLog, setPrayerLog, religious, setReligious, addPoints, showToast }) {
+function PrayerView({
+  prayerLog, setPrayerLog, religious, setReligious,
+  azkarLog, setAzkarLog, azkarItems, setAzkarItems, quranProgress, setQuranProgress, istighfar, setIstighfar,
+  addPoints, showToast,
+}) {
   const [now, setNow] = useState(new Date());
   const [notifEnabled, setNotifEnabled] = useState(false);
   const notifiedRef = useRef({});
+  const [azkarTab, setAzkarTab] = useState("morning");
+  const ISTIGHFAR_TARGET = 1000;
 
   useEffect(() => {
     const iv = setInterval(() => setNow(new Date()), 20000);
@@ -1692,6 +1778,74 @@ function PrayerView({ prayerLog, setPrayerLog, religious, setReligious, addPoint
   }
   async function removeReligious(id) {
     setReligious((prev) => prev.filter((x) => x.id !== id)); await store.deleteReligious(id);
+  }
+
+  const todayAzkar = azkarLog[today] || {};
+  const quranDoneCount = Object.values(quranProgress).filter(Boolean).length;
+  const todayIstighfar = (istighfar.daily || {})[today] ?? ISTIGHFAR_TARGET;
+  const azkarList = azkarTab === "morning" ? AZKAR_MORNING : AZKAR_EVENING;
+
+  async function toggleAzkarItem(itemId, session, allSessionIds) {
+    const todayItems = (azkarItems || {})[today] || {};
+    const newDone = !todayItems[itemId];
+    const newTodayItems = { ...todayItems, [itemId]: newDone };
+    const newAzkarItems = { ...(azkarItems || {}), [today]: newTodayItems };
+    setAzkarItems(newAzkarItems);
+    await store.saveAzkarItem(today, itemId, newDone);
+    const wasSessionDone = allSessionIds.every((id) => !!todayItems[id]);
+    const isNowSessionDone = allSessionIds.every((id) => !!newTodayItems[id]);
+    if (!wasSessionDone && isNowSessionDone) {
+      const newLog = { ...azkarLog, [today]: { ...todayAzkar, [session]: true } };
+      setAzkarLog(newLog);
+      await store.saveAzkarLog(today, session, true);
+      addPoints(15, `أذكار ${session === "morning" ? "الصباح" : "المساء"}`);
+      showToast("أتممت الأذكار! +15 نقطة");
+    } else if (wasSessionDone && !isNowSessionDone && todayAzkar[session]) {
+      const newLog = { ...azkarLog, [today]: { ...todayAzkar, [session]: false } };
+      setAzkarLog(newLog);
+      await store.saveAzkarLog(today, session, false);
+      addPoints(-15, `التراجع عن أذكار ${session === "morning" ? "الصباح" : "المساء"}`);
+    }
+  }
+
+  async function toggleJuz(juzNum) {
+    const done = !quranProgress[juzNum];
+    const next2 = { ...quranProgress, [juzNum]: done };
+    setQuranProgress(next2);
+    await store.saveQuranJuz(juzNum, done);
+    if (done) { addPoints(20, `الجزء ${juzNum} من القرآن`); showToast(`الجزء ${juzNum} مكتمل! +20 نقطة`); }
+    else addPoints(-20, `التراجع عن الجزء ${juzNum} من القرآن`);
+  }
+
+  async function toggleQuran30() {
+    const done = !todayAzkar.quran30;
+    const newLog = { ...azkarLog, [today]: { ...todayAzkar, quran30: done } };
+    setAzkarLog(newLog);
+    await store.saveAzkarLog(today, "quran30", done);
+    if (done) { addPoints(15, "قراءة القرآن 30 دقيقة"); showToast("أحسنت! +15 نقطة"); }
+    else addPoints(-15, "التراجع عن قراءة القرآن");
+  }
+
+  async function addIstighfar(amount) {
+    const remaining = todayIstighfar;
+    if (remaining <= 0) return;
+    const newRemaining = Math.max(0, remaining - amount);
+    const newTotal = (istighfar.total || 0) + Math.min(amount, remaining);
+    const newData = { daily: { ...(istighfar.daily || {}), [today]: newRemaining }, total: newTotal };
+    setIstighfar(newData);
+    await store.saveIstighfar(newData);
+    if (remaining > 0 && newRemaining === 0) {
+      addPoints(10, "إتمام ألف استغفار"); showToast("أحسنت! أكملت ألف استغفار اليوم +10 نقطة");
+    }
+  }
+
+  async function resetIstighfarDay() {
+    const wasDone = todayIstighfar === 0;
+    const newData = { daily: { ...(istighfar.daily || {}), [today]: ISTIGHFAR_TARGET }, total: istighfar.total || 0 };
+    setIstighfar(newData);
+    await store.saveIstighfar(newData);
+    if (wasDone) addPoints(-10, "إعادة تعيين الاستغفار");
+    showToast("تم إعادة العداد إلى 1000");
   }
 
   const hh = String(next.minutesUntil ? Math.floor(next.minutesUntil / 60) : 0).padStart(2, "0");
@@ -1771,6 +1925,105 @@ function PrayerView({ prayerLog, setPrayerLog, religious, setReligious, addPoint
           </div>
         )}
       </div>
+
+      <div style={PS.essSection}>
+        <div style={PS.essSectionHead}>
+          <span style={{ fontSize: 16 }}>🤲</span>
+          <span style={PS.essSectionTitle}>عداد الاستغفار</span>
+          <span style={PS.essProgressBadge}>{todayIstighfar === 0 ? "مكتمل ✓" : `متبقّ ${todayIstighfar}`}</span>
+        </div>
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ height: 6, background: "var(--surface-raised)", borderRadius: 3, overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${Math.min(100, ((ISTIGHFAR_TARGET - todayIstighfar) / ISTIGHFAR_TARGET) * 100)}%`, background: todayIstighfar === 0 ? "#5FA8A0" : "#C9A24B", borderRadius: 3, transition: "width 0.4s" }} />
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+            <span style={{ fontSize: 11, color: "var(--muted2)" }}>
+              {todayIstighfar === 0 ? "أكملت ألف استغفار اليوم" : `أكملت ${(ISTIGHFAR_TARGET - todayIstighfar).toLocaleString("ar-SA")} من ${ISTIGHFAR_TARGET}`}
+            </span>
+            <span style={{ fontSize: 11, color: "var(--muted2)" }}>الكلي: {(istighfar.total || 0).toLocaleString("ar-SA")}</span>
+          </div>
+        </div>
+        {todayIstighfar === 0 ? (
+          <button onClick={resetIstighfarDay} style={PS.essCompleteBtn}>إعادة العداد إلى 1000</button>
+        ) : (
+          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+            {[1, 10, 33, 100].map((n) => (
+              <button key={n} onClick={() => addIstighfar(n)} style={PS.istighfarBtn}>-{n}</button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div style={PS.essSection}>
+        <div style={PS.essSectionHead}>
+          <BookMarked size={16} color="#C9A24B" />
+          <span style={PS.essSectionTitle}>الأذكار</span>
+          <span style={PS.essProgressBadge}>{todayAzkar.morning && "☀ "}{todayAzkar.evening && "🌙"}</span>
+        </div>
+        <div style={PS.essTabRow}>
+          <button style={{ ...PS.essTab, ...(azkarTab === "morning" ? PS.essTabActive : {}) }} onClick={() => setAzkarTab("morning")}>
+            ☀ الصباح {todayAzkar.morning ? "✓" : ""}
+          </button>
+          <button style={{ ...PS.essTab, ...(azkarTab === "evening" ? PS.essTabActive : {}) }} onClick={() => setAzkarTab("evening")}>
+            🌙 المساء {todayAzkar.evening ? "✓" : ""}
+          </button>
+        </div>
+        {(() => {
+          const todayItems = (azkarItems || {})[today] || {};
+          const allIds = azkarList.map((z) => z.id);
+          return azkarList.map((z) => {
+            const itemDone = !!todayItems[z.id];
+            return (
+              <div key={z.id} style={{ ...PS.essAzkarItem, cursor: "pointer" }} onClick={() => toggleAzkarItem(z.id, azkarTab, allIds)}>
+                <span style={{ ...PS.essAzkarText, textDecoration: itemDone ? "line-through" : "none", color: itemDone ? "var(--muted2)" : "var(--ink)" }}>{z.short}</span>
+                <span style={PS.essAzkarCount}>×{z.count}</span>
+                <span style={{ ...S.checkbox, ...(itemDone ? S.checkboxDone : {}), flexShrink: 0, marginRight: 4 }}>{itemDone && <Check size={12} />}</span>
+              </div>
+            );
+          });
+        })()}
+        {todayAzkar[azkarTab] && (
+          <div style={{ ...PS.essCompleteBtn, ...PS.essCompleteBtnDone, cursor: "default" }}>
+            <Check size={15} /> أتممت أذكار {azkarTab === "morning" ? "الصباح" : "المساء"}
+          </div>
+        )}
+      </div>
+
+      <div style={PS.essSection}>
+        <div style={PS.essSectionHead}>
+          <BookOpen size={16} color="#C9A24B" />
+          <span style={PS.essSectionTitle}>تقدّم القرآن</span>
+          <span style={PS.essProgressBadge}>{quranDoneCount}/30 جزء</span>
+        </div>
+        <div
+          style={{ ...PS.essAzkarItem, cursor: "pointer", borderBottom: "none", paddingTop: 2 }}
+          onClick={toggleQuran30}
+        >
+          <span style={{ ...PS.essAzkarText, textDecoration: todayAzkar.quran30 ? "line-through" : "none", color: todayAzkar.quran30 ? "var(--muted2)" : "var(--ink)" }}>
+            قراءة القرآن 30 دقيقة اليوم
+          </span>
+          <span style={{ ...S.checkbox, ...(todayAzkar.quran30 ? S.checkboxDone : {}), flexShrink: 0, marginRight: 4 }}>{todayAzkar.quran30 && <Check size={12} />}</span>
+        </div>
+        <div style={PS.essJuzGrid}>
+          {Array.from({ length: 30 }, (_, i) => i + 1).map((juz) => {
+            const done = !!quranProgress[juz];
+            return (
+              <button key={juz} onClick={() => toggleJuz(juz)} style={{ ...PS.essJuzBtn, ...(done ? PS.essJuzBtnDone : {}) }}>
+                {juz}
+              </button>
+            );
+          })}
+        </div>
+        <div style={PS.essJuzCount}>
+          <div style={{ height: 6, background: "var(--surface-raised)", borderRadius: 3, marginTop: 10, overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${(quranDoneCount / 30) * 100}%`, background: "#C9A24B", borderRadius: 3, transition: "width 0.5s" }} />
+          </div>
+          <span style={{ fontSize: 12, color: "var(--muted2)", display: "block", marginTop: 4 }}>
+            {quranDoneCount === 30 ? "ختمت القرآن الكريم! مبارك" : `${30 - quranDoneCount} جزء متبقّ`}
+          </span>
+        </div>
+      </div>
+
       <div style={S.memoryNote}><Save size={13} color="#5FA8A0" /><span>صلواتك ومهامك الدينية تُحفظ بشكل دائم ولا تُحذف.</span></div>
     </div>
   );
@@ -1830,21 +2083,21 @@ const AS = {
   hero: { display: "flex", alignItems: "center", gap: 12, marginBottom: 4 },
   heroIcon: { width: 46, height: 46, borderRadius: "50%", background: "radial-gradient(circle at 32% 28%, #E7C378, #C9A24B 65%, #A9822F)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 0 0 1px rgba(201,162,75,0.25), 0 4px 14px rgba(201,162,75,0.25)" },
   heroTitle: { fontFamily: "'Amiri', serif", fontSize: 22, fontWeight: 700 },
-  heroSub: { fontSize: 12, color: "#8A8782", lineHeight: 1.5, marginTop: 2 },
+  heroSub: { fontSize: 12, color: "var(--muted2)", lineHeight: 1.5, marginTop: 2 },
   grid: { display: "flex", flexDirection: "column", gap: 12 },
-  catCard: { display: "flex", alignItems: "center", gap: 14, background: "linear-gradient(165deg, var(--panel), #141416)", border: "1px solid var(--line)", borderRadius: 20, padding: "18px 16px", cursor: "pointer", textAlign: "right", fontFamily: "inherit", boxShadow: "0 4px 16px rgba(0,0,0,0.18)" },
+  catCard: { display: "flex", alignItems: "center", gap: 14, background: "linear-gradient(165deg, var(--panel), var(--surface-sunken))", border: "1px solid var(--line)", borderRadius: 20, padding: "18px 16px", cursor: "pointer", textAlign: "right", fontFamily: "inherit", boxShadow: "0 4px 16px rgba(0,0,0,0.18)" },
   catIcon: { fontSize: 26, width: 54, height: 54, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: "radial-gradient(circle at 35% 30%, rgba(201,162,75,0.24), rgba(201,162,75,0.05))", border: "1px solid rgba(201,162,75,0.25)", flexShrink: 0 },
   catInfo: { flex: 1, minWidth: 0 },
   catTitle: { fontFamily: "'Amiri', serif", fontSize: 17, fontWeight: 700, color: "var(--ink)" },
-  catSub: { fontSize: 11.5, color: "#8A8782", marginTop: 3 },
+  catSub: { fontSize: 11.5, color: "var(--muted2)", marginTop: 3 },
   catBadge: { fontSize: 12, fontWeight: 700, color: "#5FA8A0", background: "rgba(95,168,160,0.1)", border: "1px solid rgba(95,168,160,0.3)", borderRadius: 20, padding: "5px 12px", flexShrink: 0, fontVariantNumeric: "tabular-nums" },
   backRow: { display: "flex", alignItems: "center", gap: 8, marginBottom: 4 },
-  backBtn: { display: "flex", alignItems: "center", gap: 5, background: "none", border: "none", color: "#8A8782", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", padding: "4px 0" },
+  backBtn: { display: "flex", alignItems: "center", gap: 5, background: "none", border: "none", color: "var(--muted2)", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", padding: "4px 0" },
   progressWrap: { marginBottom: 6 },
-  progressTop: { display: "flex", justifyContent: "space-between", fontSize: 12, color: "#8A8782", marginBottom: 6 },
-  progressBar: { height: 8, background: "#1F1F22", borderRadius: 4, overflow: "hidden" },
+  progressTop: { display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--muted2)", marginBottom: 6 },
+  progressBar: { height: 8, background: "var(--surface-raised)", borderRadius: 4, overflow: "hidden" },
   progressFill: { height: "100%", borderRadius: 4, transition: "width 0.4s ease" },
-  itemCard: { position: "relative", background: "linear-gradient(180deg, var(--panel), #131315)", border: "1px solid var(--line)", borderRadius: 20, padding: "24px 20px", boxShadow: "0 6px 20px rgba(0,0,0,0.2)", transition: "opacity 0.3s ease, transform 0.3s ease" },
+  itemCard: { position: "relative", background: "linear-gradient(180deg, var(--panel), var(--surface-sunken))", border: "1px solid var(--line)", borderRadius: 20, padding: "24px 20px", boxShadow: "0 6px 20px rgba(0,0,0,0.2)", transition: "opacity 0.3s ease, transform 0.3s ease" },
   itemCardDone: { opacity: 0.55 },
   itemOrnament: { display: "flex", alignItems: "center", gap: 10, marginBottom: 16 },
   itemOrnamentLine: { flex: 1, height: 1, background: "linear-gradient(90deg, transparent, rgba(201,162,75,0.4))" },
@@ -1852,12 +2105,12 @@ const AS = {
   itemOrnamentDot: { color: "#C9A24B", fontSize: 11, flexShrink: 0 },
   itemText: { fontFamily: "'Amiri', 'Scheherazade New', serif", fontSize: 21, lineHeight: 2.3, letterSpacing: 0.2, color: "var(--ink)", whiteSpace: "pre-line", textAlign: "center" },
   itemTextQuran: { fontSize: 25, lineHeight: 2.6 },
-  itemNote: { fontFamily: "'Amiri', serif", fontSize: 13, color: "#8A8782", textAlign: "center", marginTop: 12, lineHeight: 1.9 },
+  itemNote: { fontFamily: "'Amiri', serif", fontSize: 13, color: "var(--muted2)", textAlign: "center", marginTop: 12, lineHeight: 1.9 },
   itemFooter: { display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 18, gap: 10 },
-  itemLabel: { fontFamily: "'Amiri', serif", fontSize: 14, color: "#8A8782" },
+  itemLabel: { fontFamily: "'Amiri', serif", fontSize: 14, color: "var(--muted2)" },
   counterBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, minWidth: 96, background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.35)", color: "#C9A24B", borderRadius: 14, padding: "10px 18px", fontSize: 19, fontWeight: 700, cursor: "pointer", fontFamily: "'Amiri', serif", fontVariantNumeric: "tabular-nums" },
   counterBtnDone: { background: "rgba(95,168,160,0.12)", borderColor: "rgba(95,168,160,0.4)", color: "#5FA8A0" },
-  doneMsg: { display: "flex", flexDirection: "column", alignItems: "center", gap: 8, textAlign: "center", background: "linear-gradient(160deg, #15130E, #121214)", border: "1px solid rgba(201,162,75,0.35)", borderRadius: 18, padding: "28px 16px" },
+  doneMsg: { display: "flex", flexDirection: "column", alignItems: "center", gap: 8, textAlign: "center", background: "linear-gradient(160deg, var(--warm-tint), var(--panel))", border: "1px solid rgba(201,162,75,0.35)", borderRadius: 18, padding: "28px 16px" },
   doneMsgIcon: { fontSize: 34 },
   doneMsgText: { fontFamily: "'Amiri', serif", fontSize: 18, fontWeight: 700, color: "#C9A24B" },
 };
@@ -1902,7 +2155,7 @@ function AdhkarView({ showToast }) {
   }
 
   if (!loaded) {
-    return <div style={S.view}><div style={{ color: "#8A8782", textAlign: "center", marginTop: 40 }}><Loader2 size={20} className="spin" /></div></div>;
+    return <div style={S.view}><div style={{ color: "var(--muted2)", textAlign: "center", marginTop: 40 }}><Loader2 size={20} className="spin" /></div></div>;
   }
 
   if (!selected) {
@@ -1910,7 +2163,7 @@ function AdhkarView({ showToast }) {
       <div style={S.view}>
         <div style={AS.wrap}>
           <div style={AS.hero}>
-            <div style={{ ...AS.heroIcon, color: "#0A0A0B" }}><TasbihIcon size={22} /></div>
+            <div style={{ ...AS.heroIcon, color: "var(--on-accent)" }}><TasbihIcon size={22} /></div>
             <div>
               <div style={AS.heroTitle}>أذكار</div>
               <div style={AS.heroSub}>اختر فئة لتبدأ، وعدّاد كل ذكر يحفظ تقدّمك تلقائياً طوال اليوم.</div>
@@ -1995,9 +2248,9 @@ const TS = {
   hero: { display: "flex", alignItems: "center", gap: 12, marginBottom: 4 },
   heroIcon: { width: 46, height: 46, borderRadius: "50%", background: "radial-gradient(circle at 32% 28%, #E7C378, #C9A24B 65%, #A9822F)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 0 0 1px rgba(201,162,75,0.25), 0 4px 14px rgba(201,162,75,0.25)" },
   heroTitle: { fontFamily: "'Amiri', serif", fontSize: 22, fontWeight: 700 },
-  heroSub: { fontSize: 12, color: "#8A8782", lineHeight: 1.5, marginTop: 2 },
-  dateLabel: { fontSize: 12.5, color: "#8A8782", textAlign: "center" },
-  card: { position: "relative", background: "linear-gradient(180deg, var(--panel), #131315)", border: "1px solid var(--line)", borderRadius: 22, padding: "30px 22px 24px", boxShadow: "0 6px 24px rgba(0,0,0,0.22)" },
+  heroSub: { fontSize: 12, color: "var(--muted2)", lineHeight: 1.5, marginTop: 2 },
+  dateLabel: { fontSize: 12.5, color: "var(--muted2)", textAlign: "center" },
+  card: { position: "relative", background: "linear-gradient(180deg, var(--panel), var(--surface-sunken))", border: "1px solid var(--line)", borderRadius: 22, padding: "30px 22px 24px", boxShadow: "0 6px 24px rgba(0,0,0,0.22)" },
   ornament: { display: "flex", alignItems: "center", gap: 10, marginBottom: 18 },
   ornamentLine: { flex: 1, height: 1, background: "linear-gradient(90deg, transparent, rgba(201,162,75,0.4))" },
   ornamentLineRev: { flex: 1, height: 1, background: "linear-gradient(270deg, transparent, rgba(201,162,75,0.4))" },
@@ -2005,13 +2258,13 @@ const TS = {
   quoteText: { fontFamily: "'Amiri', serif", fontSize: 21, lineHeight: 2.1, letterSpacing: 0.2, color: "var(--ink)", textAlign: "center", margin: 0 },
   footerRow: { display: "flex", alignItems: "center", justifyContent: "center", marginTop: 20 },
   categoryPill: { fontSize: 11.5, fontWeight: 700, color: "#C9A24B", background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.3)", borderRadius: 20, padding: "5px 14px" },
-  footerNote: { fontSize: 11.5, color: "#6B6863", textAlign: "center", marginTop: 4 },
-  archiveHeader: { display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 12.5, fontWeight: 700, color: "#8A8782" },
+  footerNote: { fontSize: 11.5, color: "var(--muted)", textAlign: "center", marginTop: 4 },
+  archiveHeader: { display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 12.5, fontWeight: 700, color: "var(--muted2)" },
   archiveHeaderLine: { flex: 1, height: 1, background: "var(--line)" },
   archiveList: { display: "flex", flexDirection: "column", gap: 8 },
-  archiveItem: { background: "#0F0F11", border: "1px solid var(--line)", borderRadius: 12, padding: "12px 14px", display: "flex", flexDirection: "column", gap: 6 },
+  archiveItem: { background: "var(--surface-sunken)", border: "1px solid var(--line)", borderRadius: 12, padding: "12px 14px", display: "flex", flexDirection: "column", gap: 6 },
   archiveTop: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 },
-  archiveDate: { fontSize: 11, color: "#7A776F", whiteSpace: "nowrap" },
+  archiveDate: { fontSize: 11, color: "var(--muted2)", whiteSpace: "nowrap" },
   archiveText: { fontFamily: "'Amiri', serif", fontSize: 14.5, lineHeight: 1.8, color: "#C9C6C0" },
 };
 
@@ -2096,7 +2349,7 @@ function TipsView({ tipsLog, setTipsLog, showToast, subscription }) {
     <div style={S.view}>
       <div style={TS.wrap}>
         <div style={TS.hero}>
-          <div style={TS.heroIcon}><Eye size={22} color="#0A0A0B" /></div>
+          <div style={TS.heroIcon}><Eye size={22} color="var(--on-accent)" /></div>
           <div>
             <div style={TS.heroTitle}>بصيرة</div>
             <div style={TS.heroSub}>نصيحة جديدة كل يوم، بين الدنيا والدين.</div>
@@ -2172,24 +2425,24 @@ const GS = {
   hero: { display: "flex", alignItems: "center", gap: 12, marginBottom: 4 },
   heroIcon: { width: 46, height: 46, borderRadius: "50%", background: "radial-gradient(circle at 32% 28%, #E7C378, #C9A24B 65%, #A9822F)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 0 0 1px rgba(201,162,75,0.25), 0 4px 14px rgba(201,162,75,0.25)" },
   heroTitle: { fontFamily: "'Amiri', serif", fontSize: 22, fontWeight: 700 },
-  heroSub: { fontSize: 12, color: "#8A8782", lineHeight: 1.5, marginTop: 2 },
+  heroSub: { fontSize: 12, color: "var(--muted2)", lineHeight: 1.5, marginTop: 2 },
   addCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 12px" },
   periodRow: { display: "flex", gap: 8, marginTop: 10, marginBottom: 12 },
-  periodChip: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "transparent", border: "1px solid #2A2A2D", borderRadius: 10, padding: "9px 0", fontSize: 12.5, color: "#8A8782", cursor: "pointer", fontFamily: "inherit", fontWeight: 600 },
+  periodChip: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "transparent", border: "1px solid var(--border2)", borderRadius: 10, padding: "9px 0", fontSize: 12.5, color: "var(--muted2)", cursor: "pointer", fontFamily: "inherit", fontWeight: 600 },
   periodChipActive: { background: "rgba(201,162,75,0.1)", borderColor: "rgba(201,162,75,0.4)", color: "#C9A24B" },
   goalsList: { display: "flex", flexDirection: "column", gap: 12 },
-  goalCard: { background: "#0F0F11", border: "1px solid var(--line)", borderRadius: 12, padding: 12, display: "flex", flexDirection: "column", gap: 10 },
+  goalCard: { background: "var(--surface-sunken)", border: "1px solid var(--line)", borderRadius: 12, padding: 12, display: "flex", flexDirection: "column", gap: 10 },
   goalTop: { display: "flex", alignItems: "flex-start", gap: 8 },
   goalTitle: { fontSize: 14, fontWeight: 700, color: "var(--ink)", flex: 1 },
-  goalMeta: { fontSize: 11, color: "#7A776F", marginTop: 3 },
+  goalMeta: { fontSize: 11, color: "var(--muted2)", marginTop: 3 },
   statusBadge: { fontSize: 10.5, fontWeight: 700, padding: "3px 8px", borderRadius: 20, height: "fit-content", flexShrink: 0 },
   statusDone: { color: "#5FA8A0", background: "rgba(95,168,160,0.12)" },
   statusFailed: { color: "#E05252", background: "rgba(224,82,82,0.1)" },
   calendarRow: { display: "flex", flexWrap: "wrap", gap: 5 },
-  cell: { width: 22, height: 22, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9.5, fontWeight: 700, border: "1px solid #2A2A2D", color: "#5A5650", flexShrink: 0 },
+  cell: { width: 22, height: 22, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9.5, fontWeight: 700, border: "1px solid var(--border2)", color: "#5A5650", flexShrink: 0 },
   cellMonth: { width: "auto", minWidth: 40, height: 22, padding: "0 6px", borderRadius: 8, fontSize: 9 },
   cellPast: { background: "rgba(201,162,75,0.16)", borderColor: "rgba(201,162,75,0.3)", color: "#C9A24B" },
-  cellToday: { background: "#C9A24B", borderColor: "#C9A24B", color: "#0A0A0B", boxShadow: "0 0 0 2px rgba(201,162,75,0.3)" },
+  cellToday: { background: "#C9A24B", borderColor: "#C9A24B", color: "var(--on-accent)", boxShadow: "0 0 0 2px rgba(201,162,75,0.3)" },
   reviewCard: { background: "linear-gradient(160deg, rgba(201,162,75,0.12), rgba(201,162,75,0.03))", border: "1px solid rgba(201,162,75,0.35)", borderRadius: 14, padding: 14, display: "flex", flexDirection: "column", gap: 10 },
   reviewTitle: { fontSize: 13.5, fontWeight: 700, color: "#C9A24B" },
   reviewQuestion: { fontSize: 13, color: "var(--ink)", lineHeight: 1.6 },
@@ -2197,16 +2450,16 @@ const GS = {
   reviewYesBtn: { flex: 1, background: "rgba(95,168,160,0.14)", border: "1px solid rgba(95,168,160,0.4)", color: "#5FA8A0", borderRadius: 10, padding: "10px 0", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" },
   reviewNoBtn: { flex: 1, background: "rgba(224,82,82,0.1)", border: "1px solid rgba(224,82,82,0.35)", color: "#E05252", borderRadius: 10, padding: "10px 0", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" },
   reasonBox: { display: "flex", flexDirection: "column", gap: 8 },
-  reasonInput: { width: "100%", background: "#0F0F11", border: "1px solid #2A2A2D", borderRadius: 10, padding: "10px 12px", color: "var(--ink)", fontSize: 13, fontFamily: "inherit", minHeight: 70, resize: "vertical" },
+  reasonInput: { width: "100%", background: "var(--surface-sunken)", border: "1px solid var(--border2)", borderRadius: 10, padding: "10px 12px", color: "var(--ink)", fontSize: 13, fontFamily: "inherit", minHeight: 70, resize: "vertical" },
   reasonConfirmBtn: { background: "var(--gold)", color: "var(--bg)", border: "none", borderRadius: 10, padding: "10px 0", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" },
   reasonConfirmBtnDisabled: { opacity: 0.5, cursor: "default" },
   failuresCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 12px" },
   failuresList: { display: "flex", flexDirection: "column", gap: 8, marginTop: 10 },
-  failureItem: { background: "#0F0F11", border: "1px solid var(--line)", borderRadius: 10, padding: 10, display: "flex", flexDirection: "column", gap: 4 },
+  failureItem: { background: "var(--surface-sunken)", border: "1px solid var(--line)", borderRadius: 10, padding: 10, display: "flex", flexDirection: "column", gap: 4 },
   failureTop: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 },
   failureTitle: { fontSize: 13, fontWeight: 700, color: "var(--ink)" },
-  failureDate: { fontSize: 10.5, color: "#7A776F", whiteSpace: "nowrap" },
-  failureReason: { fontSize: 12, color: "#B8B5AF", lineHeight: 1.6 },
+  failureDate: { fontSize: 10.5, color: "var(--muted2)", whiteSpace: "nowrap" },
+  failureReason: { fontSize: 12, color: "var(--muted2)", lineHeight: 1.6 },
   pendingNote: { fontSize: 11.5, color: "#E05252", textAlign: "center" },
 };
 
@@ -2294,7 +2547,7 @@ function GoalsView({ goals, setGoals, addPoints, showToast }) {
     <div style={S.view}>
       <div style={GS.wrap}>
         <div style={GS.hero}>
-          <div style={GS.heroIcon}><Target size={22} color="#0A0A0B" /></div>
+          <div style={GS.heroIcon}><Target size={22} color="var(--on-accent)" /></div>
           <div>
             <div style={GS.heroTitle}>أهداف</div>
             <div style={GS.heroSub}>حدّد هدفك، وتابعه حتى تراجعه في وقته.</div>
@@ -2498,7 +2751,7 @@ function VaultView({ vault, setVault, vaultTx, setVaultTx, showToast }) {
       <div style={S.view}>
         <div style={VS.wrap}>
           <div style={VS.hero}>
-            <div style={VS.heroIcon}><Wallet size={22} color="#0A0A0B" /></div>
+            <div style={VS.heroIcon}><Wallet size={22} color="var(--on-accent)" /></div>
             <div>
               <div style={VS.heroTitle}>خزنة</div>
               <div style={VS.heroSub}>تتبّع رصيدك ونفقاتك بوضوح.</div>
@@ -2517,7 +2770,7 @@ function VaultView({ vault, setVault, vaultTx, setVaultTx, showToast }) {
             </select>
             <button onClick={submitSetup} style={{ ...S.saveBtn, marginTop: 14 }}>حفظ الرصيد</button>
             {vault && editingSetup && (
-              <button onClick={() => setEditingSetup(false)} style={{ ...S.saveBtn, marginTop: 8, background: "transparent", border: "1px solid #2A2A2D", color: "#8A8782" }}>إلغاء</button>
+              <button onClick={() => setEditingSetup(false)} style={{ ...S.saveBtn, marginTop: 8, background: "transparent", border: "1px solid var(--border2)", color: "var(--muted2)" }}>إلغاء</button>
             )}
           </div>
         </div>
@@ -2529,7 +2782,7 @@ function VaultView({ vault, setVault, vaultTx, setVaultTx, showToast }) {
     <div style={S.view}>
       <div style={VS.wrap}>
         <div style={VS.hero}>
-          <div style={VS.heroIcon}><Wallet size={22} color="#0A0A0B" /></div>
+          <div style={VS.heroIcon}><Wallet size={22} color="var(--on-accent)" /></div>
           <div>
             <div style={VS.heroTitle}>خزنة</div>
             <div style={VS.heroSub}>اعرف أين تذهب أموالك بالضبط.</div>
@@ -2612,27 +2865,27 @@ const VS = {
   hero: { display: "flex", alignItems: "center", gap: 12, marginBottom: 4 },
   heroIcon: { width: 46, height: 46, borderRadius: "50%", background: "radial-gradient(circle at 32% 28%, #E7C378, #C9A24B 65%, #A9822F)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 0 0 1px rgba(201,162,75,0.25), 0 4px 14px rgba(201,162,75,0.25)" },
   heroTitle: { fontFamily: "'Amiri', serif", fontSize: 22, fontWeight: 700 },
-  heroSub: { fontSize: 12, color: "#8A8782", lineHeight: 1.5, marginTop: 2 },
+  heroSub: { fontSize: 12, color: "var(--muted2)", lineHeight: 1.5, marginTop: 2 },
   setupCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 12px" },
-  balanceCard: { background: "linear-gradient(180deg, var(--panel), #131315)", border: "1px solid var(--line)", borderRadius: 22, padding: "26px 20px 20px", textAlign: "center", boxShadow: "0 6px 24px rgba(0,0,0,0.22)" },
-  balanceLabel: { fontSize: 12.5, color: "#8A8782", fontWeight: 600 },
+  balanceCard: { background: "linear-gradient(180deg, var(--panel), var(--surface-sunken))", border: "1px solid var(--line)", borderRadius: 22, padding: "26px 20px 20px", textAlign: "center", boxShadow: "0 6px 24px rgba(0,0,0,0.22)" },
+  balanceLabel: { fontSize: 12.5, color: "var(--muted2)", fontWeight: 600 },
   balanceAmount: { fontFamily: "'Amiri', serif", fontSize: 36, fontWeight: 700, color: "#C9A24B", marginTop: 8, direction: "ltr" },
-  editBalanceBtn: { display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", color: "#7A776F", fontSize: 11.5, cursor: "pointer", fontFamily: "inherit", marginTop: 8, padding: 4 },
+  editBalanceBtn: { display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", color: "var(--muted2)", fontSize: 11.5, cursor: "pointer", fontFamily: "inherit", marginTop: 8, padding: 4 },
   actionRow: { display: "flex", gap: 10, marginTop: 16 },
   expenseBtn: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "rgba(224,82,82,0.1)", border: "1px solid rgba(224,82,82,0.35)", color: "#E05252", borderRadius: 12, padding: "12px 0", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" },
   incomeBtn: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "rgba(95,168,160,0.14)", border: "1px solid rgba(95,168,160,0.4)", color: "#5FA8A0", borderRadius: 12, padding: "12px 0", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" },
   txForm: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 12px" },
   txFormTitle: { fontSize: 13.5, fontWeight: 700, color: "var(--ink)", marginBottom: 4 },
   txFormRow: { display: "flex", gap: 10, marginTop: 14 },
-  txCancelBtn: { background: "transparent", border: "1px solid #2A2A2D", color: "#8A8782", borderRadius: 12, padding: "0 18px", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" },
-  tipCard: { position: "relative", background: "linear-gradient(180deg, var(--panel), #131315)", border: "1px solid var(--line)", borderRadius: 22, padding: "26px 20px 20px", boxShadow: "0 6px 24px rgba(0,0,0,0.22)" },
-  logHeader: { display: "flex", alignItems: "center", gap: 8, marginTop: 4, fontSize: 12.5, fontWeight: 700, color: "#8A8782" },
+  txCancelBtn: { background: "transparent", border: "1px solid var(--border2)", color: "var(--muted2)", borderRadius: 12, padding: "0 18px", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" },
+  tipCard: { position: "relative", background: "linear-gradient(180deg, var(--panel), var(--surface-sunken))", border: "1px solid var(--line)", borderRadius: 22, padding: "26px 20px 20px", boxShadow: "0 6px 24px rgba(0,0,0,0.22)" },
+  logHeader: { display: "flex", alignItems: "center", gap: 8, marginTop: 4, fontSize: 12.5, fontWeight: 700, color: "var(--muted2)" },
   logHeaderLine: { flex: 1, height: 1, background: "var(--line)" },
   logList: { display: "flex", flexDirection: "column", gap: 8 },
-  logItem: { background: "#0F0F11", border: "1px solid var(--line)", borderRadius: 12, padding: "12px 14px", display: "flex", flexDirection: "column", gap: 6 },
+  logItem: { background: "var(--surface-sunken)", border: "1px solid var(--line)", borderRadius: 12, padding: "12px 14px", display: "flex", flexDirection: "column", gap: 6 },
   logTop: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 },
   logAmount: { fontSize: 14, fontWeight: 700, direction: "ltr" },
-  logDate: { fontSize: 11, color: "#7A776F", whiteSpace: "nowrap", flex: 1, textAlign: "center" },
+  logDate: { fontSize: 11, color: "var(--muted2)", whiteSpace: "nowrap", flex: 1, textAlign: "center" },
   logReason: { fontSize: 12.5, color: "#C9C6C0", lineHeight: 1.6 },
 };
 
@@ -2812,7 +3065,7 @@ function FocusView({ focus, setFocus, commitments, setCommitments, categories, e
     return entries.filter((e) => e.catId === studyCat.id);
   }, [entries, categories]);
 
-  if (!loaded) return <div style={S.view}><div style={{ color: "#8A8782", textAlign: "center", marginTop: 40 }}><Loader2 size={20} className="spin" /></div></div>;
+  if (!loaded) return <div style={S.view}><div style={{ color: "var(--muted2)", textAlign: "center", marginTop: 40 }}><Loader2 size={20} className="spin" /></div></div>;
 
   return (
     <div style={S.view}>
@@ -2898,7 +3151,7 @@ function FocusView({ focus, setFocus, commitments, setCommitments, categories, e
             {!pickingTime ? (
               <div style={{ display: "flex", gap: 10 }}>
                 <button onClick={confirmCompletionNow} style={{ ...S.saveBtn, marginTop: 0, flex: 1 }}>الآن</button>
-                <button onClick={() => setPickingTime(true)} style={{ ...S.saveBtn, marginTop: 0, flex: 1, background: "#1F1F22", color: "var(--ink)", border: "1px solid #2A2A2D" }}>وقت آخر</button>
+                <button onClick={() => setPickingTime(true)} style={{ ...S.saveBtn, marginTop: 0, flex: 1, background: "var(--surface-raised)", color: "var(--ink)", border: "1px solid var(--border2)" }}>وقت آخر</button>
               </div>
             ) : (
               <>
@@ -2956,10 +3209,10 @@ function FocusReport({ focus, title, color, emptyMsg, studyEntries }) {
         {!hasAny ? <div style={S.emptyHint}>{emptyMsg}</div> : (
           <ResponsiveContainer width="100%" height={160}>
             <BarChart data={last14} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="2 4" stroke="#1F1F22" vertical={false} />
-              <XAxis dataKey="label" tick={{ fill: "#6B6863", fontSize: 9, fontFamily: "Tajawal" }} axisLine={{ stroke: "#2A2A2D" }} tickLine={false} interval={1} />
-              <YAxis tick={{ fill: "#6B6863", fontSize: 10 }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ background: "#1A1A1D", border: "1px solid #2A2A2D", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [`${v} دقيقة`, ""]} />
+              <CartesianGrid strokeDasharray="2 4" stroke="var(--surface-raised)" vertical={false} />
+              <XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: 9, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} interval={1} />
+              <YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [`${v} دقيقة`, ""]} />
               <Bar dataKey="mins" radius={[3, 3, 3, 3]} fill={color} maxBarSize={18} />
             </BarChart>
           </ResponsiveContainer>
@@ -3080,7 +3333,7 @@ function BotsChallenge({ focus, entries, categories }) {
       mins: computeBotMinutes(r, now, today),
       color: "#5FA8A0",
     }));
-    const me = { id: "me", name: "أنت", flag: "⭐", country: "", specialty: "", trait: "تقدمك الحقيقي اليوم", mins: myToday, color: "#E8E6E1", isMe: true };
+    const me = { id: "me", name: "أنت", flag: "⭐", country: "", specialty: "", trait: "تقدمك الحقيقي اليوم", mins: myToday, color: "var(--ink)", isMe: true };
     return [...list, me].sort((a, b) => b.mins - a.mins);
   }, [tick, myToday]);
 
@@ -3092,8 +3345,8 @@ function BotsChallenge({ focus, entries, categories }) {
       <div style={{ ...S.sectionTitle, fontSize: 17 }}>تحدي الروبوتات</div>
       <p style={S.profileHint}>15 منافس من دول مختلفة، لكل واحد عادات يومه الخاصة. ركّز أكثر لتتقدم عليهم.</p>
       <div style={S.rankBanner}>
-        <Trophy size={16} color={myRank === 1 ? "#C9A24B" : "#8A8782"} />
-        <span>ترتيبك الآن: <strong style={{ color: myRank === 1 ? "#C9A24B" : "#E8E6E1" }}>{myRank} من 16</strong></span>
+        <Trophy size={16} color={myRank === 1 ? "#C9A24B" : "var(--muted2)"} />
+        <span>ترتيبك الآن: <strong style={{ color: myRank === 1 ? "#C9A24B" : "var(--ink)" }}>{myRank} من 16</strong></span>
         {myRank === 1 && <span style={S.leadPill}>متصدّر</span>}
       </div>
       <div style={S.botsList}>
@@ -3105,10 +3358,10 @@ function BotsChallenge({ focus, entries, categories }) {
               <div style={S.botName}>
                 {b.name}
                 {b.isMe && <span style={S.botYou}>أنت</span>}
-                {!b.isMe && <span style={{ fontSize: 11, color: "#8A8782", marginRight: 6 }}>{b.specialty}</span>}
+                {!b.isMe && <span style={{ fontSize: 11, color: "var(--muted2)", marginRight: 6 }}>{b.specialty}</span>}
               </div>
               <div style={S.botTrait}>{!b.isMe && <span style={{ marginLeft: 4 }}>{b.country}</span>}{b.trait}</div>
-              <div style={S.botBarWrap}><div style={{ ...S.botBarFill, width: `${(b.mins / maxMins) * 100}%`, background: b.isMe ? "#E8E6E1" : b.color }} /></div>
+              <div style={S.botBarWrap}><div style={{ ...S.botBarFill, width: `${(b.mins / maxMins) * 100}%`, background: b.isMe ? "var(--ink)" : b.color }} /></div>
             </div>
             <span style={S.botMins}>{fmtHM(b.mins)}</span>
           </div>
@@ -3127,7 +3380,7 @@ function FocusRing({ progress, size, children }) {
   return (
     <div style={{ position: "relative", width: size, height: size, margin: "0 auto" }}>
       <svg width={size} height={size}>
-        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#1F1F22" strokeWidth={stroke} />
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--surface-raised)" strokeWidth={stroke} />
         <circle cx={cx} cy={cy} r={r} fill="none" stroke="#C9A24B" strokeWidth={stroke} strokeLinecap="round"
           strokeDasharray={c} strokeDashoffset={c * (1 - progress)}
           transform={`rotate(-90 ${cx} ${cy})`}
@@ -3300,7 +3553,7 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
   return (
     <div style={S.view}>
       <div style={S.achieveHero}>
-        <div style={S.achieveHeroIcon}><Rocket size={20} color="#0A0A0B" /></div>
+        <div style={S.achieveHeroIcon}><Rocket size={20} color="var(--on-accent)" /></div>
         <div>
           <div style={S.achieveHeroTitle}>أنجز</div>
           <div style={S.achieveHeroSub}>تحديات ومشاريع ومسارات مصممة لهواياتك وتخصصك</div>
@@ -3411,7 +3664,7 @@ function AchieveCard({ item, kindLabel, onToggle, onRemove }) {
 
 const FREE_CATEGORY_LIMIT = 5;
 
-function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, profile, setProfile, pointsLog, onStartTour, subscription }) {
+function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, profile, setProfile, pointsLog, onStartTour, subscription, theme, toggleTheme }) {
   const isSub = isActiveSubscriber(subscription);
   const [editing, setEditing] = useState(null);
   // While a category is being renamed, edits live here only — nothing is
@@ -3468,6 +3721,17 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
     <div style={S.view}>
       <div style={S.sectionTitle}>التخصيص</div>
       <ProfileCard profile={profile} setProfile={setProfile} showToast={showToast} />
+      <div style={S.catEditorCard}>
+        <div style={S.catEditorHeader}>{theme === "dark" ? <Moon size={15} color="#C9A24B" /> : <Sun size={15} color="#C9A24B" />}<span>المظهر</span></div>
+        <div style={S.rangeToggle}>
+          <button onClick={() => theme !== "light" && toggleTheme()} style={{ ...S.rangeBtn, flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, ...(theme === "light" ? S.rangeBtnActive : {}) }}>
+            <Sun size={14} /> فاتح (أبيض)
+          </button>
+          <button onClick={() => theme !== "dark" && toggleTheme()} style={{ ...S.rangeBtn, flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, ...(theme === "dark" ? S.rangeBtnActive : {}) }}>
+            <Moon size={14} /> داكن (أسود/كحلي)
+          </button>
+        </div>
+      </div>
       <SubscriptionCard subscription={subscription} />
       <button onClick={onStartTour} style={S.exportBtn}><GraduationCap size={15} /> إعادة الجولة التعريفية</button>
       {!hasCloud && (
@@ -3535,10 +3799,10 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
           <div style={S.catEditorHeader}><span style={{ fontSize: 14 }}>📋</span><span>سجل النقاط</span></div>
           <div>
             {pointsLog.slice(0, 20).map((entry) => (
-              <div key={entry.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+              <div key={entry.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
                 <div>
                   <div style={{ fontSize: 13, color: "var(--ink)" }}>{entry.reason}</div>
-                  <div style={{ fontSize: 11, color: "#6B6863", marginTop: 2 }}>{entry.date}</div>
+                  <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>{entry.date}</div>
                 </div>
                 <div style={{ fontSize: 14, fontWeight: 700, color: entry.amount >= 0 ? "#5FA8A0" : "#E05252", whiteSpace: "nowrap", marginRight: 8 }}>
                   {entry.amount >= 0 ? "+" : ""}{entry.amount}
@@ -3561,7 +3825,7 @@ const SUBSCRIBE_WHATSAPP_URL = "https://wa.me/96555765553";
 function UpsellCard({ icon: Icon = Crown, title, message, compact }) {
   return (
     <div style={{ ...SUB.upsellCard, ...(compact ? SUB.upsellCardCompact : {}) }}>
-      <div style={SUB.upsellIconBadge}><Icon size={compact ? 20 : 26} color="#0A0A0B" /></div>
+      <div style={SUB.upsellIconBadge}><Icon size={compact ? 20 : 26} color="var(--on-accent)" /></div>
       <div style={SUB.upsellTitle}>{title}</div>
       <p style={SUB.upsellMessage}>{message}</p>
       <a href={SUBSCRIBE_WHATSAPP_URL} target="_blank" rel="noopener noreferrer" style={SUB.upsellBtn}>
@@ -3584,7 +3848,7 @@ function SubscriptionCard({ subscription }) {
   return (
     <div style={SUB.card}>
       <div style={SUB.head}>
-        <div style={SUB.iconBadge}>{isVip ? <Crown size={20} color="#0A0A0B" /> : <Star size={20} color="#0A0A0B" />}</div>
+        <div style={SUB.iconBadge}>{isVip ? <Crown size={20} color="var(--on-accent)" /> : <Star size={20} color="var(--on-accent)" />}</div>
         <div>
           <div style={SUB.title}>{isVip ? "عضويتك VIP" : active ? "اشتراكك في مسار" : "اشترك في مسار"}</div>
           <div style={SUB.subtitle}>
@@ -3708,7 +3972,7 @@ function EntryModal({ entry, date, categories, onSave, onClose }) {
           <div style={{ position: "relative", marginBottom: 14 }}>
             <div style={{ ...S.input, display: "flex", alignItems: "center", justifyContent: "space-between", boxSizing: "border-box" }}>
               <span>{to12h(startTime)}</span>
-              <Clock size={15} color="#8A8782" />
+              <Clock size={15} color="var(--muted2)" />
             </div>
             <input
               type="time"
@@ -3722,12 +3986,12 @@ function EntryModal({ entry, date, categories, onSave, onClose }) {
             <button onClick={() => setMinutes((m) => Math.max(5, m - 5))} style={{ ...PS.miniTimerBtn, flex: "none", width: 40, height: 40 }}>-5</button>
             <input type="number" min={1} max={600} value={minutes} onChange={(e) => setMinutes(Number(e.target.value))} style={{ ...S.input, width: 80, textAlign: "center", fontSize: 20, fontFamily: "'Amiri', serif", fontWeight: 700 }} />
             <button onClick={() => setMinutes((m) => Math.min(600, m + 5))} style={{ ...PS.miniTimerBtn, flex: "none", width: 40, height: 40 }}>+5</button>
-            <span style={{ fontSize: 12, color: "#8A8782" }}>({fmtHM(minutes)})</span>
+            <span style={{ fontSize: 12, color: "var(--muted2)" }}>({fmtHM(minutes)})</span>
           </div>
           <label style={S.label}>الفئة</label>
           <div style={S.catGrid}>
             {categories.map((c) => (
-              <button key={c.id} onClick={() => selectCat(c.id)} style={{ ...S.catChip, borderColor: catId === c.id ? c.color : "#2A2A2D", background: catId === c.id ? `${c.color}22` : "transparent" }}>
+              <button key={c.id} onClick={() => selectCat(c.id)} style={{ ...S.catChip, borderColor: catId === c.id ? c.color : "var(--border2)", background: catId === c.id ? `${c.color}22` : "transparent" }}>
                 <span style={{ ...S.legendDot, background: c.color }} />{c.name}
               </button>
             ))}

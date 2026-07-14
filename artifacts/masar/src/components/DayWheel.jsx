@@ -48,7 +48,7 @@ export default function DayWheel({ entries, catMap, size = 224, onSelect, glow, 
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         <circle cx={cx} cy={cy} r={rOuter} fill={theme.tint} style={{ transition: "fill 0.6s ease" }} />
         <circle cx={cx} cy={cy} r={rOuter} fill="none" stroke={theme.soft} strokeOpacity={0.35} strokeWidth={1.4} style={{ transition: "stroke 0.6s ease" }} />
-        <circle cx={cx} cy={cy} r={rInner} fill="none" stroke="#1A1A1D" strokeWidth={1} />
+        <circle cx={cx} cy={cy} r={rInner} fill="none" stroke="var(--line)" strokeWidth={1} />
         {Array.from({ length: 60 }, (_, i) => i).map((i) => {
           const isMajor = i % 5 === 0;
           const a = i * 6 - 90, rad = (a * Math.PI) / 180;
@@ -58,7 +58,7 @@ export default function DayWheel({ entries, catMap, size = 224, onSelect, glow, 
               key={i}
               x1={cx + r1 * Math.cos(rad)} y1={cy + r1 * Math.sin(rad)}
               x2={cx + r2 * Math.cos(rad)} y2={cy + r2 * Math.sin(rad)}
-              stroke={isMajor ? theme.soft : "#2A2A2D"}
+              stroke={isMajor ? theme.soft : "var(--border2)"}
               strokeWidth={isMajor ? 1.6 : 1}
               style={{ transition: "stroke 0.5s ease" }}
             />
@@ -123,12 +123,12 @@ export default function DayWheel({ entries, catMap, size = 224, onSelect, glow, 
           <div style={{ fontSize: 12.5, fontWeight: 700, color: activeIsSession ? (activeEntry.isStudy ? "#5FA8A0" : "#C9A24B") : (catMap[activeEntry.catId]?.color || "#9A968F") }}>
             {activeIsSession ? (activeEntry.label || (activeEntry.isStudy ? "جلسة دراسة" : "جلسة تركيز")) : (catMap[activeEntry.catId]?.name || "غير محدد")}
           </div>
-          <div style={{ fontSize: 11, color: "#8A8782", marginTop: 3 }}>{activeEntry.start} {"–"} {activeEntry.end}</div>
+          <div style={{ fontSize: 11, color: "var(--muted2)", marginTop: 3 }}>{activeEntry.start} {"–"} {activeEntry.end}</div>
           <div style={{ fontSize: 11, color: "#C9A24B", marginTop: 2 }}>{fmtHM(diffMinutes(activeEntry.start, activeEntry.end))}</div>
         </div>
       ) : (centerLabel || centerValue) ? (
         <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", textAlign: "center", pointerEvents: "none", transition: "opacity 0.4s ease" }}>
-          {centerLabel && <div style={{ fontSize: 11, fontWeight: 700, color: "#8A8782", letterSpacing: 0.5 }}>{centerLabel}</div>}
+          {centerLabel && <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted2)", letterSpacing: 0.5 }}>{centerLabel}</div>}
           {centerValue && <div style={{ fontFamily: "'Amiri', serif", fontSize: 26, fontWeight: 700, color: "var(--ink)", marginTop: 2 }}>{centerValue}</div>}
         </div>
       ) : null}

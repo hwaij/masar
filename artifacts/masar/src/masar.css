@@ -8,7 +8,45 @@
   --muted: #6B6863;
   --line: #1A1A1D;
   --teal: #1B3A3A;
+  --teal-border: #2A4A4A;
+  --muted2: #8A8782;
+  --surface-sunken: #0F0F11;
+  --surface-raised: #1F1F22;
+  --border2: #2A2A2D;
+  --ink-soft: #D8D5CF;
+  --warm-tint: #15130E;
+  --warm-border: #2A2418;
+  --header-bg: rgba(10,10,11,0.95);
+  /* لون نص/أيقونة ثابت على الشارات والأزرار الذهبية دائماً — لا يتغيّر
+     بين الوضعين عمداً لأن خلفيتها (الذهبي) نفسها لا تتغيّر بنفس المنطق. */
+  --on-accent: #0A0A0B;
 }
+
+/* الوضع الفاتح: لوحة ألوان مصمّمة خصيصاً للقراءة على خلفية بيضاء دافئة،
+   لا مجرد عكس لقيم الوضع الداكن. الذهبي أُعمِّق (بدل #C9A24B) لأن اللون
+   الأصلي لا يعطي تبايناً كافياً كنص فوق خلفية فاتحة، وباقي الألوان
+   المحايدة (الخلفيات، الحدود، الأسطح) أُعيد اختيارها بدرجات دافئة قريبة
+   من لون الخلفية بدل التبديل الميكانيكي (أبيض/أسود). --muted تبقى نفس
+   القيمة في الوضعين لأنها تجتاز تبايناً كافياً على الخلفيتين معاً.
+   */
+:root[data-theme="light"] {
+  --bg: #F7F5F0;
+  --panel: #FFFFFF;
+  --gold: #9A7529;
+  --ink: #2B2621;
+  --line: #E4E0D5;
+  --teal: #E3F1EE;
+  --teal-border: #B9DAD3;
+  --muted2: #79746A;
+  --surface-sunken: #F0EDE6;
+  --surface-raised: #EDE9DF;
+  --border2: #D8D2C2;
+  --ink-soft: #4A443C;
+  --warm-tint: #FBF3E4;
+  --warm-border: #E8D9B5;
+  --header-bg: rgba(247,245,240,0.92);
+}
+
 * { box-sizing: border-box; }
 html, body {
   margin: 0;
@@ -17,6 +55,7 @@ html, body {
   color: var(--ink);
   font-family: 'Tajawal', sans-serif;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }

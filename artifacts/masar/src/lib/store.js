@@ -10,6 +10,21 @@ function useCloud() {
   return hasSupabase && CURRENT_OWNER !== "solo";
 }
 
+// راية الفتح المجاني المؤقت لكل الميزات (app_flags.free_for_all). تُفحص
+// بمعزل عن useCloud() عمداً — يجب أن تعمل حتى للضيوف غير المسجّلين، لا
+// فقط للمستخدمين المرتبطين بحساب سحابي. القراءة عامة (anon) بحسب سياسة
+// RLS على الجدول، فتنجح دون أي تسجيل دخول.
+async function isFreeForAllActive() {
+  if (!hasSupabase) return false;
+  try {
+    const { data, error } = await supabase.from("app_flags").select("free_for_all").eq("id", "global").maybeSingle();
+    if (error || !data) return false;
+    return !!data.free_for_all;
+  } catch {
+    return false;
+  }
+}
+
 const LS = {
   categories: "masar_categories",
   entries: "masar_entries",
@@ -189,12 +204,17 @@ export const store = {
     }
   },
 
+  // قراءة متزامنة فورية (لا تنتظر Supabase) لتطبيق المظهر قبل أول رسم
+  // للصفحة، فلا يظهر ومضة بالمظهر الخاطئ قبل اكتمال loadProfile().
+  getLocalTheme() {
+    return lsGet("masar_profile", { theme: "dark" }).theme === "light" ? "light" : "dark";
+  },
   async loadProfile() {
-    const local = lsGet("masar_profile", { about: "", hobbies: "", field: "", tourSeen: false });
+    const local = lsGet("masar_profile", { about: "", hobbies: "", field: "", tourSeen: false, theme: "dark" });
     if (!useCloud()) return local;
     const { data, error } = await supabase.from("profile").select("*").eq("owner", CURRENT_OWNER).maybeSingle();
     if (error || !data) return local;
-    const p = { about: data.about || "", hobbies: data.hobbies || "", field: data.field || "", tourSeen: !!data.tour_seen };
+    const p = { about: data.about || "", hobbies: data.hobbies || "", field: data.field || "", tourSeen: !!data.tour_seen, theme: data.theme === "light" ? "light" : "dark" };
     lsSet("masar_profile", p);
     return p;
   },
@@ -206,11 +226,19 @@ export const store = {
     }
   },
   async saveTourSeen(seen) {
-    const local = lsGet("masar_profile", { about: "", hobbies: "", field: "", tourSeen: false });
+    const local = lsGet("masar_profile", { about: "", hobbies: "", field: "", tourSeen: false, theme: "dark" });
     lsSet("masar_profile", { ...local, tourSeen: seen });
     if (useCloud()) {
       const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, tour_seen: seen, updated_at: new Date().toISOString() });
       if (error) console.error("[saveTourSeen] Supabase error:", error.message);
+    }
+  },
+  async saveTheme(theme) {
+    const local = lsGet("masar_profile", { about: "", hobbies: "", field: "", tourSeen: false, theme: "dark" });
+    lsSet("masar_profile", { ...local, theme });
+    if (useCloud()) {
+      const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, theme, updated_at: new Date().toISOString() });
+      if (error) console.error("[saveTheme] Supabase error:", error.message);
     }
   },
 
@@ -368,6 +396,88 @@ export const store = {
         );
         if (error) console.warn("mandatory_log sync error:", error.message);
       } catch (e) { console.warn("mandatory_log write failed:", e); }
+    }
+  },
+
+  async loadAzkarLog() {
+    const local = lsGet("masar_azkar_log", {});
+    if (!useCloud()) return local;
+    try {
+      const { data, error } = await supabase.from("azkar_log").select("*").eq("owner", CURRENT_OWNER).order("date");
+      if (error || !data) return local;
+      const log = {};
+      data.forEach((r) => { if (!log[r.date]) log[r.date] = {}; log[r.date][r.session] = r.done; });
+      lsSet("masar_azkar_log", log);
+      return log;
+    } catch { return local; }
+  },
+  async loadAzkarItems() {
+    return lsGet("masar_azkar_items", {});
+  },
+  async saveAzkarItem(date, itemId, done) {
+    const items = lsGet("masar_azkar_items", {});
+    if (!items[date]) items[date] = {};
+    items[date][itemId] = done;
+    lsSet("masar_azkar_items", items);
+  },
+  async saveAzkarLog(date, session, done) {
+    const log = lsGet("masar_azkar_log", {});
+    if (!log[date]) log[date] = {};
+    log[date][session] = done;
+    lsSet("masar_azkar_log", log);
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("azkar_log").upsert(
+          { date, session, done, owner: CURRENT_OWNER, updated_at: new Date().toISOString() },
+          { onConflict: "owner,date,session" }
+        );
+        if (error) console.warn("azkar_log sync error:", error.message);
+      } catch (e) { console.warn("azkar_log write failed:", e); }
+    }
+  },
+
+  async loadQuranProgress() {
+    const local = lsGet("masar_quran_juz", {});
+    if (!useCloud()) return local;
+    try {
+      const { data, error } = await supabase.from("quran_progress").select("*").eq("owner", CURRENT_OWNER);
+      if (error || !data) return local;
+      const prog = {};
+      data.forEach((r) => { prog[r.juz_num] = r.done; });
+      lsSet("masar_quran_juz", prog);
+      return prog;
+    } catch { return local; }
+  },
+  async saveQuranJuz(juzNum, done) {
+    const data = lsGet("masar_quran_juz", {});
+    data[juzNum] = done;
+    lsSet("masar_quran_juz", data);
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("quran_progress").upsert({ juz_num: juzNum, done, owner: CURRENT_OWNER });
+        if (error) console.warn("quran_progress sync error:", error.message);
+      } catch (e) { console.warn("quran_progress write failed:", e); }
+    }
+  },
+
+  async loadIstighfar() {
+    const local = lsGet("masar_istighfar", { daily: {}, total: 0 });
+    if (!useCloud()) return local;
+    try {
+      const { data, error } = await supabase.from("istighfar").select("*").eq("owner", CURRENT_OWNER).maybeSingle();
+      if (error || !data) return local;
+      const result = { daily: data.daily || {}, total: data.total || 0 };
+      lsSet("masar_istighfar", result);
+      return result;
+    } catch { return local; }
+  },
+  async saveIstighfar(data) {
+    lsSet("masar_istighfar", data);
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("istighfar").upsert({ owner: CURRENT_OWNER, daily: data.daily, total: data.total, updated_at: new Date().toISOString() });
+        if (error) console.warn("istighfar sync error:", error.message);
+      } catch (e) { console.warn("istighfar write failed:", e); }
     }
   },
 
@@ -664,6 +774,9 @@ export const store = {
   // "غير مشترك" افتراضياً لأي حساب ضيف أو عند تعذّر القراءة.
   async loadSubscription() {
     const empty = { isSubscriber: false, subscriptionEnd: null, isVip: false, subscriptionType: null };
+    if (await isFreeForAllActive()) {
+      return { isSubscriber: true, subscriptionEnd: "9999-12-31", isVip: true, subscriptionType: "free_promo" };
+    }
     if (!useCloud()) return empty;
     try {
       const { data, error } = await supabase.from("subscriptions").select("*").eq("owner", CURRENT_OWNER).maybeSingle();

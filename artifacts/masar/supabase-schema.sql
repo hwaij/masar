@@ -54,10 +54,12 @@ create table if not exists profile (
   hobbies     text default '',
   field       text default '',
   tour_seen   boolean not null default false,
+  theme       text not null default 'dark' check (theme in ('dark', 'light')),
   updated_at  timestamptz default now()
 );
--- ترقية للجداول القديمة التي أُنشئت قبل إضافة الجولة التعريفية.
+-- ترقية للجداول القديمة التي أُنشئت قبل إضافة الجولة التعريفية ووضع العرض.
 alter table profile add column if not exists tour_seen boolean not null default false;
+alter table profile add column if not exists theme text not null default 'dark';
 
 -- الإنجازات والأهداف
 create table if not exists achieve (
@@ -319,6 +321,22 @@ create table if not exists subscriptions (
 -- سياسات RLS نفسها على جداول لا تملك المستخدم صلاحية قراءة subscriptions
 -- الخاصة بغيره أصلاً، لكن الدالة تحتاج قراءة صف اشتراكه هو تحديداً بمعزل
 -- عن أي سياسة أخرى قد تمنع ذلك أثناء تقييم شرط آخر.
+-- راية عامة واحدة (feature flag) للفتح المجاني المؤقت لكل الميزات لكل
+-- المستخدمين (بمن فيهم الضيوف). صف واحد ثابت المعرّف 'global'. قراءة
+-- عامة (anon + authenticated) حتى تعمل للضيوف غير المسجّلين أيضاً، لكن
+-- بلا أي سياسة insert/update/delete — التبديل يتم حصراً من لوحة Supabase
+-- (Table Editor) أو عبر SQL Editor بصلاحية owner/service_role.
+create table if not exists app_flags (
+  id            text primary key default 'global',
+  free_for_all  boolean not null default false,
+  updated_at    timestamptz default now()
+);
+insert into app_flags (id, free_for_all) values ('global', false) on conflict (id) do nothing;
+
+alter table app_flags enable row level security;
+drop policy if exists app_flags_public_read on app_flags;
+create policy app_flags_public_read on app_flags for select to anon, authenticated using (true);
+
 create or replace function is_active_subscriber(check_owner text)
 returns boolean
 language sql
@@ -326,11 +344,13 @@ security definer
 set search_path = public
 stable
 as $$
-  select exists (
-    select 1 from subscriptions s
-    where s.owner = check_owner
-      and (s.is_vip = true or (s.is_subscriber = true and s.subscription_end is not null and s.subscription_end >= current_date))
-  );
+  select
+    coalesce((select f.free_for_all from app_flags f where f.id = 'global'), false)
+    or exists (
+      select 1 from subscriptions s
+      where s.owner = check_owner
+        and (s.is_vip = true or (s.is_subscriber = true and s.subscription_end is not null and s.subscription_end >= current_date))
+    );
 $$;
 
 -- حدّ 3 مهام و5 فئات للنسخة المجانية — فحص "before insert" فقط (لا

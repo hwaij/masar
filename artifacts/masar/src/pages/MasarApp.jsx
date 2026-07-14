@@ -3817,7 +3817,7 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
   );
 }
 
-const SUBSCRIBE_WHATSAPP_URL = "https://wa.me/96555765553";
+const SUBSCRIBE_INSTAGRAM_URL = "https://www.instagram.com/hjmasar";
 
 // بطاقة تشجيع عامة تحلّ محل أي قسم/ميزة مدفوعة لغير المشترك. الرسالة
 // تركّز دائماً على القيمة التي يفوّتها المستخدم، لا على "ادفع"، بأسلوب
@@ -3828,8 +3828,8 @@ function UpsellCard({ icon: Icon = Crown, title, message, compact }) {
       <div style={SUB.upsellIconBadge}><Icon size={compact ? 20 : 26} color="var(--on-accent)" /></div>
       <div style={SUB.upsellTitle}>{title}</div>
       <p style={SUB.upsellMessage}>{message}</p>
-      <a href={SUBSCRIBE_WHATSAPP_URL} target="_blank" rel="noopener noreferrer" style={SUB.upsellBtn}>
-        <Send size={15} /> اشترك الآن
+      <a href={SUBSCRIBE_INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" style={SUB.upsellBtn}>
+        <Send size={15} /> اشترك الآن عبر إنستقرام
       </a>
     </div>
   );
@@ -3880,8 +3880,8 @@ function SubscriptionCard({ subscription }) {
               <div style={SUB.planPrice}>25 د.ك</div>
             </div>
           </div>
-          <a href={SUBSCRIBE_WHATSAPP_URL} target="_blank" rel="noopener noreferrer" style={SUB.subscribeBtn}>
-            <Send size={15} /> اشترك الآن عبر واتساب
+          <a href={SUBSCRIBE_INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" style={SUB.subscribeBtn}>
+            <Send size={15} /> اشترك الآن عبر إنستقرام
           </a>
         </>
       )}

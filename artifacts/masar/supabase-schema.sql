@@ -61,6 +61,25 @@ create table if not exists profile (
 alter table profile add column if not exists tour_seen boolean not null default false;
 alter table profile add column if not exists theme text not null default 'dark';
 
+-- قسم "أنت": بيانات صحية أساسية + القيم المحسوبة منها (BMI/IBW/REE/TEE)
+-- مخزّنة جاهزة حتى تقرأها أقسام التغذية والرياضة لاحقاً دون إعادة حسابها.
+-- لا علاقة لهذا الجدول بأي حالة اشتراك — ميزة أساسية متاحة للجميع.
+create table if not exists health_profile (
+  owner           text primary key default 'solo',
+  height_cm       numeric,
+  weight_kg       numeric,
+  age             integer,
+  gender          text check (gender in ('male', 'female')),
+  activity_level  text check (activity_level in ('sedentary', 'light', 'moderate', 'active', 'very_active')),
+  conditions      jsonb not null default '[]',
+  bmi             numeric,
+  bmi_category    text,
+  ibw_kg          numeric,
+  ree             numeric,
+  tee             numeric,
+  updated_at      timestamptz default now()
+);
+
 -- الإنجازات والأهداف
 create table if not exists achieve (
   id          text primary key,
@@ -467,6 +486,11 @@ alter table profile enable row level security;
 drop policy if exists profile_anon_solo on profile;
 drop policy if exists profile_user_own on profile;
 create policy profile_user_own on profile for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
+alter table health_profile enable row level security;
+drop policy if exists health_profile_anon_solo on health_profile;
+drop policy if exists health_profile_user_own on health_profile;
+create policy health_profile_user_own on health_profile for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
 
 -- المرحلة الثانية: "أنجز" ميزة مدفوعة — لا يكفي إخفاؤها في الواجهة، إذ
 -- يستطيع مستخدم غير مشترك يتلاعب بالطلبات مباشرة القراءة/الكتابة هنا

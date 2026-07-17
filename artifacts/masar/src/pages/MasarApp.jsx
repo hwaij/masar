@@ -23,6 +23,7 @@ import { store, setOwner, getOwner } from "../lib/store";
 import { pickDailyTip, TIP_CATEGORY_LABELS, localDayKey, TIPS } from "../lib/tips";
 import { pickDailyMoneyTip, MONEY_TIP_CATEGORY_LABELS } from "../lib/money-tips";
 import { isActiveSubscriber } from "../lib/subscription";
+import { ACTIVITY_LEVELS, HEALTH_CONDITIONS, NO_CONDITION, MEDICAL_DISCLAIMER, computeHealthMetrics } from "../lib/health";
 import { createGoal, isReviewDue, GOAL_PERIODS, GOAL_POINTS_SUCCESS, GOAL_POINTS_FAILURE } from "../lib/goals";
 import { getSession, onAuthChange, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut, userFromSession, hasAuth } from "../lib/auth";
 import {
@@ -168,6 +169,32 @@ const SUB = {
   upsellBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "var(--gold)", color: "var(--bg)", border: "none", borderRadius: 12, padding: "12px 22px", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", textDecoration: "none", marginTop: 6 },
 };
 
+// أنماط قسم "أنت"
+const YS = {
+  hero: { display: "flex", alignItems: "center", gap: 12, marginBottom: 16 },
+  heroIcon: { width: 44, height: 44, borderRadius: 14, background: "linear-gradient(140deg, #5FA8A0, #3E7E78)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  heroTitle: { fontFamily: "'Amiri', serif", fontSize: 22, fontWeight: 700 },
+  heroSub: { fontSize: 12, color: "var(--muted2)", marginTop: 2, lineHeight: 1.5 },
+  formCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "16px 14px", marginBottom: 16 },
+  row2: { display: "flex", gap: 10 },
+  col: { flex: 1 },
+  chipRow: { display: "flex", flexWrap: "wrap", gap: 8, marginTop: 6 },
+  chip: { border: "1px solid var(--border2)", borderRadius: 20, padding: "7px 13px", fontSize: 12.5, color: "var(--ink-soft)", cursor: "pointer", fontFamily: "inherit", background: "transparent" },
+  chipActive: { borderColor: "var(--gold)", background: "rgba(201,162,75,0.12)", color: "var(--gold)", fontWeight: 700 },
+  warningCard: { display: "flex", gap: 10, alignItems: "flex-start", background: "rgba(209,123,95,0.1)", border: "1.5px solid rgba(209,123,95,0.4)", borderRadius: 14, padding: "14px 12px", marginBottom: 16 },
+  warningText: { fontSize: 13, color: "var(--ink)", lineHeight: 1.8, fontWeight: 600, margin: 0 },
+  resultsGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 },
+  resultCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 12px" },
+  resultLabel: { fontSize: 12, fontWeight: 700, color: "var(--muted2)" },
+  resultValue: { fontFamily: "'Amiri', serif", fontSize: 24, fontWeight: 700, color: "var(--gold)", marginTop: 6 },
+  resultUnit: { fontSize: 11, color: "var(--muted2)", marginRight: 4 },
+  resultCategory: { fontSize: 12, fontWeight: 700, color: "#5FA8A0", marginTop: 4 },
+  resultHint: { fontSize: 11.5, color: "var(--muted2)", lineHeight: 1.6, marginTop: 8 },
+  summaryCard: { background: "linear-gradient(160deg, var(--warm-tint), var(--panel))", border: "1px solid var(--warm-border)", borderRadius: 14, padding: "14px 12px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" },
+  summaryLabel: { fontSize: 12.5, color: "var(--muted2)" },
+  summaryValue: { fontSize: 13.5, fontWeight: 700, color: "var(--ink)" },
+};
+
 export default function MasarApp() {
   const [loaded, setLoaded] = useState(false);
   const [showSplash, setShowSplash] = useState(() => !sessionStorage.getItem("masar_splash_done"));
@@ -198,6 +225,10 @@ export default function MasarApp() {
   const [vault, setVault] = useState(null);
   const [vaultTx, setVaultTx] = useState([]);
   const [sleepLog, setSleepLog] = useState([]);
+  const [healthProfile, setHealthProfile] = useState({
+    heightCm: null, weightKg: null, age: null, gender: null, activityLevel: null, conditions: [],
+    bmi: null, bmiCategory: null, ibw: null, ree: null, tee: null,
+  });
   const [subscription, setSubscription] = useState({ isSubscriber: false, subscriptionEnd: null, isVip: false, subscriptionType: null });
   const isSub = isActiveSubscriber(subscription);
   const [user, setUser] = useState(null);
@@ -206,13 +237,14 @@ export default function MasarApp() {
 
   const loadAll = useCallback(async () => {
       const myVersion = ++loadVersionRef.current;
-      const [c, e, t, r, g, p, a, f, cm, pl, rel, ml, plog, tl, gl, vlt, vtx, sl, sub, azl, azi, qp, ist] = await Promise.all([
+      const [c, e, t, r, g, p, a, f, cm, pl, rel, ml, plog, tl, gl, vlt, vtx, sl, sub, azl, azi, qp, ist, hp] = await Promise.all([
         store.loadCategories(), store.loadEntries(), store.loadTasks(),
         store.loadReports(), store.loadGamify(), store.loadProfile(), store.loadAchieve(),
         store.loadFocus(), store.loadCommitments(), store.loadPrayerLog(), store.loadReligious(),
         store.loadMandatoryLog(), store.loadPointsLog(), store.loadTipsLog(), store.loadGoals(),
         store.loadVault(), store.loadVaultTransactions(), store.loadSleepLog(), store.loadSubscription(),
         store.loadAzkarLog(), store.loadAzkarItems(), store.loadQuranProgress(), store.loadIstighfar(),
+        store.loadHealthProfile(),
       ]);
       if (loadVersionRef.current !== myVersion) return;
       setCategories(c); setEntries(e); setTasks(t); setReports(r); setGamify(g);
@@ -221,6 +253,7 @@ export default function MasarApp() {
       setMandatoryLog(ml); setPointsLog(plog); setTipsLog(tl); setGoals(gl);
       setVault(vlt); setVaultTx(vtx); setSleepLog(sl); setSubscription(sub);
       setAzkarLog(azl); setAzkarItems(azi); setQuranProgress(qp); setIstighfar(ist);
+      setHealthProfile(hp);
 
       const today = todayKey();
       const lastOpen = localStorage.getItem("masar_last_open");
@@ -458,6 +491,7 @@ export default function MasarApp() {
         {view === "assistant" && (isSub ? <AssistantView entries={entries} tasks={tasks} categories={categories} focus={focus} prayerLog={prayerLog} religious={religious} profile={profile} stats={stats} setView={setView} /> : (
           <div style={S.view}><UpsellCard icon={MessageCircle} title="مساعدك الذكي في مسار الكامل" message="مدرّب شخصي يحلّل يومك وعاداتك ويقترح خطوات عملية بناءً على بياناتك الفعلية." /></div>
         ))}
+        {view === "you" && <YouView healthProfile={healthProfile} setHealthProfile={setHealthProfile} showToast={showToast} />}
         {view === "settings" && <SettingsView categories={categories} setCategories={setCategories} gamify={gamify} hasCloud={store.hasCloud} showToast={showToast} profile={profile} setProfile={setProfile} pointsLog={pointsLog} onStartTour={startTour} subscription={subscription} theme={theme} toggleTheme={toggleTheme} />}
       </div>
       {toast && <div style={S.toast}>{toast}</div>}
@@ -820,6 +854,7 @@ function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSign
     { id: "reports", label: "التقارير", icon: TrendingUp },
     { id: "achieve", label: "أنجز", icon: Rocket },
     { id: "assistant", label: "مساعد", icon: MessageCircle },
+    { id: "you", label: "أنت", icon: User },
     { id: "settings", label: "التخصيص", icon: Settings },
   ];
   const lv = getLevel(gamify.points);
@@ -3892,6 +3927,172 @@ function SubscriptionCard({ subscription }) {
           </a>
         </>
       )}
+    </div>
+  );
+}
+
+function YouView({ healthProfile, setHealthProfile, showToast }) {
+  const hasData = !!(healthProfile.heightCm && healthProfile.weightKg && healthProfile.age && healthProfile.gender && healthProfile.activityLevel);
+  const [editing, setEditing] = useState(!hasData);
+  const [draft, setDraft] = useState(() => ({
+    heightCm: healthProfile.heightCm ?? "",
+    weightKg: healthProfile.weightKg ?? "",
+    age: healthProfile.age ?? "",
+    gender: healthProfile.gender ?? "",
+    activityLevel: healthProfile.activityLevel ?? "",
+    conditions: healthProfile.conditions || [],
+  }));
+
+  useEffect(() => {
+    setDraft({
+      heightCm: healthProfile.heightCm ?? "",
+      weightKg: healthProfile.weightKg ?? "",
+      age: healthProfile.age ?? "",
+      gender: healthProfile.gender ?? "",
+      activityLevel: healthProfile.activityLevel ?? "",
+      conditions: healthProfile.conditions || [],
+    });
+  }, [healthProfile]);
+
+  function change(field, val) { setDraft((d) => ({ ...d, [field]: val })); }
+
+  function toggleCondition(cond) {
+    setDraft((d) => {
+      if (cond === NO_CONDITION) {
+        return { ...d, conditions: d.conditions.includes(NO_CONDITION) ? [] : [NO_CONDITION] };
+      }
+      const withoutNone = d.conditions.filter((c) => c !== NO_CONDITION);
+      const has = withoutNone.includes(cond);
+      return { ...d, conditions: has ? withoutNone.filter((c) => c !== cond) : [...withoutNone, cond] };
+    });
+  }
+
+  async function save() {
+    const heightCm = Number(draft.heightCm);
+    const weightKg = Number(draft.weightKg);
+    const age = Number(draft.age);
+    if (!heightCm || !weightKg || !age || !draft.gender || !draft.activityLevel) {
+      showToast("أكمل الطول والوزن والعمر والجنس ومستوى النشاط");
+      return;
+    }
+    const metrics = computeHealthMetrics({ heightCm, weightKg, age, gender: draft.gender, activityLevel: draft.activityLevel });
+    const next = {
+      heightCm, weightKg, age, gender: draft.gender, activityLevel: draft.activityLevel, conditions: draft.conditions,
+      bmi: metrics.bmi?.value ?? null, bmiCategory: metrics.bmi?.category ?? null,
+      ibw: metrics.ibw, ree: metrics.ree, tee: metrics.tee,
+    };
+    setHealthProfile(next);
+    await store.saveHealthProfile(next);
+    setEditing(false);
+    showToast("تم حفظ بياناتك بنجاح");
+  }
+
+  const showDisclaimer = (healthProfile.conditions || []).some((c) => c !== NO_CONDITION);
+
+  if (editing) {
+    return (
+      <div style={S.view}>
+        <div style={YS.hero}>
+          <div style={YS.heroIcon}><User size={22} color="var(--on-accent)" /></div>
+          <div>
+            <div style={YS.heroTitle}>أنت</div>
+            <div style={YS.heroSub}>بياناتك الأساسية — أساس تُبنى عليه أقسام التغذية والرياضة لاحقاً.</div>
+          </div>
+        </div>
+        <div style={YS.formCard}>
+          <div style={YS.row2}>
+            <div style={YS.col}>
+              <label style={S.label}>الطول (سم)</label>
+              <input type="number" inputMode="decimal" value={draft.heightCm} onChange={(e) => change("heightCm", e.target.value)} placeholder="مثال: 170" style={S.input} />
+            </div>
+            <div style={YS.col}>
+              <label style={S.label}>الوزن (كغم)</label>
+              <input type="number" inputMode="decimal" value={draft.weightKg} onChange={(e) => change("weightKg", e.target.value)} placeholder="مثال: 70" style={S.input} />
+            </div>
+          </div>
+          <div style={YS.row2}>
+            <div style={YS.col}>
+              <label style={S.label}>العمر (سنة)</label>
+              <input type="number" inputMode="numeric" value={draft.age} onChange={(e) => change("age", e.target.value)} placeholder="مثال: 25" style={S.input} />
+            </div>
+            <div style={YS.col}>
+              <label style={S.label}>الجنس</label>
+              <div style={PS.modeToggleRow}>
+                <button onClick={() => change("gender", "male")} style={{ ...PS.modeToggleBtn, ...(draft.gender === "male" ? PS.modeToggleBtnActive : {}) }}>ذكر</button>
+                <button onClick={() => change("gender", "female")} style={{ ...PS.modeToggleBtn, ...(draft.gender === "female" ? PS.modeToggleBtnActive : {}) }}>أنثى</button>
+              </div>
+            </div>
+          </div>
+          <label style={S.label}>مستوى النشاط البدني</label>
+          <select value={draft.activityLevel} onChange={(e) => change("activityLevel", e.target.value)} style={S.input}>
+            <option value="" disabled>اختر مستوى نشاطك</option>
+            {ACTIVITY_LEVELS.map((a) => <option key={a.key} value={a.key}>{a.label}</option>)}
+          </select>
+          <label style={S.label}>الحالات الصحية (اختياري)</label>
+          <div style={YS.chipRow}>
+            {HEALTH_CONDITIONS.map((c) => (
+              <button key={c} onClick={() => toggleCondition(c)} style={{ ...YS.chip, ...(draft.conditions.includes(c) ? YS.chipActive : {}) }}>{c}</button>
+            ))}
+            <button onClick={() => toggleCondition(NO_CONDITION)} style={{ ...YS.chip, ...(draft.conditions.includes(NO_CONDITION) ? YS.chipActive : {}) }}>{NO_CONDITION}</button>
+          </div>
+          <button onClick={save} style={S.saveBtn}>احفظ واحسب</button>
+        </div>
+      </div>
+    );
+  }
+
+  const genderLabel = healthProfile.gender === "male" ? "ذكر" : "أنثى";
+  const activityLabel = ACTIVITY_LEVELS.find((a) => a.key === healthProfile.activityLevel)?.label || "—";
+
+  return (
+    <div style={S.view}>
+      <div style={YS.hero}>
+        <div style={YS.heroIcon}><User size={22} color="var(--on-accent)" /></div>
+        <div>
+          <div style={YS.heroTitle}>أنت</div>
+          <div style={YS.heroSub}>بياناتك ونتائجك الصحية المحسوبة.</div>
+        </div>
+      </div>
+
+      {showDisclaimer && (
+        <div style={YS.warningCard}>
+          <AlertTriangle size={20} color="#D17B5F" style={{ flexShrink: 0, marginTop: 2 }} />
+          <p style={YS.warningText}>{MEDICAL_DISCLAIMER}</p>
+        </div>
+      )}
+
+      <div style={YS.summaryCard}>
+        <div>
+          <div style={YS.summaryLabel}>بياناتك</div>
+          <div style={YS.summaryValue}>{healthProfile.heightCm} سم · {healthProfile.weightKg} كغم · {healthProfile.age} سنة · {genderLabel}</div>
+          <div style={{ ...YS.summaryLabel, marginTop: 4 }}>{activityLabel}</div>
+        </div>
+        <button onClick={() => setEditing(true)} style={{ ...S.exportBtn, width: "auto", padding: "9px 14px", marginBottom: 0 }}><Edit3 size={14} /> تحديث بياناتي</button>
+      </div>
+
+      <div style={YS.resultsGrid}>
+        <div style={YS.resultCard}>
+          <div style={YS.resultLabel}>BMI · مؤشر كتلة الجسم</div>
+          <div style={YS.resultValue}>{healthProfile.bmi ?? "—"}</div>
+          {healthProfile.bmiCategory && <div style={YS.resultCategory}>{healthProfile.bmiCategory}</div>}
+          <div style={YS.resultHint}>نسبة وزنك إلى طولك — مؤشر عام لا يفرّق بين الدهون والعضلات.</div>
+        </div>
+        <div style={YS.resultCard}>
+          <div style={YS.resultLabel}>IBW · الوزن المثالي</div>
+          <div style={YS.resultValue}>{healthProfile.ibw ?? "—"}<span style={YS.resultUnit}>كغم</span></div>
+          <div style={YS.resultHint}>وزن تقديري مرجعي بحسب طولك وجنسك.</div>
+        </div>
+        <div style={YS.resultCard}>
+          <div style={YS.resultLabel}>REE · الأيض الأساسي</div>
+          <div style={YS.resultValue}>{healthProfile.ree ?? "—"}<span style={YS.resultUnit}>سعرة</span></div>
+          <div style={YS.resultHint}>الطاقة التي يحرقها جسمك وأنت في راحة تامة خلال اليوم.</div>
+        </div>
+        <div style={YS.resultCard}>
+          <div style={YS.resultLabel}>TEE · إجمالي الطاقة اليومي</div>
+          <div style={YS.resultValue}>{healthProfile.tee ?? "—"}<span style={YS.resultUnit}>سعرة</span></div>
+          <div style={YS.resultHint}>تقدير سعراتك المستهلكة يومياً مع مستوى نشاطك الحالي.</div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -80,6 +80,47 @@ create table if not exists health_profile (
   updated_at      timestamptz default now()
 );
 
+-- قسم "التغذية": سجل ما استُهلك يومياً (عبر باركود Open Food Facts، بحث
+-- بالاسم، أو إدخال يدوي)، ذاكرة الإدخالات اليدوية لإعادة استخدامها بنفس
+-- الباركود لاحقاً دون كتابتها من جديد، وسجل أكواب الماء اليومي.
+create table if not exists nutrition_log (
+  id            text primary key,
+  owner         text not null default 'solo',
+  date          text not null,
+  food_name     text not null,
+  calories      numeric not null default 0,
+  protein       numeric not null default 0,
+  carbs         numeric not null default 0,
+  fat           numeric not null default 0,
+  serving_info  text default '',
+  source        text check (source in ('barcode', 'manual', 'search')),
+  created_at    timestamptz default now()
+);
+create index if not exists nutrition_log_owner_date on nutrition_log (owner, date);
+
+-- مفتاحها (owner, barcode) — لو أدخل المستخدم منتجاً يدوياً لباركود غير
+-- موجود في Open Food Facts، يُستخدم هذا الصف تلقائياً في المرة القادمة
+-- لنفس الباركود قبل حتى محاولة الاتصال بالـ API.
+create table if not exists custom_foods (
+  owner       text not null default 'solo',
+  barcode     text not null,
+  food_name   text not null,
+  calories    numeric not null default 0,
+  protein     numeric not null default 0,
+  carbs       numeric not null default 0,
+  fat         numeric not null default 0,
+  updated_at  timestamptz default now(),
+  primary key (owner, barcode)
+);
+
+create table if not exists water_log (
+  owner       text not null default 'solo',
+  date        text not null,
+  cups_count  integer not null default 0,
+  updated_at  timestamptz default now(),
+  primary key (owner, date)
+);
+
 -- الإنجازات والأهداف
 create table if not exists achieve (
   id          text primary key,
@@ -491,6 +532,21 @@ alter table health_profile enable row level security;
 drop policy if exists health_profile_anon_solo on health_profile;
 drop policy if exists health_profile_user_own on health_profile;
 create policy health_profile_user_own on health_profile for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
+alter table nutrition_log enable row level security;
+drop policy if exists nutrition_log_anon_solo on nutrition_log;
+drop policy if exists nutrition_log_user_own on nutrition_log;
+create policy nutrition_log_user_own on nutrition_log for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
+alter table custom_foods enable row level security;
+drop policy if exists custom_foods_anon_solo on custom_foods;
+drop policy if exists custom_foods_user_own on custom_foods;
+create policy custom_foods_user_own on custom_foods for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
+alter table water_log enable row level security;
+drop policy if exists water_log_anon_solo on water_log;
+drop policy if exists water_log_user_own on water_log;
+create policy water_log_user_own on water_log for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
 
 -- المرحلة الثانية: "أنجز" ميزة مدفوعة — لا يكفي إخفاؤها في الواجهة، إذ
 -- يستطيع مستخدم غير مشترك يتلاعب بالطلبات مباشرة القراءة/الكتابة هنا

@@ -220,6 +220,10 @@ importers:
         version: 3.1.0
 
   artifacts/masar:
+    dependencies:
+      html5-qrcode:
+        specifier: ^2.3.8
+        version: 2.3.8
     devDependencies:
       '@hookform/resolvers':
         specifier: ^3.10.0
@@ -2524,6 +2528,9 @@ packages:
 
   hls.js@1.6.16:
     resolution: {integrity: sha512-VSIRpLfRwlAAdGL4wiTucx2ScRipo0ed1FBatWkyt832jC4CReKstga6yIhYVwGu9LOBjuX9wzmRMeQdBJtzEA==}
+
+  html5-qrcode@2.3.8:
+    resolution: {integrity: sha512-jsr4vafJhwoLVEDW3n1KvPnCCXWaQfRng0/EEYk1vNcQGcG/htAdhJX0be8YyqMoSz7+hZvOZSTAepsabiuhiQ==}
 
   http-errors@2.0.1:
     resolution: {integrity: sha512-4FbRdAX+bSdmo4AUFuS0WNiPz8NgFt+r8ThgNWmlrjQjt1Q7ZR9+zTlce2859x4KSXrwIsaeTqDoKQmtP8pLmQ==}
@@ -5428,6 +5435,8 @@ snapshots:
   help-me@5.0.0: {}
 
   hls.js@1.6.16: {}
+
+  html5-qrcode@2.3.8: {}
 
   http-errors@2.0.1:
     dependencies:

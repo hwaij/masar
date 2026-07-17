@@ -16,6 +16,7 @@ import {
   LogIn, LogOut,
   Heart, GraduationCap, Eye, AlertTriangle,
   Wallet, ArrowDownCircle, ArrowUpCircle, Crown,
+  Utensils,
 } from "lucide-react";
 import { fivePrayers, nextPrayer, to12h } from "../lib/prayer";
 import { ADHKAR_CATEGORIES, ADHKAR } from "../lib/adhkar";
@@ -35,6 +36,7 @@ import {
 } from "../lib/helpers";
 import { S } from "../components/styles";
 import DayWheel from "../components/DayWheel";
+import NutritionView from "../components/NutritionView";
 
 // active session storage
 const SESSION_KEY = "masar_active_session";
@@ -492,6 +494,7 @@ export default function MasarApp() {
           <div style={S.view}><UpsellCard icon={MessageCircle} title="مساعدك الذكي في مسار الكامل" message="مدرّب شخصي يحلّل يومك وعاداتك ويقترح خطوات عملية بناءً على بياناتك الفعلية." /></div>
         ))}
         {view === "you" && <YouView healthProfile={healthProfile} setHealthProfile={setHealthProfile} showToast={showToast} />}
+        {view === "nutrition" && <NutritionView healthProfile={healthProfile} showToast={showToast} />}
         {view === "settings" && <SettingsView categories={categories} setCategories={setCategories} gamify={gamify} hasCloud={store.hasCloud} showToast={showToast} profile={profile} setProfile={setProfile} pointsLog={pointsLog} onStartTour={startTour} subscription={subscription} theme={theme} toggleTheme={toggleTheme} />}
       </div>
       {toast && <div style={S.toast}>{toast}</div>}
@@ -855,6 +858,7 @@ function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSign
     { id: "achieve", label: "أنجز", icon: Rocket },
     { id: "assistant", label: "مساعد", icon: MessageCircle },
     { id: "you", label: "أنت", icon: User },
+    { id: "nutrition", label: "التغذية", icon: Utensils },
     { id: "settings", label: "التخصيص", icon: Settings },
   ];
   const lv = getLevel(gamify.points);

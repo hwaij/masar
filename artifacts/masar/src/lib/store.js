@@ -279,6 +279,102 @@ export const store = {
     }
   },
 
+  // قسم "التغذية": سجل الطعام اليومي، ذاكرة الإدخالات اليدوية للباركود،
+  // وسجل أكواب الماء.
+  async loadNutritionLog() {
+    const local = lsGet("masar_nutrition_log", []);
+    if (!useCloud()) return local;
+    try {
+      const { data, error } = await supabase.from("nutrition_log").select("*").eq("owner", CURRENT_OWNER).order("created_at", { ascending: false });
+      if (error || !data) return local;
+      const items = data.map((r) => ({
+        id: r.id, date: r.date, foodName: r.food_name, calories: r.calories, protein: r.protein,
+        carbs: r.carbs, fat: r.fat, servingInfo: r.serving_info || "", source: r.source,
+      }));
+      lsSet("masar_nutrition_log", items);
+      return items;
+    } catch (e) { console.error("[loadNutritionLog] read failed:", e); return local; }
+  },
+  async addNutritionEntry(entry) {
+    const local = lsGet("masar_nutrition_log", []);
+    lsSet("masar_nutrition_log", [entry, ...local]);
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("nutrition_log").insert({
+          id: entry.id, owner: CURRENT_OWNER, date: entry.date, food_name: entry.foodName,
+          calories: entry.calories, protein: entry.protein, carbs: entry.carbs, fat: entry.fat,
+          serving_info: entry.servingInfo || "", source: entry.source,
+        });
+        if (error) console.error("[addNutritionEntry] Supabase error:", error.message);
+      } catch (e) { console.error("[addNutritionEntry] write failed:", e); }
+    }
+  },
+  async deleteNutritionEntry(id) {
+    const local = lsGet("masar_nutrition_log", []);
+    lsSet("masar_nutrition_log", local.filter((e) => e.id !== id));
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("nutrition_log").delete().eq("id", id).eq("owner", CURRENT_OWNER);
+        if (error) console.error("[deleteNutritionEntry] Supabase error:", error.message);
+      } catch (e) { console.error("[deleteNutritionEntry] write failed:", e); }
+    }
+  },
+
+  // يبحث محلياً أولاً (إدخال يدوي سابق لنفس الباركود)، ثم سحابياً — يُستدعى
+  // قبل حتى محاولة الاتصال بـ Open Food Facts.
+  async findCustomFood(barcode) {
+    const local = lsGet("masar_custom_foods", {});
+    if (local[barcode]) return local[barcode];
+    if (!useCloud()) return null;
+    try {
+      const { data, error } = await supabase.from("custom_foods").select("*").eq("owner", CURRENT_OWNER).eq("barcode", barcode).maybeSingle();
+      if (error || !data) return null;
+      const food = { barcode: data.barcode, foodName: data.food_name, calories: data.calories, protein: data.protein, carbs: data.carbs, fat: data.fat };
+      lsSet("masar_custom_foods", { ...local, [barcode]: food });
+      return food;
+    } catch (e) { console.error("[findCustomFood] read failed:", e); return null; }
+  },
+  async saveCustomFood(food) {
+    const local = lsGet("masar_custom_foods", {});
+    lsSet("masar_custom_foods", { ...local, [food.barcode]: food });
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("custom_foods").upsert({
+          owner: CURRENT_OWNER, barcode: food.barcode, food_name: food.foodName,
+          calories: food.calories, protein: food.protein, carbs: food.carbs, fat: food.fat,
+          updated_at: new Date().toISOString(),
+        });
+        if (error) console.error("[saveCustomFood] Supabase error:", error.message);
+      } catch (e) { console.error("[saveCustomFood] write failed:", e); }
+    }
+  },
+
+  async loadWaterLog() {
+    const local = lsGet("masar_water_log", {});
+    if (!useCloud()) return local;
+    try {
+      const { data, error } = await supabase.from("water_log").select("*").eq("owner", CURRENT_OWNER);
+      if (error || !data) return local;
+      const log = {};
+      data.forEach((r) => { log[r.date] = r.cups_count; });
+      lsSet("masar_water_log", log);
+      return log;
+    } catch (e) { console.error("[loadWaterLog] read failed:", e); return local; }
+  },
+  async saveWaterCups(date, count) {
+    const local = lsGet("masar_water_log", {});
+    lsSet("masar_water_log", { ...local, [date]: count });
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("water_log").upsert(
+          { owner: CURRENT_OWNER, date, cups_count: count, updated_at: new Date().toISOString() },
+          { onConflict: "owner,date" }
+        );
+        if (error) console.error("[saveWaterCups] Supabase error:", error.message);
+      } catch (e) { console.error("[saveWaterCups] write failed:", e); }
+    }
+  },
+
   async loadAchieve() {
     const local = lsGet("masar_achieve", []);
     if (!useCloud()) return local;

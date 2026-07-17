@@ -39,6 +39,7 @@ import { S } from "../components/styles";
 import DayWheel from "../components/DayWheel";
 import NutritionView from "../components/NutritionView";
 import FitnessView from "../components/FitnessView";
+import MentalHealthView from "../components/MentalHealthView";
 import SideMenu from "../components/SideMenu";
 import TasbihIcon from "../components/TasbihIcon";
 
@@ -500,6 +501,7 @@ export default function MasarApp() {
         {view === "you" && <YouView healthProfile={healthProfile} setHealthProfile={setHealthProfile} showToast={showToast} />}
         {view === "nutrition" && <NutritionView healthProfile={healthProfile} showToast={showToast} profile={profile} setProfile={setProfile} />}
         {view === "fitness" && <FitnessView healthProfile={healthProfile} showToast={showToast} />}
+        {view === "mental" && <MentalHealthView setView={setView} showToast={showToast} />}
         {view === "settings" && <SettingsView categories={categories} setCategories={setCategories} gamify={gamify} hasCloud={store.hasCloud} showToast={showToast} profile={profile} setProfile={setProfile} pointsLog={pointsLog} onStartTour={startTour} subscription={subscription} theme={theme} toggleTheme={toggleTheme} />}
       </div>
       {toast && <div style={S.toast}>{toast}</div>}

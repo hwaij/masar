@@ -1,7 +1,7 @@
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  X, Moon, Eye, User, Utensils, Dumbbell, HeartPulse,
+  X, Moon, Eye, User, Utensils, Dumbbell, HeartHandshake,
   Timer, ListChecks, Target, Wallet, TrendingUp,
   MessageCircle, Rocket, Settings,
 } from "lucide-react";
@@ -22,7 +22,7 @@ const MENU_SECTIONS = [
       { id: "you", label: "أنت", icon: User },
       { id: "nutrition", label: "التغذية", icon: Utensils },
       { id: "fitness", label: "الرياضة", icon: Dumbbell },
-      { id: "mental", label: "الصحة النفسية", icon: HeartPulse, comingSoon: true },
+      { id: "mental", label: "الصحة النفسية", icon: HeartHandshake },
     ],
   },
   {

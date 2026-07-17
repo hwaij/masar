@@ -347,6 +347,39 @@ export const store = {
     }
   },
 
+  // قسم "الصحة النفسية": تسجيل يومي واحد لكل يوم (مزاج/توتر/طاقة/ملاحظة
+  // + علم flagged_risk عند اكتشاف كلمات خطر في الملاحظة).
+  async loadMentalHealthLog() {
+    const local = lsGet("masar_mental_health_log", {});
+    if (!useCloud()) return local;
+    try {
+      const { data, error } = await supabase.from("mental_health_log").select("*").eq("owner", CURRENT_OWNER);
+      if (error || !data) return local;
+      const log = {};
+      data.forEach((r) => {
+        log[r.date] = { mood: r.mood, stress: r.stress, energy: r.energy, note: r.note || "", flaggedRisk: !!r.flagged_risk };
+      });
+      lsSet("masar_mental_health_log", log);
+      return log;
+    } catch (e) { console.error("[loadMentalHealthLog] read failed:", e); return local; }
+  },
+  async saveMentalHealthEntry(date, entry) {
+    const local = lsGet("masar_mental_health_log", {});
+    lsSet("masar_mental_health_log", { ...local, [date]: entry });
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("mental_health_log").upsert(
+          {
+            owner: CURRENT_OWNER, date, mood: entry.mood, stress: entry.stress, energy: entry.energy,
+            note: entry.note || null, flagged_risk: !!entry.flaggedRisk, updated_at: new Date().toISOString(),
+          },
+          { onConflict: "owner,date" },
+        );
+        if (error) console.error("[saveMentalHealthEntry] Supabase error:", error.message);
+      } catch (e) { console.error("[saveMentalHealthEntry] write failed:", e); }
+    }
+  },
+
   // قسم "التغذية": سجل الطعام اليومي، ذاكرة الإدخالات اليدوية للباركود،
   // وسجل أكواب الماء.
   async loadNutritionLog() {

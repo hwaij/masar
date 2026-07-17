@@ -104,6 +104,21 @@ create table if not exists fitness_log (
   primary key (owner, date)
 );
 
+-- قسم "الصحة النفسية": تسجيل يومي واحد لكل يوم (مزاج/توتر/طاقة/ملاحظة
+-- اختيارية)، مع علم flagged_risk عند اكتشاف كلمات خطر في الملاحظة (يُستخدم
+-- فقط لعرض بطاقة توجيه لمصادر دعم حقيقية، وليس أي تشخيص أو تدخل علاجي).
+create table if not exists mental_health_log (
+  owner          text not null default 'solo',
+  date           text not null,
+  mood           integer check (mood between 1 and 5),
+  stress         integer check (stress between 1 and 5),
+  energy         integer check (energy between 1 and 5),
+  note           text,
+  flagged_risk   boolean not null default false,
+  updated_at     timestamptz default now(),
+  primary key (owner, date)
+);
+
 -- قسم "التغذية": سجل ما استُهلك يومياً (عبر باركود Open Food Facts، بحث
 -- بالاسم، أو إدخال يدوي)، ذاكرة الإدخالات اليدوية لإعادة استخدامها بنفس
 -- الباركود لاحقاً دون كتابتها من جديد، وسجل أكواب الماء اليومي.
@@ -566,6 +581,11 @@ alter table fitness_log enable row level security;
 drop policy if exists fitness_log_anon_solo on fitness_log;
 drop policy if exists fitness_log_user_own on fitness_log;
 create policy fitness_log_user_own on fitness_log for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
+alter table mental_health_log enable row level security;
+drop policy if exists mental_health_log_anon_solo on mental_health_log;
+drop policy if exists mental_health_log_user_own on mental_health_log;
+create policy mental_health_log_user_own on mental_health_log for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
 
 alter table nutrition_log enable row level security;
 drop policy if exists nutrition_log_anon_solo on nutrition_log;

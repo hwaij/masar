@@ -1,58 +1,64 @@
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTranslation } from "react-i18next";
 import {
   X, Moon, Eye, User, Utensils, Dumbbell, HeartHandshake,
   Timer, ListChecks, Target, Wallet, TrendingUp,
-  MessageCircle, Rocket, Settings,
+  MessageCircle, Rocket, Settings, Languages,
 } from "lucide-react";
+import { store } from "../lib/store";
 import TasbihIcon from "./TasbihIcon";
 
 const MENU_SECTIONS = [
   {
-    title: "العبادة",
+    titleKey: "nav.worship",
     items: [
-      { id: "prayer", label: "الصلاة", icon: Moon },
-      { id: "adhkar", label: "أذكار", icon: TasbihIcon },
-      { id: "tips", label: "بصيرة", icon: Eye },
+      { id: "prayer", labelKey: "nav.prayer", icon: Moon },
+      { id: "adhkar", labelKey: "nav.adhkar", icon: TasbihIcon },
+      { id: "tips", labelKey: "nav.wisdom", icon: Eye },
     ],
   },
   {
-    title: "الصحة",
+    titleKey: "nav.health",
     items: [
-      { id: "you", label: "أنت", icon: User },
-      { id: "nutrition", label: "التغذية", icon: Utensils },
-      { id: "fitness", label: "الرياضة", icon: Dumbbell },
-      { id: "mental", label: "الصحة النفسية", icon: HeartHandshake },
+      { id: "you", labelKey: "nav.you", icon: User },
+      { id: "nutrition", labelKey: "nav.nutrition", icon: Utensils },
+      { id: "fitness", labelKey: "nav.fitness", icon: Dumbbell },
+      { id: "mental", labelKey: "nav.mentalHealth", icon: HeartHandshake },
     ],
   },
   {
-    title: "الإنتاجية",
+    titleKey: "nav.productivity",
     items: [
-      { id: "focus", label: "تركيز / الدراسة", icon: Timer },
-      { id: "tasks", label: "المهام", icon: ListChecks },
-      { id: "goals", label: "أهداف", icon: Target },
-      { id: "vault", label: "خزنة", icon: Wallet },
-      { id: "reports", label: "التقارير", icon: TrendingUp },
+      { id: "focus", labelKey: "nav.focusStudy", icon: Timer },
+      { id: "tasks", labelKey: "nav.tasks", icon: ListChecks },
+      { id: "goals", labelKey: "nav.goals", icon: Target },
+      { id: "vault", labelKey: "nav.vault", icon: Wallet },
+      { id: "reports", labelKey: "nav.reports", icon: TrendingUp },
     ],
   },
   {
-    title: "الذكاء الاصطناعي",
+    titleKey: "nav.ai",
     items: [
-      { id: "assistant", label: "مساعد", icon: MessageCircle },
-      { id: "achieve", label: "أنجز", icon: Rocket },
+      { id: "assistant", labelKey: "nav.assistant", icon: MessageCircle },
+      { id: "achieve", labelKey: "nav.achieve", icon: Rocket },
     ],
   },
   {
-    title: "الحساب",
+    titleKey: "nav.account",
     items: [
-      { id: "settings", label: "التخصيص", icon: Settings },
+      { id: "settings", labelKey: "nav.settings", icon: Settings },
     ],
   },
 ];
 
 const MS = {
   overlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 300 },
-  panel: { position: "fixed", top: 0, bottom: 0, insetInlineEnd: 0, width: "82%", maxWidth: 320, background: "var(--panel)", borderInlineStart: "1px solid var(--line)", zIndex: 301, display: "flex", flexDirection: "column", boxShadow: "-8px 0 24px rgba(0,0,0,0.25)" },
+  // مثبّتة على حافة "البداية" منطقياً (insetInlineStart) — أي اليمين في
+  // RTL (كما طُلب أصلاً "من اليمين") واليسار تلقائياً في LTR، بنفس جانب زر
+  // القائمة (☰) في الشريط العلوي. الظل محايد الاتجاه عمداً بدل قيمة أفقية
+  // ثابتة، لأن جهة "الحافة المقابلة للمحتوى" تختلف فعلياً بين اللغتين.
+  panel: { position: "fixed", top: 0, bottom: 0, insetInlineStart: 0, width: "82%", maxWidth: 320, background: "var(--panel)", borderInlineEnd: "1px solid var(--line)", zIndex: 301, display: "flex", flexDirection: "column", boxShadow: "0 0 24px rgba(0,0,0,0.35)" },
   head: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 16px 12px", borderBottom: "1px solid var(--line)", flexShrink: 0 },
   headTitle: { fontFamily: "'Amiri', serif", fontSize: 18, fontWeight: 700, color: "var(--ink)" },
   closeBtn: { display: "flex", alignItems: "center", justifyContent: "center", width: 34, height: 34, borderRadius: 10, background: "var(--surface-sunken)", border: "1px solid var(--line)", color: "var(--ink)", cursor: "pointer", flexShrink: 0, padding: 0 },
@@ -63,13 +69,33 @@ const MS = {
   itemIcon: { display: "flex", alignItems: "center", justifyContent: "center", width: 22, flexShrink: 0 },
   itemDisabled: { opacity: 0.45, cursor: "not-allowed" },
   soonBadge: { marginInlineStart: "auto", fontSize: 10, fontWeight: 700, color: "var(--muted2)", background: "var(--surface-sunken)", border: "1px solid var(--line)", borderRadius: 20, padding: "2px 8px", flexShrink: 0 },
+  langRow: { display: "flex", alignItems: "center", gap: 10, padding: "10px 10px 4px", minHeight: 44 },
+  langIcon: { display: "flex", alignItems: "center", justifyContent: "center", width: 22, flexShrink: 0, color: "var(--muted2)" },
+  langLabel: { fontSize: 14.5, fontWeight: 600, color: "var(--ink-soft)", flex: 1 },
+  langToggle: { display: "flex", gap: 2, background: "var(--surface-sunken)", borderRadius: 10, padding: 3 },
+  langPill: { border: "none", background: "transparent", borderRadius: 8, padding: "6px 12px", fontSize: 12.5, fontWeight: 700, color: "var(--muted2)", cursor: "pointer", fontFamily: "inherit" },
+  langPillActive: { background: "var(--gold)", color: "var(--on-accent)" },
 };
 
 export default function SideMenu({ open, onClose, view, setView }) {
+  const { t, i18n } = useTranslation();
+
   function go(id) {
     setView(id);
     onClose();
   }
+
+  function setLanguage(lang) {
+    if (lang === i18n.language) return;
+    i18n.changeLanguage(lang);
+    store.saveLanguage(lang);
+  }
+
+  // اتجاه الانزلاق الفعلي (transform x) قيمة فيزيائية بحتة لا تتبع dir
+  // تلقائياً كما تفعل خصائص CSS المنطقية — لذا يُحدَّد يدوياً هنا: من اليمين
+  // في RTL (نفس جانب زر ☰)، ومن اليسار في LTR.
+  const hiddenX = i18n.language === "en" ? "-100%" : "100%";
+
   return (
     <AnimatePresence>
       {open && (
@@ -84,19 +110,19 @@ export default function SideMenu({ open, onClose, view, setView }) {
           />
           <motion.div
             style={MS.panel}
-            initial={{ x: "100%" }}
+            initial={{ x: hiddenX }}
             animate={{ x: 0 }}
-            exit={{ x: "100%" }}
+            exit={{ x: hiddenX }}
             transition={{ type: "tween", duration: 0.28, ease: "easeOut" }}
           >
             <div style={MS.head}>
-              <span style={MS.headTitle}>القائمة</span>
-              <button onClick={onClose} aria-label="إغلاق القائمة" style={MS.closeBtn}><X size={18} /></button>
+              <span style={MS.headTitle}>{t("nav.menu")}</span>
+              <button onClick={onClose} aria-label={t("nav.closeMenu")} style={MS.closeBtn}><X size={18} /></button>
             </div>
             <div style={MS.body}>
               {MENU_SECTIONS.map((section) => (
-                <div key={section.title}>
-                  <div style={MS.sectionTitle}>{section.title}</div>
+                <div key={section.titleKey}>
+                  <div style={MS.sectionTitle}>{t(section.titleKey)}</div>
                   {section.items.map((item) => {
                     const Icon = item.icon;
                     const active = view === item.id;
@@ -104,18 +130,28 @@ export default function SideMenu({ open, onClose, view, setView }) {
                       return (
                         <div key={item.id} style={{ ...MS.item, ...MS.itemDisabled }}>
                           <span style={MS.itemIcon}><Icon size={18} /></span>
-                          {item.label}
-                          <span style={MS.soonBadge}>قريباً</span>
+                          {t(item.labelKey)}
+                          <span style={MS.soonBadge}>{t("nav.comingSoon")}</span>
                         </div>
                       );
                     }
                     return (
                       <button key={item.id} onClick={() => go(item.id)} style={{ ...MS.item, ...(active ? MS.itemActive : {}) }}>
                         <span style={MS.itemIcon}><Icon size={18} /></span>
-                        {item.label}
+                        {t(item.labelKey)}
                       </button>
                     );
                   })}
+                  {section.titleKey === "nav.account" && (
+                    <div style={MS.langRow}>
+                      <span style={MS.langIcon}><Languages size={18} /></span>
+                      <span style={MS.langLabel}>{t("nav.language")}</span>
+                      <div style={MS.langToggle}>
+                        <button onClick={() => setLanguage("ar")} style={{ ...MS.langPill, ...(i18n.language === "ar" ? MS.langPillActive : {}) }}>{t("nav.arabic")}</button>
+                        <button onClick={() => setLanguage("en")} style={{ ...MS.langPill, ...(i18n.language === "en" ? MS.langPillActive : {}) }}>{t("nav.english")}</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

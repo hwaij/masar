@@ -209,8 +209,14 @@ export const store = {
   getLocalTheme() {
     return lsGet("masar_profile", { theme: "dark" }).theme === "light" ? "light" : "dark";
   },
+  // نفس فكرة getLocalTheme لكن للغة الواجهة — تُقرأ متزامنة عند تهيئة
+  // i18next (قبل أول رسم) حتى لا تظهر ومضة باللغة الافتراضية قبل تطبيق
+  // تفضيل المستخدم الفعلي.
+  getLocalLanguage() {
+    return lsGet("masar_profile", { language: "ar" }).language === "en" ? "en" : "ar";
+  },
   async loadProfile() {
-    const local = lsGet("masar_profile", { about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false });
+    const local = lsGet("masar_profile", { about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar" });
     if (!useCloud()) return local;
     const { data, error } = await supabase.from("profile").select("*").eq("owner", CURRENT_OWNER).maybeSingle();
     if (error || !data) return local;
@@ -218,6 +224,7 @@ export const store = {
       about: data.about || "", hobbies: data.hobbies || "", field: data.field || "",
       tourSeen: !!data.tour_seen, theme: data.theme === "light" ? "light" : "dark",
       notificationsEnabled: !!data.notifications_enabled, notificationsAsked: !!data.notifications_asked,
+      language: data.language === "en" ? "en" : "ar",
     };
     lsSet("masar_profile", p);
     return p;
@@ -230,7 +237,7 @@ export const store = {
     }
   },
   async saveTourSeen(seen) {
-    const local = lsGet("masar_profile", { about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false });
+    const local = lsGet("masar_profile", { about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar" });
     lsSet("masar_profile", { ...local, tourSeen: seen });
     if (useCloud()) {
       const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, tour_seen: seen, updated_at: new Date().toISOString() });
@@ -238,17 +245,25 @@ export const store = {
     }
   },
   async saveTheme(theme) {
-    const local = lsGet("masar_profile", { about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false });
+    const local = lsGet("masar_profile", { about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar" });
     lsSet("masar_profile", { ...local, theme });
     if (useCloud()) {
       const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, theme, updated_at: new Date().toISOString() });
       if (error) console.error("[saveTheme] Supabase error:", error.message);
     }
   },
+  async saveLanguage(language) {
+    const local = lsGet("masar_profile", { about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar" });
+    lsSet("masar_profile", { ...local, language });
+    if (useCloud()) {
+      const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, language, updated_at: new Date().toISOString() });
+      if (error) console.error("[saveLanguage] Supabase error:", error.message);
+    }
+  },
   // enabled: هل الاشتراك في الإشعارات مفعّل الآن. asked: هل عُرض على
   // المستخدم طلب الإذن ولو مرة (سواء وافق أو رفض) — حتى لا يُسأل مجدداً.
   async saveNotificationsPreference(enabled, asked) {
-    const local = lsGet("masar_profile", { about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false });
+    const local = lsGet("masar_profile", { about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar" });
     lsSet("masar_profile", { ...local, notificationsEnabled: enabled, notificationsAsked: asked });
     if (useCloud()) {
       const { error } = await supabase.from("profile").upsert({

@@ -76,6 +76,8 @@
     "zod": "catalog:"
   },
   "dependencies": {
-    "html5-qrcode": "^2.3.8"
+    "html5-qrcode": "^2.3.8",
+    "i18next": "^26.3.6",
+    "react-i18next": "^17.0.10"
   }
 }

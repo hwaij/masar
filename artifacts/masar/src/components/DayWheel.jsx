@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { fmtHM, diffMinutes } from "../lib/helpers";
 
 const THEME = {
@@ -7,6 +8,7 @@ const THEME = {
 };
 
 export default function DayWheel({ entries, catMap, size = 224, onSelect, glow, centerLabel, centerValue, focusSessions = [], period = "morning" }) {
+  const { t, i18n } = useTranslation();
   const [active, setActive] = useState(null);
   const cx = size / 2, cy = size / 2;
   const rOuter = size * 0.455, rInner = size * 0.28;
@@ -121,10 +123,10 @@ export default function DayWheel({ entries, catMap, size = 224, onSelect, glow, 
       {activeEntry ? (
         <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", textAlign: "center", pointerEvents: "none", width: rInner * 1.6 }}>
           <div style={{ fontSize: 12.5, fontWeight: 700, color: activeIsSession ? (activeEntry.isStudy ? "#5FA8A0" : "#C9A24B") : (catMap[activeEntry.catId]?.color || "#9A968F") }}>
-            {activeIsSession ? (activeEntry.label || (activeEntry.isStudy ? "جلسة دراسة" : "جلسة تركيز")) : (catMap[activeEntry.catId]?.name || "غير محدد")}
+            {activeIsSession ? (activeEntry.label || (activeEntry.isStudy ? t("todayView.studySession") : t("todayView.focusSession"))) : (catMap[activeEntry.catId]?.name || t("todayView.unspecified"))}
           </div>
-          <div style={{ fontSize: 11, color: "var(--muted2)", marginTop: 3 }}>{activeEntry.start} {"–"} {activeEntry.end}</div>
-          <div style={{ fontSize: 11, color: "#C9A24B", marginTop: 2 }}>{fmtHM(diffMinutes(activeEntry.start, activeEntry.end))}</div>
+          <div style={{ fontSize: 11, color: "var(--muted2)", marginTop: 3, direction: "ltr" }}>{activeEntry.start} {"–"} {activeEntry.end}</div>
+          <div style={{ fontSize: 11, color: "#C9A24B", marginTop: 2 }}>{fmtHM(diffMinutes(activeEntry.start, activeEntry.end), i18n.language)}</div>
         </div>
       ) : (centerLabel || centerValue) ? (
         <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", textAlign: "center", pointerEvents: "none", transition: "opacity 0.4s ease" }}>

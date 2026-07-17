@@ -2,9 +2,17 @@ export function todayKey(d = new Date()) {
   return d.toISOString().slice(0, 10);
 }
 
-export function fmtHM(mins) {
+// lang هو معامل اختياري (افتراضياً 'ar') لا يغيّر سلوك أي نداء قائم لا
+// يمرّره — أُضيف فقط ليدعم صفحة "اليوم" ثنائية اللغة دون المساس بباقي
+// الصفحات التي ما زالت تستدعي fmtHM بدون هذا المعامل.
+export function fmtHM(mins, lang = "ar") {
   const h = Math.floor(mins / 60);
   const m = Math.round(mins % 60);
+  if (lang === "en") {
+    if (h === 0) return `${m}m`;
+    if (m === 0) return `${h}h`;
+    return `${h}h ${m}m`;
+  }
   if (h === 0) return `${m} د`;
   if (m === 0) return `${h} س`;
   return `${h} س ${m} د`;
@@ -27,8 +35,11 @@ export function diffMinutes(start, end) {
   return mins;
 }
 
-export function arabicDate(key, opts) {
-  return new Date(key).toLocaleDateString("ar-KW-u-nu-latn", opts);
+// locale معامل اختياري (افتراضياً العربي كما كان دائماً) — أُضيف فقط
+// لدعم صفحة "اليوم" ثنائية اللغة؛ أي نداء قائم بدون هذا المعامل يبقى
+// يعمل بالضبط كالسابق.
+export function arabicDate(key, opts, locale = "ar-KW-u-nu-latn") {
+  return new Date(key).toLocaleDateString(locale, opts);
 }
 
 export function computeStreak(dates) {
@@ -47,8 +58,11 @@ export function computeStreak(dates) {
   return streak;
 }
 
-export function getLevel(points) {
-  const FIXED_LABELS = [
+// lang معامل اختياري (افتراضياً العربي) — أُضيف فقط لدعم شارة المستوى
+// في الشريط العلوي ثنائي اللغة؛ النداء الوحيد القائم (بدون هذا المعامل)
+// يستمر يعمل بالضبط كالسابق.
+export function getLevel(points, lang = "ar") {
+  const FIXED_LABELS_AR = [
     "مبتدئ",
     "منتظم",
     "ملتزم",
@@ -65,6 +79,24 @@ export function getLevel(points) {
     "خرافي",
     "إلهي",
   ];
+  const FIXED_LABELS_EN = [
+    "Beginner",
+    "Regular",
+    "Committed",
+    "Advanced",
+    "Professional",
+    "Expert",
+    "Elite",
+    "Legend",
+    "Champion",
+    "Superhuman",
+    "Genius",
+    "Legendary",
+    "Unbeatable",
+    "Mythical",
+    "Divine",
+  ];
+  const FIXED_LABELS = lang === "en" ? FIXED_LABELS_EN : FIXED_LABELS_AR;
 
   function threshold(n) {
     return 25 * n * (n + 3);
@@ -73,7 +105,7 @@ export function getLevel(points) {
   let lvl = 0;
   while (points >= threshold(lvl + 1)) lvl++;
 
-  const label = FIXED_LABELS[lvl] || `مستوى ${lvl + 1}`;
+  const label = FIXED_LABELS[lvl] || (lang === "en" ? `Level ${lvl + 1}` : `مستوى ${lvl + 1}`);
   const cur = threshold(lvl);
   const nxt = threshold(lvl + 1);
 

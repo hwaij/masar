@@ -1,6 +1,8 @@
 "use strict";
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTranslation } from "react-i18next";
+import i18n from "../i18n";
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, ResponsiveContainer,
   Tooltip, LineChart, Line, CartesianGrid,
@@ -211,7 +213,7 @@ export default function MasarApp() {
   const [categories, setCategories] = useState([]);
   const [reports, setReports] = useState([]);
   const [gamify, setGamify] = useState({ points: 0, badges: [] });
-  const [profile, setProfile] = useState({ about: "", hobbies: "", field: "", tourSeen: false, theme: "dark" });
+  const [profile, setProfile] = useState({ about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", language: "ar" });
   const [tourOpen, setTourOpen] = useState(false);
   const [theme, setTheme] = useState(() => store.getLocalTheme());
   const [achieve, setAchieve] = useState([]);
@@ -338,6 +340,13 @@ export default function MasarApp() {
   // من متصفح/جهاز آخر كان قد اختار مظهراً مختلفاً سابقاً على هذا الحساب.
   useEffect(() => {
     if (loaded) setTheme(profile.theme === "light" ? "light" : "dark");
+  }, [loaded]);
+
+  // نفس فكرة مزامنة المظهر أعلاه لكن للغة الواجهة — تغيير اللغة يطبَّق فوراً
+  // على جذر المستند (dir/lang) عبر مستمع i18n نفسه (راجع src/i18n.js)، لذا
+  // يكفي هنا فقط استدعاء changeLanguage دون أي منطق إضافي.
+  useEffect(() => {
+    if (loaded) i18n.changeLanguage(profile.language === "en" ? "en" : "ar");
   }, [loaded]);
 
   // يُطبَّق فوراً على الجذر عند أي تغيّر (تبديل يدوي أو مزامنة من الحساب) —
@@ -832,10 +841,11 @@ function LandingPage({ onSignIn, onEmailSignIn, onEmailSignUp }) {
 }
 
 function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSignOut, subscription, theme, toggleTheme }) {
+  const { t, i18n } = useTranslation();
   const isVip = !!subscription?.isVip;
   const isSub = isActiveSubscriber(subscription);
   const [menuOpen, setMenuOpen] = useState(false);
-  const lv = getLevel(gamify.points);
+  const lv = getLevel(gamify.points, i18n.language);
   const lvProgress = lv.next ? (gamify.points - lv.current) / (lv.next - lv.current) : 1;
   const isToday = view === "today";
   return (
@@ -845,7 +855,7 @@ function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSign
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <button
               onClick={() => setMenuOpen(true)}
-              aria-label="القائمة"
+              aria-label={t("nav.menu")}
               style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: 10, background: "var(--surface-sunken)", border: "1px solid var(--line)", color: "var(--ink)", cursor: "pointer", flexShrink: 0, padding: 0 }}
             >
               <Menu size={18} />
@@ -858,29 +868,29 @@ function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSign
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <button
               onClick={toggleTheme}
-              title={theme === "dark" ? "التبديل إلى الوضع الفاتح" : "التبديل إلى الوضع الداكن"}
+              title={theme === "dark" ? t("header.lightMode") : t("header.darkMode")}
               style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: "50%", background: "var(--surface-raised)", border: "1px solid var(--line)", color: "var(--gold)", cursor: "pointer", flexShrink: 0, padding: 0 }}
             >
               {theme === "dark" ? <Moon size={12} /> : <Sun size={12} />}
             </button>
             {hasAuth && (user ? (
-              <button onClick={onSignOut} title={`${user.name || user.email} · تسجيل الخروج`} style={{ position: "relative", display: "flex", alignItems: "center", gap: 4, background: "rgba(95,168,160,0.12)", border: "1px solid rgba(95,168,160,0.3)", color: "#5FA8A0", borderRadius: 10, padding: "3px 7px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+              <button onClick={onSignOut} title={`${user.name || user.email} · ${t("header.signOut")}`} style={{ position: "relative", display: "flex", alignItems: "center", gap: 4, background: "rgba(95,168,160,0.12)", border: "1px solid rgba(95,168,160,0.3)", color: "#5FA8A0", borderRadius: 10, padding: "3px 7px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
                 {user.avatar ? <img src={user.avatar} alt="" style={{ width: 20, height: 20, borderRadius: "50%" }} /> : <User size={14} />}
                 {isVip ? (
-                  <span title="عضو VIP دائم" style={{ ...SUB.vipBadge, position: "absolute", top: -6, insetInlineStart: -6, width: 15, height: 15 }}><Crown size={9} /></span>
+                  <span title={t("header.vipBadge")} style={{ ...SUB.vipBadge, position: "absolute", top: -6, insetInlineStart: -6, width: 15, height: 15 }}><Crown size={9} /></span>
                 ) : isSub ? (
-                  <span title="مشترك في مسار" style={{ ...SUB.subBadge, position: "absolute", top: -6, insetInlineStart: -6, width: 15, height: 15 }}><Star size={9} fill="var(--on-accent)" /></span>
+                  <span title={t("header.subBadge")} style={{ ...SUB.subBadge, position: "absolute", top: -6, insetInlineStart: -6, width: 15, height: 15 }}><Star size={9} fill="var(--on-accent)" /></span>
                 ) : null}
                 <LogOut size={11} />
               </button>
             ) : (
-              <button onClick={onSignIn} title="تسجيل الدخول بحساب Google" style={{ position: "relative", display: "flex", alignItems: "center", gap: 4, background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.3)", color: "#C9A24B", borderRadius: 10, padding: "3px 8px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+              <button onClick={onSignIn} title={t("header.signInGoogle")} style={{ position: "relative", display: "flex", alignItems: "center", gap: 4, background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.3)", color: "#C9A24B", borderRadius: 10, padding: "3px 8px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
                 {isVip ? (
-                  <span title="عضو VIP دائم" style={{ ...SUB.vipBadge, position: "absolute", top: -6, insetInlineStart: -6, width: 15, height: 15 }}><Crown size={9} /></span>
+                  <span title={t("header.vipBadge")} style={{ ...SUB.vipBadge, position: "absolute", top: -6, insetInlineStart: -6, width: 15, height: 15 }}><Crown size={9} /></span>
                 ) : isSub ? (
-                  <span title="مشترك في مسار" style={{ ...SUB.subBadge, position: "absolute", top: -6, insetInlineStart: -6, width: 15, height: 15 }}><Star size={9} fill="var(--on-accent)" /></span>
+                  <span title={t("header.subBadge")} style={{ ...SUB.subBadge, position: "absolute", top: -6, insetInlineStart: -6, width: 15, height: 15 }}><Star size={9} fill="var(--on-accent)" /></span>
                 ) : null}
-                <LogIn size={11} /> دخول
+                <LogIn size={11} /> {t("header.signIn")}
               </button>
             ))}
           </div>
@@ -896,7 +906,7 @@ function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSign
               borderColor: isToday ? "var(--gold)" : "rgba(201,162,75,0.3)",
             }}
           >
-            <Clock size={12} /> اليوم
+            <Clock size={12} /> {t("nav.today")}
           </button>
           <span style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.25)", borderRadius: 10, padding: "3px 8px", fontSize: 11.5, color: "#C9A24B", fontWeight: 700 }}>
             <Star size={11} color="#C9A24B" /> {lv.label} {lv.level}
@@ -904,7 +914,7 @@ function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSign
               <span style={{ display: "block", height: "100%", width: `${Math.round(lvProgress * 100)}%`, background: "#C9A24B", borderRadius: 2 }} />
             </span>
           </span>
-          <span title={hasCloud ? "متصل بالسحابة" : "تخزين محلي"} style={{ ...S.cloudDot, background: hasCloud ? "rgba(95,168,160,0.15)" : "rgba(107,104,99,0.15)", color: hasCloud ? "#5FA8A0" : "var(--muted2)", display: "flex", alignItems: "center", gap: 4 }}>
+          <span title={hasCloud ? t("header.cloudSynced") : t("header.localStorage")} style={{ ...S.cloudDot, background: hasCloud ? "rgba(95,168,160,0.15)" : "rgba(107,104,99,0.15)", color: hasCloud ? "#5FA8A0" : "var(--muted2)", display: "flex", alignItems: "center", gap: 4 }}>
             {hasCloud ? <Cloud size={11} /> : <CloudOff size={11} />}
           </span>
           <span style={S.hStat}><Flame size={13} color="#D17B5F" /> {stats.streak}</span>
@@ -916,7 +926,20 @@ function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSign
   );
 }
 
+// المفاتيح الدينية داخل MANDATORY_TASKS (قراءة القرآن، سورة الكهف) يجب أن
+// تبقى بالعربي دائماً بغض النظر عن لغة الواجهة — نفس مبدأ الاستثناء الدائم
+// للمحتوى الديني الذي سيُطبَّق حرفياً على "الأذكار" و"القرآن" و"الاستغفار"
+// في مراحل الترجمة القادمة. المهام غير الدينية (السرير، الأسنان) تُترجم
+// عادياً عبر todayView.mandatoryTasks.
+const RELIGIOUS_MANDATORY_TASK_KEYS = ["quran_daily", "alkahf"];
+function mandatoryTaskLabel(task, t) {
+  if (RELIGIOUS_MANDATORY_TASK_KEYS.includes(task.key)) return task.label;
+  return t(`todayView.mandatoryTasks.${task.key}`, task.label);
+}
+
 function TodayView({ date, setDate, entries, setEntries, categories, tasks, setTasks, reports, setReports, aiHistory, mandatoryLog, setMandatoryLog, focus, addPoints, showToast, subscription }) {
+  const { t, i18n } = useTranslation();
+  const language = i18n.language;
   const [modalOpen, setModalOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState(null);
   const [manualPeriod, setManualPeriod] = useState(null);
@@ -937,7 +960,7 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
   // period follows the classic AM/PM split (not a workday-ish 5–17 window).
   const autoPeriod = currentHour < 12 ? "morning" : "evening";
   const period = manualPeriod || autoPeriod;
-  const periodLabel = period === "morning" ? "الصباح" : "المساء";
+  const periodLabel = period === "morning" ? t("todayView.morning") : t("todayView.evening");
   const periodGlow = period === "morning" ? "rgba(201,162,75,0.4)" : "rgba(94,150,224,0.4)";
   function togglePeriod() { setManualPeriod(period === "morning" ? "evening" : "morning"); }
   const isAmTime = (hhmm) => parseInt(hhmm.split(":")[0], 10) < 12;
@@ -965,28 +988,29 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
     const newLog = { ...(mandatoryLog || {}), [today]: { ...todayMandatory, [task.key]: done } };
     if (setMandatoryLog) setMandatoryLog(newLog);
     await store.saveMandatoryItem(today, task.key, done);
-    if (done) { addPoints(task.points, task.label); showToast(`+${task.points} نقطة`); }
-    else addPoints(-task.points, `التراجع عن ${task.label}`);
+    const label = mandatoryTaskLabel(task, t);
+    if (done) { addPoints(task.points, label); showToast(`+${task.points} ${t("todayView.pointsSuffix")}`); }
+    else addPoints(-task.points, t("todayView.revertedTask", { label }));
   }
 
   async function saveEntry(entry) {
     setEntries((prev) => prev.some((e) => e.id === entry.id) ? prev.map((e) => (e.id === entry.id ? entry : e)) : [...prev, entry]);
     await store.saveEntry(entry);
     if (!editingEntry) addPoints(15);
-    setModalOpen(false); setEditingEntry(null); showToast("تم حفظ بياناتك بنجاح");
+    setModalOpen(false); setEditingEntry(null); showToast(t("todayView.savedSuccess"));
   }
   async function deleteEntry(id) {
     setEntries((prev) => prev.filter((e) => e.id !== id));
     await store.deleteEntry(id);
-    addPoints(-15, "حذف نشاط");
-    showToast("تم الحذف");
+    addPoints(-15, t("todayView.deletedActivity"));
+    showToast(t("todayView.deletedSuccess"));
   }
-  async function toggleTask(t) {
-    const updated = { ...t, done: !t.done };
-    setTasks((prev) => prev.map((x) => x.id === t.id ? updated : x));
+  async function toggleTask(taskItem) {
+    const updated = { ...taskItem, done: !taskItem.done };
+    setTasks((prev) => prev.map((x) => x.id === taskItem.id ? updated : x));
     await store.saveTask(updated);
-    if (!t.done) addPoints(10);
-    else addPoints(-10, "التراجع عن مهمة");
+    if (!taskItem.done) addPoints(10);
+    else addPoints(-10, t("todayView.revertedTaskGeneric"));
   }
 
   const byCategory = useMemo(() => {
@@ -1002,23 +1026,26 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
   return (
     <div style={S.view}>
       <div style={S.dateRow}>
-        <button onClick={() => shiftDay(-1)} style={S.iconBtn}><ChevronRight size={18} /></button>
-        <div style={S.dateLabel}>{arabicDate(date, { weekday: "long", day: "numeric", month: "long" })}{isToday && <span style={S.todayPill}>اليوم</span>}</div>
-        <button onClick={() => shiftDay(1)} style={S.iconBtn}><ChevronLeft size={18} /></button>
+        {/* الأيقونتان تتبادلان حسب اللغة: كل زر يمثّل "سابق"/"تالي" منطقياً،
+            لكن اتجاه السهم يجب أن يشير دائماً نحو حافة الصف الخارجية التي
+            يقع عليها الزر فعلياً بعد انعكاس RTL/LTR، لا اتجاهاً ثابتاً. */}
+        <button onClick={() => shiftDay(-1)} style={S.iconBtn}>{language === "en" ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}</button>
+        <div style={S.dateLabel}>{arabicDate(date, { weekday: "long", day: "numeric", month: "long" }, language === "en" ? "en-US" : undefined)}{isToday && <span style={S.todayPill}>{t("nav.today")}</span>}</div>
+        <button onClick={() => shiftDay(1)} style={S.iconBtn}>{language === "en" ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}</button>
       </div>
 
       {mandatoryVisible.length > 0 && (
         <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, padding: "10px 12px", marginBottom: 12 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--gold)" }}>المهام الأساسية اليومية</span>
-            <span style={{ fontSize: 11, color: mandatoryDoneCount === mandatoryVisible.length ? "#5FA8A0" : "var(--muted2)" }}>{mandatoryDoneCount}/{mandatoryVisible.length}</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--gold)" }}>{t("todayView.dailyMandatoryTitle")}</span>
+            <span style={{ fontSize: 11, color: mandatoryDoneCount === mandatoryVisible.length ? "#5FA8A0" : "var(--muted2)", direction: "ltr" }}>{mandatoryDoneCount}/{mandatoryVisible.length}</span>
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {mandatoryVisible.map((task) => {
               const done = !!todayMandatory[task.key];
               return (
                 <button key={task.key} onClick={() => toggleMandatoryToday(task)} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", borderRadius: 20, border: done ? "1px solid rgba(95,168,160,0.5)" : "1px solid var(--line)", background: done ? "rgba(95,168,160,0.1)" : "transparent", color: done ? "#5FA8A0" : "var(--muted2)", fontSize: 12, cursor: "pointer", fontFamily: "inherit", textDecoration: done ? "line-through" : "none" }}>
-                  <span>{task.icon}</span><span>{task.label}</span>
+                  <span>{task.icon}</span><span>{mandatoryTaskLabel(task, t)}</span>
                 </button>
               );
             })}
@@ -1034,8 +1061,8 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
           size={224}
           glow={periodGlow}
           period={period}
-          centerLabel={(halfEntries.length === 0 && halfFocusSessions.length === 0) ? "ابدأ يومك" : periodLabel}
-          centerValue={fmtHM(halfTrackedMinutes)}
+          centerLabel={(halfEntries.length === 0 && halfFocusSessions.length === 0) ? t("todayView.startYourDay") : periodLabel}
+          centerValue={fmtHM(halfTrackedMinutes, language)}
         />
       </div>
       <div style={{ display: "flex", justifyContent: "center", marginBottom: 10, marginTop: -4 }}>
@@ -1044,21 +1071,21 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
         </button>
       </div>
       <div style={{ textAlign: "center", marginBottom: 14 }}>
-        <span style={{ fontSize: 11, color: "var(--muted)" }}>اضغط أي قوس في العجلة لتفاصيل ذلك النشاط</span>
+        <span style={{ fontSize: 11, color: "var(--muted)" }}>{t("todayView.tapArcHint")}</span>
       </div>
       {!isFutureDay && unrecordedMinutes > 30 && (
         <div style={{ background: "rgba(201,162,75,0.08)", border: "1px solid rgba(201,162,75,0.25)", borderRadius: 12, padding: "10px 14px", marginBottom: 14, textAlign: "center" }}>
           <span style={{ fontSize: 12.5, color: "#C9A24B", lineHeight: 1.7 }}>
-            لديك {fmtHM(unrecordedMinutes)} غير مسجّلة {date === todayKey() ? "اليوم" : "في هذا اليوم"} — سجّل أنشطتك لتعرف أين يذهب وقتك.
+            {t(date === todayKey() ? "todayView.unrecordedToday" : "todayView.unrecordedOtherDay", { time: fmtHM(unrecordedMinutes, language) })}
           </span>
         </div>
       )}
 
       <div style={S.legendRow}>
         {byCategory.map((c) => (
-          <div key={c.catId} style={S.legendChip}><span style={{ ...S.legendDot, background: c.color }} /><span>{c.name}</span><span style={S.legendMins}>{fmtHM(c.mins)}</span></div>
+          <div key={c.catId} style={S.legendChip}><span style={{ ...S.legendDot, background: c.color }} /><span>{c.name}</span><span style={S.legendMins}>{fmtHM(c.mins, language)}</span></div>
         ))}
-        {byCategory.length === 0 && <div style={S.emptyHint}>لا أنشطة مسجلة لهذا اليوم</div>}
+        {byCategory.length === 0 && <div style={S.emptyHint}>{t("todayView.noActivitiesToday")}</div>}
       </div>
 
       <DailyEvolution
@@ -1073,13 +1100,13 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
       />
 
       <div style={S.entryListHeader}>
-        <span>السجل</span>
-        <button onClick={() => { setEditingEntry(null); setModalOpen(true); }} style={S.addBtn}><Plus size={16} /><span>إضافة نشاط</span></button>
+        <span>{t("todayView.log")}</span>
+        <button onClick={() => { setEditingEntry(null); setModalOpen(true); }} style={S.addBtn}><Plus size={16} /><span>{t("todayView.addActivity")}</span></button>
       </div>
       <div style={S.entryList} className="stagger-in">
-        {dayEntries.length === 0 && <div style={S.emptyState}><div style={S.emptyStateTitle}>ابدأ يومك</div><div style={S.emptyStateSub}>سجّل أول نشاط لترى عجلة يومك تنبض</div></div>}
+        {dayEntries.length === 0 && <div style={S.emptyState}><div style={S.emptyStateTitle}>{t("todayView.startYourDay")}</div><div style={S.emptyStateSub}>{t("todayView.emptyStateSub")}</div></div>}
         {dayEntries.map((e) => {
-          const cat = catMap[e.catId] || { name: "غير محدد", color: "#9A968F" };
+          const cat = catMap[e.catId] || { name: t("todayView.unspecified"), color: "#9A968F" };
           async function adjustMins(delta) {
             const currentDur = diffMinutes(e.start, e.end);
             const newDur = Math.max(1, currentDur + delta);
@@ -1092,7 +1119,7 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
             <div key={e.id} style={S.entryRow} onClick={() => { setEditingEntry(e); setModalOpen(true); }}>
               <span style={{ ...S.entryBar, background: cat.color }} />
               <div style={S.entryInfo}><div style={S.entryName}>{cat.name}</div>{e.note && <div style={S.entryNote}>{e.note}</div>}</div>
-              <div style={S.entryTime}><div style={S.entryDuration}>{fmtHM(diffMinutes(e.start, e.end))}</div></div>
+              <div style={S.entryTime}><div style={S.entryDuration}>{fmtHM(diffMinutes(e.start, e.end), language)}</div></div>
               <div style={{ display: "flex", gap: 3, alignItems: "center" }} onClick={(ev) => ev.stopPropagation()}>
                 <button onClick={() => adjustMins(-2)} style={{ ...S.deleteBtn, fontSize: 12, color: "var(--muted2)" }}>-2</button>
                 <button onClick={() => adjustMins(2)} style={{ ...S.deleteBtn, fontSize: 12, color: "#C9A24B" }}>+2</button>
@@ -1105,11 +1132,11 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
 
       {dayTasks.length > 0 && (
         <div style={S.quickTasks}>
-          <div style={S.quickTasksTitle}>مهام اليوم</div>
-          {dayTasks.map((t) => (
-            <div key={t.id} style={S.quickTaskRow} onClick={() => toggleTask(t)}>
-              <span style={{ ...S.checkbox, ...(t.done ? S.checkboxDone : {}) }}>{t.done && <Check size={12} />}</span>
-              <span style={{ ...S.quickTaskText, ...(t.done ? S.quickTaskTextDone : {}) }}>{t.title}</span>
+          <div style={S.quickTasksTitle}>{t("todayView.todaysTasks")}</div>
+          {dayTasks.map((qt) => (
+            <div key={qt.id} style={S.quickTaskRow} onClick={() => toggleTask(qt)}>
+              <span style={{ ...S.checkbox, ...(qt.done ? S.checkboxDone : {}) }}>{qt.done && <Check size={12} />}</span>
+              <span style={{ ...S.quickTaskText, ...(qt.done ? S.quickTaskTextDone : {}) }}>{qt.title}</span>
             </div>
           ))}
         </div>
@@ -1121,27 +1148,34 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
 }
 
 function DailyEvolution({ date, dayEntries, catMap, report, aiHistory, onSave, subscription }) {
+  const { t, i18n } = useTranslation();
+  const language = i18n.language;
   const [loading, setLoading] = useState(false);
   const [local, setLocal] = useState(report || null);
   useEffect(() => { setLocal(report || null); }, [report, date]);
 
   if (!isActiveSubscriber(subscription)) {
-    return <UpsellCard icon={Sun} title="تطوّرك اليوم في مسار الكامل" message="يلخّص مسار يومك ويقترح لك خطوة عملية واحدة للغد، بناءً على أنشطتك الفعلية." compact />;
+    return <UpsellCard icon={Sun} title={t("todayView.evolution.upsellTitle")} message={t("todayView.evolution.upsellMessage")} compact />;
   }
 
   async function generate() {
-    if (dayEntries.length === 0) { setLocal({ error: "سجّل بعض الأنشطة أولاً حتى أقدر ألخّص يومك." }); return; }
+    if (dayEntries.length === 0) { setLocal({ error: t("todayView.evolution.noEntriesError") }); return; }
     setLoading(true);
     try {
-      const summary = dayEntries.map((e) => `${catMap[e.catId]?.name || "غير محدد"} | ${e.start}-${e.end} | ${e.note || ""}`).join("\n");
+      const summary = dayEntries.map((e) => `${catMap[e.catId]?.name || t("todayView.unspecified")} | ${e.start}-${e.end} | ${e.note || ""}`).join("\n");
       const prevGists = aiHistory.slice(0, 3).map((h) => h.gist).join(" / ");
-      const prompt = `أنت مرشد تطوير ذاتي يكتب بالعربية الفصحى البسيطة بدون أي شرطات طويلة. هذا سجل أنشطة المستخدم ليوم واحد:\n${summary}\n\n${prevGists ? `ملخصات أيام سابقة لا تكررها بل تبني عليها: ${prevGists}` : ""}\n\nاكتب ملخصاً ملهماً قصيراً عن أداء اليوم مع نصيحة عملية للغد. أعد فقط JSON بدون أي نص أو markdown:\n{"summary":"جملتان عن أداء اليوم","tip":"نصيحة واحدة قصيرة للغد","mood":"كلمة واحدة تصف اليوم","gist":"ملخص 6 كلمات"}`;
+      // محتوى الطلب المُرسَل للذكاء الاصطناعي نفسه (وليس واجهة المستخدم)
+      // يتبع لغة الواجهة أيضاً حتى لا يظهر ملخص عربي داخل تجربة إنجليزية،
+      // لكنه يبقى خارج ملفات الترجمة لأنه تعليمات نموذج وليس نص عرض.
+      const prompt = language === "en"
+        ? `You are a self-development coach writing in simple, warm English, without long dashes. This is the user's activity log for one day:\n${summary}\n\n${prevGists ? `Summaries of previous days — don't repeat them, build on them: ${prevGists}` : ""}\n\nWrite a short, inspiring summary of today's performance with one practical tip for tomorrow. Reply ONLY with JSON, no other text or markdown:\n{"summary":"two sentences about today's performance","tip":"one short tip for tomorrow","mood":"one word describing the day","gist":"6-word summary"}`
+        : `أنت مرشد تطوير ذاتي يكتب بالعربية الفصحى البسيطة بدون أي شرطات طويلة. هذا سجل أنشطة المستخدم ليوم واحد:\n${summary}\n\n${prevGists ? `ملخصات أيام سابقة لا تكررها بل تبني عليها: ${prevGists}` : ""}\n\nاكتب ملخصاً ملهماً قصيراً عن أداء اليوم مع نصيحة عملية للغد. أعد فقط JSON بدون أي نص أو markdown:\n{"summary":"جملتان عن أداء اليوم","tip":"نصيحة واحدة قصيرة للغد","mood":"كلمة واحدة تصف اليوم","gist":"ملخص 6 كلمات"}`;
       const text = await analyze(prompt, 800);
       const parsed = parseJsonLoose(text);
       setLocal(parsed); onSave(parsed, parsed.gist);
     } catch (err) {
       console.error("[DailyEvolution] analyze failed:", err, err?.debug);
-      setLocal({ error: `تعذّر التحليل الآن، جرّب مرة أخرى.${err?.debug ? ` [DEBUG: ${JSON.stringify(err.debug)}]` : ""}` });
+      setLocal({ error: `${t("todayView.evolution.errorGeneric")}${err?.debug ? ` [DEBUG: ${JSON.stringify(err.debug)}]` : ""}` });
     }
     finally { setLoading(false); }
   }
@@ -1149,13 +1183,13 @@ function DailyEvolution({ date, dayEntries, catMap, report, aiHistory, onSave, s
   return (
     <div style={S.evolutionCard}>
       <div style={S.evolutionHeader}>
-        <div style={S.evolutionTitleRow}><Sun size={16} color="#C9A24B" /><span style={S.evolutionTitle}>تطوّرك اليوم</span></div>
+        <div style={S.evolutionTitleRow}><Sun size={16} color="#C9A24B" /><span style={S.evolutionTitle}>{t("todayView.evolution.title")}</span></div>
         <button onClick={generate} disabled={loading} style={S.evolutionBtn}>
           {loading ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} />}
-          {loading ? "..." : local && !local.error ? "تحديث" : "لخّص يومي"}
+          {loading ? "..." : local && !local.error ? t("todayView.evolution.update") : t("todayView.evolution.summarize")}
         </button>
       </div>
-      {!local && <div style={S.evolutionEmpty}>اطلب من مسار أن يلخّص يومك ويقترح خطوة للغد.</div>}
+      {!local && <div style={S.evolutionEmpty}>{t("todayView.evolution.emptyPrompt")}</div>}
       {local?.error && <div style={S.evolutionEmpty}>{local.error}</div>}
       {local && !local.error && (
         <div>
@@ -4159,6 +4193,7 @@ function RoadmapCard() {
 }
 
 function EntryModal({ entry, date, categories, onSave, onClose }) {
+  const { t, i18n } = useTranslation();
   const initMins = entry ? diffMinutes(entry.start, entry.end) : 60;
   const [catId, setCatId] = useState(entry?.catId || categories[0]?.id);
   const [minutes, setMinutes] = useState(initMins);
@@ -4189,11 +4224,11 @@ function EntryModal({ entry, date, categories, onSave, onClose }) {
   return (
     <div style={S.modalOverlay} onClick={onClose}>
       <div style={S.modal} onClick={(e) => e.stopPropagation()}>
-        <div style={S.modalHeader}><span>{entry ? "تعديل النشاط" : "نشاط جديد"}</span><button onClick={onClose} style={S.iconBtn}><X size={18} /></button></div>
+        <div style={S.modalHeader}><span>{entry ? t("todayView.entryModal.editActivity") : t("todayView.entryModal.newActivity")}</span><button onClick={onClose} style={S.iconBtn}><X size={18} /></button></div>
         <div style={S.modalBody}>
-          <label style={S.label}>ملاحظة</label>
-          <input value={note} onChange={(e) => handleNoteChange(e.target.value)} placeholder="مثال: تصوير جلسة تخرج، دراسة..." style={S.input} />
-          <label style={S.label}>متى؟</label>
+          <label style={S.label}>{t("todayView.entryModal.noteLabel")}</label>
+          <input value={note} onChange={(e) => handleNoteChange(e.target.value)} placeholder={t("todayView.entryModal.notePlaceholder")} style={S.input} />
+          <label style={S.label}>{t("todayView.entryModal.whenLabel")}</label>
           <div style={{ position: "relative", marginBottom: 14 }}>
             <div style={{ ...S.input, display: "flex", alignItems: "center", justifyContent: "space-between", boxSizing: "border-box" }}>
               <span>{to12h(startTime)}</span>
@@ -4206,14 +4241,14 @@ function EntryModal({ entry, date, categories, onSave, onClose }) {
               style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, border: "none", padding: 0, margin: 0, cursor: "pointer", colorScheme: "dark" }}
             />
           </div>
-          <label style={S.label}>كم دقيقة؟</label>
+          <label style={S.label}>{t("todayView.entryModal.howManyMinutes")}</label>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
             <button onClick={() => setMinutes((m) => Math.max(5, m - 5))} style={{ ...PS.miniTimerBtn, flex: "none", width: 40, height: 40 }}>-5</button>
             <input type="number" min={1} max={600} value={minutes} onChange={(e) => setMinutes(Number(e.target.value))} style={{ ...S.input, width: 80, textAlign: "center", fontSize: 20, fontFamily: "'Amiri', serif", fontWeight: 700 }} />
             <button onClick={() => setMinutes((m) => Math.min(600, m + 5))} style={{ ...PS.miniTimerBtn, flex: "none", width: 40, height: 40 }}>+5</button>
-            <span style={{ fontSize: 12, color: "var(--muted2)" }}>({fmtHM(minutes)})</span>
+            <span style={{ fontSize: 12, color: "var(--muted2)" }}>({fmtHM(minutes, i18n.language)})</span>
           </div>
-          <label style={S.label}>الفئة</label>
+          <label style={S.label}>{t("todayView.entryModal.categoryLabel")}</label>
           <div style={S.catGrid}>
             {categories.map((c) => (
               <button key={c.id} onClick={() => selectCat(c.id)} style={{ ...S.catChip, borderColor: catId === c.id ? c.color : "var(--border2)", background: catId === c.id ? `${c.color}22` : "transparent" }}>
@@ -4222,7 +4257,7 @@ function EntryModal({ entry, date, categories, onSave, onClose }) {
             ))}
           </div>
         </div>
-        <button onClick={handleSave} style={S.saveBtn}>حفظ النشاط</button>
+        <button onClick={handleSave} style={S.saveBtn}>{t("todayView.entryModal.saveActivity")}</button>
       </div>
     </div>
   );

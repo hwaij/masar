@@ -65,6 +65,7 @@ alter table profile add column if not exists tour_seen boolean not null default 
 alter table profile add column if not exists theme text not null default 'dark';
 alter table profile add column if not exists notifications_enabled boolean not null default false;
 alter table profile add column if not exists notifications_asked boolean not null default false;
+alter table profile add column if not exists language text not null default 'ar';
 
 -- قسم "أنت": بيانات صحية أساسية + القيم المحسوبة منها (BMI/IBW/REE/TEE)
 -- مخزّنة جاهزة حتى تقرأها أقسام التغذية والرياضة لاحقاً دون إعادة حسابها.

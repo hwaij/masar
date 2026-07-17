@@ -29,6 +29,8 @@ import { isActiveSubscriber } from "../lib/subscription";
 import { requestNotificationPermission, disablePush } from "../lib/push";
 import { ACTIVITY_LEVELS, HEALTH_CONDITIONS, NO_CONDITION, MEDICAL_DISCLAIMER, computeHealthMetrics } from "../lib/health";
 import { createGoal, isReviewDue, GOAL_PERIODS, GOAL_POINTS_SUCCESS, GOAL_POINTS_FAILURE } from "../lib/goals";
+import { FITNESS_GOALS } from "../lib/exercises";
+import { sumNutritionEntries, waterGoalCups } from "../lib/nutrition";
 import { getSession, onAuthChange, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut, userFromSession, hasAuth } from "../lib/auth";
 import {
   todayKey, fmtHM, uid, diffMinutes, arabicDate, computeStreak, escapeHtml,
@@ -504,7 +506,7 @@ export default function MasarApp() {
         {view === "reports" && (isSub ? <ReportsView entries={entries} categories={categories} focus={focus} profile={profile} sleepLog={sleepLog} setSleepLog={setSleepLog} showToast={showToast} /> : (
           <div style={S.view}><UpsellCard icon={TrendingUp} title="تقاريرك التفصيلية في مسار الكامل" message="شاهد تقدّمك بأرقام وتحليلات واضحة، وتتبّع نومك ونمط راحتك عبر الأيام." /></div>
         ))}
-        {view === "assistant" && (isSub ? <AssistantView entries={entries} tasks={tasks} categories={categories} focus={focus} prayerLog={prayerLog} religious={religious} profile={profile} stats={stats} setView={setView} /> : (
+        {view === "assistant" && (isSub ? <AssistantView entries={entries} tasks={tasks} categories={categories} focus={focus} prayerLog={prayerLog} religious={religious} profile={profile} stats={stats} setView={setView} healthProfile={healthProfile} goals={goals} /> : (
           <div style={S.view}><UpsellCard icon={MessageCircle} title="مساعدك الذكي في مسار الكامل" message="مدرّب شخصي يحلّل يومك وعاداتك ويقترح خطوات عملية بناءً على بياناتك الفعلية." /></div>
         ))}
         {view === "you" && <YouView healthProfile={healthProfile} setHealthProfile={setHealthProfile} showToast={showToast} />}
@@ -1590,7 +1592,7 @@ function SleepSection({ sleepLog, setSleepLog, days, range, showToast }) {
   );
 }
 
-function AssistantView({ entries, tasks, categories, focus, prayerLog, religious, profile, stats, setView }) {
+function AssistantView({ entries, tasks, categories, focus, prayerLog, religious, profile, stats, setView, healthProfile, goals }) {
   const today = todayKey();
   const hasIdentity = !!(profile?.hobbies?.trim() || profile?.about?.trim());
 
@@ -1599,6 +1601,26 @@ function AssistantView({ entries, tasks, categories, focus, prayerLog, religious
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const scrollRef = useRef(null);
+
+  // بيانات الأقسام غير المحمَّلة مركزياً في MasarApp (الرياضة/التغذية/الماء/
+  // الصحة النفسية تتبع نمط "العرض المستقل" نفسه المستخدم في صفحاتها). تُجلب
+  // مرة واحدة فقط عند فتح المساعد (بالتوازي مع تحميل سجل المحادثة، عبر
+  // Promise.all بدل استعلامات متتالية) لا عند كل رسالة، حتى لا يُبطئ الإرسال
+  // أو يكرر نفس الاستعلامات بلا داعٍ. إن لم تكتمل بعد وقت الإرسال، تُحذف
+  // أقسامها من السياق بدل حجب الرسالة.
+  const [extra, setExtra] = useState(null);
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      store.loadFitnessProfile(), store.loadFitnessLog(),
+      store.loadNutritionLog(), store.loadWaterLog(),
+      store.loadMentalHealthLog(),
+    ]).then(([fitnessProfile, fitnessLog, nutritionLog, waterLog, mentalLog]) => {
+      if (!active) return;
+      setExtra({ fitnessProfile, fitnessLog, nutritionLog, waterLog, mentalLog });
+    });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -1620,22 +1642,87 @@ function AssistantView({ entries, tasks, categories, focus, prayerLog, religious
     const entryLines = todayEntries.map((e) => `${catMap[e.catId] || "نشاط"} ${e.start}-${e.end}`).join("، ") || "لا يوجد";
     const tasksToday = (tasks || []).filter((t) => t.due === today);
     const doneTasks = tasksToday.filter((t) => t.done).length;
-    const focusToday = (focus || []).filter((f) => f.date === today).reduce((s, f) => s + f.minutes, 0);
     const prayersToday = (prayerLog || []).filter((p) => p.date === today).length;
     const religiousDone = (religious || []).filter((r) => r.date === today && r.done).length;
-    return [
+
+    // آخر 7 أيام تقويمية محلياً (نفس نمط النافذة المتدحرجة المستخدم في
+    // قسمي الرياضة والصحة النفسية) — تُستخدم لكل من مجاميع التركيز الأسبوعية
+    // وتقدّم الرياضة الأسبوعي وآخر أيام الصحة النفسية المسجّلة.
+    const last7 = [];
+    { const d = new Date(); for (let i = 0; i < 7; i++) { last7.push(localDayKey(d)); d.setDate(d.getDate() - 1); } }
+    const weekFocusMinutes = (focus || []).filter((f) => last7.includes(f.date)).reduce((s, f) => s + (f.minutes || 0), 0);
+
+    const lines = [
       `التاريخ: ${arabicDate(today)}`,
       `أنشطة اليوم: ${entryLines}`,
       `المهام: ${doneTasks} من ${tasksToday.length} مكتملة`,
-      `دقائق التركيز اليوم: ${focusToday}`,
+      `تركيز/دراسة هذا الأسبوع: ${fmtHM(weekFocusMinutes)}`,
       `الصلوات المسجلة اليوم: ${prayersToday} من 5`,
       `الأعمال الروحية المنجزة اليوم: ${religiousDone}`,
       `سلسلة الالتزام: ${stats?.streak || 0} يوم`,
       profile?.field ? `مجال المستخدم: ${profile.field}` : "",
       profile?.hobbies ? `هوايات المستخدم: ${profile.hobbies}` : "",
       profile?.about ? `عن المستخدم: ${profile.about}` : "",
-    ].filter(Boolean).join("\n");
-  }, [entries, tasks, categories, focus, prayerLog, religious, stats, profile, today]);
+    ];
+
+    // "أنت": فقط إذا أكمل المستخدم ملفه الصحي فعلاً (BMI محسوب) - لا نفترض
+    // شيئاً عن مستخدم لم يستخدم هذا القسم بعد.
+    if (healthProfile?.bmi) {
+      const activityLabel = ACTIVITY_LEVELS.find((a) => a.key === healthProfile.activityLevel)?.label;
+      const goalLabel = FITNESS_GOALS.find((g) => g.key === extra?.fitnessProfile?.goal)?.label;
+      lines.push(
+        `ملف "أنت": BMI ${healthProfile.bmi} (${healthProfile.bmiCategory})` +
+        (goalLabel ? `، الهدف: ${goalLabel}` : "") +
+        (activityLabel ? `، مستوى النشاط: ${activityLabel}` : "")
+      );
+    }
+
+    if (extra) {
+      // التغذية والماء: فقط إذا وُجد TEE محسوب من "أنت" (شرط توفّر بيانات
+      // كافية للمقارنة)، بغض النظر عن كون رقم اليوم صفراً (صفر رقم حقيقي
+      // وليس افتراضاً).
+      if (healthProfile?.tee) {
+        const caloriesToday = Math.round(sumNutritionEntries((extra.nutritionLog || []).filter((e) => e.date === today)).calories);
+        lines.push(`التغذية اليوم: ${caloriesToday} سعرة من أصل ${Math.round(healthProfile.tee)} سعرة (TEE)`);
+      }
+      const goalCups = waterGoalCups(healthProfile?.weightKg);
+      if (goalCups) {
+        lines.push(`الماء اليوم: ${extra.waterLog?.[today] || 0} من ${goalCups} كوب`);
+      }
+
+      // الرياضة: فقط إذا أعدّ المستخدم برنامجه فعلاً في هذا القسم.
+      if (extra.fitnessProfile?.goal) {
+        const weekCompleted = last7.filter((d) => extra.fitnessLog?.[d]).length;
+        const goalLabel = FITNESS_GOALS.find((g) => g.key === extra.fitnessProfile.goal)?.label || extra.fitnessProfile.goal;
+        lines.push(
+          `الرياضة: هدفه ${goalLabel}، أكمل ${weekCompleted} من ${extra.fitnessProfile.daysPerWeek} أيام هذا الأسبوع، ` +
+          (extra.fitnessLog?.[today] ? "أنجز تمرين اليوم" : "لم يُنجز تمرين اليوم بعد")
+        );
+      }
+
+      // الصحة النفسية: فقط إذا وُجد تسجيل واحد على الأقل ضمن آخر 5 أيام.
+      // آخر يوم مسجَّل (وليس بالضرورة أحدث الأيام السبعة) هو ما يُفحص لعلم
+      // الخطر، لأنه أحدث ما لدينا فعلياً عن حالة المستخدم.
+      const last5 = last7.slice(0, 5);
+      const mentalEntries = last5.map((d) => (extra.mentalLog?.[d] ? { date: d, ...extra.mentalLog[d] } : null)).filter(Boolean);
+      if (mentalEntries.length > 0) {
+        const avg = (key) => Math.round((mentalEntries.reduce((s, e) => s + (e[key] || 0), 0) / mentalEntries.length) * 10) / 10;
+        lines.push(`الصحة النفسية (آخر ${mentalEntries.length} تسجيل/تسجيلات): متوسط المزاج ${avg("mood")}/5، متوسط التوتر ${avg("stress")}/5، متوسط الطاقة ${avg("energy")}/5`);
+        if (mentalEntries[0].flaggedRisk) {
+          lines.push("⚠️ تنبيه أولوية قصوى: آخر تسجيل نفسي للمستخدم مُعلَّم كحالة خطر (flagged risk). تعامل بأقصى درجات اللطف والحساسية بغض النظر عن موضوع سؤاله، ووجّهه بلطف لمصدر مساعدة حقيقي إن كان ذلك مناسباً - لا تتجاهل هذا الإشارة مهما كان السؤال.");
+        }
+      }
+    }
+
+    // الأهداف: فقط الأهداف النشطة فعلياً حالياً.
+    const activeGoals = (goals || []).filter((g) => g.status === "active");
+    if (activeGoals.length > 0) {
+      const goalLines = activeGoals.slice(0, 5).map((g) => `${g.title} (${GOAL_PERIODS[g.period]?.label || g.period}): ${g.checkpointIndex} من ${(g.checkpoints || []).length}`).join("، ");
+      lines.push(`الأهداف النشطة: ${goalLines}`);
+    }
+
+    return lines.filter(Boolean).join("\n");
+  }, [entries, tasks, categories, focus, prayerLog, religious, stats, profile, today, healthProfile, goals, extra]);
 
   async function send(text) {
     const content = (text ?? input).trim();

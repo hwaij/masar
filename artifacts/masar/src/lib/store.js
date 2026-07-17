@@ -295,6 +295,58 @@ export const store = {
     }
   },
 
+  // قسم "الرياضة": إعداد أولي (هدف/معدات/أيام أسبوعياً) + سجل بسيط لأيام
+  // التمرين المكتملة (تاريخ واحد لكل يوم، بلا ربط بيوم مُحدَّد من الخطة).
+  async loadFitnessProfile() {
+    const local = lsGet("masar_fitness_profile", { goal: null, equipment: null, daysPerWeek: null });
+    if (!useCloud()) return local;
+    try {
+      const { data, error } = await supabase.from("fitness_profile").select("*").eq("owner", CURRENT_OWNER).maybeSingle();
+      if (error || !data) return local;
+      const result = { goal: data.goal, equipment: data.equipment, daysPerWeek: data.days_per_week };
+      lsSet("masar_fitness_profile", result);
+      return result;
+    } catch (e) { console.error("[loadFitnessProfile] read failed:", e); return local; }
+  },
+  async saveFitnessProfile(p) {
+    lsSet("masar_fitness_profile", p);
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("fitness_profile").upsert({
+          owner: CURRENT_OWNER, goal: p.goal, equipment: p.equipment, days_per_week: p.daysPerWeek,
+          updated_at: new Date().toISOString(),
+        });
+        if (error) console.error("[saveFitnessProfile] Supabase error:", error.message);
+      } catch (e) { console.error("[saveFitnessProfile] write failed:", e); }
+    }
+  },
+
+  async loadFitnessLog() {
+    const local = lsGet("masar_fitness_log", {});
+    if (!useCloud()) return local;
+    try {
+      const { data, error } = await supabase.from("fitness_log").select("*").eq("owner", CURRENT_OWNER);
+      if (error || !data) return local;
+      const log = {};
+      data.forEach((r) => { log[r.date] = !!r.day_completed; });
+      lsSet("masar_fitness_log", log);
+      return log;
+    } catch (e) { console.error("[loadFitnessLog] read failed:", e); return local; }
+  },
+  async saveFitnessDayCompleted(date, completed) {
+    const local = lsGet("masar_fitness_log", {});
+    lsSet("masar_fitness_log", { ...local, [date]: completed });
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("fitness_log").upsert(
+          { owner: CURRENT_OWNER, date, day_completed: completed, updated_at: new Date().toISOString() },
+          { onConflict: "owner,date" },
+        );
+        if (error) console.error("[saveFitnessDayCompleted] Supabase error:", error.message);
+      } catch (e) { console.error("[saveFitnessDayCompleted] write failed:", e); }
+    }
+  },
+
   // قسم "التغذية": سجل الطعام اليومي، ذاكرة الإدخالات اليدوية للباركود،
   // وسجل أكواب الماء.
   async loadNutritionLog() {

@@ -85,6 +85,25 @@ create table if not exists health_profile (
   updated_at      timestamptz default now()
 );
 
+-- قسم "الرياضة": إعداد أولي (هدف/معدات/أيام أسبوعياً) وسجل بسيط لأيام
+-- التمرين المكتملة. الجدول الأسبوعي نفسه (تمارينه وتفاصيلها) يُولَّد
+-- بالكامل في الكود من قاعدة تمارين ثابتة محلية — لا يُخزَّن هنا.
+create table if not exists fitness_profile (
+  owner          text primary key default 'solo',
+  goal           text check (goal in ('lose_weight', 'build_muscle', 'general_fitness')),
+  equipment      text check (equipment in ('gym', 'home_no_equipment', 'home_light_weights')),
+  days_per_week  integer check (days_per_week between 2 and 6),
+  updated_at     timestamptz default now()
+);
+
+create table if not exists fitness_log (
+  owner          text not null default 'solo',
+  date           text not null,
+  day_completed  boolean not null default false,
+  updated_at     timestamptz default now(),
+  primary key (owner, date)
+);
+
 -- قسم "التغذية": سجل ما استُهلك يومياً (عبر باركود Open Food Facts، بحث
 -- بالاسم، أو إدخال يدوي)، ذاكرة الإدخالات اليدوية لإعادة استخدامها بنفس
 -- الباركود لاحقاً دون كتابتها من جديد، وسجل أكواب الماء اليومي.
@@ -537,6 +556,16 @@ alter table health_profile enable row level security;
 drop policy if exists health_profile_anon_solo on health_profile;
 drop policy if exists health_profile_user_own on health_profile;
 create policy health_profile_user_own on health_profile for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
+alter table fitness_profile enable row level security;
+drop policy if exists fitness_profile_anon_solo on fitness_profile;
+drop policy if exists fitness_profile_user_own on fitness_profile;
+create policy fitness_profile_user_own on fitness_profile for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
+alter table fitness_log enable row level security;
+drop policy if exists fitness_log_anon_solo on fitness_log;
+drop policy if exists fitness_log_user_own on fitness_log;
+create policy fitness_log_user_own on fitness_log for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
 
 alter table nutrition_log enable row level security;
 drop policy if exists nutrition_log_anon_solo on nutrition_log;

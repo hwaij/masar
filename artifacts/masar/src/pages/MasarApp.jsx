@@ -16,7 +16,7 @@ import {
   LogIn, LogOut,
   Heart, GraduationCap, Eye, AlertTriangle,
   Wallet, ArrowDownCircle, ArrowUpCircle, Crown,
-  Utensils, Dumbbell,
+  Utensils, Dumbbell, Menu,
 } from "lucide-react";
 import { fivePrayers, nextPrayer, to12h } from "../lib/prayer";
 import { ADHKAR_CATEGORIES, ADHKAR } from "../lib/adhkar";
@@ -39,6 +39,8 @@ import { S } from "../components/styles";
 import DayWheel from "../components/DayWheel";
 import NutritionView from "../components/NutritionView";
 import FitnessView from "../components/FitnessView";
+import SideMenu from "../components/SideMenu";
+import TasbihIcon from "../components/TasbihIcon";
 
 // active session storage
 const SESSION_KEY = "masar_active_session";
@@ -827,107 +829,88 @@ function LandingPage({ onSignIn, onEmailSignIn, onEmailSignUp }) {
   );
 }
 
-function TasbihIcon({ size = 15 }) {
-  // A ring of prayer-bead dots, drawn with fill="currentColor" so it
-  // inherits the tab's active/inactive color exactly like the lucide-react
-  // icons used by every other tab (emoji glyphs can't be recolored via CSS).
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="4.5" r="1.7" fill="currentColor" />
-      <circle cx="17.2" cy="7" r="1.7" fill="currentColor" />
-      <circle cx="19.5" cy="12.2" r="1.7" fill="currentColor" />
-      <circle cx="17.2" cy="17.4" r="1.7" fill="currentColor" />
-      <circle cx="12" cy="19.9" r="1.7" fill="currentColor" />
-      <circle cx="6.8" cy="17.4" r="1.7" fill="currentColor" />
-      <circle cx="4.5" cy="12.2" r="1.7" fill="currentColor" />
-      <circle cx="6.8" cy="7" r="1.7" fill="currentColor" />
-    </svg>
-  );
-}
-
 function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSignOut, subscription, theme, toggleTheme }) {
   const isVip = !!subscription?.isVip;
   const isSub = isActiveSubscriber(subscription);
-  const tabs = [
-    { id: "today", label: "اليوم", icon: Clock },
-    { id: "prayer", label: "الصلاة", icon: Moon },
-    { id: "adhkar", label: "أذكار", icon: TasbihIcon },
-    { id: "tips", label: "بصيرة", icon: Eye },
-    { id: "focus", label: "تركيز", icon: Timer },
-    { id: "tasks", label: "المهام", icon: ListChecks },
-    { id: "goals", label: "أهداف", icon: Target },
-    { id: "vault", label: "خزنة", icon: Wallet },
-    { id: "reports", label: "التقارير", icon: TrendingUp },
-    { id: "achieve", label: "أنجز", icon: Rocket },
-    { id: "assistant", label: "مساعد", icon: MessageCircle },
-    { id: "you", label: "أنت", icon: User },
-    { id: "nutrition", label: "التغذية", icon: Utensils },
-    { id: "fitness", label: "الرياضة", icon: Dumbbell },
-    { id: "settings", label: "التخصيص", icon: Settings },
-  ];
+  const [menuOpen, setMenuOpen] = useState(false);
   const lv = getLevel(gamify.points);
   const lvProgress = lv.next ? (gamify.points - lv.current) / (lv.next - lv.current) : 1;
+  const isToday = view === "today";
   return (
-    <div style={S.header} className="masar-header">
-      <div style={S.headerTop}>
-        <div style={S.brand}>
-          <img src="/logo-mark.png" alt="" style={S.brandLogo} />
-          <span style={S.brandText}>مسار</span>
+    <>
+      <div style={S.header} className="masar-header">
+        <div style={S.headerTop}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button
+              onClick={() => setMenuOpen(true)}
+              aria-label="القائمة"
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: 10, background: "var(--surface-sunken)", border: "1px solid var(--line)", color: "var(--ink)", cursor: "pointer", flexShrink: 0, padding: 0 }}
+            >
+              <Menu size={18} />
+            </button>
+            <div style={S.brand}>
+              <img src="/logo-mark.png" alt="" style={S.brandLogo} />
+              <span style={S.brandText}>مسار</span>
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button
+              onClick={toggleTheme}
+              title={theme === "dark" ? "التبديل إلى الوضع الفاتح" : "التبديل إلى الوضع الداكن"}
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: "50%", background: "var(--surface-raised)", border: "1px solid var(--line)", color: "var(--gold)", cursor: "pointer", flexShrink: 0, padding: 0 }}
+            >
+              {theme === "dark" ? <Moon size={12} /> : <Sun size={12} />}
+            </button>
+            {hasAuth && (user ? (
+              <button onClick={onSignOut} title={`${user.name || user.email} · تسجيل الخروج`} style={{ position: "relative", display: "flex", alignItems: "center", gap: 4, background: "rgba(95,168,160,0.12)", border: "1px solid rgba(95,168,160,0.3)", color: "#5FA8A0", borderRadius: 10, padding: "3px 7px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                {user.avatar ? <img src={user.avatar} alt="" style={{ width: 20, height: 20, borderRadius: "50%" }} /> : <User size={14} />}
+                {isVip ? (
+                  <span title="عضو VIP دائم" style={{ ...SUB.vipBadge, position: "absolute", top: -6, insetInlineStart: -6, width: 15, height: 15 }}><Crown size={9} /></span>
+                ) : isSub ? (
+                  <span title="مشترك في مسار" style={{ ...SUB.subBadge, position: "absolute", top: -6, insetInlineStart: -6, width: 15, height: 15 }}><Star size={9} fill="var(--on-accent)" /></span>
+                ) : null}
+                <LogOut size={11} />
+              </button>
+            ) : (
+              <button onClick={onSignIn} title="تسجيل الدخول بحساب Google" style={{ position: "relative", display: "flex", alignItems: "center", gap: 4, background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.3)", color: "#C9A24B", borderRadius: 10, padding: "3px 8px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                {isVip ? (
+                  <span title="عضو VIP دائم" style={{ ...SUB.vipBadge, position: "absolute", top: -6, insetInlineStart: -6, width: 15, height: 15 }}><Crown size={9} /></span>
+                ) : isSub ? (
+                  <span title="مشترك في مسار" style={{ ...SUB.subBadge, position: "absolute", top: -6, insetInlineStart: -6, width: 15, height: 15 }}><Star size={9} fill="var(--on-accent)" /></span>
+                ) : null}
+                <LogIn size={11} /> دخول
+              </button>
+            ))}
+          </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={S.headerStats}>
           <button
-            onClick={toggleTheme}
-            title={theme === "dark" ? "التبديل إلى الوضع الفاتح" : "التبديل إلى الوضع الداكن"}
-            style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: "50%", background: "var(--surface-raised)", border: "1px solid var(--line)", color: "var(--gold)", cursor: "pointer", flexShrink: 0, padding: 0 }}
+            onClick={() => setView("today")}
+            style={{
+              display: "flex", alignItems: "center", gap: 5, borderRadius: 20, padding: "3px 10px",
+              fontSize: 11.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", borderStyle: "solid", borderWidth: 1,
+              background: isToday ? "var(--gold)" : "rgba(201,162,75,0.1)",
+              color: isToday ? "var(--on-accent)" : "#C9A24B",
+              borderColor: isToday ? "var(--gold)" : "rgba(201,162,75,0.3)",
+            }}
           >
-            {theme === "dark" ? <Moon size={12} /> : <Sun size={12} />}
+            <Clock size={12} /> اليوم
           </button>
-          {hasAuth && (user ? (
-            <button onClick={onSignOut} title={`${user.name || user.email} · تسجيل الخروج`} style={{ position: "relative", display: "flex", alignItems: "center", gap: 4, background: "rgba(95,168,160,0.12)", border: "1px solid rgba(95,168,160,0.3)", color: "#5FA8A0", borderRadius: 10, padding: "3px 7px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-              {user.avatar ? <img src={user.avatar} alt="" style={{ width: 20, height: 20, borderRadius: "50%" }} /> : <User size={14} />}
-              {isVip ? (
-                <span title="عضو VIP دائم" style={{ ...SUB.vipBadge, position: "absolute", top: -6, insetInlineStart: -6, width: 15, height: 15 }}><Crown size={9} /></span>
-              ) : isSub ? (
-                <span title="مشترك في مسار" style={{ ...SUB.subBadge, position: "absolute", top: -6, insetInlineStart: -6, width: 15, height: 15 }}><Star size={9} fill="var(--on-accent)" /></span>
-              ) : null}
-              <LogOut size={11} />
-            </button>
-          ) : (
-            <button onClick={onSignIn} title="تسجيل الدخول بحساب Google" style={{ position: "relative", display: "flex", alignItems: "center", gap: 4, background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.3)", color: "#C9A24B", borderRadius: 10, padding: "3px 8px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-              {isVip ? (
-                <span title="عضو VIP دائم" style={{ ...SUB.vipBadge, position: "absolute", top: -6, insetInlineStart: -6, width: 15, height: 15 }}><Crown size={9} /></span>
-              ) : isSub ? (
-                <span title="مشترك في مسار" style={{ ...SUB.subBadge, position: "absolute", top: -6, insetInlineStart: -6, width: 15, height: 15 }}><Star size={9} fill="var(--on-accent)" /></span>
-              ) : null}
-              <LogIn size={11} /> دخول
-            </button>
-          ))}
+          <span style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.25)", borderRadius: 10, padding: "3px 8px", fontSize: 11.5, color: "#C9A24B", fontWeight: 700 }}>
+            <Star size={11} color="#C9A24B" /> {lv.label} {lv.level}
+            <span style={{ width: 36, height: 4, borderRadius: 2, background: "var(--surface-raised)", overflow: "hidden", marginRight: 2 }}>
+              <span style={{ display: "block", height: "100%", width: `${Math.round(lvProgress * 100)}%`, background: "#C9A24B", borderRadius: 2 }} />
+            </span>
+          </span>
+          <span title={hasCloud ? "متصل بالسحابة" : "تخزين محلي"} style={{ ...S.cloudDot, background: hasCloud ? "rgba(95,168,160,0.15)" : "rgba(107,104,99,0.15)", color: hasCloud ? "#5FA8A0" : "var(--muted2)", display: "flex", alignItems: "center", gap: 4 }}>
+            {hasCloud ? <Cloud size={11} /> : <CloudOff size={11} />}
+          </span>
+          <span style={S.hStat}><Flame size={13} color="#D17B5F" /> {stats.streak}</span>
+          <span style={S.hStat}><Star size={13} color="#C9A24B" /> {gamify.points}</span>
         </div>
       </div>
-      <div style={S.headerStats}>
-        <span style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.25)", borderRadius: 10, padding: "3px 8px", fontSize: 11.5, color: "#C9A24B", fontWeight: 700 }}>
-          <Star size={11} color="#C9A24B" /> {lv.label} {lv.level}
-          <span style={{ width: 36, height: 4, borderRadius: 2, background: "var(--surface-raised)", overflow: "hidden", marginRight: 2 }}>
-            <span style={{ display: "block", height: "100%", width: `${Math.round(lvProgress * 100)}%`, background: "#C9A24B", borderRadius: 2 }} />
-          </span>
-        </span>
-        <span title={hasCloud ? "متصل بالسحابة" : "تخزين محلي"} style={{ ...S.cloudDot, background: hasCloud ? "rgba(95,168,160,0.15)" : "rgba(107,104,99,0.15)", color: hasCloud ? "#5FA8A0" : "var(--muted2)", display: "flex", alignItems: "center", gap: 4 }}>
-          {hasCloud ? <Cloud size={11} /> : <CloudOff size={11} />}
-        </span>
-        <span style={S.hStat}><Flame size={13} color="#D17B5F" /> {stats.streak}</span>
-        <span style={S.hStat}><Star size={13} color="#C9A24B" /> {gamify.points}</span>
-      </div>
-      <div style={S.tabs}>
-        {tabs.map((t) => {
-          const Icon = t.icon; const active = view === t.id;
-          return (
-            <button key={t.id} onClick={() => setView(t.id)} style={{ ...S.tabBtn, ...(active ? S.tabBtnActive : {}) }}>
-              <Icon size={15} strokeWidth={2} /><span>{t.label}</span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
+      <SideMenu open={menuOpen} onClose={() => setMenuOpen(false)} view={view} setView={setView} />
+    </>
   );
 }
 

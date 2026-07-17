@@ -24,6 +24,7 @@ import { store, setOwner, getOwner } from "../lib/store";
 import { pickDailyTip, TIP_CATEGORY_LABELS, localDayKey, TIPS } from "../lib/tips";
 import { pickDailyMoneyTip, MONEY_TIP_CATEGORY_LABELS } from "../lib/money-tips";
 import { isActiveSubscriber } from "../lib/subscription";
+import { requestNotificationPermission, disablePush } from "../lib/push";
 import { ACTIVITY_LEVELS, HEALTH_CONDITIONS, NO_CONDITION, MEDICAL_DISCLAIMER, computeHealthMetrics } from "../lib/health";
 import { createGoal, isReviewDue, GOAL_PERIODS, GOAL_POINTS_SUCCESS, GOAL_POINTS_FAILURE } from "../lib/goals";
 import { getSession, onAuthChange, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut, userFromSession, hasAuth } from "../lib/auth";
@@ -494,7 +495,7 @@ export default function MasarApp() {
           <div style={S.view}><UpsellCard icon={MessageCircle} title="مساعدك الذكي في مسار الكامل" message="مدرّب شخصي يحلّل يومك وعاداتك ويقترح خطوات عملية بناءً على بياناتك الفعلية." /></div>
         ))}
         {view === "you" && <YouView healthProfile={healthProfile} setHealthProfile={setHealthProfile} showToast={showToast} />}
-        {view === "nutrition" && <NutritionView healthProfile={healthProfile} showToast={showToast} />}
+        {view === "nutrition" && <NutritionView healthProfile={healthProfile} showToast={showToast} profile={profile} setProfile={setProfile} />}
         {view === "settings" && <SettingsView categories={categories} setCategories={setCategories} gamify={gamify} hasCloud={store.hasCloud} showToast={showToast} profile={profile} setProfile={setProfile} pointsLog={pointsLog} onStartTour={startTour} subscription={subscription} theme={theme} toggleTheme={toggleTheme} />}
       </div>
       {toast && <div style={S.toast}>{toast}</div>}
@@ -3721,6 +3722,21 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
   // after refresh" bug. Now there's a single save on explicit confirm.
   const [editDraft, setEditDraft] = useState({ name: "", color: "" });
   const [newName, setNewName] = useState("");
+
+  async function handleEnableNotifications() {
+    const result = await requestNotificationPermission();
+    const enabled = !!(result.granted && result.subscribed);
+    setProfile((p) => ({ ...p, notificationsEnabled: enabled, notificationsAsked: true }));
+    await store.saveNotificationsPreference(enabled, true);
+    if (enabled) showToast("تم تفعيل الإشعارات");
+    else showToast(result.error || "لم تُفعَّل الإشعارات");
+  }
+  async function handleDisableNotifications() {
+    await disablePush();
+    setProfile((p) => ({ ...p, notificationsEnabled: false, notificationsAsked: true }));
+    await store.saveNotificationsPreference(false, true);
+    showToast("تم إيقاف الإشعارات");
+  }
   const [newColor, setNewColor] = useState(COLOR_CHOICES[0]);
 
   async function addCategory() {
@@ -3777,6 +3793,15 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
             <Moon size={14} /> داكن (أسود/كحلي)
           </button>
         </div>
+      </div>
+      <div style={S.catEditorCard}>
+        <div style={S.catEditorHeader}><Bell size={15} color="#C9A24B" /><span>الإشعارات</span></div>
+        <p style={S.profileHint}>فعّل الإشعارات ليذكّرك مسار بشرب الماء وتسجيل وجباتك.</p>
+        {profile.notificationsEnabled ? (
+          <button onClick={handleDisableNotifications} style={{ ...S.exportBtn, marginBottom: 0 }}><Bell size={14} /> الإشعارات مفعّلة — إيقاف</button>
+        ) : (
+          <button onClick={handleEnableNotifications} style={{ ...S.saveBtn, marginTop: 0 }}><Bell size={14} /> تفعيل الإشعارات</button>
+        )}
       </div>
       <SubscriptionCard subscription={subscription} />
       <button onClick={onStartTour} style={S.exportBtn}><GraduationCap size={15} /> إعادة الجولة التعريفية</button>

@@ -108,6 +108,38 @@ export function sumNutritionEntries(entries) {
   );
 }
 
+// الكاميرا تحتاج سياقاً آمناً (HTTPS) لتعمل في أي متصفح — localhost مستثنى
+// دائماً لأغراض التطوير المحلي.
+export function isSecureContextForCamera() {
+  return typeof window !== "undefined" && (window.isSecureContext || window.location.hostname === "localhost");
+}
+
+// رسالة مختلفة حسب سبب فشل getUserMedia الفعلي (اسم الخطأ القياسي الذي
+// يرجعه المتصفح)، بدل رسالة عامة واحدة لكل الحالات — تشمل إرشاداً مختلفاً
+// لـiOS مقابل Android عند رفض الإذن، وهي الحالة الأشيع في سياق PWA.
+export function describeCameraError(err) {
+  const name = err?.name || "";
+  const isIOS = typeof navigator !== "undefined" && /iPhone|iPad|iPod/.test(navigator.userAgent);
+  if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+    return isIOS
+      ? "يبدو أن إذن الكاميرا معطّل. من إعدادات آيفون: الإعدادات ← مسار (أو Safari إن لم يكن التطبيق مثبّتاً على شاشتك الرئيسية) ← فعّل إذن الكاميرا، ثم أعد المحاولة."
+      : "يبدو أن إذن الكاميرا معطّل. من إعدادات جهازك: الإعدادات ← التطبيقات ← مسار (أو المتصفح) ← الأذونات ← فعّل إذن الكاميرا، ثم أعد المحاولة.";
+  }
+  if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+    return "لم يُعثر على كاميرا في هذا الجهاز. استخدم البحث بالاسم أو الإدخال اليدوي بدلاً من ذلك.";
+  }
+  if (name === "NotReadableError" || name === "TrackStartError") {
+    return "الكاميرا مستخدَمة من تطبيق آخر حالياً. أغلق أي تطبيق آخر يستخدم الكاميرا وحاول مرة أخرى.";
+  }
+  if (name === "OverconstrainedError") {
+    return "تعذّر ضبط الكاميرا الخلفية على هذا الجهاز. جرّب مرة أخرى أو استخدم البحث بالاسم/الإدخال اليدوي.";
+  }
+  if (name === "SecurityError") {
+    return "تعذّر الوصول للكاميرا بسبب اتصال غير آمن. تأكد من فتح الموقع عبر رابط https.";
+  }
+  return "تعذّر الوصول إلى كاميرا الجهاز. تأكد من السماح للمتصفح باستخدام الكاميرا، أو استخدم البحث بالاسم/الإدخال اليدوي.";
+}
+
 const ML_PER_KG = 33;
 const ML_PER_CUP = 250;
 

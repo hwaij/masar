@@ -210,11 +210,15 @@ export const store = {
     return lsGet("masar_profile", { theme: "dark" }).theme === "light" ? "light" : "dark";
   },
   async loadProfile() {
-    const local = lsGet("masar_profile", { about: "", hobbies: "", field: "", tourSeen: false, theme: "dark" });
+    const local = lsGet("masar_profile", { about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false });
     if (!useCloud()) return local;
     const { data, error } = await supabase.from("profile").select("*").eq("owner", CURRENT_OWNER).maybeSingle();
     if (error || !data) return local;
-    const p = { about: data.about || "", hobbies: data.hobbies || "", field: data.field || "", tourSeen: !!data.tour_seen, theme: data.theme === "light" ? "light" : "dark" };
+    const p = {
+      about: data.about || "", hobbies: data.hobbies || "", field: data.field || "",
+      tourSeen: !!data.tour_seen, theme: data.theme === "light" ? "light" : "dark",
+      notificationsEnabled: !!data.notifications_enabled, notificationsAsked: !!data.notifications_asked,
+    };
     lsSet("masar_profile", p);
     return p;
   },
@@ -226,7 +230,7 @@ export const store = {
     }
   },
   async saveTourSeen(seen) {
-    const local = lsGet("masar_profile", { about: "", hobbies: "", field: "", tourSeen: false, theme: "dark" });
+    const local = lsGet("masar_profile", { about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false });
     lsSet("masar_profile", { ...local, tourSeen: seen });
     if (useCloud()) {
       const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, tour_seen: seen, updated_at: new Date().toISOString() });
@@ -234,11 +238,23 @@ export const store = {
     }
   },
   async saveTheme(theme) {
-    const local = lsGet("masar_profile", { about: "", hobbies: "", field: "", tourSeen: false, theme: "dark" });
+    const local = lsGet("masar_profile", { about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false });
     lsSet("masar_profile", { ...local, theme });
     if (useCloud()) {
       const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, theme, updated_at: new Date().toISOString() });
       if (error) console.error("[saveTheme] Supabase error:", error.message);
+    }
+  },
+  // enabled: هل الاشتراك في الإشعارات مفعّل الآن. asked: هل عُرض على
+  // المستخدم طلب الإذن ولو مرة (سواء وافق أو رفض) — حتى لا يُسأل مجدداً.
+  async saveNotificationsPreference(enabled, asked) {
+    const local = lsGet("masar_profile", { about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false });
+    lsSet("masar_profile", { ...local, notificationsEnabled: enabled, notificationsAsked: asked });
+    if (useCloud()) {
+      const { error } = await supabase.from("profile").upsert({
+        owner: CURRENT_OWNER, notifications_enabled: enabled, notifications_asked: asked, updated_at: new Date().toISOString(),
+      });
+      if (error) console.error("[saveNotificationsPreference] Supabase error:", error.message);
     }
   },
 

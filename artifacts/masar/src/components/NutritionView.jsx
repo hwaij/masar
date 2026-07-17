@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
-  Plus, X, Trash2, Camera, Search, Loader2, Droplet, Flame, Check,
+  Plus, X, Trash2, Camera, Search, Loader2, Droplet, Flame, Check, Bell,
 } from "lucide-react";
 import { store } from "../lib/store";
 import { todayKey, uid } from "../lib/helpers";
 import {
   fetchProductByBarcode, searchProductsByName, scaleNutrients,
   sumNutritionEntries, waterGoalCups, servingPresets,
+  isSecureContextForCamera, describeCameraError,
 } from "../lib/nutrition";
+import { requestNotificationPermission } from "../lib/push";
 import { S } from "./styles";
 
 const NS = {
@@ -65,6 +67,11 @@ const NS = {
   previewGrid: { display: "flex", gap: 8, margin: "12px 0" },
   previewChip: { flex: 1, textAlign: "center", background: "var(--surface-sunken)", borderRadius: 10, padding: "8px 4px" },
   notFoundNote: { fontSize: 12.5, color: "var(--muted2)", lineHeight: 1.7, marginBottom: 12 },
+  notifBanner: { display: "flex", gap: 10, alignItems: "flex-start", background: "rgba(201,162,75,0.08)", border: "1px solid rgba(201,162,75,0.3)", borderRadius: 14, padding: "12px 12px", marginBottom: 14 },
+  notifText: { fontSize: 12.5, color: "var(--ink)", lineHeight: 1.7, marginBottom: 8 },
+  notifRow: { display: "flex", gap: 8 },
+  notifBtn: { flex: 1, background: "var(--gold)", color: "var(--bg)", border: "none", borderRadius: 10, padding: "8px 0", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
+  notifDismissBtn: { flex: 1, background: "transparent", border: "1px solid var(--border2)", color: "var(--muted2)", borderRadius: 10, padding: "8px 0", fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" },
 };
 
 const BARCODE_FORMATS_SUPPORT_ID = "masar-barcode-scanner-region";
@@ -82,6 +89,28 @@ function BarcodeScannerModal({ onDetected, onClose }) {
     let cancelled = false;
     let instance = null;
     (async () => {
+      if (!isSecureContextForCamera()) {
+        setError("الكاميرا تحتاج اتصالاً آمناً (HTTPS) لتعمل. تأكد من فتح الموقع عبر رابط https:// وأعد المحاولة.");
+        return;
+      }
+      // نطلب الإذن صراحةً هنا أولاً (بدل ترك html5-qrcode يطلبه ضمنياً)
+      // حتى تظهر نافذة إذن الكاميرا الأصلية من المتصفح/النظام بوضوح
+      // للمستخدم — الاعتماد على طلب المكتبة الداخلي كان يفشل بصمت أحياناً
+      // في سياق تطبيق PWA مثبّت على الشاشة الرئيسية (خاصة على iOS)، فتظهر
+      // رسالة فشل عامة دون أن يرى المستخدم أي طلب إذن أصلاً.
+      let permissionStream;
+      try {
+        permissionStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      } catch (err) {
+        console.error("[nutrition] camera permission request failed:", err);
+        if (!cancelled) setError(describeCameraError(err));
+        return;
+      }
+      // الإذن مُنح فعلاً؛ نُطلق البث المؤقت فوراً لأن html5-qrcode سيفتح
+      // بثّه المُدار الخاص به في السطر التالي.
+      permissionStream.getTracks().forEach((t) => t.stop());
+      if (cancelled) return;
+
       try {
         const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import("html5-qrcode");
         if (cancelled) return;
@@ -107,7 +136,7 @@ function BarcodeScannerModal({ onDetected, onClose }) {
         );
       } catch (e) {
         console.error("[nutrition] camera start failed:", e);
-        if (!cancelled) setError("تعذّر الوصول إلى كاميرا الجهاز. تأكد من السماح للمتصفح باستخدام الكاميرا، أو استخدم البحث بالاسم/الإدخال اليدوي.");
+        if (!cancelled) setError(describeCameraError(e));
       }
     })();
     return () => {
@@ -268,7 +297,7 @@ function SearchPanel({ onPick, onManual }) {
   );
 }
 
-export default function NutritionView({ healthProfile, showToast }) {
+export default function NutritionView({ healthProfile, showToast, profile, setProfile }) {
   const [loaded, setLoaded] = useState(false);
   const [nutritionLog, setNutritionLog] = useState([]);
   const [waterLog, setWaterLog] = useState({});
@@ -325,6 +354,18 @@ export default function NutritionView({ healthProfile, showToast }) {
     await store.saveWaterCups(today, next);
   }
 
+  async function enableNotifications() {
+    const result = await requestNotificationPermission();
+    const enabled = !!(result.granted && result.subscribed);
+    setProfile?.((p) => ({ ...p, notificationsEnabled: enabled, notificationsAsked: true }));
+    await store.saveNotificationsPreference(enabled, true);
+    showToast(enabled ? "تم تفعيل الإشعارات" : (result.error || "لم تُفعَّل الإشعارات"));
+  }
+  async function dismissNotificationBanner() {
+    setProfile?.((p) => ({ ...p, notificationsAsked: true }));
+    await store.saveNotificationsPreference(!!profile?.notificationsEnabled, true);
+  }
+
   const handleBarcodeDetected = useCallback(async (barcode) => {
     setSheet("lookup");
     setLookupBusy(true);
@@ -373,6 +414,19 @@ export default function NutritionView({ healthProfile, showToast }) {
           <div style={NS.heroSub}>سجّل ما تأكله وتشربه اليوم وقارنه باحتياجك.</div>
         </div>
       </div>
+
+      {profile && !profile.notificationsAsked && (
+        <div style={NS.notifBanner}>
+          <Bell size={18} color="#C9A24B" style={{ flexShrink: 0, marginTop: 2 }} />
+          <div style={{ flex: 1 }}>
+            <p style={NS.notifText}>فعّل الإشعارات ليذكّرك مسار بشرب الماء وتسجيل وجباتك.</p>
+            <div style={NS.notifRow}>
+              <button onClick={enableNotifications} style={NS.notifBtn}>تفعيل</button>
+              <button onClick={dismissNotificationBanner} style={NS.notifDismissBtn}>لاحقاً</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={NS.summaryCard}>
         <div style={NS.summaryTop}>

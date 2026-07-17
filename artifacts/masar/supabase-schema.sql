@@ -49,17 +49,22 @@ create table if not exists reports (
 
 -- الملف الشخصي
 create table if not exists profile (
-  owner       text primary key default 'solo',
-  about       text default '',
-  hobbies     text default '',
-  field       text default '',
-  tour_seen   boolean not null default false,
-  theme       text not null default 'dark' check (theme in ('dark', 'light')),
-  updated_at  timestamptz default now()
+  owner                  text primary key default 'solo',
+  about                  text default '',
+  hobbies                text default '',
+  field                  text default '',
+  tour_seen              boolean not null default false,
+  theme                  text not null default 'dark' check (theme in ('dark', 'light')),
+  notifications_enabled  boolean not null default false,
+  notifications_asked    boolean not null default false,
+  updated_at             timestamptz default now()
 );
--- ترقية للجداول القديمة التي أُنشئت قبل إضافة الجولة التعريفية ووضع العرض.
+-- ترقية للجداول القديمة التي أُنشئت قبل إضافة الجولة التعريفية ووضع العرض
+-- وتفضيل الإشعارات.
 alter table profile add column if not exists tour_seen boolean not null default false;
 alter table profile add column if not exists theme text not null default 'dark';
+alter table profile add column if not exists notifications_enabled boolean not null default false;
+alter table profile add column if not exists notifications_asked boolean not null default false;
 
 -- قسم "أنت": بيانات صحية أساسية + القيم المحسوبة منها (BMI/IBW/REE/TEE)
 -- مخزّنة جاهزة حتى تقرأها أقسام التغذية والرياضة لاحقاً دون إعادة حسابها.

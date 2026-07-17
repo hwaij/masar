@@ -66,6 +66,7 @@ alter table profile add column if not exists theme text not null default 'dark';
 alter table profile add column if not exists notifications_enabled boolean not null default false;
 alter table profile add column if not exists notifications_asked boolean not null default false;
 alter table profile add column if not exists language text not null default 'ar';
+alter table profile add column if not exists name text default '';
 
 -- قسم "أنت": بيانات صحية أساسية + القيم المحسوبة منها (BMI/IBW/REE/TEE)
 -- مخزّنة جاهزة حتى تقرأها أقسام التغذية والرياضة لاحقاً دون إعادة حسابها.
@@ -728,3 +729,269 @@ alter table subscriptions enable row level security;
 drop policy if exists subscriptions_anon_solo on subscriptions;
 drop policy if exists subscriptions_select_own on subscriptions;
 create policy subscriptions_select_own on subscriptions for select to authenticated using (owner = auth.uid()::text);
+
+-- =====================================================================
+-- "جروبات الدراسة" (تحديات اجتماعية) — أول ميزة تشارك بيانات بين مستخدمين
+-- في مسار. مبدأ التصميم الأمني: RLS وحدها لا تكفي لتقييد "أعمدة" معيّنة
+-- (RLS تقيّد صفوفاً فقط) — لذا بدل منح أعضاء الجروب صلاحية قراءة مباشرة
+-- على focus_sessions/fitness_log/profile (وهذا كان سيكشف كل عمود فيها:
+-- ملاحظات، فئات، عن نفسي، هوايات...)، نُنشئ جدولين "مرآة" ضيّقين جداً
+-- (group_daily_stats و group_shared_profile) لا يحتويان فعلياً على أي
+-- عمود سوى الاسم/دقائق الدراسة/إنجاز الرياضة، ونُبقيهما متزامنين تلقائياً
+-- عبر Triggers من الجداول الحقيقية. هكذا حتى لو نفّذ أحد استعلاماً مباشراً
+-- (select *) على هذه الجداول، لا يوجد فيها أصلاً أي بيانات حساسة ليراها.
+-- =====================================================================
+
+create table if not exists study_groups (
+  id           uuid primary key default gen_random_uuid(),
+  name         text not null,
+  owner        text not null,
+  invite_code  text unique not null default substr(md5(random()::text || clock_timestamp()::text), 1, 8),
+  created_at   timestamptz default now()
+);
+
+create table if not exists group_members (
+  group_id     uuid not null references study_groups(id) on delete cascade,
+  member_owner text not null,
+  joined_at    timestamptz default now(),
+  primary key (group_id, member_owner)
+);
+
+-- جدولا "مرآة" ضيّقان: كل عمود فيهما مُصرَّح بمشاركته صراحة في الطلب. لا
+-- سياسة insert/update/delete لهما أدناه عمداً — الكتابة الوحيدة المسموحة
+-- فيهما تأتي من Triggers أمنية (security definer) تتجاوز RLS داخلياً، لذا
+-- لا يقدر أي مستخدم (ولا حتى صاحب الصف نفسه) الكتابة المباشرة فيهما.
+create table if not exists group_shared_profile (
+  owner       text primary key,
+  name        text default '',
+  updated_at  timestamptz default now()
+);
+
+create table if not exists group_daily_stats (
+  owner          text not null,
+  date           text not null,
+  study_minutes  integer not null default 0,
+  workout_done   boolean not null default false,
+  updated_at     timestamptz default now(),
+  primary key (owner, date)
+);
+
+-- عند إنشاء جروب، يُضاف صاحبه كعضو أول تلقائياً.
+create or replace function add_group_owner_as_member()
+returns trigger
+language plpgsql security definer set search_path = public
+as $$
+begin
+  insert into group_members (group_id, member_owner) values (new.id, new.owner);
+  return new;
+end;
+$$;
+drop trigger if exists study_groups_add_owner on study_groups;
+create trigger study_groups_add_owner
+  after insert on study_groups
+  for each row execute function add_group_owner_as_member();
+
+-- الحد الأقصى 10 أعضاء لكل جروب. security definer ضروري هنا: بدونه، عدّ
+-- الأعضاء الحاليين قد يفشل بصمت بسبب RLS على group_members نفسه (المستخدم
+-- المنضم حديثاً لا يملك بعد صلاحية رؤية أعضاء الجروب).
+create or replace function enforce_group_member_limit()
+returns trigger
+language plpgsql security definer set search_path = public
+as $$
+declare
+  current_count integer;
+begin
+  select count(*) into current_count from group_members where group_id = new.group_id;
+  if current_count >= 10 then
+    raise exception 'GROUP_MEMBER_LIMIT_REACHED' using errcode = 'P0001';
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists group_members_limit on group_members;
+create trigger group_members_limit
+  before insert on group_members
+  for each row execute function enforce_group_member_limit();
+
+-- مزامنة الاسم من profile.name إلى المرآة العامة عند أي تغيير له فقط.
+create or replace function sync_group_shared_profile()
+returns trigger
+language plpgsql security definer set search_path = public
+as $$
+begin
+  insert into group_shared_profile (owner, name, updated_at)
+  values (new.owner, new.name, now())
+  on conflict (owner) do update set name = excluded.name, updated_at = now();
+  return new;
+end;
+$$;
+drop trigger if exists profile_sync_group_shared on profile;
+create trigger profile_sync_group_shared
+  after insert or update of name on profile
+  for each row execute function sync_group_shared_profile();
+
+-- مزامنة مجموع دقائق التركيز/الدراسة لليوم المتأثر من focus_sessions
+-- (إضافة/تعديل/حذف جلسة تُعيد حساب المجموع الصحيح لذلك اليوم فقط).
+create or replace function sync_group_daily_stats_focus()
+returns trigger
+language plpgsql security definer set search_path = public
+as $$
+declare
+  target_owner text := coalesce(new.owner, old.owner);
+  target_date  text := coalesce(new.date, old.date);
+  total_minutes integer;
+begin
+  select coalesce(sum(minutes), 0) into total_minutes
+  from focus_sessions where owner = target_owner and date = target_date;
+
+  insert into group_daily_stats (owner, date, study_minutes, updated_at)
+  values (target_owner, target_date, total_minutes, now())
+  on conflict (owner, date) do update set study_minutes = excluded.study_minutes, updated_at = now();
+  return coalesce(new, old);
+end;
+$$;
+drop trigger if exists focus_sessions_sync_group_stats on focus_sessions;
+create trigger focus_sessions_sync_group_stats
+  after insert or update or delete on focus_sessions
+  for each row execute function sync_group_daily_stats_focus();
+
+-- مزامنة حالة إنجاز تمرين اليوم من fitness_log لنفس اليوم المتأثر فقط.
+create or replace function sync_group_daily_stats_fitness()
+returns trigger
+language plpgsql security definer set search_path = public
+as $$
+declare
+  target_owner text := coalesce(new.owner, old.owner);
+  target_date  text := coalesce(new.date, old.date);
+  is_done boolean;
+begin
+  select coalesce(day_completed, false) into is_done
+  from fitness_log where owner = target_owner and date = target_date;
+
+  insert into group_daily_stats (owner, date, workout_done, updated_at)
+  values (target_owner, target_date, coalesce(is_done, false), now())
+  on conflict (owner, date) do update set workout_done = excluded.workout_done, updated_at = now();
+  return coalesce(new, old);
+end;
+$$;
+drop trigger if exists fitness_log_sync_group_stats on fitness_log;
+create trigger fitness_log_sync_group_stats
+  after insert or update or delete on fitness_log
+  for each row execute function sync_group_daily_stats_fitness();
+
+-- تعبئة أولية (Backfill) لمرة واحدة: الـTriggers أعلاه تُزامن فقط عند أي
+-- كتابة جديدة على profile/focus_sessions/fitness_log بعد هذه اللحظة. بدون
+-- هذا الـBackfill، مستخدم حالي لديه اسم محفوظ مسبقاً أو نشاط اليوم مسجَّل
+-- مسبقاً لن يظهر اسمه/رقمه في أي جروب حتى يُعدِّل ملفه أو يسجّل نشاطاً
+-- جديداً اليوم. آمن لإعادة التنفيذ (on conflict do update).
+insert into group_shared_profile (owner, name, updated_at)
+select owner, name, now() from profile where name is not null and name <> ''
+on conflict (owner) do update set name = excluded.name, updated_at = now();
+
+insert into group_daily_stats (owner, date, study_minutes, updated_at)
+select owner, date, coalesce(sum(minutes), 0), now()
+from focus_sessions group by owner, date
+on conflict (owner, date) do update set study_minutes = excluded.study_minutes, updated_at = now();
+
+insert into group_daily_stats (owner, date, workout_done, updated_at)
+select owner, date, coalesce(day_completed, false), now()
+from fitness_log
+on conflict (owner, date) do update set workout_done = excluded.workout_done, updated_at = now();
+
+-- عرض معلومات جروب (الاسم فقط) بحسب رمز الدعوة قبل الانضمام إليه فعلياً.
+-- لازم كدالة security definer ضيّقة بدل تخفيف RLS على study_groups نفسه:
+-- تجاوز RLS هنا آمن لأنها لا تُعيد سوى id/name، ولا تكشف أي جروب لا يملك
+-- الطالب رمز دعوته الصحيح (البحث بالتساوي التام على invite_code فقط).
+create or replace function get_group_by_invite_code(code text)
+returns table(id uuid, name text)
+language sql security definer set search_path = public stable
+as $$
+  select sg.id, sg.name from study_groups sg where sg.invite_code = code;
+$$;
+
+-- دالتا مساعدة (security definer) لفحص العضوية داخل سياسات RLS نفسها.
+-- السبب: أي سياسة RLS على group_members تستعلم على group_members نفسه
+-- (لمعرفة "هل أنا عضو في هذا الجروب؟") تسبب "infinite recursion detected
+-- in policy" فعلياً عند التنفيذ — تحقّقنا من هذا محلياً، وليس افتراضاً
+-- نظرياً: لأن أي سياسة permissive إضافية تُقيَّم دائماً (لا يوجد "قصر
+-- تقييم" عند أول سياسة تنطبق)، فتقييم سياسة "أرى زملائي" يستدعي استعلاماً
+-- جديداً على نفس الجدول، الذي يُعاد تقييم سياساته بما فيها نفس السياسة،
+-- إلخ إلى ما لا نهاية. الحل: تفويض فحص العضوية لدالة security definer
+-- (تُنفَّذ بصلاحية مالكها الذي يتجاوز RLS تلقائياً بلا حاجة لتفعيل أي شيء
+-- إضافي، تماماً كبقية الدوال أعلاه)، بحيث لا تتكرر RLS داخل تنفيذها.
+create or replace function is_group_member(p_group_id uuid, p_owner text)
+returns boolean
+language sql security definer set search_path = public stable
+as $$
+  select exists (select 1 from group_members where group_id = p_group_id and member_owner = p_owner);
+$$;
+
+create or replace function shares_group_with(p_owner text)
+returns boolean
+language sql security definer set search_path = public stable
+as $$
+  select exists (
+    select 1 from group_members gm1 join group_members gm2 on gm1.group_id = gm2.group_id
+    where gm1.member_owner = auth.uid()::text and gm2.member_owner = p_owner
+  );
+$$;
+
+alter table study_groups enable row level security;
+drop policy if exists study_groups_select on study_groups;
+create policy study_groups_select on study_groups for select to authenticated
+  using (owner = auth.uid()::text or is_group_member(study_groups.id, auth.uid()::text));
+drop policy if exists study_groups_insert on study_groups;
+create policy study_groups_insert on study_groups for insert to authenticated
+  with check (owner = auth.uid()::text and is_active_subscriber(auth.uid()::text));
+drop policy if exists study_groups_update on study_groups;
+create policy study_groups_update on study_groups for update to authenticated
+  using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+drop policy if exists study_groups_delete on study_groups;
+create policy study_groups_delete on study_groups for delete to authenticated
+  using (owner = auth.uid()::text);
+
+-- سياسة رؤية واحدة فقط (عبر الدالة أعلاه) بدل EXISTS ذاتي على نفس الجدول،
+-- تفادياً لخطأ "infinite recursion detected in policy" الموضّح أعلاه.
+alter table group_members enable row level security;
+drop policy if exists group_members_select_self on group_members;
+drop policy if exists group_members_select_peers on group_members;
+drop policy if exists group_members_select on group_members;
+create policy group_members_select on group_members for select to authenticated
+  using (is_group_member(group_id, auth.uid()::text));
+drop policy if exists group_members_insert on group_members;
+create policy group_members_insert on group_members for insert to authenticated
+  with check (member_owner = auth.uid()::text and is_active_subscriber(auth.uid()::text));
+drop policy if exists group_members_delete_self on group_members;
+create policy group_members_delete_self on group_members for delete to authenticated
+  using (member_owner = auth.uid()::text);
+drop policy if exists group_members_delete_owner on group_members;
+create policy group_members_delete_owner on group_members for delete to authenticated
+  using (exists (select 1 from study_groups sg where sg.id = group_members.group_id and sg.owner = auth.uid()::text));
+
+-- كلا الجدولين أدناه: "يرى صفّه" أو "يرى صفّ أي شخص يشاركه جروباً واحداً
+-- على الأقل" (عبر shares_group_with، لنفس سبب تفادي التكرار أعلاه) — لا
+-- سياسة insert/update/delete لـ authenticated إطلاقاً (الكتابة عبر
+-- Triggers الأمنية أعلاه فقط).
+alter table group_shared_profile enable row level security;
+drop policy if exists group_shared_profile_select on group_shared_profile;
+create policy group_shared_profile_select on group_shared_profile for select to authenticated
+  using (owner = auth.uid()::text or shares_group_with(owner));
+
+alter table group_daily_stats enable row level security;
+drop policy if exists group_daily_stats_select on group_daily_stats;
+create policy group_daily_stats_select on group_daily_stats for select to authenticated
+  using (owner = auth.uid()::text or shares_group_with(owner));
+
+-- تفعيل التحديث اللحظي (Realtime) فقط على جدول الإحصائيات — لا حاجة له
+-- على الأسماء (نادراً ما تتغيّر) ولا على جداول الجروب/العضوية نفسها.
+-- ملفوفة بفحص وجود مسبق لأن ALTER PUBLICATION لا يدعم IF NOT EXISTS، حتى
+-- يبقى هذا الملف قابلاً لإعادة التنفيذ بأمان كبقية الملف.
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'group_daily_stats'
+  ) then
+    alter publication supabase_realtime add table group_daily_stats;
+  end if;
+end $$;

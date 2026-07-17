@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import {
   X, Moon, Eye, User, Utensils, Dumbbell, HeartHandshake,
   Timer, ListChecks, Target, Wallet, TrendingUp,
-  MessageCircle, Rocket, Settings, Languages,
+  MessageCircle, Rocket, Settings, Languages, Users,
 } from "lucide-react";
 import { store } from "../lib/store";
 import TasbihIcon from "./TasbihIcon";
@@ -35,6 +35,12 @@ const MENU_SECTIONS = [
       { id: "goals", labelKey: "nav.goals", icon: Target },
       { id: "vault", labelKey: "nav.vault", icon: Wallet },
       { id: "reports", labelKey: "nav.reports", icon: TrendingUp },
+    ],
+  },
+  {
+    titleKey: "nav.community",
+    items: [
+      { id: "groups", labelKey: "nav.studyGroups", icon: Users },
     ],
   },
   {

@@ -18,7 +18,7 @@ import {
   LogIn, LogOut,
   Heart, GraduationCap, Eye, AlertTriangle,
   Wallet, ArrowDownCircle, ArrowUpCircle, Crown,
-  Utensils, Dumbbell, Menu,
+  Utensils, Dumbbell, Menu, Users,
 } from "lucide-react";
 import { fivePrayers, nextPrayer, to12h } from "../lib/prayer";
 import { ADHKAR_CATEGORIES, ADHKAR } from "../lib/adhkar";
@@ -44,6 +44,7 @@ import DayWheel from "../components/DayWheel";
 import NutritionView from "../components/NutritionView";
 import FitnessView from "../components/FitnessView";
 import MentalHealthView from "../components/MentalHealthView";
+import GroupsView from "../components/GroupsView";
 import SideMenu from "../components/SideMenu";
 import TasbihIcon from "../components/TasbihIcon";
 
@@ -215,7 +216,7 @@ export default function MasarApp() {
   const [categories, setCategories] = useState([]);
   const [reports, setReports] = useState([]);
   const [gamify, setGamify] = useState({ points: 0, badges: [] });
-  const [profile, setProfile] = useState({ about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", language: "ar" });
+  const [profile, setProfile] = useState({ name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", language: "ar" });
   const [tourOpen, setTourOpen] = useState(false);
   const [theme, setTheme] = useState(() => store.getLocalTheme());
   const [achieve, setAchieve] = useState([]);
@@ -513,6 +514,9 @@ export default function MasarApp() {
         {view === "nutrition" && <NutritionView healthProfile={healthProfile} showToast={showToast} profile={profile} setProfile={setProfile} />}
         {view === "fitness" && <FitnessView healthProfile={healthProfile} showToast={showToast} />}
         {view === "mental" && <MentalHealthView setView={setView} showToast={showToast} />}
+        {view === "groups" && (isSub ? <GroupsView showToast={showToast} /> : (
+          <div style={S.view}><UpsellCard icon={Users} title="جروبات الدراسة في مسار الكامل" message="أنشئ جروب دراسة مع أصدقائك وتنافسوا بساعات الدراسة وإنجاز الرياضة، بتحديث لحظي بينكم." /></div>
+        ))}
         {view === "settings" && <SettingsView categories={categories} setCategories={setCategories} gamify={gamify} hasCloud={store.hasCloud} showToast={showToast} profile={profile} setProfile={setProfile} pointsLog={pointsLog} onStartTour={startTour} subscription={subscription} theme={theme} toggleTheme={toggleTheme} />}
       </div>
       {toast && <div style={S.toast}>{toast}</div>}
@@ -1660,6 +1664,7 @@ function AssistantView({ entries, tasks, categories, focus, prayerLog, religious
       `الصلوات المسجلة اليوم: ${prayersToday} من 5`,
       `الأعمال الروحية المنجزة اليوم: ${religiousDone}`,
       `سلسلة الالتزام: ${stats?.streak || 0} يوم`,
+      profile?.name?.trim() ? `اسم المستخدم: ${profile.name.trim()}` : "",
       profile?.field ? `مجال المستخدم: ${profile.field}` : "",
       profile?.hobbies ? `هوايات المستخدم: ${profile.hobbies}` : "",
       profile?.about ? `عن المستخدم: ${profile.about}` : "",
@@ -4249,6 +4254,8 @@ function ProfileCard({ profile, setProfile, showToast }) {
     <div style={S.profileCard}>
       <div style={S.catEditorHeader}><User size={15} color="#C9A24B" /><span>هويتي</span></div>
       <p style={S.profileHint}>هذه البيانات تجعل اقتراحات أنجز والتحليل مرتبطة بك شخصياً.</p>
+      <label style={S.label}>اسمك</label>
+      <input value={local.name || ""} onChange={(e) => change("name", e.target.value)} placeholder="مثال: أحمد" style={S.input} />
       <label style={S.label}>من أنا</label>
       <input value={local.about} onChange={(e) => change("about", e.target.value)} placeholder="مثال: مصور ومصمم محتوى بصري وطالب جامعي" style={S.input} />
       <label style={S.label}>هواياتي</label>

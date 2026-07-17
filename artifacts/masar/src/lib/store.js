@@ -216,12 +216,12 @@ export const store = {
     return lsGet("masar_profile", { language: "ar" }).language === "en" ? "en" : "ar";
   },
   async loadProfile() {
-    const local = lsGet("masar_profile", { about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar" });
+    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar" });
     if (!useCloud()) return local;
     const { data, error } = await supabase.from("profile").select("*").eq("owner", CURRENT_OWNER).maybeSingle();
     if (error || !data) return local;
     const p = {
-      about: data.about || "", hobbies: data.hobbies || "", field: data.field || "",
+      name: data.name || "", about: data.about || "", hobbies: data.hobbies || "", field: data.field || "",
       tourSeen: !!data.tour_seen, theme: data.theme === "light" ? "light" : "dark",
       notificationsEnabled: !!data.notifications_enabled, notificationsAsked: !!data.notifications_asked,
       language: data.language === "en" ? "en" : "ar",
@@ -232,12 +232,12 @@ export const store = {
   async saveProfile(p) {
     lsSet("masar_profile", p);
     if (useCloud()) {
-      const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, about: p.about, hobbies: p.hobbies, field: p.field, updated_at: new Date().toISOString() });
+      const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, name: p.name, about: p.about, hobbies: p.hobbies, field: p.field, updated_at: new Date().toISOString() });
       if (error) console.error("[saveProfile] Supabase error:", error.message);
     }
   },
   async saveTourSeen(seen) {
-    const local = lsGet("masar_profile", { about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar" });
+    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar" });
     lsSet("masar_profile", { ...local, tourSeen: seen });
     if (useCloud()) {
       const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, tour_seen: seen, updated_at: new Date().toISOString() });
@@ -245,7 +245,7 @@ export const store = {
     }
   },
   async saveTheme(theme) {
-    const local = lsGet("masar_profile", { about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar" });
+    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar" });
     lsSet("masar_profile", { ...local, theme });
     if (useCloud()) {
       const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, theme, updated_at: new Date().toISOString() });
@@ -253,7 +253,7 @@ export const store = {
     }
   },
   async saveLanguage(language) {
-    const local = lsGet("masar_profile", { about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar" });
+    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar" });
     lsSet("masar_profile", { ...local, language });
     if (useCloud()) {
       const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, language, updated_at: new Date().toISOString() });
@@ -263,7 +263,7 @@ export const store = {
   // enabled: هل الاشتراك في الإشعارات مفعّل الآن. asked: هل عُرض على
   // المستخدم طلب الإذن ولو مرة (سواء وافق أو رفض) — حتى لا يُسأل مجدداً.
   async saveNotificationsPreference(enabled, asked) {
-    const local = lsGet("masar_profile", { about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar" });
+    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar" });
     lsSet("masar_profile", { ...local, notificationsEnabled: enabled, notificationsAsked: asked });
     if (useCloud()) {
       const { error } = await supabase.from("profile").upsert({
@@ -1038,5 +1038,106 @@ export const store = {
         subscriptionType: data.subscription_type,
       };
     } catch (e) { console.error("[loadSubscription] read failed:", e); return empty; }
+  },
+
+  // "جروبات الدراسة" (تحديات اجتماعية) — ميزة سحابية بحتة، لا معنى لها في
+  // وضع "solo" المحلي (المشاركة بين حسابين تتطلب حساباً حقيقياً بالتعريف)،
+  // فكل دالة هنا ترمي NEEDS_ACCOUNT مباشرة إن لم يكن هناك اتصال سحابي حقيقي،
+  // بدل محاولة تزييف سلوك محلي لا معنى له لميزة جماعية.
+  async createGroup(name) {
+    if (!useCloud()) throw new Error("NEEDS_ACCOUNT");
+    const { data, error } = await supabase.from("study_groups").insert({ name, owner: CURRENT_OWNER }).select().single();
+    if (error) { console.error("[createGroup] Supabase error:", error.message); throw error; }
+    return { id: data.id, name: data.name, owner: data.owner, inviteCode: data.invite_code, createdAt: data.created_at };
+  },
+  async loadMyGroups() {
+    if (!useCloud()) return [];
+    try {
+      const { data: memberRows, error } = await supabase.from("group_members").select("group_id").eq("member_owner", CURRENT_OWNER);
+      if (error || !memberRows?.length) return [];
+      const groupIds = memberRows.map((r) => r.group_id);
+      const { data: groups, error: gErr } = await supabase.from("study_groups").select("*").in("id", groupIds).order("created_at");
+      if (gErr || !groups) return [];
+      return groups.map((g) => ({ id: g.id, name: g.name, owner: g.owner, inviteCode: g.invite_code, createdAt: g.created_at }));
+    } catch (e) { console.error("[loadMyGroups] read failed:", e); return []; }
+  },
+  // date: تاريخ اليوم المحلي (مثل todayKey())، يُمرَّر من المتصل لأن store.js
+  // لا يحسب التواريخ بنفسه في أي مكان آخر بالملف - نفس الاتفاق المتّبع.
+  async loadGroupDetail(groupId, date) {
+    if (!useCloud()) return [];
+    try {
+      const { data: members, error } = await supabase.from("group_members").select("member_owner, joined_at").eq("group_id", groupId).order("joined_at");
+      if (error || !members) return [];
+      const owners = members.map((m) => m.member_owner);
+      const [{ data: profiles }, { data: stats }] = await Promise.all([
+        supabase.from("group_shared_profile").select("owner, name").in("owner", owners),
+        supabase.from("group_daily_stats").select("owner, study_minutes, workout_done").in("owner", owners).eq("date", date),
+      ]);
+      const nameMap = Object.fromEntries((profiles || []).map((p) => [p.owner, p.name]));
+      const statMap = Object.fromEntries((stats || []).map((s) => [s.owner, { studyMinutes: s.study_minutes, workoutDone: s.workout_done }]));
+      return members.map((m) => ({
+        owner: m.member_owner,
+        isMe: m.member_owner === CURRENT_OWNER,
+        name: (nameMap[m.member_owner] || "").trim(),
+        studyMinutes: statMap[m.member_owner]?.studyMinutes || 0,
+        workoutDone: !!statMap[m.member_owner]?.workoutDone,
+        joinedAt: m.joined_at,
+      }));
+    } catch (e) { console.error("[loadGroupDetail] read failed:", e); return []; }
+  },
+  // يبحث عن اسم الجروب بحسب رمز الدعوة عبر دالة أمنية ضيّقة (لا تكشف سوى
+  // id/name)، دون الحاجة لأن يكون المستخدم عضواً فيه أصلاً بعد.
+  async getGroupByInviteCode(code) {
+    if (!useCloud()) return null;
+    try {
+      const { data, error } = await supabase.rpc("get_group_by_invite_code", { code });
+      if (error || !data?.length) return null;
+      return { id: data[0].id, name: data[0].name };
+    } catch (e) { console.error("[getGroupByInviteCode] read failed:", e); return null; }
+  },
+  async joinGroupByCode(code) {
+    if (!useCloud()) throw new Error("NEEDS_ACCOUNT");
+    const { data: found, error: lookupErr } = await supabase.rpc("get_group_by_invite_code", { code });
+    if (lookupErr || !found?.length) throw new Error("GROUP_NOT_FOUND");
+    const group = { id: found[0].id, name: found[0].name };
+    const { error } = await supabase.from("group_members").insert({ group_id: group.id, member_owner: CURRENT_OWNER });
+    if (error) {
+      if (error.code === "23505") throw new Error("ALREADY_MEMBER");
+      if (error.message?.includes("GROUP_MEMBER_LIMIT_REACHED")) throw new Error("GROUP_FULL");
+      console.error("[joinGroupByCode] Supabase error:", error.message);
+      throw error;
+    }
+    return group;
+  },
+  async leaveGroup(groupId) {
+    const { error } = await supabase.from("group_members").delete().eq("group_id", groupId).eq("member_owner", CURRENT_OWNER);
+    if (error) { console.error("[leaveGroup] Supabase error:", error.message); throw error; }
+  },
+  async removeGroupMember(groupId, memberOwner) {
+    const { error } = await supabase.from("group_members").delete().eq("group_id", groupId).eq("member_owner", memberOwner);
+    if (error) { console.error("[removeGroupMember] Supabase error:", error.message); throw error; }
+  },
+  async renameGroup(groupId, name) {
+    const { error } = await supabase.from("study_groups").update({ name }).eq("id", groupId);
+    if (error) { console.error("[renameGroup] Supabase error:", error.message); throw error; }
+  },
+  async deleteGroup(groupId) {
+    const { error } = await supabase.from("study_groups").delete().eq("id", groupId);
+    if (error) { console.error("[deleteGroup] Supabase error:", error.message); throw error; }
+  },
+  // اشتراك لحظي بتغيّرات group_daily_stats. لا نُصفّي بمعامل الجروب على
+  // مستوى الخادم (لا عمود group_id في هذا الجدول أصلاً) - RLS نفسها تمنع
+  // وصول أي تغيير لا يخص جروباً مشتركاً فعلياً مع المستخدم الحالي؛ التصفية
+  // النهائية حسب أعضاء الجروب المعروض تحديداً تحدث في onChange بالمتصل.
+  subscribeGroupStats(onChange) {
+    if (!useCloud()) return () => {};
+    const channel = supabase
+      .channel(`group-daily-stats-${CURRENT_OWNER}-${Date.now()}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "group_daily_stats" }, (payload) => {
+        const row = payload.new || payload.old;
+        if (row) onChange(row);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   },
 };

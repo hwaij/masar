@@ -265,8 +265,8 @@ export default function GroupsView({ showToast }) {
       </div>
 
       {pendingInvite && (
-        <div style={GS.pendingOverlay}>
-          <div style={GS.pendingCard}>
+        <div style={GS.pendingOverlay} className="overlay-in">
+          <div style={GS.pendingCard} className="modal-card-in">
             <div style={GS.pendingTitle}>انضمام لجروب "{pendingInvite.name}"؟</div>
             <div style={GS.pendingBtnRow}>
               <button onClick={() => setPendingInvite(null)} style={{ ...GS.dangerBtn, color: "var(--muted2)", background: "var(--surface-sunken)", borderColor: "var(--line)" }}>إلغاء</button>

@@ -1,7 +1,8 @@
 {
+  "id": "/",
   "name": "مسار",
   "short_name": "مسار",
-  "description": "مسار — أداتك الشخصية للوقت وتطوير الذات",
+  "description": "مسار — أداتك الشخصية للوقت وتطوير الذات: الصلاة، الأذكار، المهام، التغذية، الرياضة، والتقارير في تطبيق واحد.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -10,8 +11,31 @@
   "theme_color": "#0A0A0B",
   "dir": "rtl",
   "lang": "ar",
+  "categories": ["productivity", "lifestyle", "health"],
+  "prefer_related_applications": false,
   "icons": [
-    { "src": "/logo-mark.png", "sizes": "521x521", "type": "image/png", "purpose": "any" },
-    { "src": "/logo-mark.png", "sizes": "521x521", "type": "image/png", "purpose": "maskable" }
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "اليوم",
+      "short_name": "اليوم",
+      "url": "/?view=today",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "الصلاة",
+      "short_name": "الصلاة",
+      "url": "/?view=prayer",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "بصيرة",
+      "short_name": "بصيرة",
+      "url": "/?view=tips",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
   ]
 }

@@ -70,8 +70,8 @@ const MHS = {
 
 function CrisisModal({ onConfirm }) {
   return (
-    <div style={MHS.crisisOverlay}>
-      <div style={MHS.crisisCard}>
+    <div style={MHS.crisisOverlay} className="overlay-in">
+      <div style={MHS.crisisCard} className="modal-card-in">
         <AlertTriangle size={30} color="#D17B5F" />
         <div style={MHS.crisisTitle}>نحن هنا من أجلك</div>
         <div style={MHS.crisisText}>{CRISIS_SUPPORT_MESSAGE}</div>
@@ -279,12 +279,14 @@ export default function MentalHealthView({ setView, showToast }) {
         <button onClick={saveEntry} style={MHS.saveBtn}>{existing ? "تحديث تسجيل اليوم" : "حفظ تسجيل اليوم"}</button>
       </div>
 
-      {suggestions.map((s, i) => (
-        <div key={i} style={MHS.suggestionCard}>
-          <div style={MHS.suggestionText}>{s.text}</div>
-          <button onClick={() => setView(s.targetView)} style={MHS.suggestionBtn}>{s.actionLabel}</button>
-        </div>
-      ))}
+      <div className="stagger-in">
+        {suggestions.map((s, i) => (
+          <div key={i} style={MHS.suggestionCard}>
+            <div style={MHS.suggestionText}>{s.text}</div>
+            <button onClick={() => setView(s.targetView)} style={MHS.suggestionBtn}>{s.actionLabel}</button>
+          </div>
+        ))}
+      </div>
 
       <BreathingExercise />
 

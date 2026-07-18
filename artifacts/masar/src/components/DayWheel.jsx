@@ -94,7 +94,7 @@ export default function DayWheel({ entries, catMap, size = 224, onSelect, glow, 
               d={arcPath(a1, a2, rOuter, rInner)}
               fill={cat ? cat.color : "#9A968F"}
               opacity={active && !isActive ? 0.4 : 0.92}
-              stroke="#0A0A0B"
+              stroke="var(--bg)"
               strokeWidth={isActive ? 2 : 1}
               style={{ cursor: "pointer", transition: "opacity 0.15s" }}
               onClick={() => handleClick(e)}
@@ -111,7 +111,7 @@ export default function DayWheel({ entries, catMap, size = 224, onSelect, glow, 
               d={arcPath(a1, a2, rOuter, rInner)}
               fill={color}
               opacity={active && !isActive ? 0.35 : 0.85}
-              stroke="#0A0A0B"
+              stroke="var(--bg)"
               strokeWidth={isActive ? 2 : 1}
               style={{ cursor: "pointer", transition: "opacity 0.15s" }}
               onClick={() => handleClick(f)}

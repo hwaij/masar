@@ -201,12 +201,14 @@ export default function FitnessView({ healthProfile, showToast }) {
         </button>
       </div>
 
-      {plan.map((day) => (
-        <div key={day.dayIndex} style={FS.dayCard}>
-          <div style={FS.dayCardHead}>اليوم {day.dayIndex + 1} · {day.dayLabel}</div>
-          {day.exercises.map((ex) => <ExerciseRow key={ex.id} exercise={ex} />)}
-        </div>
-      ))}
+      <div className="stagger-in">
+        {plan.map((day) => (
+          <div key={day.dayIndex} style={FS.dayCard}>
+            <div style={FS.dayCardHead}>اليوم {day.dayIndex + 1} · {day.dayLabel}</div>
+            {day.exercises.map((ex) => <ExerciseRow key={ex.id} exercise={ex} />)}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

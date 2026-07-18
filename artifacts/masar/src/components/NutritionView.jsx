@@ -196,8 +196,8 @@ function BarcodeScannerModal({ onDetected, onClose }) {
   }, [onDetected]);
 
   return (
-    <div style={NS.overlay} onClick={onClose}>
-      <div style={NS.sheet} onClick={(e) => e.stopPropagation()}>
+    <div style={NS.overlay} className="overlay-in" onClick={onClose}>
+      <div style={NS.sheet} className="sheet-in" onClick={(e) => e.stopPropagation()}>
         <div style={NS.sheetHead}>
           <span style={NS.sheetTitle}>مسح الباركود</span>
           <button onClick={onClose} style={NS.closeBtn}><X size={16} /></button>
@@ -968,6 +968,7 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
 
       <div style={NS.logHead}>سجل اليوم</div>
       {loaded && todayLog.length === 0 && <div style={NS.emptyHint}>لم تُضِف أي طعام اليوم بعد.</div>}
+      <div className="stagger-in">
       {todayLog.map((e) => (
         <div key={e.id} style={NS.logItem}>
           <div style={{ flex: 1 }}>
@@ -978,10 +979,11 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
           <button onClick={() => removeEntry(e.id)} style={NS.deleteBtn}><Trash2 size={15} /></button>
         </div>
       ))}
+      </div>
 
       {sheet && sheet !== "scan" && (
-        <div style={NS.overlay} onClick={closeSheet}>
-          <div style={NS.sheet} onClick={(e) => e.stopPropagation()}>
+        <div style={NS.overlay} className="overlay-in" onClick={closeSheet}>
+          <div style={NS.sheet} className="sheet-in" onClick={(e) => e.stopPropagation()}>
             {sheet !== "scan" && (
               <div style={NS.sheetHead}>
                 <span style={NS.sheetTitle}>

@@ -91,8 +91,23 @@ button:active:not(:disabled) {
 .stagger-in > *:nth-child(n+6) { animation-delay: 0.2s; }
 @keyframes staggerFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
+/* أنماط دخول عامة لأي نافذة منبثقة (Modal/Sheet) في التطبيق - خلفية
+   معتمة تُظهَر بتلاشٍ خفيف، وبطاقة/ورقة سفلية تُظهَر بحركة انزلاق أو
+   تكبير لطيفة، بدل الظهور المفاجئ دفعة واحدة. عبر className عام يُضاف
+   بجانب الأنماط المضمَّنة الموجودة أصلاً، حتى تستفيد كل النوافذ المنبثقة
+   الحالية من نفس الحركة دون إعادة كتابة كل واحدة على حدة.*/
+.overlay-in { animation: overlayFadeIn 0.2s ease; }
+@keyframes overlayFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.sheet-in { animation: sheetSlideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes sheetSlideUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+
+.modal-card-in { animation: modalCardIn 0.22s cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes modalCardIn { from { opacity: 0; transform: scale(0.96) translateY(6px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+
 @media (prefers-reduced-motion: reduce) {
-  .view-fade, .stagger-in > *, button { animation: none !important; transition: none !important; }
+  .view-fade, .stagger-in > *, button,
+  .overlay-in, .sheet-in, .modal-card-in { animation: none !important; transition: none !important; }
 }
 
 /* Desktop responsiveness: the app is built mobile-first at a fixed 480px

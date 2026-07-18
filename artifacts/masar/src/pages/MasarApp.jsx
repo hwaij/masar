@@ -1,6 +1,6 @@
 "use strict";
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import i18n from "../i18n";
 import {
@@ -171,13 +171,19 @@ const SUB = {
   planPrice: { fontFamily: "'Amiri', serif", fontSize: 19, fontWeight: 700, color: "#C9A24B", marginTop: 4 },
   subscribeBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", background: "var(--gold)", color: "var(--bg)", border: "none", borderRadius: 12, padding: "13px 0", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", textDecoration: "none", boxSizing: "border-box" },
   // بطاقة "التشجيع للاشتراك" التي تحلّ محل أي قسم/ميزة مدفوعة لغير
-  // المشتركين — تدرّج كحلي داكن (بدل التدرّج الدافئ المعتاد للبطاقات
+  // المشتركين — تدرّج كحلي داكن ثابت (بدل التدرّج الدافئ المعتاد للبطاقات
   // الأخرى) بحدود وأيقونة ذهبية، لتُقرأ كدعوة مميّزة لا كخطأ أو رسالة منع.
+  // ثابت عمداً في الوضعين (لا يتبع الثيم) - خلل حقيقي وُجد وأُصلح هنا: كان
+  // نص العنوان/الرسالة يستخدم var(--ink)/var(--muted2) (يتبعان الثيم)
+  // بينما تبقى خلفية البطاقة داكنة دائماً، فينتج نص داكن على خلفية داكنة
+  // بالضبط في الوضع الفاتح (يتحول --ink/--muted2 لدرجات داكنة هناك) - غير
+  // مقروء عملياً. الحل: تثبيت لوني النص أيضاً (بنفس قيمهما في الوضع
+  // الداكن) بما أن الخلفية نفسها ثابتة، فيبقى التباين نفسه مضمونًا دائماً.
   upsellCard: { background: "linear-gradient(160deg, #10131F, #0A0A0B)", border: "1px solid rgba(201,162,75,0.3)", borderRadius: 18, padding: "30px 20px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 },
   upsellCardCompact: { padding: "20px 16px", borderRadius: 14, gap: 8 },
   upsellIconBadge: { width: 48, height: 48, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, background: "linear-gradient(140deg, #E7C378, #C9A24B 60%, #A9822F)", boxShadow: "0 0 0 1px rgba(201,162,75,0.25), 0 4px 18px rgba(201,162,75,0.2)" },
-  upsellTitle: { fontFamily: "'Amiri', serif", fontSize: 18, fontWeight: 700, color: "var(--ink)" },
-  upsellMessage: { fontSize: 13, color: "var(--muted2)", lineHeight: 1.8, maxWidth: 320, margin: 0 },
+  upsellTitle: { fontFamily: "'Amiri', serif", fontSize: 18, fontWeight: 700, color: "#E8E6E1" },
+  upsellMessage: { fontSize: 13, color: "#8A8782", lineHeight: 1.8, maxWidth: 320, margin: 0 },
   upsellBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "var(--gold)", color: "var(--bg)", border: "none", borderRadius: 12, padding: "12px 22px", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", textDecoration: "none", marginTop: 6 },
 };
 
@@ -210,7 +216,17 @@ const YS = {
 export default function MasarApp() {
   const [loaded, setLoaded] = useState(false);
   const [showSplash, setShowSplash] = useState(() => !sessionStorage.getItem("masar_splash_done"));
-  const [view, setView] = useState("today");
+  // يدعم اختصارات الشاشة الرئيسية (manifest.json → shortcuts) التي تفتح
+  // التطبيق برابط "/?view=X" - لا علاقة له بأي منطق بيانات، مجرد قراءة
+  // لمرة واحدة عند التحميل الأول لتحديد الشاشة الافتتاحية، مع قائمة بيضاء
+  // صريحة حتى لا يقود رابط خارجي المستخدم لشاشة غير موجودة.
+  const VALID_SHORTCUT_VIEWS = ["today", "prayer", "adhkar", "tips", "you", "nutrition", "fitness", "mental", "focus", "tasks", "goals", "vault", "reports", "groups", "assistant", "achieve", "settings"];
+  const [view, setView] = useState(() => {
+    try {
+      const requested = new URLSearchParams(window.location.search).get("view");
+      return VALID_SHORTCUT_VIEWS.includes(requested) ? requested : "today";
+    } catch { return "today"; }
+  });
   const [entries, setEntries] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -294,6 +310,11 @@ export default function MasarApp() {
       }
       localStorage.setItem("masar_last_open", today);
       setLoaded(true);
+      // نظّف "?view=" من شريط العنوان بعد استعمالها لمرة واحدة، حتى لا يبقى
+      // رابط اختصار قديم في السجل/الإشارات المرجعية يفتح نفس الشاشة دائماً.
+      if (window.location.search.includes("view=")) {
+        window.history.replaceState(null, "", window.location.pathname);
+      }
   }, []);
 
   useEffect(() => {
@@ -645,46 +666,80 @@ const OT = {
   nextBtnLast: { flex: "1 0 auto" },
 };
 
+// رسائل تحفيزية قصيرة تظهر عشوائياً بشاشة البداية - مزيج مقصود بين
+// الدنيوي (إنتاجية/عادات) والروحي (نية/ذكر)، بما يناسب هوية مسار (نفس
+// روح شعار "بصيرة": بين الدنيا والدين). تُختار عشوائياً مرة واحدة عند كل
+// ظهور فعلي للشاشة (والتي تظهر أصلاً مرة واحدة فقط لكل جلسة)، فلا حاجة
+// لمنطق "عدم تكرار" إضافي - عدم التكرار محقَّق أصلاً ببساطة عبر ذلك.
+const SPLASH_MESSAGES = [
+  "كل خطوة صغيرة اليوم تصنع مستقبلاً أفضل",
+  "ابدأ يومك... ودع مسار يهتم بالباقي",
+  "المداومة على القليل خير من الانقطاع عن الكثير",
+  "نيتك الصالحة اليوم بداية بركة الغد",
+  "وقتك أمانة، واستثماره اليوم عبادة وإنتاج",
+  "لا تؤجل مسارك، فالطريق يبدأ بخطوة",
+  "التوازن بين الدنيا والآخرة هو النجاح الحقيقي",
+  "كل ذكر تقوله اليوم نور يصحبك خلاله",
+  "رتّب يومك، وسيرتّب مسار الباقي",
+  "تتبّع وقتك · ارتقِ بيومك",
+];
+
 function SplashScreen({ onDone }) {
   const [hiding, setHiding] = useState(false);
+  const [message] = useState(() => SPLASH_MESSAGES[Math.floor(Math.random() * SPLASH_MESSAGES.length)]);
+  // من يفعّل "تقليل الحركة" في جهازه يرى المحتوى النهائي مباشرة بلا أي
+  // حركة (initial === animate بكل عنصر)، مع الإبقاء على نفس مدة الظهور
+  // الإجمالية - فقط الحركة نفسها تُزال، لا الشاشة كاملة.
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
-    const t = setTimeout(() => setHiding(true), 1700);
+    const t = setTimeout(() => setHiding(true), 1850);
     return () => clearTimeout(t);
   }, []);
+
+  const logoAnim = reduceMotion
+    ? { initial: { scale: 1, opacity: 1 }, animate: { scale: 1, opacity: 1 }, transition: { duration: 0 } }
+    : { initial: { scale: 0.5, opacity: 0 }, animate: { scale: 1, opacity: 1 }, transition: { duration: 0.6, ease: [0.34, 1.56, 0.64, 1] } };
+  const wordmarkAnim = reduceMotion
+    ? { initial: { clipPath: "inset(0 0 0 0%)" }, animate: { clipPath: "inset(0 0 0 0%)" }, transition: { duration: 0 } }
+    : { initial: { clipPath: "inset(0 0 0 100%)" }, animate: { clipPath: "inset(0 0 0 0%)" }, transition: { delay: 0.35, duration: 0.5, ease: [0.65, 0, 0.35, 1] } };
+  const messageAnim = reduceMotion
+    ? { initial: { opacity: 1 }, animate: { opacity: 1 }, transition: { duration: 0 } }
+    : { initial: { opacity: 0 }, animate: { opacity: 1 }, transition: { delay: 0.85, duration: 0.4 } };
+  const lineAnim = reduceMotion
+    ? { initial: { scaleX: 1, opacity: 1 }, animate: { scaleX: 1, opacity: 1 }, transition: { duration: 0 } }
+    : { initial: { scaleX: 0, opacity: 0 }, animate: { scaleX: 1, opacity: 1 }, transition: { delay: 1.15, duration: 0.5, ease: "easeInOut" } };
 
   return (
     <motion.div
       animate={{ opacity: hiding ? 0 : 1 }}
-      transition={{ duration: 0.45, ease: "easeInOut" }}
+      transition={{ duration: reduceMotion ? 0.15 : 0.45, ease: "easeInOut" }}
       onAnimationComplete={() => { if (hiding) onDone?.(); }}
-      style={{ minHeight: "100vh", background: "#0A0A0B", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 0, overflow: "hidden", direction: "rtl" }}
+      style={{ minHeight: "100vh", background: "var(--bg)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 0, overflow: "hidden", direction: "rtl" }}
     >
       <motion.img
         src="/logo-mark.png"
         alt=""
-        initial={{ scale: 0.5, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ duration: 0.6, ease: [0.34, 1.56, 0.64, 1] }}
+        {...logoAnim}
         style={{ width: 110, height: 110, marginBottom: 20, filter: "drop-shadow(0 0 28px rgba(201,162,75,0.4))" }}
       />
+      {/* الحروف العربية متصلة الشكل (تتغيّر هيئتها حسب موضعها بالكلمة)،
+          فتقسيم "مسار" لحروف منفصلة يكسر شكلها - بدلاً من ذلك، نص واحد
+          يُكشَف تدريجياً بقناع (clipPath) يتحرّك من اليمين لليسار (اتجاه
+          القراءة العربي)، فيبدو وكأنه "يُكتب" دون كسر اتصال الحروف. */}
+      <div style={{ overflow: "hidden" }}>
+        <motion.div
+          {...wordmarkAnim}
+          style={{ fontFamily: "'Amiri', serif", fontSize: 42, fontWeight: 700, color: "var(--ink)", letterSpacing: 2 }}
+        >مسار</motion.div>
+      </div>
       <motion.div
-        initial={{ opacity: 0, y: 14 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.35, duration: 0.45 }}
-        style={{ fontFamily: "'Amiri', serif", fontSize: 42, fontWeight: 700, color: "#E8E6E1", letterSpacing: 2 }}
-      >مسار</motion.div>
+        {...messageAnim}
+        style={{ fontSize: 14, color: "var(--muted)", marginTop: 10, letterSpacing: 0.3, textAlign: "center", maxWidth: 260, lineHeight: 1.7 }}
+      >{message}</motion.div>
       <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.7, duration: 0.4 }}
-        style={{ fontSize: 14, color: "var(--muted)", marginTop: 8, letterSpacing: 1 }}
-      >تتبّع وقتك · ارتقِ بيومك</motion.div>
-      <motion.div
-        initial={{ scaleX: 0, opacity: 0 }}
-        animate={{ scaleX: 1, opacity: 1 }}
-        transition={{ delay: 1.0, duration: 0.6, ease: "easeInOut" }}
-        style={{ marginTop: 36, width: 100, height: 2, background: "linear-gradient(90deg, transparent, #C9A24B, transparent)", borderRadius: 2, transformOrigin: "center" }}
+        {...lineAnim}
+        style={{ marginTop: 28, width: 100, height: 2, background: "linear-gradient(90deg, transparent, #C9A24B, transparent)", borderRadius: 2, transformOrigin: "center" }}
       />
     </motion.div>
   );
@@ -2554,7 +2609,7 @@ function TipsView({ tipsLog, setTipsLog, showToast, subscription }) {
         {archive.length > 0 && (
           <>
             <div style={TS.archiveHeader}><span style={TS.archiveHeaderLine} /><span>أرشيف النصائح</span><span style={TS.archiveHeaderLine} /></div>
-            <div style={TS.archiveList}>
+            <div style={TS.archiveList} className="stagger-in">
               {archive.map(({ date, tip }) => {
                 // arabicDate(dateString) would parse "YYYY-MM-DD" as UTC
                 // midnight, shifting the shown day back by one for anyone
@@ -2580,8 +2635,8 @@ function TipsView({ tipsLog, setTipsLog, showToast, subscription }) {
 
 function DailyTipModal({ tip, onClose }) {
   return (
-    <div style={S.modalOverlay} onClick={onClose}>
-      <div style={{ ...S.modal, borderRadius: 20, maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
+    <div style={S.modalOverlay} className="overlay-in" onClick={onClose}>
+      <div style={{ ...S.modal, borderRadius: 20, maxWidth: 420 }} className="sheet-in" onClick={(e) => e.stopPropagation()}>
         <div style={S.modalHeader}><span>نصيحة اليوم</span><button onClick={onClose} style={S.iconBtn}><X size={18} /></button></div>
         <div style={TS.card}>
           <div style={TS.ornament}>
@@ -2746,7 +2801,7 @@ function GoalsView({ goals, setGoals, addPoints, showToast }) {
           </button>
         </div>
 
-        <div style={GS.goalsList}>
+        <div style={GS.goalsList} className="stagger-in">
           {activeGoals.length === 0 && <div style={S.emptyHint}>لا أهداف بعد. أضف هدفك الأول أعلاه.</div>}
           {activeGoals.map((goal) => {
             const due = isReviewDue(goal, today);
@@ -3015,7 +3070,7 @@ function VaultView({ vault, setVault, vaultTx, setVaultTx, showToast }) {
         </div>
 
         <div style={VS.logHeader}><span style={VS.logHeaderLine} /><span>سجل الحركات</span><span style={VS.logHeaderLine} /></div>
-        <div style={VS.logList}>
+        <div style={VS.logList} className="stagger-in">
           {sortedTx.length === 0 && <div style={S.emptyHint}>لا حركات بعد. سجّل أول مصروف أو إضافة أعلاه.</div>}
           {sortedTx.map((tx) => {
             const [y, m, d] = tx.date.split("-").map(Number);
@@ -3320,8 +3375,8 @@ function FocusView({ focus, setFocus, commitments, setCommitments, categories, e
         <UpsellCard icon={Zap} title="التحدي في مسار الكامل" message="نافس شخصيات تحدٍّ واقعية بوقت تركيزك اليومي، وشاهد ترتيبك بينها." compact />
       ))}
       {pendingCompletion && (
-        <div style={S.modalOverlay} onClick={() => { setPendingCompletion(null); setPickingTime(false); }}>
-          <div style={S.modal} onClick={(e) => e.stopPropagation()}>
+        <div style={S.modalOverlay} className="overlay-in" onClick={() => { setPendingCompletion(null); setPickingTime(false); }}>
+          <div style={S.modal} className="sheet-in" onClick={(e) => e.stopPropagation()}>
             <div style={S.modalHeader}>أحسنت! 🎉</div>
             <div style={{ fontSize: 13.5, color: "#C9C6C0", lineHeight: 1.7, marginBottom: 16 }}>
               هل نسجّلها بوقت انتهائها الآن، أم تريد تحديد وقت آخر؟
@@ -4333,8 +4388,8 @@ function EntryModal({ entry, date, categories, onSave, onClose }) {
   }
 
   return (
-    <div style={S.modalOverlay} onClick={onClose}>
-      <div style={S.modal} onClick={(e) => e.stopPropagation()}>
+    <div style={S.modalOverlay} className="overlay-in" onClick={onClose}>
+      <div style={S.modal} className="sheet-in" onClick={(e) => e.stopPropagation()}>
         <div style={S.modalHeader}><span>{entry ? t("todayView.entryModal.editActivity") : t("todayView.entryModal.newActivity")}</span><button onClick={onClose} style={S.iconBtn}><X size={18} /></button></div>
         <div style={S.modalBody}>
           <label style={S.label}>{t("todayView.entryModal.noteLabel")}</label>

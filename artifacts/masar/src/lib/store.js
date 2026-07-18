@@ -1086,27 +1086,44 @@ export const store = {
     } catch (e) { console.error("[loadGroupDetail] read failed:", e); return []; }
   },
   // يبحث عن اسم الجروب بحسب رمز الدعوة عبر دالة أمنية ضيّقة (لا تكشف سوى
-  // id/name)، دون الحاجة لأن يكون المستخدم عضواً فيه أصلاً بعد.
+  // id/name)، دون الحاجة لأن يكون المستخدم عضواً فيه أصلاً بعد. الأخطاء
+  // الفعلية من Supabase (صلاحيات، شبكة...) كانت تُطمَس سابقاً وتُعامَل كأنها
+  // "لم يُعثر على الجروب" — الآن تُسجَّل بوضوح في الـconsole قبل إرجاع null،
+  // حتى يمكن تمييز خطأ حقيقي عن كود دعوة غير موجود فعلاً.
   async getGroupByInviteCode(code) {
-    if (!useCloud()) return null;
+    if (!useCloud()) { console.warn("[getGroupByInviteCode] blocked: no real cloud session (guest/local mode)"); return null; }
     try {
+      console.log("[getGroupByInviteCode] resolving invite code:", JSON.stringify(code));
       const { data, error } = await supabase.rpc("get_group_by_invite_code", { code });
-      if (error || !data?.length) return null;
+      console.log("[getGroupByInviteCode] Supabase RPC result — data:", data, "error:", error);
+      if (error) { console.error("[getGroupByInviteCode] Supabase RPC error:", error.message, error); return null; }
+      if (!data?.length) { console.warn("[getGroupByInviteCode] no group matches this invite code:", code); return null; }
       return { id: data[0].id, name: data[0].name };
-    } catch (e) { console.error("[getGroupByInviteCode] read failed:", e); return null; }
+    } catch (e) { console.error("[getGroupByInviteCode] read failed (exception):", e); return null; }
+  },
+  // ينفّذ فعلياً إضافة العضوية بمعرّف جروب معروف مسبقاً - يُستخدم من
+  // joinGroupByCode بعد حلّ الكود، ومن تأكيد رابط الدعوة (الذي يملك الـid
+  // من نداء getGroupByInviteCode السابق بلا حاجة لإعادة حل الكود من جديد).
+  async joinGroupById(groupId) {
+    if (!useCloud()) throw new Error("NEEDS_ACCOUNT");
+    const { error } = await supabase.from("group_members").insert({ group_id: groupId, member_owner: CURRENT_OWNER });
+    if (error) {
+      console.log("[joinGroupById] Supabase insert error:", error);
+      if (error.code === "23505") throw new Error("ALREADY_MEMBER");
+      if (error.message?.includes("GROUP_MEMBER_LIMIT_REACHED")) throw new Error("GROUP_FULL");
+      console.error("[joinGroupById] Supabase error:", error.message);
+      throw error;
+    }
   },
   async joinGroupByCode(code) {
     if (!useCloud()) throw new Error("NEEDS_ACCOUNT");
+    console.log("[joinGroupByCode] resolving invite code:", JSON.stringify(code));
     const { data: found, error: lookupErr } = await supabase.rpc("get_group_by_invite_code", { code });
-    if (lookupErr || !found?.length) throw new Error("GROUP_NOT_FOUND");
+    console.log("[joinGroupByCode] Supabase RPC result — data:", found, "error:", lookupErr);
+    if (lookupErr) { console.error("[joinGroupByCode] Supabase RPC error:", lookupErr.message, lookupErr); throw new Error("GROUP_NOT_FOUND"); }
+    if (!found?.length) { console.warn("[joinGroupByCode] no group matches this invite code:", code); throw new Error("GROUP_NOT_FOUND"); }
     const group = { id: found[0].id, name: found[0].name };
-    const { error } = await supabase.from("group_members").insert({ group_id: group.id, member_owner: CURRENT_OWNER });
-    if (error) {
-      if (error.code === "23505") throw new Error("ALREADY_MEMBER");
-      if (error.message?.includes("GROUP_MEMBER_LIMIT_REACHED")) throw new Error("GROUP_FULL");
-      console.error("[joinGroupByCode] Supabase error:", error.message);
-      throw error;
-    }
+    await store.joinGroupById(group.id);
     return group;
   },
   async leaveGroup(groupId) {

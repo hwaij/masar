@@ -69,6 +69,15 @@ function RankIcon({ rank }) {
   return <span style={GS.leaderRank}>{rank}</span>;
 }
 
+function joinErrorMessage(err) {
+  return {
+    GROUP_NOT_FOUND: "رابط أو رمز الدعوة غير صحيح",
+    ALREADY_MEMBER: "أنت عضو في هذا الجروب مسبقاً",
+    GROUP_FULL: "هذا الجروب وصل للحد الأقصى (10 أعضاء)",
+    NEEDS_ACCOUNT: "سجّل الدخول أولاً",
+  }[err.message] || "تعذّر الانضمام الآن";
+}
+
 export default function GroupsView({ showToast }) {
   const hasCloud = store.hasCloud;
   const [myGroups, setMyGroups] = useState([]);
@@ -99,15 +108,17 @@ export default function GroupsView({ showToast }) {
   // توجيه (لا يوجد راوتر في هذا التطبيق أصلاً)، ثم يُنظَّف المسار فوراً حتى
   // لا يُعاد عرض نفس التأكيد عند تحديث الصفحة لاحقاً.
   useEffect(() => {
-    if (!hasCloud) return;
     const match = window.location.pathname.match(/^\/join\/([A-Za-z0-9]+)$/);
+    console.log("[GroupsView] invite-link check — pathname:", window.location.pathname, "hasCloud:", hasCloud, "match:", match);
     if (!match) return;
+    if (!hasCloud) return; // hasCloud متغيّر ضمن [hasCloud, ...] أدناه، فتُعاد المحاولة تلقائياً بعد اكتمال تسجيل الدخول
     const code = match[1];
     window.history.replaceState(null, "", "/");
     setPendingLoading(true);
     store.getGroupByInviteCode(code).then((group) => {
+      console.log("[GroupsView] getGroupByInviteCode resolved:", group);
       setPendingLoading(false);
-      if (group) setPendingInvite({ code, name: group.name });
+      if (group) setPendingInvite({ code, id: group.id, name: group.name });
       else showToast("رابط الدعوة غير صالح");
     });
   }, [hasCloud, showToast]);
@@ -169,20 +180,28 @@ export default function GroupsView({ showToast }) {
       setJoinCode("");
       showToast(`انضممت إلى ${group.name}`);
     } catch (err) {
-      const msg = {
-        GROUP_NOT_FOUND: "رابط أو رمز الدعوة غير صحيح",
-        ALREADY_MEMBER: "أنت عضو في هذا الجروب مسبقاً",
-        GROUP_FULL: "هذا الجروب وصل للحد الأقصى (10 أعضاء)",
-        NEEDS_ACCOUNT: "سجّل الدخول أولاً",
-      }[err.message] || "تعذّر الانضمام الآن";
-      showToast(msg);
+      console.error("[GroupsView] joinGroupByCode failed:", err);
+      showToast(joinErrorMessage(err));
     } finally { setJoining(false); }
   }
 
+  // تُستخدم عند تأكيد رابط الدعوة تحديداً - نملك بالفعل معرّف الجروب
+  // (pendingInvite.id) من نداء getGroupByInviteCode الناجح الذي عرض هذا
+  // التأكيد أصلاً، فلا داعي لإعادة حلّ نفس رمز الدعوة من جديد عبر
+  // joinGroupByCode (استدعاء متكرر وغير ضروري لنفس الـRPC، وكل استدعاء
+  // إضافي هو فرصة إخفاق إضافية لا حاجة لها).
   async function confirmPendingInvite() {
-    if (!pendingInvite) return;
-    await handleJoin(pendingInvite.code);
-    setPendingInvite(null);
+    if (!pendingInvite || joining) return;
+    setJoining(true);
+    try {
+      await store.joinGroupById(pendingInvite.id);
+      await refreshGroups();
+      setSelectedGroupId(pendingInvite.id);
+      showToast(`انضممت إلى ${pendingInvite.name}`);
+    } catch (err) {
+      console.error("[GroupsView] joinGroupById failed:", err);
+      showToast(joinErrorMessage(err));
+    } finally { setJoining(false); setPendingInvite(null); }
   }
 
   async function handleLeave(groupId) {

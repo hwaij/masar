@@ -16,13 +16,6 @@ const GS = {
   card: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "16px 14px", marginBottom: 16 },
   cardTitle: { fontSize: 13, fontWeight: 700, color: "var(--muted2)", marginBottom: 10 },
 
-  inviteCard: {
-    display: "flex", alignItems: "center", gap: 10, background: "linear-gradient(160deg, var(--warm-tint), var(--panel))",
-    border: "1px solid var(--warm-border)", borderRadius: 16, padding: "20px 16px", marginBottom: 16, textAlign: "center", flexDirection: "column",
-  },
-  inviteTitle: { fontFamily: "'Amiri', serif", fontSize: 17, fontWeight: 700 },
-  inviteBtnRow: { display: "flex", gap: 8, width: "100%", marginTop: 6 },
-
   groupChipsRow: { display: "flex", gap: 6, overflowX: "auto", marginBottom: 14, paddingBottom: 2 },
   groupChip: { flexShrink: 0, border: "1px solid var(--border2)", borderRadius: 20, padding: "7px 14px", fontSize: 12.5, color: "var(--ink-soft)", cursor: "pointer", fontFamily: "inherit", background: "transparent", whiteSpace: "nowrap" },
   groupChipActive: { borderColor: "#8A7BD1", background: "rgba(138,123,209,0.14)", color: "#8A7BD1", fontWeight: 700 },
@@ -33,9 +26,12 @@ const GS = {
   memberCount: { fontSize: 11.5, color: "var(--muted2)" },
   iconGhostBtn: { background: "none", border: "none", color: "var(--muted2)", cursor: "pointer", padding: 4, display: "flex" },
 
-  inviteRow: { display: "flex", alignItems: "center", gap: 8, background: "var(--surface-sunken)", border: "1px solid var(--line)", borderRadius: 12, padding: "9px 10px", marginTop: 10, marginBottom: 4 },
-  inviteLinkText: { flex: 1, fontSize: 11.5, color: "var(--muted2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", direction: "ltr", textAlign: "right" },
+  codeBox: { display: "flex", flexDirection: "column", alignItems: "center", gap: 10, background: "var(--surface-sunken)", border: "1px solid var(--line)", borderRadius: 14, padding: "16px 14px", marginTop: 10 },
+  codeBoxLabel: { fontSize: 11.5, color: "var(--muted2)", fontWeight: 700 },
+  codeBoxValue: { fontSize: 26, fontWeight: 700, letterSpacing: 4, fontFamily: "monospace", color: "var(--gold)", direction: "ltr" },
+  codeBoxHint: { fontSize: 11.5, color: "var(--muted2)", textAlign: "center", marginTop: 8, marginBottom: 4, lineHeight: 1.5 },
   copyBtn: { display: "flex", alignItems: "center", gap: 4, background: "rgba(138,123,209,0.12)", border: "1px solid rgba(138,123,209,0.35)", color: "#8A7BD1", borderRadius: 8, padding: "6px 10px", fontSize: 11.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", flexShrink: 0 },
+  joinByCodeBtn: { width: "100%", justifyContent: "center", background: "var(--surface-sunken)", color: "var(--ink)", border: "1px solid var(--border2)", borderRadius: 12, padding: "10px 0", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6 },
 
   leaderList: { display: "flex", flexDirection: "column", gap: 8, marginTop: 14 },
   leaderRow: { display: "flex", alignItems: "center", gap: 10, background: "var(--surface-sunken)", border: "1px solid var(--line)", borderRadius: 12, padding: "10px 12px" },
@@ -71,8 +67,8 @@ function RankIcon({ rank }) {
 
 function joinErrorMessage(err) {
   return {
-    GROUP_NOT_FOUND: "رابط أو رمز الدعوة غير صحيح",
-    RPC_ERROR: "تعذّر التحقق من رابط الدعوة الآن (خطأ فني مؤقت) - أعد المحاولة بعد قليل",
+    GROUP_NOT_FOUND: "الكود المدخل غير صحيح، تأكد من كتابته بشكل صحيح",
+    RPC_ERROR: "تعذّر التحقق الآن، حاول مرة أخرى بعد قليل",
     ALREADY_MEMBER: "أنت عضو في هذا الجروب مسبقاً",
     GROUP_FULL: "هذا الجروب وصل للحد الأقصى (10 أعضاء)",
     NEEDS_ACCOUNT: "سجّل الدخول أولاً",
@@ -87,12 +83,13 @@ export default function GroupsView({ showToast }) {
   const [groupDetail, setGroupDetail] = useState(null);
   const [newGroupName, setNewGroupName] = useState("");
   const [creating, setCreating] = useState(false);
-  const [joinCode, setJoinCode] = useState("");
+  const [showJoinByCode, setShowJoinByCode] = useState(false);
+  const [manualCode, setManualCode] = useState("");
+  const [checkingCode, setCheckingCode] = useState(false);
   const [joining, setJoining] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const [pendingInvite, setPendingInvite] = useState(null);
-  const [pendingLoading, setPendingLoading] = useState(false);
   const memberOwnersRef = useRef(new Set());
 
   const today = todayKey();
@@ -104,30 +101,6 @@ export default function GroupsView({ showToast }) {
     setLoadingGroups(false);
     return groups;
   }, []);
-
-  // رابط الدعوة (/join/{code}) — تُقرأ مباشرة من مسار الصفحة دون أي مكتبة
-  // توجيه (لا يوجد راوتر في هذا التطبيق أصلاً)، ثم يُنظَّف المسار فوراً حتى
-  // لا يُعاد عرض نفس التأكيد عند تحديث الصفحة لاحقاً.
-  useEffect(() => {
-    const match = window.location.pathname.match(/^\/join\/([A-Za-z0-9]+)$/);
-    console.log("[GroupsView] invite-link check — pathname:", window.location.pathname, "hasCloud:", hasCloud, "match:", match);
-    if (!match) return;
-    if (!hasCloud) return; // hasCloud متغيّر ضمن [hasCloud, ...] أدناه، فتُعاد المحاولة تلقائياً بعد اكتمال تسجيل الدخول
-    const code = match[1];
-    window.history.replaceState(null, "", "/");
-    setPendingLoading(true);
-    store.getGroupByInviteCode(code)
-      .then((group) => {
-        console.log("[GroupsView] getGroupByInviteCode resolved:", group);
-        if (group) setPendingInvite({ code, id: group.id, name: group.name });
-        else showToast("رابط الدعوة غير صالح");
-      })
-      .catch((err) => {
-        console.error("[GroupsView] getGroupByInviteCode failed:", err);
-        showToast(joinErrorMessage(err));
-      })
-      .finally(() => setPendingLoading(false));
-  }, [hasCloud, showToast]);
 
   useEffect(() => {
     if (!hasCloud) { setLoadingGroups(false); return; }
@@ -176,26 +149,29 @@ export default function GroupsView({ showToast }) {
     } finally { setCreating(false); }
   }
 
-  async function handleJoin(code) {
-    if (!code || joining) return;
-    setJoining(true);
+  // تحويل تلقائي لأحرف صغيرة عند الكتابة (يتفادى مشاكل حساسية الأحرف)،
+  // وtrim قبل الإرسال فعلياً (وليس أثناء الكتابة، حتى لا يمنع المستخدم من
+  // كتابة الكود بشكل طبيعي). تستدعي get_group_by_invite_code نفسها فقط
+  // لعرض اسم الجروب والتأكيد - نفس منطق التأكيد المستخدم سابقاً تماماً.
+  async function handleCheckCode() {
+    const code = manualCode.trim();
+    if (!code || checkingCode) return;
+    setCheckingCode(true);
     try {
-      const group = await store.joinGroupByCode(code);
-      await refreshGroups();
-      setSelectedGroupId(group.id);
-      setJoinCode("");
-      showToast(`انضممت إلى ${group.name}`);
+      const group = await store.getGroupByInviteCode(code);
+      if (group) {
+        setPendingInvite({ id: group.id, name: group.name });
+        setShowJoinByCode(false);
+        setManualCode("");
+      } else {
+        showToast(joinErrorMessage({ message: "GROUP_NOT_FOUND" }));
+      }
     } catch (err) {
-      console.error("[GroupsView] joinGroupByCode failed:", err);
+      console.error("[GroupsView] getGroupByInviteCode failed:", err);
       showToast(joinErrorMessage(err));
-    } finally { setJoining(false); }
+    } finally { setCheckingCode(false); }
   }
 
-  // تُستخدم عند تأكيد رابط الدعوة تحديداً - نملك بالفعل معرّف الجروب
-  // (pendingInvite.id) من نداء getGroupByInviteCode الناجح الذي عرض هذا
-  // التأكيد أصلاً، فلا داعي لإعادة حلّ نفس رمز الدعوة من جديد عبر
-  // joinGroupByCode (استدعاء متكرر وغير ضروري لنفس الـRPC، وكل استدعاء
-  // إضافي هو فرصة إخفاق إضافية لا حاجة لها).
   async function confirmPendingInvite() {
     if (!pendingInvite || joining) return;
     setJoining(true);
@@ -249,10 +225,9 @@ export default function GroupsView({ showToast }) {
     } catch { showToast("تعذّر تنفيذ العملية الآن"); }
   }
 
-  function copyInviteLink(code) {
-    const url = `${window.location.origin}/join/${code}`;
-    navigator.clipboard?.writeText(url).then(
-      () => showToast("تم نسخ رابط الدعوة"),
+  function copyInviteCode(code) {
+    navigator.clipboard?.writeText(code).then(
+      () => showToast("تم نسخ الكود"),
       () => showToast("تعذّر النسخ، انسخه يدوياً"),
     );
   }
@@ -289,22 +264,16 @@ export default function GroupsView({ showToast }) {
         </div>
       </div>
 
-      {(pendingInvite || pendingLoading) && (
+      {pendingInvite && (
         <div style={GS.pendingOverlay}>
           <div style={GS.pendingCard}>
-            {pendingLoading ? (
-              <Loader2 size={22} className="spin" color="#8A7BD1" />
-            ) : (
-              <>
-                <div style={GS.pendingTitle}>انضمام لجروب "{pendingInvite.name}"؟</div>
-                <div style={GS.pendingBtnRow}>
-                  <button onClick={() => setPendingInvite(null)} style={{ ...GS.dangerBtn, color: "var(--muted2)", background: "var(--surface-sunken)", borderColor: "var(--line)" }}>إلغاء</button>
-                  <button onClick={confirmPendingInvite} disabled={joining} style={{ ...GS.createBtn, flex: 1, justifyContent: "center", padding: "10px 0" }}>
-                    {joining ? <Loader2 size={14} className="spin" /> : "انضمام"}
-                  </button>
-                </div>
-              </>
-            )}
+            <div style={GS.pendingTitle}>انضمام لجروب "{pendingInvite.name}"؟</div>
+            <div style={GS.pendingBtnRow}>
+              <button onClick={() => setPendingInvite(null)} style={{ ...GS.dangerBtn, color: "var(--muted2)", background: "var(--surface-sunken)", borderColor: "var(--line)" }}>إلغاء</button>
+              <button onClick={confirmPendingInvite} disabled={joining} style={{ ...GS.createBtn, flex: 1, justifyContent: "center", padding: "10px 0" }}>
+                {joining ? <Loader2 size={14} className="spin" /> : "انضمام"}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -321,13 +290,18 @@ export default function GroupsView({ showToast }) {
             </button>
           </div>
           <div style={GS.divider}>— أو —</div>
-          <div style={GS.cardTitle}>لديك رابط أو رمز دعوة؟</div>
-          <div style={GS.createRow}>
-            <input value={joinCode} onChange={(e) => setJoinCode(e.target.value.trim())} onKeyDown={(e) => e.key === "Enter" && handleJoin(joinCode)} placeholder="الصق رمز الدعوة هنا" style={GS.createInput} />
-            <button onClick={() => handleJoin(joinCode)} disabled={joining || !joinCode} style={GS.createBtn}>
-              {joining ? <Loader2 size={14} className="spin" /> : <UserPlus size={14} />} انضمام
+          {showJoinByCode ? (
+            <div style={GS.createRow}>
+              <input value={manualCode} onChange={(e) => setManualCode(e.target.value.toLowerCase().replace(/\s/g, "").slice(0, 8))} onKeyDown={(e) => e.key === "Enter" && handleCheckCode()} placeholder="اكتب الكود هنا" style={{ ...GS.createInput, direction: "ltr", textAlign: "center", letterSpacing: 2, fontFamily: "monospace" }} autoFocus />
+              <button onClick={handleCheckCode} disabled={checkingCode || !manualCode.trim()} style={GS.createBtn}>
+                {checkingCode ? <Loader2 size={14} className="spin" /> : <UserPlus size={14} />} تحقق وانضم
+              </button>
+            </div>
+          ) : (
+            <button onClick={() => setShowJoinByCode(true)} style={GS.joinByCodeBtn}>
+              <UserPlus size={14} /> الانضمام لجروب بكود
             </button>
-          </div>
+          )}
         </div>
       ) : (
         <>
@@ -359,10 +333,12 @@ export default function GroupsView({ showToast }) {
                 <span style={GS.memberCount}>{(groupDetail || []).length}/10 أعضاء</span>
               </div>
 
-              <div style={GS.inviteRow}>
-                <span style={GS.inviteLinkText}>{`${window.location.origin}/join/${selectedGroup.inviteCode}`}</span>
-                <button onClick={() => copyInviteLink(selectedGroup.inviteCode)} style={GS.copyBtn}><Copy size={12} /> نسخ</button>
+              <div style={GS.codeBox}>
+                <span style={GS.codeBoxLabel}>كود الجروب</span>
+                <span style={GS.codeBoxValue}>{selectedGroup.inviteCode}</span>
+                <button onClick={() => copyInviteCode(selectedGroup.inviteCode)} style={GS.copyBtn}><Copy size={12} /> نسخ الكود</button>
               </div>
+              <div style={GS.codeBoxHint}>شارك هذا الكود مع أصدقائك ليدخلوه من قسم تحديات الأصدقاء</div>
 
               {groupDetail === null ? (
                 <div style={{ display: "flex", justifyContent: "center", padding: 20 }}><Loader2 size={18} className="spin" color="#8A7BD1" /></div>
@@ -405,12 +381,19 @@ export default function GroupsView({ showToast }) {
                 {creating ? <Loader2 size={14} className="spin" /> : <Plus size={14} />} إنشاء
               </button>
             </div>
-            <div style={GS.createRow}>
-              <input value={joinCode} onChange={(e) => setJoinCode(e.target.value.trim())} onKeyDown={(e) => e.key === "Enter" && handleJoin(joinCode)} placeholder="أو الصق رمز دعوة للانضمام" style={GS.createInput} />
-              <button onClick={() => handleJoin(joinCode)} disabled={joining || !joinCode} style={GS.createBtn}>
-                {joining ? <Loader2 size={14} className="spin" /> : <UserPlus size={14} />} انضمام
+            <div style={GS.divider}>— أو —</div>
+            {showJoinByCode ? (
+              <div style={GS.createRow}>
+                <input value={manualCode} onChange={(e) => setManualCode(e.target.value.toLowerCase().replace(/\s/g, "").slice(0, 8))} onKeyDown={(e) => e.key === "Enter" && handleCheckCode()} placeholder="اكتب الكود هنا" style={{ ...GS.createInput, direction: "ltr", textAlign: "center", letterSpacing: 2, fontFamily: "monospace" }} autoFocus />
+                <button onClick={handleCheckCode} disabled={checkingCode || !manualCode.trim()} style={GS.createBtn}>
+                  {checkingCode ? <Loader2 size={14} className="spin" /> : <UserPlus size={14} />} تحقق وانضم
+                </button>
+              </div>
+            ) : (
+              <button onClick={() => setShowJoinByCode(true)} style={GS.joinByCodeBtn}>
+                <UserPlus size={14} /> الانضمام لجروب بكود
               </button>
-            </div>
+            )}
           </div>
         </>
       )}

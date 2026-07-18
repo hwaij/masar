@@ -1099,9 +1099,8 @@ export const store = {
     if (!data?.length) { console.warn("[getGroupByInviteCode] no group matches this invite code:", code); return null; }
     return { id: data[0].id, name: data[0].name };
   },
-  // ينفّذ فعلياً إضافة العضوية بمعرّف جروب معروف مسبقاً - يُستخدم من
-  // joinGroupByCode بعد حلّ الكود، ومن تأكيد رابط الدعوة (الذي يملك الـid
-  // من نداء getGroupByInviteCode السابق بلا حاجة لإعادة حل الكود من جديد).
+  // ينفّذ فعلياً إضافة العضوية بمعرّف جروب معروف مسبقاً (بعد أن يكون
+  // getGroupByInviteCode قد حلّ الكود وعرض اسم الجروب للتأكيد أصلاً).
   async joinGroupById(groupId) {
     if (!useCloud()) throw new Error("NEEDS_ACCOUNT");
     const { error } = await supabase.from("group_members").insert({ group_id: groupId, member_owner: CURRENT_OWNER });
@@ -1112,13 +1111,6 @@ export const store = {
       console.error("[joinGroupById] Supabase error:", error.message);
       throw error;
     }
-  },
-  async joinGroupByCode(code) {
-    if (!useCloud()) throw new Error("NEEDS_ACCOUNT");
-    const group = await store.getGroupByInviteCode(code); // يرمي RPC_ERROR فعلياً عند خطأ تقني، ويرجع null فقط إن كان الرمز غير موجود حقاً
-    if (!group) throw new Error("GROUP_NOT_FOUND");
-    await store.joinGroupById(group.id);
-    return group;
   },
   async leaveGroup(groupId) {
     const { error } = await supabase.from("group_members").delete().eq("group_id", groupId).eq("member_owner", CURRENT_OWNER);

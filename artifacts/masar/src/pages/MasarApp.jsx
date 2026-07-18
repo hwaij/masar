@@ -210,10 +210,7 @@ const YS = {
 export default function MasarApp() {
   const [loaded, setLoaded] = useState(false);
   const [showSplash, setShowSplash] = useState(() => !sessionStorage.getItem("masar_splash_done"));
-  // رابط دعوة جروب (/join/{code}) يجب أن يفتح قسم "تحديات الأصدقاء" فوراً
-  // عند تحميل الصفحة لأول مرة، وإلا فمنطق قراءة الرابط داخل GroupsView لن
-  // يُنفَّذ أصلاً (لا يُركَّب هذا القسم إلا عندما تكون هذه القيمة "groups").
-  const [view, setView] = useState(() => (/^\/join\//.test(window.location.pathname) ? "groups" : "today"));
+  const [view, setView] = useState("today");
   const [entries, setEntries] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [categories, setCategories] = useState([]);

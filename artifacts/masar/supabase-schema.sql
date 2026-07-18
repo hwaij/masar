@@ -145,6 +145,10 @@ alter table nutrition_log add column if not exists sodium numeric not null defau
 -- عبر check constraint قديم لا يعرفها؛ يُعاد إنشاؤه هنا ليشملها أيضاً.
 alter table nutrition_log drop constraint if exists nutrition_log_source_check;
 alter table nutrition_log add constraint nutrition_log_source_check check (source in ('barcode', 'manual', 'search', 'ai_photo'));
+-- وحدة القياس التي اختارها المستخدم فعلياً عند التسجيل (غرام افتراضياً)،
+-- تُحفظ منفصلة حتى يظهر السجل لاحقاً بنفس الوحدة، حتى لو كانت القيم
+-- الغذائية نفسها محسوبة مسبقاً بمكافئها بالغرام.
+alter table nutrition_log add column if not exists unit text not null default 'g';
 
 -- مفتاحها (owner, barcode) — لو أدخل المستخدم منتجاً يدوياً لباركود غير
 -- موجود في Open Food Facts، يُستخدم هذا الصف تلقائياً في المرة القادمة

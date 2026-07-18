@@ -11,6 +11,7 @@ import {
   sumNutritionEntries, waterGoalCups, servingPresets,
   isSecureContextForCamera, describeCameraError,
   normalizeSearchTerm, recognizeMealFromImage, DAILY_GUIDELINES,
+  UNIT_OPTIONS, unitById, unitToGrams,
 } from "../lib/nutrition";
 import { requestNotificationPermission } from "../lib/push";
 import { S } from "./styles";
@@ -105,6 +106,18 @@ const NS = {
   compactUpsell: { display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: 6, padding: "10px 6px" },
   compactUpsellTitle: { fontSize: 13, fontWeight: 700, color: "var(--ink)" },
   compactUpsellMsg: { fontSize: 11.5, color: "var(--muted2)", lineHeight: 1.6 },
+
+  unitRow: { display: "flex", gap: 10, marginBottom: 10 },
+  unitSelect: { flex: 1, minHeight: 44, background: "var(--surface-sunken)", border: "1px solid var(--border2)", borderRadius: 10, padding: "0 10px", color: "var(--ink)", fontSize: 13.5, fontFamily: "inherit" },
+  unitQtyInput: { width: 90, minHeight: 44, background: "var(--surface-sunken)", border: "1px solid var(--border2)", borderRadius: 10, padding: "0 10px", color: "var(--ink)", fontSize: 14, fontFamily: "inherit", textAlign: "center" },
+  unitApproxNote: { fontSize: 11.5, color: "var(--muted2)", lineHeight: 1.6, marginTop: -4, marginBottom: 10 },
+
+  ringsRow: { display: "flex", justifyContent: "space-between", gap: 6, marginTop: 16, marginBottom: 2 },
+  ringItem: { display: "flex", flexDirection: "column", alignItems: "center", gap: 3, flex: 1 },
+  ringSvgWrap: { position: "relative", width: 64, height: 64 },
+  ringPercent: { position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12.5, fontWeight: 700, color: "var(--ink)" },
+  ringLabel: { fontSize: 11, fontWeight: 700, color: "var(--ink-soft)" },
+  ringValueText: { fontSize: 9.5, color: "var(--muted2)" },
 };
 
 const SUBSCRIBE_URL = "https://www.instagram.com/hjmasar";
@@ -237,15 +250,80 @@ function ManualBarcodeEntry({ onSubmit }) {
   );
 }
 
+// دائرة تقدم واحدة (SVG). تبدأ الحيوية من صفر عند أول ظهور (useEffect +
+// setTimeout قصير) ثم تتحرك بانتقال CSS سلس نحو النسبة الفعلية - وبما أن
+// "percent" prop يتغيّر تلقائياً عند إضافة طعام جديد (يُعاد حساب المجاميع)،
+// نفس آلية الحركة تعمل تلقائياً لأي تحديث لاحق أيضاً، لا فقط عند التحميل.
+function ProgressRing({ percent, color, label, valueText, size = 64, strokeWidth = 7 }) {
+  const [animated, setAnimated] = useState(0);
+  useEffect(() => {
+    const t = setTimeout(() => setAnimated(percent), 50);
+    return () => clearTimeout(t);
+  }, [percent]);
+  const r = (size - strokeWidth) / 2;
+  const c = 2 * Math.PI * r;
+  const ringFraction = Math.max(0, Math.min(100, animated)) / 100;
+  const offset = c - ringFraction * c;
+  const displayPercent = Math.max(0, Math.round(animated));
+  return (
+    <div style={NS.ringItem}>
+      <div style={NS.ringSvgWrap}>
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+          <circle cx={size / 2} cy={size / 2} r={r} stroke="var(--surface-sunken)" strokeWidth={strokeWidth} fill="none" />
+          <circle
+            cx={size / 2} cy={size / 2} r={r} stroke={color} strokeWidth={strokeWidth} fill="none"
+            strokeDasharray={c} strokeDashoffset={offset} strokeLinecap="round"
+            transform={`rotate(-90 ${size / 2} ${size / 2})`}
+            style={{ transition: "stroke-dashoffset 0.9s cubic-bezier(.4,0,.2,1)" }}
+          />
+        </svg>
+        <div style={NS.ringPercent}>{displayPercent}%</div>
+      </div>
+      <div style={NS.ringLabel}>{label}</div>
+      <div style={NS.ringValueText}>{valueText}</div>
+    </div>
+  );
+}
+
+// أربع دوائر ملونة (بروتين/كارب/دهون/صوديوم) بجانب بطاقة الاحتياج
+// الخطية الموجودة أصلاً - عرض بصري إضافي مكمّل، لا بديل يحذف الأرقام
+// الموجودة. ألوان مميّزة لكل ماكرو (الصوديوم بنفس لون شريطه الخطي أعلاه
+// حتى يبقى "الصوديوم = أحمر" متسقاً في كل الواجهة).
+function MacroRings({ totals, macroTargets }) {
+  const rings = [
+    { key: "protein", label: "بروتين", color: "#C9A24B", value: totals.protein, target: macroTargets?.protein, unit: "غ" },
+    { key: "carbs", label: "كارب", color: "#4C8BF5", value: totals.carbs, target: macroTargets?.carbs, unit: "غ" },
+    { key: "fat", label: "دهون", color: "#E8B93E", value: totals.fat, target: macroTargets?.fat, unit: "غ" },
+    { key: "sodium", label: "صوديوم", color: "#D17B5F", value: totals.sodium, target: DAILY_GUIDELINES.sodiumMaxMg, unit: "مغ" },
+  ];
+  return (
+    <div style={NS.ringsRow}>
+      {rings.map((r) => {
+        const percent = r.target ? (r.value / r.target) * 100 : 0;
+        const valueText = r.target ? `${Math.round(r.value)}/${Math.round(r.target)}${r.unit}` : `${Math.round(r.value)}${r.unit}`;
+        return <ProgressRing key={r.key} percent={percent} color={r.color} label={r.label} valueText={valueText} />;
+      })}
+    </div>
+  );
+}
+
 function ConfirmQuantityCard({ product, source, onAdd, onCancel }) {
   const hasServing = !!product.servingGrams;
+  const [unit, setUnit] = useState("g");
   const [multiplier, setMultiplier] = useState(1);
   const [grams, setGrams] = useState(hasServing ? Math.round(product.servingGrams) : 100);
-  // تُطبَّق الحصص (×1/×2/...) فقط عندما يملك المنتج حجم حصة معروفاً؛ خلاف
-  // ذلك يبقى إدخال الغرامات مباشرة هو الخيار الوحيد (كما كان سابقاً).
-  useEffect(() => { if (hasServing) setGrams(Math.round(product.servingGrams * multiplier)); }, [multiplier, hasServing, product.servingGrams]);
+  const [unitQty, setUnitQty] = useState(1);
+  // تُطبَّق الحصص (×1/×2/...) فقط عندما يملك المنتج حجم حصة معروفاً، وفقط
+  // في وضع "غرام" (الوضع الافتراضي)؛ خلاف ذلك يبقى إدخال الغرامات مباشرة
+  // هو الخيار الوحيد (كما كان سابقاً).
+  useEffect(() => { if (unit === "g" && hasServing) setGrams(Math.round(product.servingGrams * multiplier)); }, [multiplier, hasServing, product.servingGrams, unit]);
   const presets = servingPresets(product.servingGrams);
-  const preview = scaleNutrients(product, grams || 0);
+  // أي وحدة غير الغرام تُحوَّل داخلياً لغرام/مليلتر مكافئ (تقدير تقريبي
+  // لغير الأوزان المباشرة) قبل حساب القيم الغذائية، حتى يبقى scaleNutrients
+  // بمعامل غرام/100 وحيد بغض النظر عن الوحدة التي اختارها المستخدم.
+  const gramsEquivalent = unit === "g" ? grams : unitToGrams(unit, unitQty, product.servingGrams);
+  const preview = scaleNutrients(product, gramsEquivalent || 0);
+  const unitMeta = unitById(unit);
 
   return (
     <>
@@ -256,29 +334,45 @@ function ConfirmQuantityCard({ product, source, onAdd, onCancel }) {
           <div style={NS.productMeta}>{product.caloriesPer100g} سعرة / 100غم</div>
         </div>
       </div>
-      {hasServing && (
+      <label style={S.label}>وحدة القياس</label>
+      <div style={NS.unitRow}>
+        <select value={unit} onChange={(e) => setUnit(e.target.value)} style={NS.unitSelect}>
+          {UNIT_OPTIONS.map((u) => <option key={u.id} value={u.id}>{u.label}</option>)}
+        </select>
+      </div>
+      {unit === "g" ? (
         <>
-          <label style={S.label}>عدد الحصص (كل حصة {Math.round(product.servingGrams)} غم)</label>
-          <div style={NS.multiplierRow}>
-            {[1, 2, 3, 4, 5].map((n) => (
-              <button key={n} onClick={() => setMultiplier(n)} style={{ ...NS.multiplierBtn, ...(multiplier === n ? NS.multiplierBtnActive : {}) }}>×{n}</button>
-            ))}
-            <input
-              type="number" inputMode="decimal" value={multiplier}
-              onChange={(e) => setMultiplier(Math.max(0.25, Number(e.target.value) || 0))}
-              style={NS.multiplierInput}
-            />
-          </div>
+          {hasServing && (
+            <>
+              <label style={S.label}>عدد الحصص (كل حصة {Math.round(product.servingGrams)} غم)</label>
+              <div style={NS.multiplierRow}>
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <button key={n} onClick={() => setMultiplier(n)} style={{ ...NS.multiplierBtn, ...(multiplier === n ? NS.multiplierBtnActive : {}) }}>×{n}</button>
+                ))}
+                <input
+                  type="number" inputMode="decimal" value={multiplier}
+                  onChange={(e) => setMultiplier(Math.max(0.25, Number(e.target.value) || 0))}
+                  style={NS.multiplierInput}
+                />
+              </div>
+            </>
+          )}
+          <label style={S.label}>{hasServing ? "أو عدّل الكمية بالغرام مباشرة" : "الكمية (غم)"}</label>
+          <input type="number" inputMode="decimal" value={grams} onChange={(e) => setGrams(Number(e.target.value))} style={S.input} />
+          {!hasServing && (
+            <div style={NS.presetRow}>
+              {presets.map((p) => (
+                <button key={p.label} onClick={() => setGrams(p.grams)} style={{ ...NS.presetChip, ...(grams === p.grams ? NS.presetChipActive : {}) }}>{p.label}</button>
+              ))}
+            </div>
+          )}
         </>
-      )}
-      <label style={S.label}>{hasServing ? "أو عدّل الكمية بالغرام مباشرة" : "الكمية (غم)"}</label>
-      <input type="number" inputMode="decimal" value={grams} onChange={(e) => setGrams(Number(e.target.value))} style={S.input} />
-      {!hasServing && (
-        <div style={NS.presetRow}>
-          {presets.map((p) => (
-            <button key={p.label} onClick={() => setGrams(p.grams)} style={{ ...NS.presetChip, ...(grams === p.grams ? NS.presetChipActive : {}) }}>{p.label}</button>
-          ))}
-        </div>
+      ) : (
+        <>
+          <label style={S.label}>الكمية ({unitMeta.label})</label>
+          <input type="number" inputMode="decimal" value={unitQty} onChange={(e) => setUnitQty(Number(e.target.value) || 0)} style={S.input} />
+          {unitMeta.approx && <p style={NS.unitApproxNote}>تحويل تقريبي إلى غرام لحساب القيم الغذائية (وحدة غير وزنية).</p>}
+        </>
       )}
       <div style={NS.previewGrid}>
         <div style={NS.previewChip}><div style={NS.macroValue}>{preview.calories}</div><div style={NS.macroLabel}>سعرة</div></div>
@@ -294,10 +388,14 @@ function ConfirmQuantityCard({ product, source, onAdd, onCancel }) {
       <button
         onClick={() => onAdd({
           id: uid(), foodName: product.name, ...preview,
-          servingInfo: hasServing ? `${multiplier} × ${Math.round(product.servingGrams)}غم` : `${grams} غم`, source,
+          unit,
+          servingInfo: unit === "g"
+            ? (hasServing ? `${multiplier} × ${Math.round(product.servingGrams)}غم` : `${grams} غم`)
+            : `${unitQty} ${unitMeta.label}`,
+          source,
         })}
         style={S.saveBtn}
-        disabled={!grams || grams <= 0}
+        disabled={!gramsEquivalent || gramsEquivalent <= 0}
       >
         إضافة إلى سجل اليوم
       </button>
@@ -308,11 +406,12 @@ function ConfirmQuantityCard({ product, source, onAdd, onCancel }) {
 
 function ManualEntryForm({ barcode, onSave, onCancel }) {
   const [draft, setDraft] = useState({
-    foodName: "", brand: "", country: "", servingSizeLabel: "", servingGrams: "",
+    foodName: "", brand: "", country: "", servingSizeLabel: "", unit: "g", qty: "",
     calories: "", protein: "", carbs: "", fat: "", fiber: "", sugar: "", sodium: "", imageUrl: "",
   });
   function change(field, val) { setDraft((d) => ({ ...d, [field]: val })); }
   const valid = draft.foodName.trim() && Number(draft.calories) > 0;
+  const unitMeta = unitById(draft.unit);
 
   return (
     <>
@@ -329,16 +428,21 @@ function ManualEntryForm({ barcode, onSave, onCancel }) {
           <input value={draft.country} onChange={(e) => change("country", e.target.value)} placeholder="اختياري" style={S.input} />
         </div>
       </div>
+      <label style={S.label}>وصف حجم الحصة (اختياري)</label>
+      <input value={draft.servingSizeLabel} onChange={(e) => change("servingSizeLabel", e.target.value)} placeholder="مثال: علبة 35غم" style={S.input} />
       <div style={{ display: "flex", gap: 10 }}>
         <div style={{ flex: 1 }}>
-          <label style={S.label}>وصف حجم الحصة</label>
-          <input value={draft.servingSizeLabel} onChange={(e) => change("servingSizeLabel", e.target.value)} placeholder="مثال: علبة 35غم" style={S.input} />
+          <label style={S.label}>وحدة القياس</label>
+          <select value={draft.unit} onChange={(e) => change("unit", e.target.value)} style={NS.unitSelect}>
+            {UNIT_OPTIONS.map((u) => <option key={u.id} value={u.id}>{u.label}</option>)}
+          </select>
         </div>
         <div style={{ flex: 1 }}>
-          <label style={S.label}>حجم الحصة (غم)</label>
-          <input type="number" inputMode="decimal" value={draft.servingGrams} onChange={(e) => change("servingGrams", e.target.value)} placeholder="35" style={S.input} />
+          <label style={S.label}>الكمية المُستهلكة الآن ({unitMeta.label})</label>
+          <input type="number" inputMode="decimal" value={draft.qty} onChange={(e) => change("qty", e.target.value)} placeholder="35" style={S.input} />
         </div>
       </div>
+      {unitMeta.approx && <p style={NS.unitApproxNote}>تحويل تقريبي إلى غرام (وحدة غير وزنية).</p>}
       <p style={{ ...S.label, marginTop: 16, marginBottom: 4 }}>القيم الغذائية (لكل 100غم)</p>
       <label style={S.label}>السعرات الحرارية</label>
       <input type="number" inputMode="decimal" value={draft.calories} onChange={(e) => change("calories", e.target.value)} placeholder="مثال: 250" style={S.input} />
@@ -379,7 +483,11 @@ function ManualEntryForm({ barcode, onSave, onCancel }) {
             carbs: Number(draft.carbs) || 0, fat: Number(draft.fat) || 0,
             fiber: Number(draft.fiber) || 0, sugar: Number(draft.sugar) || 0, sodium: Number(draft.sodium) || 0,
           };
-          const grams = Number(draft.servingGrams) || 100;
+          // الكمية المُدخلة قد تكون بأي وحدة (ملعقة، كوب، قطعة...)؛ تُحوَّل هنا
+          // إلى غرام مكافئ فقط لحساب القيم الغذائية والحفظ - القيم لكل 100غم
+          // (productPer100) تبقى كما أدخلها المستخدم دائماً بالغرام (المعيار
+          // المعروف لبطاقات التغذية)، بغض النظر عن وحدة "الكمية المُستهلكة".
+          const grams = unitToGrams(draft.unit, draft.qty, null) || 100;
           const factor = grams / 100;
           onSave({
             id: uid(), foodName: draft.foodName.trim(),
@@ -387,12 +495,15 @@ function ManualEntryForm({ barcode, onSave, onCancel }) {
             carbs: Math.round(per100.carbs * factor * 10) / 10, fat: Math.round(per100.fat * factor * 10) / 10,
             fiber: Math.round(per100.fiber * factor * 10) / 10, sugar: Math.round(per100.sugar * factor * 10) / 10,
             sodium: Math.round(per100.sodium * factor),
-            servingInfo: draft.servingSizeLabel.trim() || `${grams} غم`, source: "manual", barcode,
+            unit: draft.unit,
+            servingInfo: draft.servingSizeLabel.trim() || `${draft.qty || grams} ${unitMeta.label}`, source: "manual", barcode,
             // بيانات المنتج الكاملة (لكل 100غم) - تُحفظ في custom_foods إن
             // كان هناك باركود، حتى تُستخدم صحيحة لأي كمية لاحقة، لا فقط
-            // بنفس كمية هذه المرة.
+            // بنفس كمية هذه المرة. servingGrams يُحفظ دائماً بالغرام الحقيقي
+            // (بعد التحويل) حتى يبقى مرجع المنتج المشترك متسقاً بغض النظر
+            // عن الوحدة التي فكّر بها هذا المستخدم تحديداً.
             productPer100: per100, brand: draft.brand.trim(), country: draft.country.trim(),
-            servingSizeLabel: draft.servingSizeLabel.trim(), servingGrams: Number(draft.servingGrams) || null,
+            servingSizeLabel: draft.servingSizeLabel.trim(), servingGrams: grams || null,
             imageUrl: draft.imageUrl.trim(),
           });
         }}
@@ -412,6 +523,12 @@ function SearchPanel({ onPick, onManual }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [searched, setSearched] = useState(false);
+  // يحرس ضد سباق حالات بين طلبات بحث متتالية: لو ضغط المستخدم بحث/Enter
+  // أكثر من مرة بسرعة (مثلاً عدّل النص وبحث من جديد قبل عودة الرد الأول)،
+  // كانت النتيجة القديمة قد تصل بعد الجديدة وتكتب فوقها فيبدو البحث وكأنه
+  // يحتاج إعادة محاولة. كل نداء لـ runSearch يأخذ رقماً تسلسلياً، ولا يُطبَّق
+  // أي رد لم يعد رقمه الأحدث المسجَّل وقت وصوله.
+  const requestIdRef = useRef(0);
 
   // بحث "ذكي": يبحث مباشرة أولاً، وإن جاءت النتائج فارغة يبحث عن مرادف
   // (عربي أو إنجليزي) في جدول food_synonyms ويعيد المحاولة بالمصطلح
@@ -420,13 +537,17 @@ function SearchPanel({ onPick, onManual }) {
   async function runSearch() {
     const q = normalizeSearchTerm(query);
     if (!q) return;
+    const requestId = ++requestIdRef.current;
     setLoading(true); setError(null); setSearched(true);
     const res = await searchProductsByName(q);
+    if (requestId !== requestIdRef.current) return; // رد متأخر لطلب سابق، تجاهله
     if (!res.ok) { setLoading(false); setError(res.error); setResults([]); return; }
     if (res.products.length > 0) { setLoading(false); setResults(res.products); return; }
     const canonical = await store.lookupFoodSynonym(q);
+    if (requestId !== requestIdRef.current) return;
     if (canonical && normalizeSearchTerm(canonical) !== q) {
       const retry = await searchProductsByName(canonical);
+      if (requestId !== requestIdRef.current) return;
       setLoading(false);
       setResults(retry.ok ? retry.products : []);
       return;
@@ -596,6 +717,15 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
   const totals = sumNutritionEntries(todayLog);
   const tee = healthProfile?.tee || null;
   const teePercent = tee ? Math.min(100, Math.round((totals.calories / tee) * 100)) : 0;
+  // أهداف الماكروز لدوائر التقدم: نسبة عامة معروفة (بروتين 30%، كارب 40%،
+  // دهون 30% من السعرات) وليست حساباً شخصياً دقيقاً - نفس مبدأ "تقديرية"
+  // المستخدم فعلاً في إرشادات الألياف/السكر/الصوديوم أعلاه. تُحسب فقط إن
+  // أكمل المستخدم بياناته في "أنت" (وإلا لا يوجد TEE أصلاً لتقسيمه).
+  const macroTargets = tee ? {
+    protein: Math.round((tee * 0.3) / 4),
+    carbs: Math.round((tee * 0.4) / 4),
+    fat: Math.round((tee * 0.3) / 9),
+  } : null;
   const todayCups = waterLog[today] || 0;
   const cupsGoal = waterGoalCups(healthProfile?.weightKg);
   const waterPercent = cupsGoal ? Math.min(100, Math.round((todayCups / cupsGoal) * 100)) : 0;
@@ -749,6 +879,8 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
           <div style={NS.macroChip}><div style={NS.macroValue}>{Math.round(totals.carbs * 10) / 10}غ</div><div style={NS.macroLabel}>كارب</div></div>
           <div style={NS.macroChip}><div style={NS.macroValue}>{Math.round(totals.fat * 10) / 10}غ</div><div style={NS.macroLabel}>دهون</div></div>
         </div>
+
+        <MacroRings totals={totals} macroTargets={macroTargets} />
 
         <div style={{ marginTop: 16 }}>
           {[

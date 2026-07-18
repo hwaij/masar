@@ -407,7 +407,7 @@ export const store = {
       const items = data.map((r) => ({
         id: r.id, date: r.date, foodName: r.food_name, calories: r.calories, protein: r.protein,
         carbs: r.carbs, fat: r.fat, fiber: r.fiber || 0, sugar: r.sugar || 0, sodium: r.sodium || 0,
-        servingInfo: r.serving_info || "", source: r.source,
+        servingInfo: r.serving_info || "", source: r.source, unit: r.unit || "g",
       }));
       lsSet("masar_nutrition_log", items);
       return items;
@@ -422,7 +422,7 @@ export const store = {
           id: entry.id, owner: CURRENT_OWNER, date: entry.date, food_name: entry.foodName,
           calories: entry.calories, protein: entry.protein, carbs: entry.carbs, fat: entry.fat,
           fiber: entry.fiber || 0, sugar: entry.sugar || 0, sodium: entry.sodium || 0,
-          serving_info: entry.servingInfo || "", source: entry.source,
+          serving_info: entry.servingInfo || "", source: entry.source, unit: entry.unit || "g",
         });
         if (error) console.error("[addNutritionEntry] Supabase error:", error.message);
       } catch (e) { console.error("[addNutritionEntry] write failed:", e); }

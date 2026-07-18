@@ -118,6 +118,39 @@ export function servingPresets(servingGrams) {
   return presets;
 }
 
+// وحدات القياس المتاحة عند تسجيل الطعام. "factor" يحوّل رقماً واحداً من
+// الوحدة إلى غرام/مليلتر مباشرة (تقديرات معيارية معروفة)؛ "piece" و
+// "serving" ليس لهما تحويل ثابت لأن وزنهما يعتمد على المنتج نفسه، فتُحسب
+// عبر servingGrams إن كان معروفاً (وإلا افتراض معقول 100غم). "approx"
+// يُستخدم لعرض ملاحظة "تقدير تقريبي" بجانب أي وحدة ليست وزناً مباشراً.
+export const UNIT_OPTIONS = [
+  { id: "g", label: "غرام (g)", factor: 1, approx: false },
+  { id: "kg", label: "كيلوغرام (kg)", factor: 1000, approx: false },
+  { id: "ml", label: "مليلتر (ml)", factor: 1, approx: true },
+  { id: "l", label: "لتر (L)", factor: 1000, approx: true },
+  { id: "tbsp", label: "ملعقة كبيرة", factor: 15, approx: true },
+  { id: "tsp", label: "ملعقة صغيرة", factor: 5, approx: true },
+  { id: "cup", label: "كوب", factor: 240, approx: true },
+  { id: "piece", label: "قطعة", factor: null, approx: true },
+  { id: "serving", label: "حصة", factor: null, approx: true },
+];
+
+export function unitById(unitId) {
+  return UNIT_OPTIONS.find((u) => u.id === unitId) || UNIT_OPTIONS[0];
+}
+
+// يحوّل كمية مُدخلة بأي وحدة إلى غرام/مليلتر مكافئ لاستخدامه مباشرة في
+// scaleNutrients (التي تحسب دائماً بمعامل غرام/100). "قطعة"/"حصة" ليس لهما
+// معامل ثابت فتُستخدم servingGrams الفعلية للمنتج إن توفرت، أو 100 كافتراض
+// معقول عند غيابها.
+export function unitToGrams(unitId, qty, servingGrams) {
+  const unit = unitById(unitId);
+  const n = Number(qty) || 0;
+  if (unit.factor != null) return n * unit.factor;
+  const base = servingGrams && servingGrams > 0 ? servingGrams : 100;
+  return n * base;
+}
+
 // يحسب القيم الفعلية لكمية معيّنة بالغرام انطلاقاً من قيم كل 100غم.
 export function scaleNutrients(product, grams) {
   const factor = grams / 100;

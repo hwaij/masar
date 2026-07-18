@@ -439,16 +439,24 @@ export const store = {
     try {
       const { error } = await supabase.from("nutrition_log").insert(payload);
       if (error) {
-        console.error("[addNutritionEntry] Supabase error:", error.message);
+        // يُمرَّر كامل تفاصيل خطأ Supabase (message + code + details + hint)
+        // للمستدعي حتى تُعرض كما هي في الواجهة مؤقتاً لأغراض التشخيص.
+        console.error("[addNutritionEntry] Supabase error:", error);
         lsSet("masar_nutrition_log", local); // تراجع محلياً أيضاً - لم يُحفظ فعلياً
-        return { ok: false, error: error.message };
+        return {
+          ok: false,
+          error: error.message,
+          code: error.code || null,
+          details: error.details || null,
+          hint: error.hint || null,
+        };
       }
       console.log("[nutrition] addNutritionEntry: نجح الحفظ في Supabase");
       return { ok: true };
     } catch (e) {
       console.error("[addNutritionEntry] write failed:", e);
       lsSet("masar_nutrition_log", local);
-      return { ok: false, error: String(e) };
+      return { ok: false, error: String(e), code: null, details: null, hint: null };
     }
   },
   async deleteNutritionEntry(id) {

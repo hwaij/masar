@@ -696,6 +696,10 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
   const [pendingBarcode, setPendingBarcode] = useState(null);
   const [lookupBusy, setLookupBusy] = useState(false);
   const [lookupError, setLookupError] = useState(null);
+  // مؤقت لأغراض التشخيص: نص خطأ Supabase الحقيقي الكامل لآخر محاولة حفظ
+  // فاشلة - يُعرض داخل الشاشة المنبثقة نفسها (لا توست فقط، لأن التوست يختفي
+  // بعد ثانيتين ولا يكفي لقراءة/نسخ رسالة خطأ تفصيلية).
+  const [saveError, setSaveError] = useState(null);
   const [dailyAnalysis, setDailyAnalysis] = useState(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
 
@@ -735,6 +739,7 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
     setPendingProduct(null);
     setPendingBarcode(null);
     setLookupError(null);
+    setSaveError(null);
   }
 
   // خلل حقيقي كان موجوداً وأُصلح: كانت هذه الدالة تُظهر "أُضيف بنجاح" دائماً
@@ -745,6 +750,7 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
   // القاعدة التي لم تستلم الصف أصلاً. الآن تتحقق من نتيجة الحفظ الحقيقية،
   // وتتراجع عن التحديث المتفائل + تُظهر خطأً حقيقياً للمستخدم عند أي فشل.
   async function addEntry(entry) {
+    setSaveError(null);
     const full = { ...entry, date: today };
     setNutritionLog((prev) => [full, ...prev]);
     const result = await store.addNutritionEntry(full);
@@ -753,7 +759,21 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
       closeSheet();
     } else {
       setNutritionLog((prev) => prev.filter((e) => e.id !== full.id));
-      showToast("تعذّر حفظ السجل فعلياً، تحقق من اتصالك وحاول مرة أخرى");
+      // مؤقت لأغراض التشخيص: تُعرض رسالة خطأ Supabase الحقيقية نصاً كما هي
+      // (error.message و error.code والتفاصيل إن وُجدت) بدل الرسالة العامة،
+      // حتى يُعرف السبب الفعلي للفشل مباشرة من الواجهة دون فتح console.
+      // تُعرض في صندوق ثابت داخل الشاشة (لا توست فقط - التوست يختفي بعد
+      // ثانيتين ولا يكفي لقراءة رسالة تفصيلية) وتُعاد رسالة ودّية عامة بعد
+      // اكتمال التشخيص.
+      const parts = [
+        `message: ${result.error || "(بدون رسالة)"}`,
+        result.code ? `code: ${result.code}` : null,
+        result.details ? `details: ${result.details}` : null,
+        result.hint ? `hint: ${result.hint}` : null,
+      ].filter(Boolean);
+      const fullError = `خطأ Supabase الفعلي → ${parts.join(" | ")}`;
+      setSaveError(fullError);
+      showToast(`فشل الحفظ - ${parts[0]}${result.code ? ` | code: ${result.code}` : ""}`);
     }
   }
 
@@ -974,6 +994,15 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
                   {sheet === "lookup" && "جاري البحث..."}
                 </span>
                 <button onClick={closeSheet} style={NS.closeBtn}><X size={16} /></button>
+              </div>
+            )}
+
+            {saveError && (
+              <div
+                ref={(el) => { if (el) el.scrollIntoView({ behavior: "smooth", block: "nearest" }); }}
+                style={{ ...NS.errorText, direction: "ltr", textAlign: "left", wordBreak: "break-word", userSelect: "text" }}
+              >
+                {saveError}
               </div>
             )}
 

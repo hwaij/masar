@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Plus, X, Trash2, Camera, Search, Loader2, Droplet, Flame, Check, Bell,
+  Hash, Sparkles, ImagePlus,
 } from "lucide-react";
 import { store } from "../lib/store";
-import { todayKey, uid } from "../lib/helpers";
+import { todayKey, uid, analyze, parseJsonLoose } from "../lib/helpers";
+import { isActiveSubscriber } from "../lib/subscription";
 import {
   fetchProductByBarcode, searchProductsByName, scaleNutrients,
   sumNutritionEntries, waterGoalCups, servingPresets,
   isSecureContextForCamera, describeCameraError,
+  normalizeSearchTerm, recognizeMealFromImage, DAILY_GUIDELINES,
 } from "../lib/nutrition";
 import { requestNotificationPermission } from "../lib/push";
 import { S } from "./styles";
@@ -45,8 +48,11 @@ const NS = {
   sheetHead: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
   sheetTitle: { fontSize: 15.5, fontWeight: 700, color: "var(--ink)" },
   closeBtn: { background: "var(--surface-sunken)", border: "none", borderRadius: "50%", width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted2)", cursor: "pointer" },
-  chooserBtn: { display: "flex", alignItems: "center", gap: 10, width: "100%", background: "var(--surface-sunken)", border: "1px solid var(--border2)", borderRadius: 12, padding: "13px 14px", fontSize: 14, fontWeight: 600, color: "var(--ink)", cursor: "pointer", fontFamily: "inherit", marginBottom: 10 },
-  chooserIcon: { width: 32, height: 32, borderRadius: 10, background: "rgba(201,162,75,0.12)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--gold)", flexShrink: 0 },
+  chooserGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 },
+  chooserBtn: { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", minHeight: 96, background: "var(--surface-sunken)", border: "1px solid var(--border2)", borderRadius: 14, padding: "16px 10px", fontSize: 13, fontWeight: 700, color: "var(--ink)", cursor: "pointer", fontFamily: "inherit", textAlign: "center", lineHeight: 1.3 },
+  chooserBtnDisabled: { opacity: 0.55, cursor: "not-allowed" },
+  chooserIcon: { width: 40, height: 40, borderRadius: 12, background: "rgba(201,162,75,0.12)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--gold)", flexShrink: 0 },
+  chooserBadge: { fontSize: 9.5, fontWeight: 700, color: "var(--gold)", background: "rgba(201,162,75,0.14)", borderRadius: 20, padding: "2px 8px" },
   scannerBox: { width: "100%", borderRadius: 14, overflow: "hidden", background: "#000", marginBottom: 12, minHeight: 220 },
   scanHint: { fontSize: 12, color: "var(--muted2)", textAlign: "center", marginBottom: 10 },
   errorText: { fontSize: 12.5, color: "#D17B5F", background: "rgba(209,123,95,0.1)", border: "1px solid rgba(209,123,95,0.3)", borderRadius: 10, padding: "9px 11px", marginBottom: 12, lineHeight: 1.6 },
@@ -72,7 +78,36 @@ const NS = {
   notifRow: { display: "flex", gap: 8 },
   notifBtn: { flex: 1, background: "var(--gold)", color: "var(--bg)", border: "none", borderRadius: 10, padding: "8px 0", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
   notifDismissBtn: { flex: 1, background: "transparent", border: "1px solid var(--border2)", color: "var(--muted2)", borderRadius: 10, padding: "8px 0", fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" },
+
+  servingLabel: { fontSize: 12.5, color: "var(--muted2)", marginBottom: 8 },
+  multiplierRow: { display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" },
+  multiplierBtn: { minWidth: 44, minHeight: 44, borderRadius: 12, border: "1px solid var(--border2)", background: "var(--surface-sunken)", color: "var(--ink)", fontSize: 15, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
+  multiplierBtnActive: { border: "1px solid var(--gold)", background: "rgba(201,162,75,0.14)", color: "var(--gold)" },
+  multiplierInput: { width: 60, minHeight: 44, borderRadius: 12, border: "1px solid var(--border2)", background: "var(--surface-sunken)", color: "var(--ink)", fontSize: 15, fontWeight: 700, textAlign: "center", fontFamily: "inherit" },
+
+  guidelineRow: { marginBottom: 12 },
+  guidelineHead: { display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--muted2)", marginBottom: 5 },
+  guidelineName: { fontWeight: 700, color: "var(--ink-soft)" },
+
+  disclaimerBox: { display: "flex", gap: 8, alignItems: "flex-start", background: "rgba(201,162,75,0.08)", border: "1px solid rgba(201,162,75,0.3)", borderRadius: 12, padding: "10px 11px", marginBottom: 12, fontSize: 12, color: "var(--ink-soft)", lineHeight: 1.7 },
+  photoDropZone: { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", minHeight: 140, background: "var(--surface-sunken)", border: "1.5px dashed var(--border2)", borderRadius: 14, cursor: "pointer", color: "var(--muted2)", fontSize: 13, fontWeight: 600, marginBottom: 12 },
+  photoPreview: { width: "100%", maxHeight: 200, objectFit: "cover", borderRadius: 14, marginBottom: 12 },
+  itemsChipsRow: { display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 },
+  itemChip: { fontSize: 12, fontWeight: 600, color: "var(--ink-soft)", background: "var(--surface-sunken)", border: "1px solid var(--border2)", borderRadius: 20, padding: "5px 12px" },
+  editableGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 4 },
+
+  aiAnalysisCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "14px 14px", marginBottom: 14 },
+  aiAnalysisHead: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
+  aiAnalysisTitle: { display: "flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 700, color: "var(--muted2)" },
+  aiAnalysisBtn: { display: "flex", alignItems: "center", gap: 6, background: "rgba(201,162,75,0.12)", border: "1px solid rgba(201,162,75,0.35)", color: "var(--gold)", borderRadius: 20, padding: "7px 14px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", minHeight: 44 },
+  aiAnalysisText: { fontSize: 13, color: "var(--ink-soft)", lineHeight: 1.8 },
+
+  compactUpsell: { display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: 6, padding: "10px 6px" },
+  compactUpsellTitle: { fontSize: 13, fontWeight: 700, color: "var(--ink)" },
+  compactUpsellMsg: { fontSize: 11.5, color: "var(--muted2)", lineHeight: 1.6 },
 };
+
+const SUBSCRIBE_URL = "https://www.instagram.com/hjmasar";
 
 const BARCODE_FORMATS_SUPPORT_ID = "masar-barcode-scanner-region";
 
@@ -165,9 +200,51 @@ function BarcodeScannerModal({ onDetected, onClose }) {
   );
 }
 
+// بطاقة ترقية مصغّرة داخل قسم التغذية نفسه (لا يوجد UpsellCard مُصدَّرة
+// من مكان مشترك بعد - هذا المكوّن يعيش هنا فقط ولا يُستخدم في أي قسم آخر).
+function MiniUpsell({ title, message }) {
+  return (
+    <div style={NS.compactUpsell}>
+      <Sparkles size={22} color="var(--gold)" />
+      <div style={NS.compactUpsellTitle}>{title}</div>
+      <p style={NS.compactUpsellMsg}>{message}</p>
+      <a href={SUBSCRIBE_URL} target="_blank" rel="noopener noreferrer" style={{ ...NS.notifBtn, flex: "none", padding: "9px 18px", textDecoration: "none" }}>اشترك الآن</a>
+    </div>
+  );
+}
+
+// إدخال الباركود يدوياً - بديل مباشر للمسح بالكاميرا، يستخدم نفس منطق
+// البحث بالباركود الموجود (onSubmit هو نفس handleBarcodeDetected) دون أي
+// تكرار للكود.
+function ManualBarcodeEntry({ onSubmit }) {
+  const [value, setValue] = useState("");
+  return (
+    <>
+      <p style={NS.scanHint}>اكتب رقم الباركود المطبوع على المنتج</p>
+      <div style={NS.searchRow}>
+        <input
+          value={value}
+          onChange={(e) => setValue(e.target.value.replace(/\D/g, ""))}
+          onKeyDown={(e) => { if (e.key === "Enter" && value) onSubmit(value); }}
+          placeholder="مثال: 6291041500213"
+          inputMode="numeric"
+          style={NS.searchInput}
+          autoFocus
+        />
+        <button onClick={() => value && onSubmit(value)} disabled={!value} style={NS.searchBtn}><Search size={16} /></button>
+      </div>
+    </>
+  );
+}
+
 function ConfirmQuantityCard({ product, source, onAdd, onCancel }) {
+  const hasServing = !!product.servingGrams;
+  const [multiplier, setMultiplier] = useState(1);
+  const [grams, setGrams] = useState(hasServing ? Math.round(product.servingGrams) : 100);
+  // تُطبَّق الحصص (×1/×2/...) فقط عندما يملك المنتج حجم حصة معروفاً؛ خلاف
+  // ذلك يبقى إدخال الغرامات مباشرة هو الخيار الوحيد (كما كان سابقاً).
+  useEffect(() => { if (hasServing) setGrams(Math.round(product.servingGrams * multiplier)); }, [multiplier, hasServing, product.servingGrams]);
   const presets = servingPresets(product.servingGrams);
-  const [grams, setGrams] = useState(presets[0].grams);
   const preview = scaleNutrients(product, grams || 0);
 
   return (
@@ -179,23 +256,45 @@ function ConfirmQuantityCard({ product, source, onAdd, onCancel }) {
           <div style={NS.productMeta}>{product.caloriesPer100g} سعرة / 100غم</div>
         </div>
       </div>
-      <label style={S.label}>الكمية (غم)</label>
+      {hasServing && (
+        <>
+          <label style={S.label}>عدد الحصص (كل حصة {Math.round(product.servingGrams)} غم)</label>
+          <div style={NS.multiplierRow}>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button key={n} onClick={() => setMultiplier(n)} style={{ ...NS.multiplierBtn, ...(multiplier === n ? NS.multiplierBtnActive : {}) }}>×{n}</button>
+            ))}
+            <input
+              type="number" inputMode="decimal" value={multiplier}
+              onChange={(e) => setMultiplier(Math.max(0.25, Number(e.target.value) || 0))}
+              style={NS.multiplierInput}
+            />
+          </div>
+        </>
+      )}
+      <label style={S.label}>{hasServing ? "أو عدّل الكمية بالغرام مباشرة" : "الكمية (غم)"}</label>
       <input type="number" inputMode="decimal" value={grams} onChange={(e) => setGrams(Number(e.target.value))} style={S.input} />
-      <div style={NS.presetRow}>
-        {presets.map((p) => (
-          <button key={p.label} onClick={() => setGrams(p.grams)} style={{ ...NS.presetChip, ...(grams === p.grams ? NS.presetChipActive : {}) }}>{p.label}</button>
-        ))}
-      </div>
+      {!hasServing && (
+        <div style={NS.presetRow}>
+          {presets.map((p) => (
+            <button key={p.label} onClick={() => setGrams(p.grams)} style={{ ...NS.presetChip, ...(grams === p.grams ? NS.presetChipActive : {}) }}>{p.label}</button>
+          ))}
+        </div>
+      )}
       <div style={NS.previewGrid}>
         <div style={NS.previewChip}><div style={NS.macroValue}>{preview.calories}</div><div style={NS.macroLabel}>سعرة</div></div>
         <div style={NS.previewChip}><div style={NS.macroValue}>{preview.protein}غ</div><div style={NS.macroLabel}>بروتين</div></div>
         <div style={NS.previewChip}><div style={NS.macroValue}>{preview.carbs}غ</div><div style={NS.macroLabel}>كارب</div></div>
         <div style={NS.previewChip}><div style={NS.macroValue}>{preview.fat}غ</div><div style={NS.macroLabel}>دهون</div></div>
       </div>
+      <div style={NS.previewGrid}>
+        <div style={NS.previewChip}><div style={NS.macroValue}>{preview.fiber}غ</div><div style={NS.macroLabel}>ألياف</div></div>
+        <div style={NS.previewChip}><div style={NS.macroValue}>{preview.sugar}غ</div><div style={NS.macroLabel}>سكر</div></div>
+        <div style={NS.previewChip}><div style={NS.macroValue}>{preview.sodium}مغ</div><div style={NS.macroLabel}>صوديوم</div></div>
+      </div>
       <button
         onClick={() => onAdd({
           id: uid(), foodName: product.name, ...preview,
-          servingInfo: `${grams} غم`, source,
+          servingInfo: hasServing ? `${multiplier} × ${Math.round(product.servingGrams)}غم` : `${grams} غم`, source,
         })}
         style={S.saveBtn}
         disabled={!grams || grams <= 0}
@@ -208,15 +307,39 @@ function ConfirmQuantityCard({ product, source, onAdd, onCancel }) {
 }
 
 function ManualEntryForm({ barcode, onSave, onCancel }) {
-  const [draft, setDraft] = useState({ foodName: "", calories: "", protein: "", carbs: "", fat: "" });
+  const [draft, setDraft] = useState({
+    foodName: "", brand: "", country: "", servingSizeLabel: "", servingGrams: "",
+    calories: "", protein: "", carbs: "", fat: "", fiber: "", sugar: "", sodium: "", imageUrl: "",
+  });
   function change(field, val) { setDraft((d) => ({ ...d, [field]: val })); }
   const valid = draft.foodName.trim() && Number(draft.calories) > 0;
 
   return (
     <>
-      {barcode && <p style={NS.notFoundNote}>لم يُعثر على هذا المنتج ({barcode}) في قاعدة بيانات الأطعمة. أضِفه يدوياً وسنتذكره تلقائياً لهذا الباركود في المرات القادمة.</p>}
+      {barcode && <p style={NS.notFoundNote}>لم يُعثر على هذا المنتج ({barcode}) في قاعدة بيانات الأطعمة. أضِفه يدوياً وسيتوفّر تلقائياً لأي مستخدم آخر يبحث بنفس الباركود لاحقاً.</p>}
       <label style={S.label}>اسم الطعام</label>
       <input value={draft.foodName} onChange={(e) => change("foodName", e.target.value)} placeholder="مثال: تمر سكري" style={S.input} />
+      <div style={{ display: "flex", gap: 10 }}>
+        <div style={{ flex: 1 }}>
+          <label style={S.label}>العلامة التجارية</label>
+          <input value={draft.brand} onChange={(e) => change("brand", e.target.value)} placeholder="اختياري" style={S.input} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <label style={S.label}>الدولة</label>
+          <input value={draft.country} onChange={(e) => change("country", e.target.value)} placeholder="اختياري" style={S.input} />
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 10 }}>
+        <div style={{ flex: 1 }}>
+          <label style={S.label}>وصف حجم الحصة</label>
+          <input value={draft.servingSizeLabel} onChange={(e) => change("servingSizeLabel", e.target.value)} placeholder="مثال: علبة 35غم" style={S.input} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <label style={S.label}>حجم الحصة (غم)</label>
+          <input type="number" inputMode="decimal" value={draft.servingGrams} onChange={(e) => change("servingGrams", e.target.value)} placeholder="35" style={S.input} />
+        </div>
+      </div>
+      <p style={{ ...S.label, marginTop: 16, marginBottom: 4 }}>القيم الغذائية (لكل 100غم)</p>
       <label style={S.label}>السعرات الحرارية</label>
       <input type="number" inputMode="decimal" value={draft.calories} onChange={(e) => change("calories", e.target.value)} placeholder="مثال: 250" style={S.input} />
       <div style={{ display: "flex", gap: 10 }}>
@@ -233,13 +356,46 @@ function ManualEntryForm({ barcode, onSave, onCancel }) {
           <input type="number" inputMode="decimal" value={draft.fat} onChange={(e) => change("fat", e.target.value)} placeholder="0" style={S.input} />
         </div>
       </div>
+      <div style={{ display: "flex", gap: 10 }}>
+        <div style={{ flex: 1 }}>
+          <label style={S.label}>ألياف (غ)</label>
+          <input type="number" inputMode="decimal" value={draft.fiber} onChange={(e) => change("fiber", e.target.value)} placeholder="0" style={S.input} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <label style={S.label}>سكر (غ)</label>
+          <input type="number" inputMode="decimal" value={draft.sugar} onChange={(e) => change("sugar", e.target.value)} placeholder="0" style={S.input} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <label style={S.label}>صوديوم (مغم)</label>
+          <input type="number" inputMode="decimal" value={draft.sodium} onChange={(e) => change("sodium", e.target.value)} placeholder="0" style={S.input} />
+        </div>
+      </div>
+      <label style={S.label}>رابط صورة المنتج (اختياري)</label>
+      <input value={draft.imageUrl} onChange={(e) => change("imageUrl", e.target.value)} placeholder="https://..." style={S.input} />
       <button
-        onClick={() => onSave({
-          id: uid(), foodName: draft.foodName.trim(),
-          calories: Number(draft.calories) || 0, protein: Number(draft.protein) || 0,
-          carbs: Number(draft.carbs) || 0, fat: Number(draft.fat) || 0,
-          servingInfo: "إدخال يدوي", source: "manual", barcode,
-        })}
+        onClick={() => {
+          const per100 = {
+            calories: Number(draft.calories) || 0, protein: Number(draft.protein) || 0,
+            carbs: Number(draft.carbs) || 0, fat: Number(draft.fat) || 0,
+            fiber: Number(draft.fiber) || 0, sugar: Number(draft.sugar) || 0, sodium: Number(draft.sodium) || 0,
+          };
+          const grams = Number(draft.servingGrams) || 100;
+          const factor = grams / 100;
+          onSave({
+            id: uid(), foodName: draft.foodName.trim(),
+            calories: Math.round(per100.calories * factor), protein: Math.round(per100.protein * factor * 10) / 10,
+            carbs: Math.round(per100.carbs * factor * 10) / 10, fat: Math.round(per100.fat * factor * 10) / 10,
+            fiber: Math.round(per100.fiber * factor * 10) / 10, sugar: Math.round(per100.sugar * factor * 10) / 10,
+            sodium: Math.round(per100.sodium * factor),
+            servingInfo: draft.servingSizeLabel.trim() || `${grams} غم`, source: "manual", barcode,
+            // بيانات المنتج الكاملة (لكل 100غم) - تُحفظ في custom_foods إن
+            // كان هناك باركود، حتى تُستخدم صحيحة لأي كمية لاحقة، لا فقط
+            // بنفس كمية هذه المرة.
+            productPer100: per100, brand: draft.brand.trim(), country: draft.country.trim(),
+            servingSizeLabel: draft.servingSizeLabel.trim(), servingGrams: Number(draft.servingGrams) || null,
+            imageUrl: draft.imageUrl.trim(),
+          });
+        }}
         style={S.saveBtn}
         disabled={!valid}
       >
@@ -257,14 +413,26 @@ function SearchPanel({ onPick, onManual }) {
   const [error, setError] = useState(null);
   const [searched, setSearched] = useState(false);
 
+  // بحث "ذكي": يبحث مباشرة أولاً، وإن جاءت النتائج فارغة يبحث عن مرادف
+  // (عربي أو إنجليزي) في جدول food_synonyms ويعيد المحاولة بالمصطلح
+  // القانوني المقابل - هذا ما يجعل البحث بالعربي يعمل فعلياً حتى إن كان
+  // اسم المنتج في Open Food Facts مخزَّناً بالإنجليزي (الغالب).
   async function runSearch() {
-    const q = query.trim();
+    const q = normalizeSearchTerm(query);
     if (!q) return;
     setLoading(true); setError(null); setSearched(true);
     const res = await searchProductsByName(q);
+    if (!res.ok) { setLoading(false); setError(res.error); setResults([]); return; }
+    if (res.products.length > 0) { setLoading(false); setResults(res.products); return; }
+    const canonical = await store.lookupFoodSynonym(q);
+    if (canonical && normalizeSearchTerm(canonical) !== q) {
+      const retry = await searchProductsByName(canonical);
+      setLoading(false);
+      setResults(retry.ok ? retry.products : []);
+      return;
+    }
     setLoading(false);
-    if (!res.ok) { setError(res.error); setResults([]); return; }
-    setResults(res.products);
+    setResults([]);
   }
 
   return (
@@ -297,7 +465,108 @@ function SearchPanel({ onPick, onManual }) {
   );
 }
 
-export default function NutritionView({ healthProfile, showToast, profile, setProfile }) {
+// تصوير الوجبة بالذكاء الاصطناعي - يستدعي recognizeMealFromImage المعزولة
+// (lib/nutrition.js) فقط، ولا يعرف شيئاً عن كون المزوّد الفعلي Gemini من
+// عدمه. كل قيمة في النتيجة قابلة للتعديل يدوياً قبل الحفظ، والتنبيه أسفل
+// الحقول ثابت لا يمكن إغلاقه.
+function AIPhotoPanel({ onSave, onManual }) {
+  const [preview, setPreview] = useState(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [error, setError] = useState(null);
+  const [result, setResult] = useState(null); // { items, calories, protein, carbs, fat }
+  const fileInputRef = useRef(null);
+
+  async function handleFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPreview(URL.createObjectURL(file));
+    setError(null);
+    setResult(null);
+    setAnalyzing(true);
+    const res = await recognizeMealFromImage(file);
+    setAnalyzing(false);
+    if (!res.ok) { setError(res.error); return; }
+    setResult({ items: res.items, calories: res.calories, protein: res.protein, carbs: res.carbs, fat: res.fat });
+  }
+
+  function change(field, val) { setResult((r) => ({ ...r, [field]: val })); }
+
+  return (
+    <>
+      <input ref={fileInputRef} type="file" accept="image/*" capture="environment" onChange={handleFile} style={{ display: "none" }} />
+      {!preview && (
+        <button onClick={() => fileInputRef.current?.click()} style={NS.photoDropZone}>
+          <ImagePlus size={24} />
+          التقط صورة للوجبة أو اختر من المعرض
+        </button>
+      )}
+      {preview && <img src={preview} alt="" style={NS.photoPreview} />}
+
+      {analyzing && (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "16px 0", gap: 10 }}>
+          <Loader2 size={22} className="spin" color="var(--gold)" />
+          <span style={{ fontSize: 13, color: "var(--muted2)" }}>نحلّل الصورة...</span>
+        </div>
+      )}
+
+      {error && (
+        <>
+          <div style={NS.errorText}>{error}</div>
+          <button onClick={() => fileInputRef.current?.click()} style={{ ...S.exportBtn, marginBottom: 8 }}>إعادة المحاولة بصورة أخرى</button>
+        </>
+      )}
+
+      {result && (
+        <>
+          {result.items?.length > 0 && (
+            <div style={NS.itemsChipsRow}>
+              {result.items.map((it, i) => <span key={i} style={NS.itemChip}>{it}</span>)}
+            </div>
+          )}
+          <div style={NS.disclaimerBox}>
+            <Sparkles size={15} color="#C9A24B" style={{ flexShrink: 0, marginTop: 1 }} />
+            <span>هذه القيم تقديرية اعتماداً على تحليل الصورة، وقد تختلف عن القيم الفعلية. يمكنك تعديل الكميات يدوياً قبل الحفظ.</span>
+          </div>
+          <div style={NS.editableGrid}>
+            <div>
+              <label style={S.label}>السعرات</label>
+              <input type="number" inputMode="decimal" value={result.calories} onChange={(e) => change("calories", Number(e.target.value))} style={S.input} />
+            </div>
+            <div>
+              <label style={S.label}>بروتين (غ)</label>
+              <input type="number" inputMode="decimal" value={result.protein} onChange={(e) => change("protein", Number(e.target.value))} style={S.input} />
+            </div>
+            <div>
+              <label style={S.label}>كارب (غ)</label>
+              <input type="number" inputMode="decimal" value={result.carbs} onChange={(e) => change("carbs", Number(e.target.value))} style={S.input} />
+            </div>
+            <div>
+              <label style={S.label}>دهون (غ)</label>
+              <input type="number" inputMode="decimal" value={result.fat} onChange={(e) => change("fat", Number(e.target.value))} style={S.input} />
+            </div>
+          </div>
+          <button
+            onClick={() => onSave({
+              id: uid(),
+              foodName: result.items?.length > 0 ? result.items.join("، ") : "وجبة (تصوير ذكي)",
+              calories: Number(result.calories) || 0, protein: Number(result.protein) || 0,
+              carbs: Number(result.carbs) || 0, fat: Number(result.fat) || 0,
+              fiber: 0, sugar: 0, sodium: 0,
+              servingInfo: "تقدير بالذكاء الاصطناعي", source: "ai_photo",
+            })}
+            style={S.saveBtn}
+          >
+            إضافة إلى سجل اليوم
+          </button>
+        </>
+      )}
+
+      <button onClick={onManual} style={{ ...S.exportBtn, marginTop: 8 }}>إضافة يدوية بدلاً من ذلك</button>
+    </>
+  );
+}
+
+export default function NutritionView({ healthProfile, showToast, profile, setProfile, subscription }) {
   const [loaded, setLoaded] = useState(false);
   const [nutritionLog, setNutritionLog] = useState([]);
   const [waterLog, setWaterLog] = useState({});
@@ -306,7 +575,10 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
   const [pendingBarcode, setPendingBarcode] = useState(null);
   const [lookupBusy, setLookupBusy] = useState(false);
   const [lookupError, setLookupError] = useState(null);
+  const [dailyAnalysis, setDailyAnalysis] = useState(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
 
+  const isSub = isActiveSubscriber(subscription);
   const today = todayKey();
 
   useEffect(() => {
@@ -376,7 +648,9 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
       setPendingProduct({
         product: {
           name: cached.foodName, caloriesPer100g: cached.calories, proteinPer100g: cached.protein,
-          carbsPer100g: cached.carbs, fatPer100g: cached.fat, imageUrl: null, servingGrams: null,
+          carbsPer100g: cached.carbs, fatPer100g: cached.fat, fiberPer100g: cached.fiber,
+          sugarPer100g: cached.sugar, sodiumPer100gMg: cached.sodium,
+          imageUrl: cached.imageUrl || null, servingGrams: cached.servingGrams || null,
         },
         source: "barcode",
       });
@@ -395,14 +669,43 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
     }
   }, []);
 
+  // entry.productPer100 يحمل القيم الغذائية لكل 100غم كما أدخلها المستخدم
+  // فعلاً (منفصلة عن قيم السجل النهائية المُحسوبة لحجم الحصة المُدخلة) -
+  // هذا إصلاح لخلل كان موجوداً سابقاً: كانت القيم المُدخلة (لأي كمية أدخلها
+  // المستخدم وقتها) تُحفظ كما هي في custom_foods وكأنها "لكل 100غم"، فتُنتج
+  // حسابات خاطئة لأي عملية مسح لاحقة لنفس الباركود بكمية مختلفة.
   async function saveManualEntry(entry) {
-    if (entry.barcode) {
+    if (entry.barcode && entry.productPer100) {
       await store.saveCustomFood({
-        barcode: entry.barcode, foodName: entry.foodName,
-        calories: entry.calories, protein: entry.protein, carbs: entry.carbs, fat: entry.fat,
+        barcode: entry.barcode, foodName: entry.foodName, ...entry.productPer100,
+        brand: entry.brand, country: entry.country, servingSizeLabel: entry.servingSizeLabel,
+        servingGrams: entry.servingGrams, imageUrl: entry.imageUrl,
       });
     }
-    await addEntry(entry);
+    const { productPer100, brand, country, servingSizeLabel, servingGrams, imageUrl, ...logEntry } = entry;
+    await addEntry(logEntry);
+  }
+
+  // يستخدم نفس آلية "التقرير الذكي" المبنية مسبقاً (analyze + parseJsonLoose،
+  // انظر DailyEvolution في MasarApp.jsx) - يبني الطلب من بيانات اليوم الفعلية
+  // فقط (الأطعمة المسجَّلة والمجاميع الحقيقية)، ولا يفترض شيئاً لم يُسجَّل.
+  async function generateDailyAnalysis() {
+    if (todayLog.length === 0) { setDailyAnalysis({ error: "سجّل بعض الأطعمة اليوم أولاً حتى أقدر أحلّل نمط تغذيتك." }); return; }
+    setAnalysisLoading(true);
+    try {
+      const foodsList = todayLog.map((e) => `${e.foodName} (${Math.round(e.calories)} سعرة)`).join("، ");
+      const prompt = `أنت مدرّب تغذية يكتب بالعربية الفصحى البسيطة بدون أي شرطات طويلة. هذه بيانات تغذية المستخدم الفعلية لهذا اليوم فقط:
+الأطعمة المسجَّلة: ${foodsList}
+الإجمالي: ${Math.round(totals.calories)} سعرة${tee ? ` من أصل هدف ${Math.round(tee)} سعرة` : ""}، بروتين ${Math.round(totals.protein)}غ، كارب ${Math.round(totals.carbs)}غ، دهون ${Math.round(totals.fat)}غ، ألياف ${Math.round(totals.fiber)}غ، سكر ${Math.round(totals.sugar)}غ، صوديوم ${Math.round(totals.sodium)}مغم.
+اكتب فقرة قصيرة (جملتان إلى ثلاث) تحلّل نمط تغذية اليوم بناءً على هذه الأرقام الفعلية فقط تحديداً (مثال: بروتين جيد لكن ألياف منخفضة اليوم) - لا تخترع نمطاً غير موجود في الأرقام أعلاه. أعد فقط JSON بدون أي نص أو markdown:
+{"analysis":"الفقرة هنا"}`;
+      const text = await analyze(prompt, 500);
+      const parsed = parseJsonLoose(text);
+      setDailyAnalysis({ text: parsed.analysis });
+    } catch (err) {
+      console.error("[NutritionView] generateDailyAnalysis failed:", err);
+      setDailyAnalysis({ error: "تعذّر تحليل تغذية اليوم الآن، جرّب مرة أخرى بعد قليل." });
+    } finally { setAnalysisLoading(false); }
   }
 
   return (
@@ -446,6 +749,25 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
           <div style={NS.macroChip}><div style={NS.macroValue}>{Math.round(totals.carbs * 10) / 10}غ</div><div style={NS.macroLabel}>كارب</div></div>
           <div style={NS.macroChip}><div style={NS.macroValue}>{Math.round(totals.fat * 10) / 10}غ</div><div style={NS.macroLabel}>دهون</div></div>
         </div>
+
+        <div style={{ marginTop: 16 }}>
+          {[
+            { key: "fiber", label: "الألياف", value: totals.fiber, goal: DAILY_GUIDELINES.fiberMaxG, goalLabel: `${DAILY_GUIDELINES.fiberMinG}-${DAILY_GUIDELINES.fiberMaxG}غ (تقديري)`, unit: "غ", color: "#5FA8A0" },
+            { key: "sugar", label: "السكر", value: totals.sugar, goal: DAILY_GUIDELINES.sugarMaxG, goalLabel: `أقل من ${DAILY_GUIDELINES.sugarMaxG}غ (تقديري)`, unit: "غ", color: "#C9A24B" },
+            { key: "sodium", label: "الصوديوم", value: totals.sodium, goal: DAILY_GUIDELINES.sodiumMaxMg, goalLabel: `أقل من ${DAILY_GUIDELINES.sodiumMaxMg}مغ (تقديري)`, unit: "مغ", color: "#D17B5F" },
+          ].map((g) => {
+            const pct = Math.min(100, Math.round((g.value / g.goal) * 100));
+            return (
+              <div key={g.key} style={NS.guidelineRow}>
+                <div style={NS.guidelineHead}>
+                  <span><span style={NS.guidelineName}>{g.label}</span> — {Math.round(g.value * 10) / 10}{g.unit}</span>
+                  <span>{g.goalLabel}</span>
+                </div>
+                <div style={NS.barTrack}><div style={{ ...NS.barFill, width: `${pct}%`, background: g.color }} /></div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       <div style={NS.waterCard}>
@@ -455,6 +777,27 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
         </div>
         {cupsGoal && <div style={{ ...NS.barTrack, marginBottom: 10 }}><div style={{ ...NS.barFill, width: `${waterPercent}%`, background: "linear-gradient(90deg, #3E7E78, #5FA8A0)" }} /></div>}
         <button onClick={addWaterCup} style={NS.waterAddBtn}><Plus size={15} /> كوب ماء</button>
+      </div>
+
+      <div style={NS.aiAnalysisCard}>
+        <div style={NS.aiAnalysisHead}>
+          <span style={NS.aiAnalysisTitle}><Sparkles size={15} color="#C9A24B" /> تحليل تغذية اليوم</span>
+          {isSub && (
+            <button onClick={generateDailyAnalysis} disabled={analysisLoading} style={NS.aiAnalysisBtn}>
+              {analysisLoading ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} />}
+              {analysisLoading ? "..." : "تحليل"}
+            </button>
+          )}
+        </div>
+        {isSub ? (
+          <>
+            {!dailyAnalysis && <div style={NS.emptyHint}>اطلب تحليلاً ذكياً لنمط تغذيتك اليوم بناءً على ما سجّلته فعلياً.</div>}
+            {dailyAnalysis?.error && <div style={NS.emptyHint}>{dailyAnalysis.error}</div>}
+            {dailyAnalysis?.text && <p style={NS.aiAnalysisText}>{dailyAnalysis.text}</p>}
+          </>
+        ) : (
+          <MiniUpsell title="تحليل تغذية ذكي" message="احصل على تحليل يومي لنمط تغذيتك بناءً على ما تسجّله فعلياً." />
+        )}
       </div>
 
       <button onClick={() => setSheet("choose")} style={NS.addFoodBtn}><Plus size={16} /> أضف طعاماً</button>
@@ -479,7 +822,9 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
               <div style={NS.sheetHead}>
                 <span style={NS.sheetTitle}>
                   {sheet === "choose" && "أضف طعاماً"}
+                  {sheet === "barcodeManual" && "إدخال الباركود"}
                   {sheet === "search" && "بحث بالاسم"}
+                  {sheet === "aiPhoto" && "تصوير الوجبة"}
                   {sheet === "manual" && "إضافة يدوية"}
                   {sheet === "confirm" && "تأكيد الكمية"}
                   {sheet === "lookup" && "جاري البحث..."}
@@ -489,22 +834,45 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
             )}
 
             {sheet === "choose" && (
-              <>
+              <div style={NS.chooserGrid}>
                 <button onClick={() => setSheet("scan")} style={NS.chooserBtn}>
-                  <span style={NS.chooserIcon}><Camera size={17} /></span> مسح الباركود
+                  <span style={NS.chooserIcon}><Camera size={19} /></span> مسح بالكاميرا
+                </button>
+                <button onClick={() => setSheet("barcodeManual")} style={NS.chooserBtn}>
+                  <span style={NS.chooserIcon}><Hash size={19} /></span> إدخال الباركود يدوياً
                 </button>
                 <button onClick={() => setSheet("search")} style={NS.chooserBtn}>
-                  <span style={NS.chooserIcon}><Search size={17} /></span> بحث بالاسم
+                  <span style={NS.chooserIcon}><Search size={19} /></span> البحث بالاسم
                 </button>
-                <button onClick={() => setSheet("manual")} style={NS.chooserBtn}>
-                  <span style={NS.chooserIcon}><Plus size={17} /></span> إضافة يدوية
+                <button
+                  onClick={() => setSheet(isSub ? "aiPhoto" : "aiPhotoLocked")}
+                  style={{ ...NS.chooserBtn, ...(!isSub ? NS.chooserBtnDisabled : {}) }}
+                >
+                  <span style={NS.chooserIcon}><ImagePlus size={19} /></span>
+                  تصوير الوجبة بالذكاء الاصطناعي
+                  {!isSub && <span style={NS.chooserBadge}>مسار الكامل</span>}
                 </button>
-              </>
+              </div>
+            )}
+
+            {sheet === "barcodeManual" && (
+              <ManualBarcodeEntry onSubmit={handleBarcodeDetected} />
             )}
 
             {sheet === "search" && (
               <SearchPanel
                 onPick={(product) => { setPendingProduct({ product, source: "search" }); setSheet("confirm"); }}
+                onManual={() => setSheet("manual")}
+              />
+            )}
+
+            {sheet === "aiPhotoLocked" && (
+              <MiniUpsell title="تصوير الوجبة بالذكاء الاصطناعي" message="صوّر وجبتك واحصل على تقدير فوري للسعرات والماكروز عبر الذكاء الاصطناعي." />
+            )}
+
+            {sheet === "aiPhoto" && (
+              <AIPhotoPanel
+                onSave={(entry) => addEntry(entry)}
                 onManual={() => setSheet("manual")}
               />
             )}

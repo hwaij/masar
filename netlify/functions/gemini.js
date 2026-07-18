@@ -117,8 +117,14 @@ exports.handler = async (event) => {
   // This endpoint is reachable directly (not only from the app's own UI),
   // so it must not be usable as a free unrestricted Gemini passthrough with
   // our key. Cap the raw request size before even parsing it — no
-  // legitimate prompt this app builds gets close to this.
-  const MAX_BODY_BYTES = 60_000;
+  // legitimate text-only prompt this app builds gets close to this. Raised
+  // from 60KB to accommodate the meal-photo feature (نتيجة تصوير الوجبة),
+  // which sends a base64-encoded, client-side-compressed JPEG (resized to
+  // ~1024px, so typically well under 1MB as base64) inside the same
+  // request body — 5MB stays comfortably under Netlify/Lambda's ~6MB
+  // request payload ceiling while still blocking abuse of this endpoint
+  // as an arbitrary large-payload passthrough.
+  const MAX_BODY_BYTES = 5_000_000;
   if ((event.body || "").length > MAX_BODY_BYTES) {
     return {
       statusCode: 413,

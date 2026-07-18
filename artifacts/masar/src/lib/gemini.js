@@ -95,6 +95,24 @@ export async function geminiAnalyze(prompt, maxTokens = 1000) {
   });
 }
 
+// استدعاء متعدد الوسائط (نص + صورة) - يُستخدم حالياً حصراً من
+// recognizeMealFromImage في lib/nutrition.js لتحليل صورة وجبة. مبنية هنا
+// كدالة عامة منفصلة عن geminiAnalyze (النصي فقط) بدل توسيع تلك الدالة،
+// حتى يبقى استبدال مزوّد التعرّف على الطعام مستقبلاً (خدمة متخصصة بدل
+// Gemini) تغييراً معزولاً في lib/nutrition.js فقط دون أي أثر هنا.
+export async function geminiAnalyzeImage(prompt, base64Data, mimeType, maxTokens = 800) {
+  return callGemini({
+    contents: [{
+      role: "user",
+      parts: [{ text: prompt }, { inline_data: { mime_type: mimeType, data: base64Data } }],
+    }],
+    generationConfig: {
+      maxOutputTokens: Math.min(maxTokens, 4096),
+      thinkingConfig: { thinkingBudget: 0 },
+    },
+  });
+}
+
 export async function geminiCoachChat(messages, context) {
   const systemText =
     COACH_SYSTEM + (context ? `\n\nبيانات المستخدم الحالية:\n${context}` : "");

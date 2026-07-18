@@ -511,7 +511,7 @@ export default function MasarApp() {
           <div style={S.view}><UpsellCard icon={MessageCircle} title="مساعدك الذكي في مسار الكامل" message="مدرّب شخصي يحلّل يومك وعاداتك ويقترح خطوات عملية بناءً على بياناتك الفعلية." /></div>
         ))}
         {view === "you" && <YouView healthProfile={healthProfile} setHealthProfile={setHealthProfile} showToast={showToast} />}
-        {view === "nutrition" && <NutritionView healthProfile={healthProfile} showToast={showToast} profile={profile} setProfile={setProfile} />}
+        {view === "nutrition" && <NutritionView healthProfile={healthProfile} showToast={showToast} profile={profile} setProfile={setProfile} subscription={subscription} />}
         {view === "fitness" && <FitnessView healthProfile={healthProfile} showToast={showToast} />}
         {view === "mental" && <MentalHealthView setView={setView} showToast={showToast} />}
         {view === "groups" && (isSub ? <GroupsView showToast={showToast} /> : (

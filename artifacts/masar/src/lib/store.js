@@ -395,7 +395,8 @@ export const store = {
     }
   },
 
-  // قسم "التغذية": سجل الطعام اليومي، ذاكرة الإدخالات اليدوية للباركود،
+  // قسم "التغذية": سجل الطعام اليومي، ذاكرة الإدخالات اليدوية للباركود
+  // (مشتركة الآن بين كل المستخدمين، انظر التعليق عند saveCustomFood)،
   // وسجل أكواب الماء.
   async loadNutritionLog() {
     const local = lsGet("masar_nutrition_log", []);
@@ -405,7 +406,8 @@ export const store = {
       if (error || !data) return local;
       const items = data.map((r) => ({
         id: r.id, date: r.date, foodName: r.food_name, calories: r.calories, protein: r.protein,
-        carbs: r.carbs, fat: r.fat, servingInfo: r.serving_info || "", source: r.source,
+        carbs: r.carbs, fat: r.fat, fiber: r.fiber || 0, sugar: r.sugar || 0, sodium: r.sodium || 0,
+        servingInfo: r.serving_info || "", source: r.source,
       }));
       lsSet("masar_nutrition_log", items);
       return items;
@@ -419,6 +421,7 @@ export const store = {
         const { error } = await supabase.from("nutrition_log").insert({
           id: entry.id, owner: CURRENT_OWNER, date: entry.date, food_name: entry.foodName,
           calories: entry.calories, protein: entry.protein, carbs: entry.carbs, fat: entry.fat,
+          fiber: entry.fiber || 0, sugar: entry.sugar || 0, sodium: entry.sodium || 0,
           serving_info: entry.servingInfo || "", source: entry.source,
         });
         if (error) console.error("[addNutritionEntry] Supabase error:", error.message);
@@ -436,20 +439,31 @@ export const store = {
     }
   },
 
-  // يبحث محلياً أولاً (إدخال يدوي سابق لنفس الباركود)، ثم سحابياً — يُستدعى
-  // قبل حتى محاولة الاتصال بـ Open Food Facts.
+  // يبحث محلياً أولاً (ذاكرة سريعة)، ثم سحابياً — الآن عن أي مساهمة من أي
+  // مستخدم لنفس الباركود (RLS تسمح بالقراءة العامة، انظر تعليق SQL)، لا
+  // مقتصرة على مساهمات المستخدم الحالي وحده كما كانت سابقاً. يُستدعى قبل
+  // حتى محاولة الاتصال بـ Open Food Facts.
   async findCustomFood(barcode) {
     const local = lsGet("masar_custom_foods", {});
     if (local[barcode]) return local[barcode];
     if (!useCloud()) return null;
     try {
-      const { data, error } = await supabase.from("custom_foods").select("*").eq("owner", CURRENT_OWNER).eq("barcode", barcode).maybeSingle();
+      const { data, error } = await supabase.from("custom_foods").select("*").eq("barcode", barcode).order("updated_at", { ascending: false }).limit(1).maybeSingle();
       if (error || !data) return null;
-      const food = { barcode: data.barcode, foodName: data.food_name, calories: data.calories, protein: data.protein, carbs: data.carbs, fat: data.fat };
+      const food = {
+        barcode: data.barcode, foodName: data.food_name, calories: data.calories, protein: data.protein,
+        carbs: data.carbs, fat: data.fat, fiber: data.fiber || 0, sugar: data.sugar || 0, sodium: data.sodium || 0,
+        brand: data.brand || "", country: data.country || "", servingSizeLabel: data.serving_size_label || "",
+        servingGrams: data.serving_grams || null, imageUrl: data.image_url || "", micronutrients: data.micronutrients || {},
+      };
       lsSet("masar_custom_foods", { ...local, [barcode]: food });
       return food;
     } catch (e) { console.error("[findCustomFood] read failed:", e); return null; }
   },
+  // قرار هندسي: custom_foods قاعدة بيانات منتجات مُجتمعية مشتركة الآن (لا
+  // خاصة بكل مستخدم) - owner هنا يعني فقط "من ساهم بهذا الصف"، ولا يُستخدم
+  // للتصفية عند القراءة (انظر findCustomFood أعلاه). كل مستخدم يستفيد من
+  // كل مساهمة سابقة لنفس الباركود من أي مستخدم آخر.
   async saveCustomFood(food) {
     const local = lsGet("masar_custom_foods", {});
     lsSet("masar_custom_foods", { ...local, [food.barcode]: food });
@@ -458,11 +472,32 @@ export const store = {
         const { error } = await supabase.from("custom_foods").upsert({
           owner: CURRENT_OWNER, barcode: food.barcode, food_name: food.foodName,
           calories: food.calories, protein: food.protein, carbs: food.carbs, fat: food.fat,
-          updated_at: new Date().toISOString(),
+          fiber: food.fiber || 0, sugar: food.sugar || 0, sodium: food.sodium || 0,
+          brand: food.brand || "", country: food.country || "", serving_size_label: food.servingSizeLabel || "",
+          serving_grams: food.servingGrams || null, image_url: food.imageUrl || "",
+          micronutrients: food.micronutrients || {}, updated_at: new Date().toISOString(),
         });
         if (error) console.error("[saveCustomFood] Supabase error:", error.message);
       } catch (e) { console.error("[saveCustomFood] write failed:", e); }
     }
+  },
+
+  // جدول مرجعي عام (نفس نمط app_flags) - يُقرأ حتى بلا اتصال سحابي حقيقي
+  // بمعزل عن useCloud() عمداً، مطابقةً لباقي البيانات المرجعية العامة.
+  // استعلامان منفصلان بـ.eq() بدل .or() بنص واحد، حتى لا يتأثر بناء
+  // فلتر PostgREST بأي حرف خاص (فاصلة، قوس...) قد يكتبه المستخدم ضمن نص
+  // البحث الحر.
+  async lookupFoodSynonym(term) {
+    if (!hasSupabase) return null;
+    const normalized = term.trim().toLowerCase();
+    if (!normalized) return null;
+    try {
+      const { data: byAr } = await supabase.from("food_synonyms").select("canonical_term").eq("term_ar", normalized).maybeSingle();
+      if (byAr) return byAr.canonical_term;
+      const { data: byEn } = await supabase.from("food_synonyms").select("canonical_term").eq("term_en", normalized).maybeSingle();
+      if (byEn) return byEn.canonical_term;
+      return null;
+    } catch (e) { console.error("[lookupFoodSynonym] read failed:", e); return null; }
   },
 
   async loadWaterLog() {

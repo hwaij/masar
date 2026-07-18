@@ -134,14 +134,29 @@ create table if not exists nutrition_log (
   carbs         numeric not null default 0,
   fat           numeric not null default 0,
   serving_info  text default '',
-  source        text check (source in ('barcode', 'manual', 'search')),
+  source        text check (source in ('barcode', 'manual', 'search', 'ai_photo')),
   created_at    timestamptz default now()
 );
 create index if not exists nutrition_log_owner_date on nutrition_log (owner, date);
+alter table nutrition_log add column if not exists fiber numeric not null default 0;
+alter table nutrition_log add column if not exists sugar numeric not null default 0;
+alter table nutrition_log add column if not exists sodium numeric not null default 0;
+-- source كان يمنع القيمة الجديدة 'ai_photo' (تصوير الوجبة بالذكاء الاصطناعي)
+-- عبر check constraint قديم لا يعرفها؛ يُعاد إنشاؤه هنا ليشملها أيضاً.
+alter table nutrition_log drop constraint if exists nutrition_log_source_check;
+alter table nutrition_log add constraint nutrition_log_source_check check (source in ('barcode', 'manual', 'search', 'ai_photo'));
 
 -- مفتاحها (owner, barcode) — لو أدخل المستخدم منتجاً يدوياً لباركود غير
 -- موجود في Open Food Facts، يُستخدم هذا الصف تلقائياً في المرة القادمة
 -- لنفس الباركود قبل حتى محاولة الاتصال بالـ API.
+--
+-- قرار هندسي مهم (قابلية التوسع): عمود micronutrients من نوع jsonb بدل
+-- عمود منفصل لكل فيتامين/معدن مستقبلي (فيتامين د، حديد، كالسيوم، أوميغا 3...).
+-- إضافة عنصر غذائي جديد لاحقاً تصبح مجرد مفتاح جديد داخل هذا الـJSON دون
+-- أي ALTER TABLE على الإطلاق. الحقول الستة الأساسية (سعرات/بروتين/كارب/
+-- دهون/ألياف/سكر/صوديوم) بقيت أعمدة numeric صريحة لأنها معروفة ومُستخدَمة
+-- فعلياً في حسابات وواجهة القسم الآن، بخلاف الفيتامينات/المعادن المستقبلية
+-- التي لا صيغة نهائية لها بعد.
 create table if not exists custom_foods (
   owner       text not null default 'solo',
   barcode     text not null,
@@ -153,6 +168,36 @@ create table if not exists custom_foods (
   updated_at  timestamptz default now(),
   primary key (owner, barcode)
 );
+alter table custom_foods add column if not exists brand text default '';
+alter table custom_foods add column if not exists country text default '';
+alter table custom_foods add column if not exists serving_size_label text default '';
+alter table custom_foods add column if not exists serving_grams numeric;
+alter table custom_foods add column if not exists fiber numeric not null default 0;
+alter table custom_foods add column if not exists sugar numeric not null default 0;
+alter table custom_foods add column if not exists sodium numeric not null default 0;
+alter table custom_foods add column if not exists image_url text default '';
+alter table custom_foods add column if not exists micronutrients jsonb not null default '{}'::jsonb;
+
+-- فهرسة على الباركود بمفرده (منفصلة عن المفتاح الأساسي المركّب owner+barcode
+-- الذي لا يخدم بحثاً "بالباركود فقط بغض النظر عن المالك" بكفاءة)، وعلى اسم
+-- المنتج، حتى يبقى البحث سريعاً حتى لو كبر الجدول لملايين الصفوف مستقبلاً.
+create index if not exists custom_foods_barcode on custom_foods (barcode);
+create index if not exists custom_foods_food_name on custom_foods (food_name);
+
+-- جدول مرادفات بسيط قابل للنمو بإضافة صفوف فقط (لا تعديل بنية أبداً)، يسمح
+-- بالبحث بالعربي حتى لو كان اسم المنتج مخزَّناً بالإنجليزي في Open Food
+-- Facts (وهو الغالب) عبر إعادة المحاولة بالمصطلح الإنجليزي المقابل عند
+-- فشل البحث المباشر. term_ar فريد لأن كل مرادف عربي يقابله مصطلح قانوني
+-- واحد يُعاد به البحث.
+create table if not exists food_synonyms (
+  id              bigint generated always as identity primary key,
+  term_ar         text not null unique,
+  term_en         text not null,
+  canonical_term  text not null,
+  created_at      timestamptz default now()
+);
+create index if not exists food_synonyms_term_ar on food_synonyms (term_ar);
+create index if not exists food_synonyms_term_en on food_synonyms (term_en);
 
 create table if not exists water_log (
   owner       text not null default 'solo',
@@ -594,10 +639,66 @@ drop policy if exists nutrition_log_anon_solo on nutrition_log;
 drop policy if exists nutrition_log_user_own on nutrition_log;
 create policy nutrition_log_user_own on nutrition_log for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
 
+-- قرار هندسي مهم (قابلية التوسع): custom_foods كانت خاصة بكل مستخدم على
+-- حدة (كل مستخدم يبني نسخته الخاصة من ذاكرة الباركودات). الآن تصبح قاعدة
+-- بيانات منتجات "مُجتمعية" مشتركة - أي منتج يُضاف يدوياً من أي مستخدم
+-- يستفيد منه أي مستخدم آخر يبحث بنفس الباركود لاحقاً (كلما كبر عدد
+-- المستخدمين، كبرت قاعدة البيانات المشتركة بلا أي جهد إضافي). القراءة
+-- عامة لكل مصادَق (SELECT true) بينما الكتابة/التعديل/الحذف تبقى مقتصرة
+-- على صاحب الصف فقط (owner) - لا يستطيع مستخدم تعديل أو حذف مساهمة مستخدم
+-- آخر. هذا آمن لأن الجدول لا يحوي أصلاً أي بيانات شخصية حساسة عن المُساهِم
+-- سوى معرّف owner نفسه (UUID لا يكشف شيئاً بمفرده)، فقط بيانات عامة عن
+-- المنتج (اسم، سعرات، ماكروز...).
 alter table custom_foods enable row level security;
 drop policy if exists custom_foods_anon_solo on custom_foods;
 drop policy if exists custom_foods_user_own on custom_foods;
-create policy custom_foods_user_own on custom_foods for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+drop policy if exists custom_foods_select_shared on custom_foods;
+drop policy if exists custom_foods_write_own on custom_foods;
+drop policy if exists custom_foods_update_own on custom_foods;
+drop policy if exists custom_foods_delete_own on custom_foods;
+create policy custom_foods_select_shared on custom_foods for select to authenticated using (true);
+create policy custom_foods_write_own on custom_foods for insert to authenticated with check (owner = auth.uid()::text);
+create policy custom_foods_update_own on custom_foods for update to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+create policy custom_foods_delete_own on custom_foods for delete to authenticated using (owner = auth.uid()::text);
+
+-- جدول مرجعي عام (نفس نمط app_flags): يقرؤه الجميع، ولا يملك أي سياسة
+-- insert/update/delete لـ authenticated/anon - يُدار حصراً من SQL Editor.
+alter table food_synonyms enable row level security;
+drop policy if exists food_synonyms_public_read on food_synonyms;
+create policy food_synonyms_public_read on food_synonyms for select to anon, authenticated using (true);
+
+insert into food_synonyms (term_ar, term_en, canonical_term) values
+  ('موز', 'banana', 'Banana'),
+  ('تفاح', 'apple', 'Apple'),
+  ('حليب', 'milk', 'Milk'),
+  ('بيض', 'egg', 'Egg'),
+  ('دجاج', 'chicken', 'Chicken'),
+  ('لحم', 'meat', 'Beef'),
+  ('رز', 'rice', 'Rice'),
+  ('أرز', 'rice', 'Rice'),
+  ('خبز', 'bread', 'Bread'),
+  ('تمر', 'dates', 'Dates'),
+  ('عدس', 'lentils', 'Lentils'),
+  ('برتقال', 'orange', 'Orange'),
+  ('بطاطا', 'potato', 'Potato'),
+  ('بطاطس', 'potato', 'Potato'),
+  ('طماطم', 'tomato', 'Tomato'),
+  ('جبن', 'cheese', 'Cheese'),
+  ('زبادي', 'yogurt', 'Yogurt'),
+  ('سمك', 'fish', 'Fish'),
+  ('عسل', 'honey', 'Honey'),
+  ('شوفان', 'oats', 'Oats'),
+  ('مكسرات', 'nuts', 'Nuts'),
+  ('لوز', 'almonds', 'Almonds'),
+  ('فراولة', 'strawberry', 'Strawberry'),
+  ('عنب', 'grapes', 'Grapes'),
+  ('خيار', 'cucumber', 'Cucumber'),
+  ('جزر', 'carrot', 'Carrot'),
+  ('سبانخ', 'spinach', 'Spinach'),
+  ('قهوة', 'coffee', 'Coffee'),
+  ('شاي', 'tea', 'Tea'),
+  ('عصير', 'juice', 'Juice')
+on conflict (term_ar) do nothing;
 
 alter table water_log enable row level security;
 drop policy if exists water_log_anon_solo on water_log;

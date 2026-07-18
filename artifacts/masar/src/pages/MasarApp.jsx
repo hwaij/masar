@@ -23,7 +23,7 @@ import {
 import { fivePrayers, nextPrayer, to12h } from "../lib/prayer";
 import { ADHKAR_CATEGORIES, ADHKAR } from "../lib/adhkar";
 import { store, setOwner, getOwner } from "../lib/store";
-import { pickDailyTip, TIP_CATEGORY_LABELS, localDayKey, TIPS } from "../lib/tips";
+import { pickDailyTip, TIP_CATEGORY_LABELS, localDayKey, TIPS, FALLBACK_TIP } from "../lib/tips";
 import { pickDailyMoneyTip, MONEY_TIP_CATEGORY_LABELS } from "../lib/money-tips";
 import { isActiveSubscriber } from "../lib/subscription";
 import { requestNotificationPermission, disablePush } from "../lib/push";
@@ -2497,12 +2497,29 @@ function TipsView({ tipsLog, setTipsLog, showToast, subscription }) {
     }
   }, [today, todayTip.id, canSeeTodayTip]);
 
+  // خلل حقيقي وُجد وأُصلح هنا: كان أي يوم مسجَّل في tips_log بمعرّف نصيحة
+  // غير موجود في بنك TIPS الحالي يسقط من الأرشيف بصمت تماماً (بسبب
+  // .filter((entry) => entry.tip) القديم) - وهذا يحدث فعلياً في الإنتاج لأن
+  // pickDailyTip تُرجع FALLBACK_TIP بمعرّف "fallback" (ليس ضمن البنك عمداً)
+  // في أي يوم فشل فيه الاختيار لأي سبب: نصيحة ذلك اليوم تظهر طبيعياً وقتها
+  // (البطاقة تعرض الكائن مباشرة)، ثم "تختفي من الأرشيف" ابتداءً من اليوم
+  // التالي. القاعدة الآن: أي يوم مسجَّل يظهر في الأرشيف دائماً - "fallback"
+  // يُحلّ إلى نص النصيحة الاحتياطية نفسها التي رآها المستخدم فعلاً ذلك
+  // اليوم، وأي معرّف مجهول آخر (من إصدار أقدم مثلاً) يظهر ببطاقة صريحة بدل
+  // الإسقاط الصامت.
   const archive = useMemo(
     () => Object.entries(tipsLog || {})
       .filter(([date]) => date !== today)
       .sort((a, b) => b[0].localeCompare(a[0]))
-      .map(([date, tipId]) => ({ date, tip: TIPS.find((t) => t.id === tipId) }))
-      .filter((entry) => entry.tip),
+      .map(([date, tipId]) => {
+        let tip = TIPS.find((t) => t.id === tipId);
+        if (!tip && tipId === FALLBACK_TIP.id) tip = FALLBACK_TIP;
+        if (!tip) {
+          console.warn(`[TipsView] archive: معرّف نصيحة غير معروف (${tipId}) ليوم ${date} - يُعرض ببطاقة بديلة بدل إسقاطه`);
+          tip = { id: tipId, category: "selfdev", text: "نصيحة هذا اليوم من إصدار سابق ولم يعد نصّها الأصلي متوفراً." };
+        }
+        return { date, tip };
+      }),
     [tipsLog, today]
   );
 

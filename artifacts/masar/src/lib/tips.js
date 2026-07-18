@@ -228,7 +228,10 @@ export function localDayKey(d = new Date()) {
 // Guaranteed non-empty fallback: used only if TIPS is ever empty/malformed
 // or the date-based computation below throws for some unforeseen reason,
 // so the card always has something real to show instead of going blank.
-const FALLBACK_TIP = { id: "fallback", category: "selfdev", text: TIPS[0]?.text || "ابدأ يومك بنية طيبة، فالنية الصالحة نصف العمل." };
+// مُصدَّر عمداً: معرّفه "fallback" ليس ضمن بنك TIPS، وقد يُسجَّل في tips_log
+// لأي يوم فشل فيه اختيار النصيحة - عارض الأرشيف يحتاج التعرف عليه حتى لا
+// يسقط ذلك اليوم من الأرشيف بصمت (انظر archive في TipsView).
+export const FALLBACK_TIP = { id: "fallback", category: "selfdev", text: TIPS[0]?.text || "ابدأ يومك بنية طيبة، فالنية الصالحة نصف العمل." };
 
 // يختار نصيحة اليوم بشكل حتمي من التاريخ فقط (بدون الحاجة لتخزين "آخر
 // نصيحة" في أي مكان): كل تاريخ يقابله فهرس ثابت، فلا تتكرر النصائح إلا

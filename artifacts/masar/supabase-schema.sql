@@ -995,3 +995,18 @@ begin
     alter publication supabase_realtime add table group_daily_stats;
   end if;
 end $$;
+
+-- منح صريح لصلاحية تنفيذ الدوال القابلة للاستدعاء من العميل مباشرة (RPC)
+-- لدوري anon/authenticated. عادة Postgres يمنح EXECUTE لـPUBLIC تلقائياً
+-- عند إنشاء أي دالة، وanon/authenticated يرثان ذلك ضمناً - لكن هذا منح
+-- صريح احترازي لا يعتمد على هذا السلوك الافتراضي، تحسّباً لأي مشروع طُبِّق
+-- عليه تشديد أمني يزيل صلاحيات PUBLIC الافتراضية عن الدوال الجديدة.
+grant execute on function get_group_by_invite_code(text) to anon, authenticated;
+grant execute on function is_group_member(uuid, text) to authenticated;
+grant execute on function shares_group_with(text) to authenticated;
+
+-- إجبار طبقة PostgREST (التي تُعرِّض RPC عبر supabase.rpc(...)) على إعادة
+-- تحميل ذاكرتها المؤقتة للمخطط فوراً، بدل انتظار إعادة التحميل التلقائية
+-- (تحدث عادة خلال ثوانٍ، لكن قد تتأخر) - يضمن أن get_group_by_invite_code
+-- الجديدة معروفة لدى واجهة الـAPI فور تنفيذ هذا الملف مباشرة.
+notify pgrst, 'reload schema';

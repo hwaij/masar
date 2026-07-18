@@ -1086,20 +1086,18 @@ export const store = {
     } catch (e) { console.error("[loadGroupDetail] read failed:", e); return []; }
   },
   // يبحث عن اسم الجروب بحسب رمز الدعوة عبر دالة أمنية ضيّقة (لا تكشف سوى
-  // id/name)، دون الحاجة لأن يكون المستخدم عضواً فيه أصلاً بعد. الأخطاء
-  // الفعلية من Supabase (صلاحيات، شبكة...) كانت تُطمَس سابقاً وتُعامَل كأنها
-  // "لم يُعثر على الجروب" — الآن تُسجَّل بوضوح في الـconsole قبل إرجاع null،
-  // حتى يمكن تمييز خطأ حقيقي عن كود دعوة غير موجود فعلاً.
+  // id/name)، دون الحاجة لأن يكون المستخدم عضواً فيه أصلاً بعد. يُميَّز
+  // هنا عمداً بين "لا يوجد جروب بهذا الرمز فعلاً" (ترجع null) و"حدث خطأ
+  // فني أثناء التحقق" (تُرمى استثناء RPC_ERROR) - كانا يُعامَلان سابقاً
+  // بنفس الرسالة المضلِّلة "الرابط غير صالح" مهما كان السبب الحقيقي.
   async getGroupByInviteCode(code) {
     if (!useCloud()) { console.warn("[getGroupByInviteCode] blocked: no real cloud session (guest/local mode)"); return null; }
-    try {
-      console.log("[getGroupByInviteCode] resolving invite code:", JSON.stringify(code));
-      const { data, error } = await supabase.rpc("get_group_by_invite_code", { code });
-      console.log("[getGroupByInviteCode] Supabase RPC result — data:", data, "error:", error);
-      if (error) { console.error("[getGroupByInviteCode] Supabase RPC error:", error.message, error); return null; }
-      if (!data?.length) { console.warn("[getGroupByInviteCode] no group matches this invite code:", code); return null; }
-      return { id: data[0].id, name: data[0].name };
-    } catch (e) { console.error("[getGroupByInviteCode] read failed (exception):", e); return null; }
+    console.log("[getGroupByInviteCode] resolving invite code:", JSON.stringify(code));
+    const { data, error } = await supabase.rpc("get_group_by_invite_code", { code });
+    console.log("[getGroupByInviteCode] Supabase RPC result — data:", data, "error code:", error?.code, "message:", error?.message, error);
+    if (error) { console.error("[getGroupByInviteCode] Supabase RPC error:", error); throw new Error("RPC_ERROR"); }
+    if (!data?.length) { console.warn("[getGroupByInviteCode] no group matches this invite code:", code); return null; }
+    return { id: data[0].id, name: data[0].name };
   },
   // ينفّذ فعلياً إضافة العضوية بمعرّف جروب معروف مسبقاً - يُستخدم من
   // joinGroupByCode بعد حلّ الكود، ومن تأكيد رابط الدعوة (الذي يملك الـid
@@ -1117,12 +1115,8 @@ export const store = {
   },
   async joinGroupByCode(code) {
     if (!useCloud()) throw new Error("NEEDS_ACCOUNT");
-    console.log("[joinGroupByCode] resolving invite code:", JSON.stringify(code));
-    const { data: found, error: lookupErr } = await supabase.rpc("get_group_by_invite_code", { code });
-    console.log("[joinGroupByCode] Supabase RPC result — data:", found, "error:", lookupErr);
-    if (lookupErr) { console.error("[joinGroupByCode] Supabase RPC error:", lookupErr.message, lookupErr); throw new Error("GROUP_NOT_FOUND"); }
-    if (!found?.length) { console.warn("[joinGroupByCode] no group matches this invite code:", code); throw new Error("GROUP_NOT_FOUND"); }
-    const group = { id: found[0].id, name: found[0].name };
+    const group = await store.getGroupByInviteCode(code); // يرمي RPC_ERROR فعلياً عند خطأ تقني، ويرجع null فقط إن كان الرمز غير موجود حقاً
+    if (!group) throw new Error("GROUP_NOT_FOUND");
     await store.joinGroupById(group.id);
     return group;
   },

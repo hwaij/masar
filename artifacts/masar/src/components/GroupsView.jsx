@@ -72,6 +72,7 @@ function RankIcon({ rank }) {
 function joinErrorMessage(err) {
   return {
     GROUP_NOT_FOUND: "رابط أو رمز الدعوة غير صحيح",
+    RPC_ERROR: "تعذّر التحقق من رابط الدعوة الآن (خطأ فني مؤقت) - أعد المحاولة بعد قليل",
     ALREADY_MEMBER: "أنت عضو في هذا الجروب مسبقاً",
     GROUP_FULL: "هذا الجروب وصل للحد الأقصى (10 أعضاء)",
     NEEDS_ACCOUNT: "سجّل الدخول أولاً",
@@ -115,12 +116,17 @@ export default function GroupsView({ showToast }) {
     const code = match[1];
     window.history.replaceState(null, "", "/");
     setPendingLoading(true);
-    store.getGroupByInviteCode(code).then((group) => {
-      console.log("[GroupsView] getGroupByInviteCode resolved:", group);
-      setPendingLoading(false);
-      if (group) setPendingInvite({ code, id: group.id, name: group.name });
-      else showToast("رابط الدعوة غير صالح");
-    });
+    store.getGroupByInviteCode(code)
+      .then((group) => {
+        console.log("[GroupsView] getGroupByInviteCode resolved:", group);
+        if (group) setPendingInvite({ code, id: group.id, name: group.name });
+        else showToast("رابط الدعوة غير صالح");
+      })
+      .catch((err) => {
+        console.error("[GroupsView] getGroupByInviteCode failed:", err);
+        showToast(joinErrorMessage(err));
+      })
+      .finally(() => setPendingLoading(false));
   }, [hasCloud, showToast]);
 
   useEffect(() => {

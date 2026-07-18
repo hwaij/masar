@@ -515,7 +515,7 @@ export default function MasarApp() {
         {view === "fitness" && <FitnessView healthProfile={healthProfile} showToast={showToast} />}
         {view === "mental" && <MentalHealthView setView={setView} showToast={showToast} />}
         {view === "groups" && (isSub ? <GroupsView showToast={showToast} /> : (
-          <div style={S.view}><UpsellCard icon={Users} title="جروبات الدراسة في مسار الكامل" message="أنشئ جروب دراسة مع أصدقائك وتنافسوا بساعات الدراسة وإنجاز الرياضة، بتحديث لحظي بينكم." /></div>
+          <div style={S.view}><UpsellCard icon={Users} title="تحديات الأصدقاء في مسار الكامل" message="أنشئ جروب دراسة مع أصدقائك وتنافسوا بساعات الدراسة وإنجاز الرياضة، بتحديث لحظي بينكم." /></div>
         ))}
         {view === "settings" && <SettingsView categories={categories} setCategories={setCategories} gamify={gamify} hasCloud={store.hasCloud} showToast={showToast} profile={profile} setProfile={setProfile} pointsLog={pointsLog} onStartTour={startTour} subscription={subscription} theme={theme} toggleTheme={toggleTheme} />}
       </div>

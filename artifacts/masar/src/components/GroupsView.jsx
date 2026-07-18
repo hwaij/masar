@@ -238,13 +238,13 @@ export default function GroupsView({ showToast }) {
         <div style={GS.hero}>
           <div style={GS.heroIcon}><Users size={22} color="#fff" /></div>
           <div>
-            <div style={GS.heroTitle}>جروبات الدراسة</div>
+            <div style={GS.heroTitle}>تحديات الأصدقاء</div>
             <div style={GS.heroSub}>تحدَّ أصدقاءك بساعات الدراسة وإنجاز الرياضة</div>
           </div>
         </div>
         <div style={S.setupCard}>
           <Users size={16} color="#5FA8A0" style={{ flexShrink: 0, marginTop: 2 }} />
-          <div style={S.setupText}>سجّل الدخول بحساب حقيقي أولاً لاستخدام جروبات الدراسة، فهذه ميزة تشارك بيانات بينك وبين أصدقائك.</div>
+          <div style={S.setupText}>سجّل الدخول بحساب حقيقي أولاً لاستخدام تحديات الأصدقاء، فهذه ميزة تشارك بيانات بينك وبين أصدقائك.</div>
         </div>
       </div>
     );
@@ -259,7 +259,7 @@ export default function GroupsView({ showToast }) {
       <div style={GS.hero}>
         <div style={GS.heroIcon}><Users size={22} color="#fff" /></div>
         <div>
-          <div style={GS.heroTitle}>جروبات الدراسة</div>
+          <div style={GS.heroTitle}>تحديات الأصدقاء</div>
           <div style={GS.heroSub}>تحدَّ أصدقاءك بساعات الدراسة وإنجاز الرياضة</div>
         </div>
       </div>

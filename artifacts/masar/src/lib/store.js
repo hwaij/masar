@@ -398,17 +398,29 @@ export const store = {
   // قسم "التغذية": سجل الطعام اليومي، ذاكرة الإدخالات اليدوية للباركود
   // (مشتركة الآن بين كل المستخدمين، انظر التعليق عند saveCustomFood)،
   // وسجل أكواب الماء.
+  // ملاحظة مهمة (خلل حقيقي وُجد وأُصلح): كانت loadNutritionLog تكتب فوق
+  // الذاكرة المحلية بأي رد ناجح من Supabase حتى لو رجع صفوفاً أقل مما هو
+  // متوقع، وكانت addNutritionEntry لا تُرجع أي نتيجة للمستدعي - فإن فشل
+  // الإدخال فعلياً في القاعدة (خطأ RLS، أو عمود غير موجود بعد لم يُنفَّذ
+  // تعديله على القاعدة الحقيقية بعد) كان يُسجَّل في console فقط، بينما تبقى
+  // الواجهة تُظهر "أُضيف بنجاح" لأن التحديث المتفائل للحالة المحلية سبق
+  // التحقق من نجاح الحفظ فعلياً. فيظهر السجل فوراً، ثم يختفي عند أول تحديث
+  // للصفحة لأن التحميل التالي يقرأ من القاعدة الحقيقية التي لم تستلم الصف
+  // أصلاً. أصبحت الآن addNutritionEntry تُرجع { ok, error } صريحاً،
+  // والمستدعي (NutritionView) يتراجع عن التحديث المتفائل ويُظهر خطأً حقيقياً
+  // للمستخدم بدل رسالة نجاح مضلِّلة عند أي فشل فعلي.
   async loadNutritionLog() {
     const local = lsGet("masar_nutrition_log", []);
     if (!useCloud()) return local;
     try {
       const { data, error } = await supabase.from("nutrition_log").select("*").eq("owner", CURRENT_OWNER).order("created_at", { ascending: false });
-      if (error || !data) return local;
-      const items = data.map((r) => ({
+      if (error) { console.error("[loadNutritionLog] Supabase error:", error.message); return local; }
+      const items = (data || []).map((r) => ({
         id: r.id, date: r.date, foodName: r.food_name, calories: r.calories, protein: r.protein,
         carbs: r.carbs, fat: r.fat, fiber: r.fiber || 0, sugar: r.sugar || 0, sodium: r.sodium || 0,
         servingInfo: r.serving_info || "", source: r.source, unit: r.unit || "g",
       }));
+      console.log(`[nutrition] loadNutritionLog: استُلم ${items.length} سجلاً فعلياً من Supabase (owner=${CURRENT_OWNER})`);
       lsSet("masar_nutrition_log", items);
       return items;
     } catch (e) { console.error("[loadNutritionLog] read failed:", e); return local; }
@@ -416,16 +428,27 @@ export const store = {
   async addNutritionEntry(entry) {
     const local = lsGet("masar_nutrition_log", []);
     lsSet("masar_nutrition_log", [entry, ...local]);
-    if (useCloud()) {
-      try {
-        const { error } = await supabase.from("nutrition_log").insert({
-          id: entry.id, owner: CURRENT_OWNER, date: entry.date, food_name: entry.foodName,
-          calories: entry.calories, protein: entry.protein, carbs: entry.carbs, fat: entry.fat,
-          fiber: entry.fiber || 0, sugar: entry.sugar || 0, sodium: entry.sodium || 0,
-          serving_info: entry.servingInfo || "", source: entry.source, unit: entry.unit || "g",
-        });
-        if (error) console.error("[addNutritionEntry] Supabase error:", error.message);
-      } catch (e) { console.error("[addNutritionEntry] write failed:", e); }
+    if (!useCloud()) return { ok: true };
+    const payload = {
+      id: entry.id, owner: CURRENT_OWNER, date: entry.date, food_name: entry.foodName,
+      calories: entry.calories, protein: entry.protein, carbs: entry.carbs, fat: entry.fat,
+      fiber: entry.fiber || 0, sugar: entry.sugar || 0, sodium: entry.sodium || 0,
+      serving_info: entry.servingInfo || "", source: entry.source, unit: entry.unit || "g",
+    };
+    console.log("[nutrition] addNutritionEntry: إرسال إلى Supabase:", payload);
+    try {
+      const { error } = await supabase.from("nutrition_log").insert(payload);
+      if (error) {
+        console.error("[addNutritionEntry] Supabase error:", error.message);
+        lsSet("masar_nutrition_log", local); // تراجع محلياً أيضاً - لم يُحفظ فعلياً
+        return { ok: false, error: error.message };
+      }
+      console.log("[nutrition] addNutritionEntry: نجح الحفظ في Supabase");
+      return { ok: true };
+    } catch (e) {
+      console.error("[addNutritionEntry] write failed:", e);
+      lsSet("masar_nutrition_log", local);
+      return { ok: false, error: String(e) };
     }
   },
   async deleteNutritionEntry(id) {

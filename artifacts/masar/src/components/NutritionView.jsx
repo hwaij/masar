@@ -737,12 +737,24 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
     setLookupError(null);
   }
 
+  // خلل حقيقي كان موجوداً وأُصلح: كانت هذه الدالة تُظهر "أُضيف بنجاح" دائماً
+  // بمجرد استدعاء store.addNutritionEntry، بغض النظر عن نجاح الحفظ الفعلي
+  // في Supabase من عدمه - فإن فشل الحفظ فعلياً (مثلاً عمود لم يُنفَّذ تعديله
+  // بعد على القاعدة الحقيقية) كان يظهر السجل فوراً بسبب التحديث المتفائل
+  // للحالة، ثم يختفي بصمت عند أول تحديث للصفحة لأن التحميل التالي يقرأ من
+  // القاعدة التي لم تستلم الصف أصلاً. الآن تتحقق من نتيجة الحفظ الحقيقية،
+  // وتتراجع عن التحديث المتفائل + تُظهر خطأً حقيقياً للمستخدم عند أي فشل.
   async function addEntry(entry) {
     const full = { ...entry, date: today };
     setNutritionLog((prev) => [full, ...prev]);
-    await store.addNutritionEntry(full);
-    showToast("أُضيف إلى سجل اليوم");
-    closeSheet();
+    const result = await store.addNutritionEntry(full);
+    if (result.ok) {
+      showToast("أُضيف إلى سجل اليوم");
+      closeSheet();
+    } else {
+      setNutritionLog((prev) => prev.filter((e) => e.id !== full.id));
+      showToast("تعذّر حفظ السجل فعلياً، تحقق من اتصالك وحاول مرة أخرى");
+    }
   }
 
   async function removeEntry(id) {

@@ -1,5 +1,5 @@
 "use strict";
-import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense, lazy } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import i18n from "../i18n";
@@ -41,10 +41,14 @@ import {
 } from "../lib/helpers";
 import { S } from "../components/styles";
 import DayWheel from "../components/DayWheel";
-import NutritionView from "../components/NutritionView";
-import FitnessView from "../components/FitnessView";
-import MentalHealthView from "../components/MentalHealthView";
-import GroupsView from "../components/GroupsView";
+// محمَّلة عند الطلب فقط (React.lazy) لا مع الحزمة الرئيسية: هذه أقسام
+// أقل زيارة من "اليوم"/"المهام"، وNutritionView وMentalHealthView تسحبان
+// مكتبات ثقيلة (html5-qrcode، recharts) لا حاجة لتحميلها إلا عند فتح
+// القسم فعلاً.
+const NutritionView = lazy(() => import("../components/NutritionView"));
+const FitnessView = lazy(() => import("../components/FitnessView"));
+const MentalHealthView = lazy(() => import("../components/MentalHealthView"));
+const GroupsView = lazy(() => import("../components/GroupsView"));
 import SideMenu from "../components/SideMenu";
 import TasbihIcon from "../components/TasbihIcon";
 
@@ -532,12 +536,17 @@ export default function MasarApp() {
           <div style={S.view}><UpsellCard icon={MessageCircle} title="مساعدك الذكي في مسار الكامل" message="مدرّب شخصي يحلّل يومك وعاداتك ويقترح خطوات عملية بناءً على بياناتك الفعلية." /></div>
         ))}
         {view === "you" && <YouView healthProfile={healthProfile} setHealthProfile={setHealthProfile} showToast={showToast} />}
-        {view === "nutrition" && <NutritionView healthProfile={healthProfile} showToast={showToast} profile={profile} setProfile={setProfile} subscription={subscription} />}
-        {view === "fitness" && <FitnessView healthProfile={healthProfile} showToast={showToast} />}
-        {view === "mental" && <MentalHealthView setView={setView} showToast={showToast} />}
-        {view === "groups" && (isSub ? <GroupsView showToast={showToast} /> : (
+        {(view === "nutrition" || view === "fitness" || view === "mental" || (view === "groups" && isSub)) && (
+          <Suspense fallback={<div style={{ ...S.view, display: "flex", justifyContent: "center", padding: 40 }}><Loader2 size={24} color="#C9A24B" className="spin" /></div>}>
+            {view === "nutrition" && <NutritionView healthProfile={healthProfile} showToast={showToast} profile={profile} setProfile={setProfile} subscription={subscription} />}
+            {view === "fitness" && <FitnessView healthProfile={healthProfile} showToast={showToast} />}
+            {view === "mental" && <MentalHealthView setView={setView} showToast={showToast} />}
+            {view === "groups" && isSub && <GroupsView showToast={showToast} />}
+          </Suspense>
+        )}
+        {view === "groups" && !isSub && (
           <div style={S.view}><UpsellCard icon={Users} title="تحديات الأصدقاء في مسار الكامل" message="أنشئ جروب دراسة مع أصدقائك وتنافسوا بساعات الدراسة وإنجاز الرياضة، بتحديث لحظي بينكم." /></div>
-        ))}
+        )}
         {view === "settings" && <SettingsView categories={categories} setCategories={setCategories} gamify={gamify} hasCloud={store.hasCloud} showToast={showToast} profile={profile} setProfile={setProfile} pointsLog={pointsLog} onStartTour={startTour} subscription={subscription} theme={theme} toggleTheme={toggleTheme} />}
       </div>
       {toast && <div style={S.toast}>{toast}</div>}
@@ -1235,8 +1244,8 @@ function DailyEvolution({ date, dayEntries, catMap, report, aiHistory, onSave, s
       const parsed = parseJsonLoose(text);
       setLocal(parsed); onSave(parsed, parsed.gist);
     } catch (err) {
-      console.error("[DailyEvolution] analyze failed:", err, err?.debug);
-      setLocal({ error: `${t("todayView.evolution.errorGeneric")}${err?.debug ? ` [DEBUG: ${JSON.stringify(err.debug)}]` : ""}` });
+      console.error("[DailyEvolution] analyze failed:", err);
+      setLocal({ error: t("todayView.evolution.errorGeneric") });
     }
     finally { setLoading(false); }
   }
@@ -1801,9 +1810,8 @@ function AssistantView({ entries, tasks, categories, focus, prayerLog, religious
     } catch (err) {
       // Transient failures aren't saved — retrying shouldn't clutter the
       // permanent conversation history with dead-end error bubbles.
-      console.error("[AssistantView] coachChat failed:", err, err?.debug);
-      const debugSuffix = err?.debug ? ` [DEBUG: ${JSON.stringify(err.debug)}]` : "";
-      setMessages([...next, { id: uid(), role: "assistant", content: `تعذّر الاتصال بالمساعد الآن. تأكد من اتصالك وحاول مرة أخرى.${debugSuffix}` }]);
+      console.error("[AssistantView] coachChat failed:", err);
+      setMessages([...next, { id: uid(), role: "assistant", content: "تعذّر الاتصال بالمساعد الآن. تأكد من اتصالك وحاول مرة أخرى." }]);
     } finally {
       setSending(false);
     }
@@ -3136,6 +3144,7 @@ function FocusView({ focus, setFocus, commitments, setCommitments, categories, e
   const [pendingCompletion, setPendingCompletion] = useState(null);
   const [pickingTime, setPickingTime] = useState(false);
   const [customEndTime, setCustomEndTime] = useState(nowHHMM());
+  const [stopChoice, setStopChoice] = useState(null); // { elapsedSec } عند إيقاف جلسة قيد التشغيل قبل اكتمالها
   const intervalRef = useRef(null);
   const sessionRef = useRef(null);
 
@@ -3223,10 +3232,30 @@ function FocusView({ focus, setFocus, commitments, setCommitments, categories, e
     await store.saveActiveSession(session);
   }
 
+  // إيقاف جلسة قيد التشغيل قبل اكتمالها الطبيعي لم يعد يُجمّد الوقت مباشرة
+  // - بل يوقف العدّاد فوراً (فيتجمّد remaining بالضبط عند اللحظة الحالية)
+  // ويعرض خيارين للمستخدم: إنهاء الجلسة الآن بتسجيل الدقائق المنقضية فعلاً
+  // كجلسة تركيز مكتملة، أو الاستكمال لاحقاً (نفس سلوك pauseTimer القديم
+  // تماماً، بلا أي تغيير). العدّاد يبقى مجمَّداً في الحالتين حتى يختار
+  // المستخدم، فلا وقت إضافي يُحتسَب أثناء عرض الخيارين.
   function toggle() {
-    if (running) pauseTimer();
+    if (running) { setRunning(false); setStopChoice({ elapsedSec: targetMin * 60 - remaining }); }
     else if (sessionRef.current) resumeTimer();
     else startTimer();
+  }
+
+  async function finishSessionNow() {
+    const minutesDone = Math.round((stopChoice?.elapsedSec || 0) / 60);
+    setStopChoice(null);
+    if (minutesDone < 1) { await pauseTimer(); return; } // وقت ضئيل جداً لتسجيله كجلسة فعلية
+    await completeSession(sessionRef.current, minutesDone, false, nowHHMM());
+    sessionRef.current = null;
+    setRemaining(targetMin * 60);
+  }
+
+  async function continueSessionLater() {
+    setStopChoice(null);
+    await pauseTimer();
   }
 
   function reset() {
@@ -3393,6 +3422,21 @@ function FocusView({ focus, setFocus, commitments, setCommitments, categories, e
                 <button onClick={confirmCompletionCustomTime} style={S.saveBtn}>تأكيد</button>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {stopChoice && (
+        <div style={S.modalOverlay} className="overlay-in" onClick={continueSessionLater}>
+          <div style={S.modal} className="sheet-in" onClick={(e) => e.stopPropagation()}>
+            <div style={S.modalHeader}>إيقاف الجلسة</div>
+            <div style={{ fontSize: 13.5, color: "#C9C6C0", lineHeight: 1.7, marginBottom: 16 }}>
+              ركّزت {Math.round(stopChoice.elapsedSec / 60)} دقيقة حتى الآن من أصل {targetMin}. هل تنهي الجلسة وتسجّلها بهذه المدة، أم تكمّلها لاحقاً من نفس النقطة؟
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <button onClick={finishSessionNow} style={{ ...S.saveBtn, marginTop: 0 }}>✅ إنهاء الجلسة الآن</button>
+              <button onClick={continueSessionLater} style={{ ...S.saveBtn, marginTop: 0, background: "var(--surface-raised)", color: "var(--ink)", border: "1px solid var(--border2)" }}>🔄 استكمال لاحقاً</button>
+            </div>
           </div>
         </div>
       )}
@@ -3695,7 +3739,6 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
   const [coachLoading, setCoachLoading] = useState(false);
   const [coachReply, setCoachReply] = useState(null);
   const [smartUnavailable, setSmartUnavailable] = useState(false);
-  const [debugMsg, setDebugMsg] = useState("");
   const [promptText, setPromptText] = useState("");
   const hasIdentity = !!(profile?.hobbies?.trim() || profile?.about?.trim());
   const IDENTITY_NUDGE = "اكتب هواياتك ونبذتك في التخصيص أولاً ليساعدك أنجز بشكل مخصّص";
@@ -3712,8 +3755,7 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
       setCoachReply(parseJsonLoose(text));
       setSmartUnavailable(false);
     } catch (err) {
-      console.error("[AchieveView] askCoach failed:", err, err?.debug);
-      setDebugMsg(err?.debug ? `${err.message} [DEBUG: ${JSON.stringify(err.debug)}]` : err?.message || "");
+      console.error("[AchieveView] askCoach failed:", err);
       setSmartUnavailable(true);
       setCoachReply(localCoachReply(mood));
     }
@@ -3744,8 +3786,7 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
       setPromptText("");
       showToast(`أضفت ${newItems.length} عناصر جديدة`);
     } catch (err) {
-      console.error("[AchieveView] generate failed:", err, err?.debug);
-      setDebugMsg("");
+      console.error("[AchieveView] generate failed:", err);
       setSmartUnavailable(true);
       const existing = achieve.slice(0, 8).map((a) => a.title);
       const localItems = localAchieveSuggestions(profile, kind, existing);
@@ -3793,7 +3834,7 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
         </div>
       </div>
       {smartUnavailable && (
-        <div style={S.smartBanner}><Zap size={14} color="#C9A24B" /><span>الوضع الذكي غير متاح الآن، نعرض لك مهام جاهزة.{debugMsg ? ` [DEBUG: ${debugMsg}]` : ""}</span></div>
+        <div style={S.smartBanner}><Zap size={14} color="#C9A24B" /><span>الوضع الذكي غير متاح الآن، نعرض لك مهام جاهزة.</span></div>
       )}
       {!hasIdentity && (
         <div style={S.setupCard}>

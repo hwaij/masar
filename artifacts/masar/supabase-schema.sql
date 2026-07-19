@@ -487,7 +487,22 @@ alter table app_flags enable row level security;
 drop policy if exists app_flags_public_read on app_flags;
 create policy app_flags_public_read on app_flags for select to anon, authenticated using (true);
 
-create or replace function is_active_subscriber(check_owner text)
+-- إصلاح أمني (تدقيق شامل): كانت هذه الدالة تقبل check_owner كمعامل خارجي
+-- حر - لكن كل استدعاء فعلي لها في هذا الملف بالكامل يمرر auth.uid()::text
+-- فقط (فحص اشتراك المستخدم لنفسه دائماً)، فالمعامل لم يكن ضرورياً لأي
+-- استخدام حقيقي. المشكلة: كونها security definer قابلة للاستدعاء مباشرة
+-- كـRPC من العميل (Postgres يمنح EXECUTE لـPUBLIC تلقائياً عند الإنشاء ما
+-- لم يُسحَب صراحة)، فكان بإمكان أي مستخدم مصادَق استدعاءها بمعرّف مستخدم
+-- آخر عشوائي (`supabase.rpc('is_active_subscriber', {check_owner: 'uuid-غيري'})`)
+-- ليعرف حالة اشتراك ذلك المستخدم - تسريب خصوصية يتجاوز RLS الحقيقي على
+-- جدول subscriptions (الذي يقتصر أصلاً على قراءة المستخدم لصفّه هو فقط).
+-- الإصلاح: إزالة المعامل نهائياً واستخدام auth.uid()::text داخلياً حصراً -
+-- لا تغيير وظيفي على أي سياسة موجودة (كل الاستدعاءات كانت تمرر نفس القيمة
+-- أصلاً)، لكن الدالة الآن لا يمكنها إطلاقاً الإجابة عن أي مستخدم غير
+-- المتصل بالجلسة الحالية، مهما استُدعيت مباشرة.
+drop function if exists is_active_subscriber(text);
+
+create or replace function is_active_subscriber()
 returns boolean
 language sql
 security definer
@@ -498,10 +513,12 @@ as $$
     coalesce((select f.free_for_all from app_flags f where f.id = 'global'), false)
     or exists (
       select 1 from subscriptions s
-      where s.owner = check_owner
+      where s.owner = auth.uid()::text
         and (s.is_vip = true or (s.is_subscriber = true and s.subscription_end is not null and s.subscription_end >= current_date))
     );
 $$;
+revoke all on function is_active_subscriber() from public;
+grant execute on function is_active_subscriber() to authenticated;
 
 -- حدّ 3 مهام و5 فئات للنسخة المجانية — فحص "before insert" فقط (لا
 -- يعترض تعديل مهمة/فئة موجودة أصلاً عبر upsert، لأن ON CONFLICT DO
@@ -514,7 +531,7 @@ security definer
 set search_path = public
 as $$
 begin
-  if is_active_subscriber(NEW.owner) then
+  if is_active_subscriber() then
     return NEW;
   end if;
   if exists (select 1 from tasks where id = NEW.id) then
@@ -538,7 +555,7 @@ security definer
 set search_path = public
 as $$
 begin
-  if is_active_subscriber(NEW.owner) then
+  if is_active_subscriber() then
     return NEW;
   end if;
   if exists (select 1 from categories where owner = NEW.owner and id = NEW.id) then
@@ -716,8 +733,8 @@ alter table achieve enable row level security;
 drop policy if exists achieve_anon_solo on achieve;
 drop policy if exists achieve_user_own on achieve;
 create policy achieve_user_own on achieve for all to authenticated
-  using (owner = auth.uid()::text and is_active_subscriber(auth.uid()::text))
-  with check (owner = auth.uid()::text and is_active_subscriber(auth.uid()::text));
+  using (owner = auth.uid()::text and is_active_subscriber())
+  with check (owner = auth.uid()::text and is_active_subscriber());
 
 alter table focus_sessions enable row level security;
 drop policy if exists focus_sessions_anon_solo on focus_sessions;
@@ -779,8 +796,8 @@ alter table chat_messages enable row level security;
 drop policy if exists chat_messages_anon_solo on chat_messages;
 drop policy if exists chat_messages_user_own on chat_messages;
 create policy chat_messages_user_own on chat_messages for all to authenticated
-  using (owner = auth.uid()::text and is_active_subscriber(auth.uid()::text))
-  with check (owner = auth.uid()::text and is_active_subscriber(auth.uid()::text));
+  using (owner = auth.uid()::text and is_active_subscriber())
+  with check (owner = auth.uid()::text and is_active_subscriber());
 
 alter table adhkar_progress enable row level security;
 drop policy if exists adhkar_progress_anon_solo on adhkar_progress;
@@ -797,23 +814,23 @@ alter table goals enable row level security;
 drop policy if exists goals_anon_solo on goals;
 drop policy if exists goals_user_own on goals;
 create policy goals_user_own on goals for all to authenticated
-  using (owner = auth.uid()::text and is_active_subscriber(auth.uid()::text))
-  with check (owner = auth.uid()::text and is_active_subscriber(auth.uid()::text));
+  using (owner = auth.uid()::text and is_active_subscriber())
+  with check (owner = auth.uid()::text and is_active_subscriber());
 
 -- المرحلة الثانية: "خزنة" ميزة مدفوعة (نفس مبرر achieve أعلاه).
 alter table vault enable row level security;
 drop policy if exists vault_anon_solo on vault;
 drop policy if exists vault_user_own on vault;
 create policy vault_user_own on vault for all to authenticated
-  using (owner = auth.uid()::text and is_active_subscriber(auth.uid()::text))
-  with check (owner = auth.uid()::text and is_active_subscriber(auth.uid()::text));
+  using (owner = auth.uid()::text and is_active_subscriber())
+  with check (owner = auth.uid()::text and is_active_subscriber());
 
 alter table vault_transactions enable row level security;
 drop policy if exists vault_transactions_anon_solo on vault_transactions;
 drop policy if exists vault_transactions_user_own on vault_transactions;
 create policy vault_transactions_user_own on vault_transactions for all to authenticated
-  using (owner = auth.uid()::text and is_active_subscriber(auth.uid()::text))
-  with check (owner = auth.uid()::text and is_active_subscriber(auth.uid()::text));
+  using (owner = auth.uid()::text and is_active_subscriber())
+  with check (owner = auth.uid()::text and is_active_subscriber());
 
 -- المرحلة الثانية: تتبّع النوم (ضمن "التقارير") ميزة مدفوعة (نفس مبرر
 -- achieve أعلاه). ملاحظة: entries/focus_sessions/categories التي
@@ -823,8 +840,8 @@ alter table sleep_log enable row level security;
 drop policy if exists sleep_log_anon_solo on sleep_log;
 drop policy if exists sleep_log_user_own on sleep_log;
 create policy sleep_log_user_own on sleep_log for all to authenticated
-  using (owner = auth.uid()::text and is_active_subscriber(auth.uid()::text))
-  with check (owner = auth.uid()::text and is_active_subscriber(auth.uid()::text));
+  using (owner = auth.uid()::text and is_active_subscriber())
+  with check (owner = auth.uid()::text and is_active_subscriber());
 
 -- عمداً: سياسة قراءة فقط، بلا أي "with check" أو سياسة insert/update/
 -- delete — المستخدم يرى حالة اشتراكه ولا يقدر يعدّلها بأي شكل من
@@ -1024,12 +1041,24 @@ $$;
 -- إلخ إلى ما لا نهاية. الحل: تفويض فحص العضوية لدالة security definer
 -- (تُنفَّذ بصلاحية مالكها الذي يتجاوز RLS تلقائياً بلا حاجة لتفعيل أي شيء
 -- إضافي، تماماً كبقية الدوال أعلاه)، بحيث لا تتكرر RLS داخل تنفيذها.
-create or replace function is_group_member(p_group_id uuid, p_owner text)
+-- إصلاح أمني (نفس فئة خلل is_active_subscriber أعلاه): كانت p_owner معاملاً
+-- خارجياً حراً، وكل استدعاء فعلي لها في هذا الملف يمرر auth.uid()::text
+-- فقط. أي مستخدم مصادَق كان يقدر يستدعيها مباشرة كـRPC بمعرّف مستخدم آخر
+-- ومعرّف جروب يعرفه (أو يخمّنه) ليعرف هل ذلك المستخدم عضو في ذلك الجروب -
+-- تجاوز لسياسة group_members الحقيقية التي تقتصر على "أرى جروباتي أنا".
+-- الإصلاح: حذف p_owner واستخدام auth.uid()::text داخلياً فقط - لا تغيير
+-- وظيفي (نفس القيمة كانت تُمرَّر دائماً)، لكن لا يمكن الآن السؤال عن عضوية
+-- أي شخص غير المتصل بالجلسة الحالية.
+drop function if exists is_group_member(uuid, text);
+
+create or replace function is_group_member(p_group_id uuid)
 returns boolean
 language sql security definer set search_path = public stable
 as $$
-  select exists (select 1 from group_members where group_id = p_group_id and member_owner = p_owner);
+  select exists (select 1 from group_members where group_id = p_group_id and member_owner = auth.uid()::text);
 $$;
+revoke all on function is_group_member(uuid) from public;
+grant execute on function is_group_member(uuid) to authenticated;
 
 create or replace function shares_group_with(p_owner text)
 returns boolean
@@ -1044,10 +1073,10 @@ $$;
 alter table study_groups enable row level security;
 drop policy if exists study_groups_select on study_groups;
 create policy study_groups_select on study_groups for select to authenticated
-  using (owner = auth.uid()::text or is_group_member(study_groups.id, auth.uid()::text));
+  using (owner = auth.uid()::text or is_group_member(study_groups.id));
 drop policy if exists study_groups_insert on study_groups;
 create policy study_groups_insert on study_groups for insert to authenticated
-  with check (owner = auth.uid()::text and is_active_subscriber(auth.uid()::text));
+  with check (owner = auth.uid()::text and is_active_subscriber());
 drop policy if exists study_groups_update on study_groups;
 create policy study_groups_update on study_groups for update to authenticated
   using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
@@ -1062,10 +1091,10 @@ drop policy if exists group_members_select_self on group_members;
 drop policy if exists group_members_select_peers on group_members;
 drop policy if exists group_members_select on group_members;
 create policy group_members_select on group_members for select to authenticated
-  using (is_group_member(group_id, auth.uid()::text));
+  using (is_group_member(group_id));
 drop policy if exists group_members_insert on group_members;
 create policy group_members_insert on group_members for insert to authenticated
-  with check (member_owner = auth.uid()::text and is_active_subscriber(auth.uid()::text));
+  with check (member_owner = auth.uid()::text and is_active_subscriber());
 drop policy if exists group_members_delete_self on group_members;
 create policy group_members_delete_self on group_members for delete to authenticated
   using (member_owner = auth.uid()::text);
@@ -1107,7 +1136,6 @@ end $$;
 -- صريح احترازي لا يعتمد على هذا السلوك الافتراضي، تحسّباً لأي مشروع طُبِّق
 -- عليه تشديد أمني يزيل صلاحيات PUBLIC الافتراضية عن الدوال الجديدة.
 grant execute on function get_group_by_invite_code(text) to anon, authenticated;
-grant execute on function is_group_member(uuid, text) to authenticated;
 grant execute on function shares_group_with(text) to authenticated;
 
 -- إجبار طبقة PostgREST (التي تُعرِّض RPC عبر supabase.rpc(...)) على إعادة

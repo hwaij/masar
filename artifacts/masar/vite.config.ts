@@ -59,6 +59,18 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        // فصل مكتبات الطرف الثالث الكبيرة عن كود التطبيق نفسه، حتى يبقى
+        // هذا الجزء مخزَّناً في ذاكرة تخزين المتصفح المؤقتة عبر التحديثات
+        // المتكررة لكود التطبيق (هذه المكتبات تتغيّر بتكرار أقل بكثير).
+        manualChunks: {
+          "vendor-charts": ["recharts"],
+          "vendor-motion": ["framer-motion"],
+          "vendor-supabase": ["@supabase/supabase-js"],
+        },
+      },
+    },
   },
   server: {
     port,

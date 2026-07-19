@@ -759,21 +759,12 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
       closeSheet();
     } else {
       setNutritionLog((prev) => prev.filter((e) => e.id !== full.id));
-      // مؤقت لأغراض التشخيص: تُعرض رسالة خطأ Supabase الحقيقية نصاً كما هي
-      // (error.message و error.code والتفاصيل إن وُجدت) بدل الرسالة العامة،
-      // حتى يُعرف السبب الفعلي للفشل مباشرة من الواجهة دون فتح console.
-      // تُعرض في صندوق ثابت داخل الشاشة (لا توست فقط - التوست يختفي بعد
-      // ثانيتين ولا يكفي لقراءة رسالة تفصيلية) وتُعاد رسالة ودّية عامة بعد
-      // اكتمال التشخيص.
-      const parts = [
-        `message: ${result.error || "(بدون رسالة)"}`,
-        result.code ? `code: ${result.code}` : null,
-        result.details ? `details: ${result.details}` : null,
-        result.hint ? `hint: ${result.hint}` : null,
-      ].filter(Boolean);
-      const fullError = `خطأ Supabase الفعلي → ${parts.join(" | ")}`;
-      setSaveError(fullError);
-      showToast(`فشل الحفظ - ${parts[0]}${result.code ? ` | code: ${result.code}` : ""}`);
+      // التفاصيل الكاملة (message/code/details/hint) إلى console المطوّر
+      // فقط - المستخدم يرى رسالة عامة ودّية دائماً، لا أي نص خام من Supabase.
+      console.error("[NutritionView] addNutritionEntry failed:", result);
+      const friendly = "تعذّر حفظ الإدخال الآن، حاول مرة أخرى.";
+      setSaveError(friendly);
+      showToast(`فشل الحفظ - ${friendly}`);
     }
   }
 

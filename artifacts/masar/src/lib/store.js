@@ -54,6 +54,16 @@ function lsSet(key, value) {
   }
 }
 
+// تاريخ "قبل n يوماً" بصيغة YYYY-MM-DD (توقيت محلي)، يُستخدم لتقييد جلب
+// السجلات التي تُستهلك دائماً ضمن نافذة زمنية محدودة فقط في الواجهة (لا
+// ميزة تصفّح تاريخي أو حساب سلسلة/streak تعتمد عليها بالكامل)، بدل جلب كل
+// الصفوف المتراكمة منذ إنشاء الحساب في كل تحميل.
+function isoDateDaysAgo(n) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 const DEFAULT_CATEGORIES = [
   { id: "prayer", name: "الصلاة", color: "#5FA8A0" },
   { id: "study", name: "الدراسة", color: "#8A7BD1" },
@@ -409,18 +419,22 @@ export const store = {
   // أصلاً. أصبحت الآن addNutritionEntry تُرجع { ok, error } صريحاً،
   // والمستدعي (NutritionView) يتراجع عن التحديث المتفائل ويُظهر خطأً حقيقياً
   // للمستخدم بدل رسالة نجاح مضلِّلة عند أي فشل فعلي.
+  // مقيَّدة بآخر 90 يوماً: كل استهلاك فعلي لهذا السجل في التطبيق (التغذية،
+  // ومساعد الذكاء الاصطناعي) يُصفّي دائماً على "اليوم" فقط ولا توجد أي ميزة
+  // تصفّح تاريخي أو حساب سلسلة/streak تعتمد على سجل التغذية الكامل - لذا هذا
+  // القيد لا يغيّر أي سلوك ظاهر للمستخدم، ويمنع فقط تراكم جلب صفوف لن
+  // تُستخدم فعلياً مع مرور الأشهر.
   async loadNutritionLog() {
     const local = lsGet("masar_nutrition_log", []);
     if (!useCloud()) return local;
     try {
-      const { data, error } = await supabase.from("nutrition_log").select("*").eq("owner", CURRENT_OWNER).order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("nutrition_log").select("*").eq("owner", CURRENT_OWNER).gte("date", isoDateDaysAgo(90)).order("created_at", { ascending: false });
       if (error) { console.error("[loadNutritionLog] Supabase error:", error.message); return local; }
       const items = (data || []).map((r) => ({
         id: r.id, date: r.date, foodName: r.food_name, calories: r.calories, protein: r.protein,
         carbs: r.carbs, fat: r.fat, fiber: r.fiber || 0, sugar: r.sugar || 0, sodium: r.sodium || 0,
         servingInfo: r.serving_info || "", source: r.source, unit: r.unit || "g",
       }));
-      console.log(`[nutrition] loadNutritionLog: استُلم ${items.length} سجلاً فعلياً من Supabase (owner=${CURRENT_OWNER})`);
       lsSet("masar_nutrition_log", items);
       return items;
     } catch (e) { console.error("[loadNutritionLog] read failed:", e); return local; }
@@ -435,12 +449,11 @@ export const store = {
       fiber: entry.fiber || 0, sugar: entry.sugar || 0, sodium: entry.sodium || 0,
       serving_info: entry.servingInfo || "", source: entry.source, unit: entry.unit || "g",
     };
-    console.log("[nutrition] addNutritionEntry: إرسال إلى Supabase:", payload);
     try {
       const { error } = await supabase.from("nutrition_log").insert(payload);
       if (error) {
-        // يُمرَّر كامل تفاصيل خطأ Supabase (message + code + details + hint)
-        // للمستدعي حتى تُعرض كما هي في الواجهة مؤقتاً لأغراض التشخيص.
+        // التفاصيل الكاملة (message/code/details/hint) إلى console المطوّر
+        // فقط - المستدعي (NutritionView) يُظهر رسالة عامة ودّية للمستخدم.
         console.error("[addNutritionEntry] Supabase error:", error);
         lsSet("masar_nutrition_log", local); // تراجع محلياً أيضاً - لم يُحفظ فعلياً
         return {
@@ -451,7 +464,6 @@ export const store = {
           hint: error.hint || null,
         };
       }
-      console.log("[nutrition] addNutritionEntry: نجح الحفظ في Supabase");
       return { ok: true };
     } catch (e) {
       console.error("[addNutritionEntry] write failed:", e);
@@ -691,12 +703,13 @@ export const store = {
     if (!useCloud()) return local;
     try {
       const { data, error } = await supabase.from("mandatory_log").select("*").eq("owner", CURRENT_OWNER).order("date");
-      if (error || !data) return local;
+      if (error) { console.error("[loadMandatoryLog] Supabase error:", error.message); return local; }
+      if (!data) return local;
       const log = {};
       data.forEach((r) => { if (!log[r.date]) log[r.date] = {}; log[r.date][r.task_key] = r.done; });
       lsSet("masar_mandatory_log", log);
       return log;
-    } catch { return local; }
+    } catch (e) { console.error("[loadMandatoryLog] read failed:", e); return local; }
   },
   async saveMandatoryItem(date, taskKey, done) {
     const log = lsGet("masar_mandatory_log", {});
@@ -719,12 +732,13 @@ export const store = {
     if (!useCloud()) return local;
     try {
       const { data, error } = await supabase.from("azkar_log").select("*").eq("owner", CURRENT_OWNER).order("date");
-      if (error || !data) return local;
+      if (error) { console.error("[loadAzkarLog] Supabase error:", error.message); return local; }
+      if (!data) return local;
       const log = {};
       data.forEach((r) => { if (!log[r.date]) log[r.date] = {}; log[r.date][r.session] = r.done; });
       lsSet("masar_azkar_log", log);
       return log;
-    } catch { return local; }
+    } catch (e) { console.error("[loadAzkarLog] read failed:", e); return local; }
   },
   async loadAzkarItems() {
     return lsGet("masar_azkar_items", {});
@@ -756,12 +770,13 @@ export const store = {
     if (!useCloud()) return local;
     try {
       const { data, error } = await supabase.from("quran_progress").select("*").eq("owner", CURRENT_OWNER);
-      if (error || !data) return local;
+      if (error) { console.error("[loadQuranProgress] Supabase error:", error.message); return local; }
+      if (!data) return local;
       const prog = {};
       data.forEach((r) => { prog[r.juz_num] = r.done; });
       lsSet("masar_quran_juz", prog);
       return prog;
-    } catch { return local; }
+    } catch (e) { console.error("[loadQuranProgress] read failed:", e); return local; }
   },
   async saveQuranJuz(juzNum, done) {
     const data = lsGet("masar_quran_juz", {});
@@ -780,11 +795,12 @@ export const store = {
     if (!useCloud()) return local;
     try {
       const { data, error } = await supabase.from("istighfar").select("*").eq("owner", CURRENT_OWNER).maybeSingle();
-      if (error || !data) return local;
+      if (error) { console.error("[loadIstighfar] Supabase error:", error.message); return local; }
+      if (!data) return local;
       const result = { daily: data.daily || {}, total: data.total || 0 };
       lsSet("masar_istighfar", result);
       return result;
-    } catch { return local; }
+    } catch (e) { console.error("[loadIstighfar] read failed:", e); return local; }
   },
   async saveIstighfar(data) {
     lsSet("masar_istighfar", data);
@@ -801,11 +817,12 @@ export const store = {
     if (!useCloud()) return local;
     try {
       const { data, error } = await supabase.from("points_log").select("*").eq("owner", CURRENT_OWNER).order("date", { ascending: false }).limit(200);
-      if (error || !data) return local;
+      if (error) { console.error("[loadPointsLog] Supabase error:", error.message); return local; }
+      if (!data) return local;
       const items = data.map((r) => ({ id: r.id, date: r.date, amount: r.amount, reason: r.reason }));
       lsSet("masar_points_log", items);
       return items;
-    } catch { return local; }
+    } catch (e) { console.error("[loadPointsLog] read failed:", e); return local; }
   },
   async addPointsLog(entry) {
     const log = lsGet("masar_points_log", []);
@@ -867,7 +884,8 @@ export const store = {
     if (!useCloud()) return local;
     try {
       const { data, error } = await supabase.from("adhkar_progress").select("*").eq("owner", CURRENT_OWNER).eq("date", date);
-      if (error || !data) return local;
+      if (error) { console.error("[loadAdhkarProgress] Supabase error:", error.message); return local; }
+      if (!data) return local;
       const progress = {};
       data.forEach((r) => {
         if (!progress[r.category]) progress[r.category] = {};
@@ -875,7 +893,7 @@ export const store = {
       });
       lsSet(key, progress);
       return progress;
-    } catch { return local; }
+    } catch (e) { console.error("[loadAdhkarProgress] read failed:", e); return local; }
   },
   async saveAdhkarProgressItem(date, category, itemId, remaining, done) {
     const key = `masar_adhkar_progress_${date}`;
@@ -941,7 +959,8 @@ export const store = {
     if (!useCloud()) return local;
     try {
       const { data, error } = await supabase.from("goals").select("*").eq("owner", CURRENT_OWNER).order("created_at", { ascending: false });
-      if (error || !data) return local;
+      if (error) { console.error("[loadGoals] Supabase error:", error.message); return local; }
+      if (!data) return local;
       const items = data.map((r) => ({
         id: r.id, title: r.title, period: r.period, createdDate: r.created_date,
         cells: r.cells || [], checkpoints: r.checkpoints || [], checkpointIndex: r.checkpoint_index || 0,
@@ -950,7 +969,7 @@ export const store = {
       }));
       lsSet("masar_goals", items);
       return items;
-    } catch { return local; }
+    } catch (e) { console.error("[loadGoals] read failed:", e); return local; }
   },
   // Returns true/false (like saveCategory) so the UI can tell a silent
   // cloud failure apart from success instead of assuming it always worked.
@@ -988,11 +1007,12 @@ export const store = {
     if (!useCloud()) return local;
     try {
       const { data, error } = await supabase.from("vault").select("*").eq("owner", CURRENT_OWNER).maybeSingle();
-      if (error || !data) return local;
+      if (error) { console.error("[loadVault] Supabase error:", error.message); return local; }
+      if (!data) return local;
       const v = { balance: Number(data.balance) || 0, currency: data.currency || "KWD" };
       lsSet("masar_vault", v);
       return v;
-    } catch { return local; }
+    } catch (e) { console.error("[loadVault] read failed:", e); return local; }
   },
   async saveVault(vault) {
     lsSet("masar_vault", vault);
@@ -1012,11 +1032,12 @@ export const store = {
     if (!useCloud()) return local;
     try {
       const { data, error } = await supabase.from("vault_transactions").select("*").eq("owner", CURRENT_OWNER).order("created_at", { ascending: false });
-      if (error || !data) return local;
+      if (error) { console.error("[loadVaultTransactions] Supabase error:", error.message); return local; }
+      if (!data) return local;
       const items = data.map((r) => ({ id: r.id, date: r.date, amount: Number(r.amount), type: r.type, reason: r.reason, createdAt: r.created_at }));
       lsSet("masar_vault_transactions", items);
       return items;
-    } catch { return local; }
+    } catch (e) { console.error("[loadVaultTransactions] read failed:", e); return local; }
   },
   async addVaultTransaction(tx) {
     lsSet("masar_vault_transactions", [tx, ...lsGet("masar_vault_transactions", [])]);
@@ -1043,11 +1064,13 @@ export const store = {
 
   // قسم تتبّع النوم داخل "التقارير": صف واحد لكل تاريخ (يوم الاستيقاظ)،
   // sleepTime/wakeTime اختياريان (فارغان إن أدخل المستخدم الساعات مباشرة).
+  // مقيَّدة بآخر 90 يوماً: ReportsView لا يعرض نطاقاً أوسع من "شهر" (30
+  // يوماً) لهذا السجل، فلا حاجة لجلب كل التاريخ المتراكم منذ إنشاء الحساب.
   async loadSleepLog() {
     const local = lsGet("masar_sleep_log", []);
     if (!useCloud()) return local;
     try {
-      const { data, error } = await supabase.from("sleep_log").select("*").eq("owner", CURRENT_OWNER).order("date", { ascending: false });
+      const { data, error } = await supabase.from("sleep_log").select("*").eq("owner", CURRENT_OWNER).gte("date", isoDateDaysAgo(90)).order("date", { ascending: false });
       if (error) { console.error("[loadSleepLog] Supabase error:", error.message); return local; }
       if (!data) return local;
       const items = data.map((r) => ({ id: r.id, date: r.date, sleepTime: r.sleep_time, wakeTime: r.wake_time, hours: Number(r.hours) }));

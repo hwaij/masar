@@ -61,9 +61,9 @@ async function callGemini(body) {
   }
 
   if (!res.ok) {
-    // TEMP DIAGNOSTIC (remove once the AI-everywhere regression is
-    // confirmed fixed): log the real upstream status/body to the console
-    // so we can see exactly what Gemini is rejecting instead of guessing.
+    // التفاصيل الكاملة إلى console المطوّر فقط - المستخدم يرى رسالة عامة
+    // ودّية دائماً، لا أي نص خام من الخادم (يطابق ما تفعله دالة gemini.js
+    // في Netlify نفسها: التفاصيل للسجلّات، لا لجسم الرد).
     console.error("[gemini] request failed:", res.status, data);
     const err = new Error(
       (res.status === 429 && "الطلبات كثيرة الآن، جرّب بعد قليل.") ||
@@ -72,7 +72,6 @@ async function callGemini(body) {
       data.error ||
       "تعذّر الاتصال بالمساعد الذكي الآن.",
     );
-    err.debug = data.debug;
     throw err;
   }
   return data.text || "";

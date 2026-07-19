@@ -302,48 +302,54 @@ export const store = {
     lsSet("masar_profile", { ...local, fontSize });
     if (useCloud()) {
       const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, font_size: fontSize, updated_at: new Date().toISOString() });
-      if (error) console.error("[saveFontSize] Supabase error:", error.message);
+      if (error) { console.error("[saveFontSize] Supabase error:", error.message); return { ok: false, error: error.message }; }
     }
+    return { ok: true };
   },
   async saveHighContrast(highContrast) {
     const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false, customColorsEnabled: false, sectionColors: {}, soundEnabled: false });
     lsSet("masar_profile", { ...local, highContrast });
     if (useCloud()) {
       const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, high_contrast: highContrast, updated_at: new Date().toISOString() });
-      if (error) console.error("[saveHighContrast] Supabase error:", error.message);
+      if (error) { console.error("[saveHighContrast] Supabase error:", error.message); return { ok: false, error: error.message }; }
     }
+    return { ok: true };
   },
   async saveSpacious(spacious) {
     const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false, customColorsEnabled: false, sectionColors: {}, soundEnabled: false });
     lsSet("masar_profile", { ...local, spacious });
     if (useCloud()) {
       const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, spacious, updated_at: new Date().toISOString() });
-      if (error) console.error("[saveSpacious] Supabase error:", error.message);
+      if (error) { console.error("[saveSpacious] Supabase error:", error.message); return { ok: false, error: error.message }; }
     }
+    return { ok: true };
   },
   async saveCustomColorsEnabled(enabled) {
     const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false, customColorsEnabled: false, sectionColors: {}, soundEnabled: false });
     lsSet("masar_profile", { ...local, customColorsEnabled: enabled });
     if (useCloud()) {
       const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, custom_colors_enabled: enabled, updated_at: new Date().toISOString() });
-      if (error) console.error("[saveCustomColorsEnabled] Supabase error:", error.message);
+      if (error) { console.error("[saveCustomColorsEnabled] Supabase error:", error.message); return { ok: false, error: error.message }; }
     }
+    return { ok: true };
   },
   async saveSectionColors(sectionColors) {
     const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false, customColorsEnabled: false, sectionColors: {}, soundEnabled: false });
     lsSet("masar_profile", { ...local, sectionColors });
     if (useCloud()) {
       const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, section_colors: sectionColors, updated_at: new Date().toISOString() });
-      if (error) console.error("[saveSectionColors] Supabase error:", error.message);
+      if (error) { console.error("[saveSectionColors] Supabase error:", error.message); return { ok: false, error: error.message }; }
     }
+    return { ok: true };
   },
   async saveSoundEnabled(enabled) {
     const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false, customColorsEnabled: false, sectionColors: {}, soundEnabled: false });
     lsSet("masar_profile", { ...local, soundEnabled: enabled });
     if (useCloud()) {
       const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, sound_enabled: enabled, updated_at: new Date().toISOString() });
-      if (error) console.error("[saveSoundEnabled] Supabase error:", error.message);
+      if (error) { console.error("[saveSoundEnabled] Supabase error:", error.message); return { ok: false, error: error.message }; }
     }
+    return { ok: true };
   },
   // enabled: هل الاشتراك في الإشعارات مفعّل الآن. asked: هل عُرض على
   // المستخدم طلب الإذن ولو مرة (سواء وافق أو رفض) — حتى لا يُسأل مجدداً.

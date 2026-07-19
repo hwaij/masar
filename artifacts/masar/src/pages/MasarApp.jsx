@@ -428,24 +428,32 @@ export default function MasarApp() {
     else document.documentElement.removeAttribute("data-spacing");
   }, [spacious]);
 
-  const changeFontSize = useCallback((next) => {
-    setFontSize(next);
-    store.saveFontSize(next);
-  }, []);
+  const changeFontSize = useCallback(async (next) => {
+    setFontSize((prev) => {
+      store.saveFontSize(next).then((res) => {
+        if (!res.ok) { setFontSize(prev); showToast("تعذّر حفظ حجم الخط، حاول مرة أخرى"); }
+      });
+      return next;
+    });
+  }, [showToast]);
   const toggleHighContrast = useCallback(() => {
     setHighContrast((v) => {
       const next = !v;
-      store.saveHighContrast(next);
+      store.saveHighContrast(next).then((res) => {
+        if (!res.ok) { setHighContrast(v); showToast("تعذّر حفظ وضع التباين العالي، حاول مرة أخرى"); }
+      });
       return next;
     });
-  }, []);
+  }, [showToast]);
   const toggleSpacious = useCallback(() => {
     setSpacious((v) => {
       const next = !v;
-      store.saveSpacious(next);
+      store.saveSpacious(next).then((res) => {
+        if (!res.ok) { setSpacious(v); showToast("تعذّر حفظ التباعد الأكبر، حاول مرة أخرى"); }
+      });
       return next;
     });
-  }, []);
+  }, [showToast]);
 
   const [dailyTip, setDailyTip] = useState(null);
   // Shows today's "بصيرة" tip once, automatically, the first time the app
@@ -4273,20 +4281,26 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
     showToast("تم إيقاف الإشعارات");
   }
   async function toggleCustomColors() {
-    const next = !profile.customColorsEnabled;
+    const prev = profile.customColorsEnabled;
+    const next = !prev;
     setProfile((p) => ({ ...p, customColorsEnabled: next }));
-    await store.saveCustomColorsEnabled(next);
+    const res = await store.saveCustomColorsEnabled(next);
+    if (!res.ok) { setProfile((p) => ({ ...p, customColorsEnabled: prev })); showToast("تعذّر حفظ الألوان المخصصة، حاول مرة أخرى"); }
   }
   async function setSectionColor(sectionId, color) {
-    const next = { ...(profile.sectionColors || {}) };
+    const prev = { ...(profile.sectionColors || {}) };
+    const next = { ...prev };
     if (color === null) delete next[sectionId]; else next[sectionId] = color;
     setProfile((p) => ({ ...p, sectionColors: next }));
-    await store.saveSectionColors(next);
+    const res = await store.saveSectionColors(next);
+    if (!res.ok) { setProfile((p) => ({ ...p, sectionColors: prev })); showToast("تعذّر حفظ لون القسم، حاول مرة أخرى"); }
   }
   async function toggleSoundEnabled() {
-    const next = !profile.soundEnabled;
+    const prev = profile.soundEnabled;
+    const next = !prev;
     setProfile((p) => ({ ...p, soundEnabled: next }));
-    await store.saveSoundEnabled(next);
+    const res = await store.saveSoundEnabled(next);
+    if (!res.ok) { setProfile((p) => ({ ...p, soundEnabled: prev })); showToast("تعذّر حفظ إعداد الصوت، حاول مرة أخرى"); }
   }
   const [newColor, setNewColor] = useState(COLOR_CHOICES[0]);
 

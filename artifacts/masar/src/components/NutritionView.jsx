@@ -595,7 +595,8 @@ function AIPhotoPanel({ onSave, onManual }) {
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null); // { items, calories, protein, carbs, fat }
-  const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
+  const galleryInputRef = useRef(null);
 
   async function handleFile(e) {
     const file = e.target.files?.[0];
@@ -614,12 +615,23 @@ function AIPhotoPanel({ onSave, onManual }) {
 
   return (
     <>
-      <input ref={fileInputRef} type="file" accept="image/*" capture="environment" onChange={handleFile} style={{ display: "none" }} />
+      {/* حقلان منفصلان عمداً: capture="environment" على الأول يفتح الكاميرا
+          مباشرة على أغلب متصفحات الجوال (لا يعرض خيار المعرض إطلاقاً رغم
+          النص القديم الذي كان يَعِد به)، بينما الثاني بلا capture يفتح
+          منتقي الملفات/المعرض فعلياً. */}
+      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFile} style={{ display: "none" }} />
+      <input ref={galleryInputRef} type="file" accept="image/*" onChange={handleFile} style={{ display: "none" }} />
       {!preview && (
-        <button onClick={() => fileInputRef.current?.click()} style={NS.photoDropZone}>
-          <ImagePlus size={24} />
-          التقط صورة للوجبة أو اختر من المعرض
-        </button>
+        <div style={NS.chooserGrid}>
+          <button onClick={() => cameraInputRef.current?.click()} style={NS.chooserBtn}>
+            <span style={NS.chooserIcon}><Camera size={19} /></span>
+            التقط صورة
+          </button>
+          <button onClick={() => galleryInputRef.current?.click()} style={NS.chooserBtn}>
+            <span style={NS.chooserIcon}><ImagePlus size={19} /></span>
+            اختر من المعرض
+          </button>
+        </div>
       )}
       {preview && <img src={preview} alt="" style={NS.photoPreview} />}
 
@@ -633,7 +645,7 @@ function AIPhotoPanel({ onSave, onManual }) {
       {error && (
         <>
           <div style={NS.errorText}>{error}</div>
-          <button onClick={() => fileInputRef.current?.click()} style={{ ...S.exportBtn, marginBottom: 8 }}>إعادة المحاولة بصورة أخرى</button>
+          <button onClick={() => { setPreview(null); setError(null); }} style={{ ...S.exportBtn, marginBottom: 8 }}>إعادة المحاولة بصورة أخرى</button>
         </>
       )}
 

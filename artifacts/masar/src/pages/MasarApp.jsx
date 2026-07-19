@@ -19,6 +19,7 @@ import {
   Heart, GraduationCap, Eye, AlertTriangle,
   Wallet, ArrowDownCircle, ArrowUpCircle, Crown,
   Utensils, Dumbbell, Menu, Users,
+  Accessibility, ALargeSmall, Contrast, StretchHorizontal,
 } from "lucide-react";
 import { fivePrayers, nextPrayer, to12h } from "../lib/prayer";
 import { ADHKAR_CATEGORIES, ADHKAR } from "../lib/adhkar";
@@ -67,6 +68,12 @@ store.saveActiveSession = async (s) => activeSessionStore.save(s);
 // المحلي.
 if (typeof document !== "undefined") {
   document.documentElement.setAttribute("data-theme", store.getLocalTheme());
+  // نفس فكرة data-theme أعلاه لثلاثة إعدادات إتاحة الوصول - تُطبَّق فوراً
+  // قبل أول رسم حتى لا تظهر ومضة بلا تباعد/تباين/حجم خط قبل اكتمال
+  // loadProfile().
+  document.documentElement.setAttribute("data-font-size", store.getLocalFontSize());
+  if (store.getLocalHighContrast()) document.documentElement.setAttribute("data-contrast", "high");
+  if (store.getLocalSpacious()) document.documentElement.setAttribute("data-spacing", "relaxed");
 }
 
 // Extra prayer-view styles not in styles.js
@@ -239,6 +246,9 @@ export default function MasarApp() {
   const [profile, setProfile] = useState({ name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", language: "ar" });
   const [tourOpen, setTourOpen] = useState(false);
   const [theme, setTheme] = useState(() => store.getLocalTheme());
+  const [fontSize, setFontSize] = useState(() => store.getLocalFontSize());
+  const [highContrast, setHighContrast] = useState(() => store.getLocalHighContrast());
+  const [spacious, setSpacious] = useState(() => store.getLocalSpacious());
   const [achieve, setAchieve] = useState([]);
   const [focus, setFocus] = useState([]);
   const [commitments, setCommitments] = useState([]);
@@ -392,6 +402,50 @@ export default function MasarApp() {
     });
   }, []);
 
+  // مزامنة إعدادات إتاحة الوصول الثلاثة مع الحساب بعد اكتمال كل تحميل - نفس
+  // فكرة مزامنة المظهر أعلاه تماماً (تغطي تسجيل الدخول من جهاز آخر كان قد
+  // فعّل إعداداً مختلفاً سابقاً على هذا الحساب).
+  useEffect(() => {
+    if (loaded) {
+      setFontSize(["normal", "large", "xlarge"].includes(profile.fontSize) ? profile.fontSize : "normal");
+      setHighContrast(!!profile.highContrast);
+      setSpacious(!!profile.spacious);
+    }
+  }, [loaded]);
+
+  // تُطبَّق فوراً على الجذر عند أي تغيّر - نفس نمط تطبيق data-theme أعلاه
+  // تماماً، ولا تحفظ هنا (الحفظ فقط عند تبديل صريح في الدوال أدناه).
+  useEffect(() => {
+    document.documentElement.setAttribute("data-font-size", fontSize);
+  }, [fontSize]);
+  useEffect(() => {
+    if (highContrast) document.documentElement.setAttribute("data-contrast", "high");
+    else document.documentElement.removeAttribute("data-contrast");
+  }, [highContrast]);
+  useEffect(() => {
+    if (spacious) document.documentElement.setAttribute("data-spacing", "relaxed");
+    else document.documentElement.removeAttribute("data-spacing");
+  }, [spacious]);
+
+  const changeFontSize = useCallback((next) => {
+    setFontSize(next);
+    store.saveFontSize(next);
+  }, []);
+  const toggleHighContrast = useCallback(() => {
+    setHighContrast((v) => {
+      const next = !v;
+      store.saveHighContrast(next);
+      return next;
+    });
+  }, []);
+  const toggleSpacious = useCallback(() => {
+    setSpacious((v) => {
+      const next = !v;
+      store.saveSpacious(next);
+      return next;
+    });
+  }, []);
+
   const [dailyTip, setDailyTip] = useState(null);
   // Shows today's "بصيرة" tip once, automatically, the first time the app
   // is opened on a new local day — gated behind the splash AND the
@@ -529,7 +583,7 @@ export default function MasarApp() {
         {view === "achieve" && (isSub ? <AchieveView achieve={achieve} setAchieve={setAchieve} profile={profile} focus={focus} tasks={tasks} prayerLog={prayerLog} religious={religious} addPoints={addPoints} showToast={showToast} setView={setView} /> : (
           <div style={S.view}><UpsellCard icon={Rocket} title="أنجز ينتظرك في مسار الكامل" message="أنجز يعرف هواياتك ويقترح لك تحديات ومشاريع ومسارات تعلّم تناسبك أنت تحديداً." /></div>
         ))}
-        {view === "reports" && (isSub ? <ReportsView entries={entries} categories={categories} focus={focus} profile={profile} sleepLog={sleepLog} setSleepLog={setSleepLog} showToast={showToast} /> : (
+        {view === "reports" && (isSub ? <ReportsView entries={entries} categories={categories} focus={focus} profile={profile} healthProfile={healthProfile} sleepLog={sleepLog} setSleepLog={setSleepLog} showToast={showToast} /> : (
           <div style={S.view}><UpsellCard icon={TrendingUp} title="تقاريرك التفصيلية في مسار الكامل" message="شاهد تقدّمك بأرقام وتحليلات واضحة، وتتبّع نومك ونمط راحتك عبر الأيام." /></div>
         ))}
         {view === "assistant" && (isSub ? <AssistantView entries={entries} tasks={tasks} categories={categories} focus={focus} prayerLog={prayerLog} religious={religious} profile={profile} stats={stats} setView={setView} healthProfile={healthProfile} goals={goals} /> : (
@@ -547,7 +601,7 @@ export default function MasarApp() {
         {view === "groups" && !isSub && (
           <div style={S.view}><UpsellCard icon={Users} title="تحديات الأصدقاء في مسار الكامل" message="أنشئ جروب دراسة مع أصدقائك وتنافسوا بساعات الدراسة وإنجاز الرياضة، بتحديث لحظي بينكم." /></div>
         )}
-        {view === "settings" && <SettingsView categories={categories} setCategories={setCategories} gamify={gamify} hasCloud={store.hasCloud} showToast={showToast} profile={profile} setProfile={setProfile} pointsLog={pointsLog} onStartTour={startTour} subscription={subscription} theme={theme} toggleTheme={toggleTheme} />}
+        {view === "settings" && <SettingsView categories={categories} setCategories={setCategories} gamify={gamify} hasCloud={store.hasCloud} showToast={showToast} profile={profile} setProfile={setProfile} pointsLog={pointsLog} onStartTour={startTour} subscription={subscription} theme={theme} toggleTheme={toggleTheme} fontSize={fontSize} changeFontSize={changeFontSize} highContrast={highContrast} toggleHighContrast={toggleHighContrast} spacious={spacious} toggleSpacious={toggleSpacious} />}
       </div>
       {toast && <div style={S.toast}>{toast}</div>}
       {tourOpen && <OnboardingTour onClose={closeTour} />}
@@ -1413,8 +1467,61 @@ function TasksView({ tasks, setTasks, categories, addPoints, showToast, subscrip
   );
 }
 
-function ReportsView({ entries, categories, focus, profile, sleepLog, setSleepLog, showToast }) {
+// رسم بياني SVG بسيط ومستقل تماماً عن recharts - يُستخدم فقط داخل تقرير
+// PDF المُصدَّر (نافذة طباعة منفصلة لا تُشغِّل React/recharts إطلاقاً)، بدل
+// محاولة التقاط SVG المُولَّد من recharts في الصفحة الحيّة (هش ويعتمد على أي
+// تبويب فرعي مفتوح وقتها). يبني أعمدة تناسبياً بارتفاعها مع تدرّج ذهبي.
+function buildReportBarSvg(data, { width = 620, height = 190, colorStart = "#E0B868", colorEnd = "#8a6d28" } = {}) {
+  const max = Math.max(1, ...data.map((d) => d.value));
+  const n = Math.max(1, data.length);
+  const padding = 22;
+  const chartW = width - padding * 2;
+  const chartH = height - padding * 2 - 18;
+  const slot = chartW / n;
+  const barW = Math.max(2, slot - 5);
+  const showLabels = n <= 10;
+  let bars = "";
+  data.forEach((d, i) => {
+    const x = padding + i * slot + (slot - barW) / 2;
+    const h = Math.max(2, (d.value / max) * chartH);
+    const y = padding + chartH - h;
+    bars += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" rx="3" fill="url(#reportBarGrad)" />`;
+    if (showLabels) {
+      bars += `<text x="${(x + barW / 2).toFixed(1)}" y="${(padding + chartH + 15).toFixed(1)}" font-size="10" fill="#8a6d28" text-anchor="middle" font-family="Tajawal, sans-serif">${escapeHtml(d.label)}</text>`;
+    }
+  });
+  return `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;max-width:${width}px">
+    <defs><linearGradient id="reportBarGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${colorStart}" /><stop offset="100%" stop-color="${colorEnd}" />
+    </linearGradient></defs>
+    <line x1="${padding}" y1="${padding + chartH}" x2="${width - padding}" y2="${padding + chartH}" stroke="#e4ddc9" stroke-width="1" />
+    ${bars}
+  </svg>`;
+}
+
+const REPORT_SUB_TABS = [
+  { id: "overview", label: "نظرة عامة", icon: TrendingUp },
+  { id: "study", label: "الدراسة", icon: BookOpen },
+  { id: "health", label: "الصحة", icon: Heart },
+  { id: "nutrition", label: "التغذية", icon: Utensils },
+];
+
+function ReportsView({ entries, categories, focus, profile, healthProfile, sleepLog, setSleepLog, showToast }) {
   const [range, setRange] = useState("week");
+  const [subTab, setSubTab] = useState("overview");
+  const [exporting, setExporting] = useState(false);
+  const [nutritionLog, setNutritionLog] = useState([]);
+  const [nutritionLoaded, setNutritionLoaded] = useState(false);
+
+  // سجل التغذية ليس محمَّلاً مركزياً في MasarApp (نفس نمط "العرض المستقل"
+  // المستخدم في NutritionView وAssistantView) - يُجلب مرة واحدة هنا فقط
+  // عند فتح التقارير.
+  useEffect(() => {
+    let active = true;
+    store.loadNutritionLog().then((log) => { if (active) { setNutritionLog(log); setNutritionLoaded(true); } });
+    return () => { active = false; };
+  }, []);
+
   const catMap = useMemo(() => Object.fromEntries(categories.map((c) => [c.id, c])), [categories]);
   const span = range === "week" ? 7 : 30;
   const days = useMemo(() => {
@@ -1429,17 +1536,69 @@ function ReportsView({ entries, categories, focus, profile, sleepLog, setSleepLo
   const totalMin = entries.filter((e) => days.includes(e.date)).reduce((s, e) => s + diffMinutes(e.start, e.end), 0);
   const activeDays = new Set(entries.filter((e) => days.includes(e.date)).map((e) => e.date)).size;
   const avgPerActiveDay = activeDays ? totalMin / activeDays : 0;
-  const focusMin = (focus || []).filter((f) => days.includes(f.date)).reduce((s, f) => s + f.minutes, 0);
   const catTotals = useMemo(() => {
     const m = {};
     entries.filter((e) => days.includes(e.date)).forEach((e) => { m[e.catId] = (m[e.catId] || 0) + diffMinutes(e.start, e.end); });
     return Object.entries(m).map(([catId, mins]) => ({ name: catMap[catId]?.name || "غير محدد", value: mins, color: catMap[catId]?.color || "#9A968F" })).sort((a, b) => b.value - a.value);
   }, [entries, days, catMap]);
 
-  function exportPdf() {
+  // تبويب "الدراسة": يقتصر على الجلسات المعلَّمة isStudy (نفس تمييز
+  // الدراسة/العام المستخدم أصلاً في تقرير مؤقت التركيز).
+  const studyBarData = days.map((day) => ({
+    day, label: range === "week" ? arabicDate(day, { weekday: "short" }) : arabicDate(day, { day: "numeric" }),
+    minutes: (focus || []).filter((f) => f.date === day && f.isStudy).reduce((s, f) => s + f.minutes, 0),
+  }));
+  const studyInRange = (focus || []).filter((f) => days.includes(f.date) && f.isStudy);
+  const studyTotalMin = studyInRange.reduce((s, f) => s + f.minutes, 0);
+  const studySessions = studyInRange.length;
+  const studyActiveDays = new Set(studyInRange.map((f) => f.date)).size;
+  const studyAvgPerActiveDay = studyActiveDays ? studyTotalMin / studyActiveDays : 0;
+
+  // تبويب "التغذية": نفس نافذة الأيام المعروضة (أسبوع/شهر) - سجل التغذية
+  // نفسه مُقيَّد فعلياً بـ90 يوماً من جهة الخادم (راجع loadNutritionLog في
+  // store.js)، وهو أوسع من أطول مدى معروض هنا (شهر) فلا فقدان بيانات.
+  const nutritionByDay = days.map((day) => ({
+    day, label: range === "week" ? arabicDate(day, { weekday: "short" }) : arabicDate(day, { day: "numeric" }),
+    calories: Math.round(sumNutritionEntries(nutritionLog.filter((e) => e.date === day)).calories),
+  }));
+  const nutritionInRange = nutritionLog.filter((e) => days.includes(e.date));
+  const nutritionTotals = sumNutritionEntries(nutritionInRange);
+  const nutritionActiveDays = new Set(nutritionInRange.map((e) => e.date)).size;
+  const nutritionAvgCalories = nutritionActiveDays ? Math.round(nutritionTotals.calories / nutritionActiveDays) : 0;
+  const macroData = [
+    { name: "بروتين", value: Math.round(nutritionTotals.protein), color: "#5FA8A0" },
+    { name: "كربوهيدرات", value: Math.round(nutritionTotals.carbs), color: "#C9A24B" },
+    { name: "دهون", value: Math.round(nutritionTotals.fat), color: "#8A7BD1" },
+  ].filter((m) => m.value > 0);
+
+  const rangeEntries = useMemo(() => sleepLog.filter((s) => days.includes(s.date)), [sleepLog, days]);
+  const sleepAvgHours = rangeEntries.length ? rangeEntries.reduce((sum, s) => sum + s.hours, 0) / rangeEntries.length : null;
+
+  async function exportPdf() {
+    if (exporting) return;
+    setExporting(true);
     const rangeLabel = range === "week" ? "الأسبوعي" : "الشهري";
-    const rows = catTotals.map((c) => `<tr><td>${escapeHtml(c.name)}</td><td>${fmtHM(c.value)}</td></tr>`).join("");
-    const dayRows = barData.filter((d) => d.hours > 0).map((d) => `<tr><td>${d.label}</td><td>${d.hours} ساعة</td></tr>`).join("");
+    const periodStart = arabicDate(days[0], { day: "numeric", month: "long" });
+    const periodEnd = arabicDate(days[days.length - 1], { day: "numeric", month: "long", year: "numeric" });
+    const catRows = catTotals.map((c) => `<tr><td>${escapeHtml(c.name)}</td><td>${fmtHM(c.value)}</td></tr>`).join("");
+    const chartSvg = buildReportBarSvg(barData.map((d) => ({ label: d.label, value: d.hours })));
+
+    // توصية ذكية مبنية على أرقام الفترة الفعلية فقط - نفس محرك التحليل
+    // المستخدم أصلاً في "لخّص يومي" و"أنجز" (analyze عبر Gemini)، وهذا القسم
+    // متاح فقط لأن ReportsView نفسها محجوبة عن غير المشتركين بالفعل.
+    let smartTip = "";
+    try {
+      const prompt = `أنت مدرب تطوير ذاتي يكتب بالعربية الفصحى البسيطة بدون أي شرطات طويلة. إحصائيات المستخدم خلال الفترة ${rangeLabel === "الأسبوعي" ? "الأسبوعية" : "الشهرية"} الماضية:
+- إجمالي وقت النشاط المسجَّل: ${fmtHM(totalMin)}، عبر ${activeDays} من ${days.length} يوماً
+- وقت الدراسة/التركيز: ${fmtHM(studyTotalMin)}
+${sleepAvgHours !== null ? `- متوسط ساعات النوم: ${sleepAvgHours.toFixed(1)} ساعة` : ""}
+${nutritionAvgCalories ? `- متوسط السعرات اليومي: ${nutritionAvgCalories} سعرة` : ""}
+اكتب توصية عملية قصيرة (3-4 جمل) بناءً على هذه الأرقام فقط تحديداً (لا تخترع أي رقم غير مذكور)، تشجّع بصدق وتقترح خطوة عملية واحدة للفترة القادمة. أعد نصاً عادياً فقط، بدون markdown.`;
+      smartTip = (await analyze(prompt, 350)).trim();
+    } catch (err) {
+      console.error("[ReportsView] smart recommendation failed:", err);
+    }
+
     // على الجوال، window.open("", "_blank") لا يفتح تبويباً منفصلاً دائماً
     // (بعض متصفحات الجوال تستبدل التبويب الحالي بدلاً منه)، فتضيع صفحة
     // التطبيق كاملة دون أي رابط عودة. الزر أدناه يحاول إغلاق النافذة أولاً
@@ -1448,41 +1607,54 @@ function ReportsView({ entries, categories, focus, profile, sleepLog, setSleepLo
     // إخراج مضمون من الشاشة العالقة في الحالتين. مخفي عند الطباعة الفعلية
     // حتى لا يظهر داخل ملف الـ PDF نفسه.
     const appUrl = window.location.href;
+    const logoUrl = `${window.location.origin}/logo-mark.png`;
     const html = `<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>تقرير مسار ${rangeLabel}</title>
       <style>
-        @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&family=Amiri:wght@700&display=swap');
-        body{font-family:'Tajawal',sans-serif;color:#1a1a1a;padding:76px 40px 40px;max-width:700px;margin:auto}
-        h1{font-family:'Amiri',serif;color:#8a6d28;border-bottom:2px solid #C9A24B;padding-bottom:10px}
-        .meta{color:#666;font-size:13px;margin-bottom:24px}
+        @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&family=Amiri:wght@700&display=swap');
+        body{font-family:'Tajawal',sans-serif;color:#2B2621;padding:88px 40px 40px;max-width:700px;margin:auto;background:#FBF8F2}
+        .brand{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+        .brand img{width:34px;height:34px;border-radius:9px}
+        .brand span{font-family:'Amiri',serif;font-size:20px;font-weight:700;color:#1B3A3A}
+        h1{font-family:'Amiri',serif;color:#8a6d28;border-bottom:2px solid #C9A24B;padding-bottom:10px;margin-top:0}
+        .meta{color:#6B6355;font-size:13px;margin-bottom:24px}
         .kpis{display:flex;gap:16px;margin-bottom:24px}
-        .kpi{flex:1;border:1px solid #ddd;border-radius:10px;padding:14px;text-align:center}
+        .kpi{flex:1;background:#fff;border:1px solid #E8D9B5;border-radius:12px;padding:14px;text-align:center}
         .kpi .v{font-family:'Amiri',serif;font-size:22px;font-weight:700;color:#8a6d28}
-        .kpi .l{font-size:12px;color:#666;margin-top:4px}
+        .kpi .l{font-size:12px;color:#6B6355;margin-top:4px}
         table{width:100%;border-collapse:collapse;margin-bottom:24px}
-        th,td{text-align:right;padding:8px 12px;border-bottom:1px solid #eee;font-size:14px}
+        th,td{text-align:right;padding:8px 12px;border-bottom:1px solid #EDE4CE;font-size:14px}
         th{color:#8a6d28;font-size:12px}
-        h2{font-size:16px;margin-top:24px}
-        .footer{margin-top:40px;color:#999;font-size:11px;text-align:center}
+        h2{font-family:'Amiri',serif;font-size:17px;margin-top:28px;color:#1B3A3A;border-right:4px solid #C9A24B;padding-right:10px}
+        .chart-box{background:#fff;border:1px solid #E8D9B5;border-radius:12px;padding:14px;margin-bottom:10px;text-align:center}
+        .smart-box{background:linear-gradient(160deg,#FBF3E4,#fff);border:1px solid #E8D9B5;border-radius:12px;padding:16px;line-height:1.9;font-size:14px;color:#3A342C}
+        .footer{margin-top:40px;color:#9A8F78;font-size:11px;text-align:center;border-top:1px solid #EDE4CE;padding-top:14px}
         .back-btn{position:fixed;top:14px;left:14px;z-index:999;display:flex;align-items:center;gap:6px;background:#8a6d28;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-family:'Tajawal',sans-serif;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,0.2)}
         @media print{ body{padding-top:40px} .back-btn{display:none !important} }
       </style></head><body>
       <button class="back-btn" onclick="window.close(); setTimeout(function(){ window.location.href='${appUrl}'; }, 250);">✕ إغلاق والعودة لمسار</button>
-      <h1>◐ تقرير مسار ${rangeLabel}</h1>
-      <div class="meta">${profile?.about ? escapeHtml(profile.about) + " · " : ""}صدر بتاريخ ${arabicDate(todayKey(), { day: "numeric", month: "long", year: "numeric" })}</div>
+      <div class="brand"><img src="${logoUrl}" alt="مسار" /><span>مسار</span></div>
+      <h1>تقرير ${rangeLabel}</h1>
+      <div class="meta">الفترة: من ${periodStart} إلى ${periodEnd}${profile?.about ? " · " + escapeHtml(profile.about) : ""}</div>
       <div class="kpis">
         <div class="kpi"><div class="v">${fmtHM(totalMin)}</div><div class="l">إجمالي الوقت المسجّل</div></div>
         <div class="kpi"><div class="v">${activeDays}</div><div class="l">أيام نشطة</div></div>
-        <div class="kpi"><div class="v">${fmtHM(focusMin)}</div><div class="l">وقت التركيز</div></div>
+        <div class="kpi"><div class="v">${fmtHM(studyTotalMin)}</div><div class="l">وقت الدراسة</div></div>
       </div>
-      <h2>توزيع الأنشطة</h2>
-      <table><tr><th>الفئة</th><th>الوقت</th></tr>${rows || '<tr><td colspan=2>لا بيانات</td></tr>'}</table>
       <h2>الساعات اليومية</h2>
-      <table><tr><th>اليوم</th><th>الساعات</th></tr>${dayRows || '<tr><td colspan=2>لا بيانات</td></tr>'}</table>
-      <div class="footer">مسار · أداتك الشخصية للوقت وتطوير الذات</div>
+      <div class="chart-box">${chartSvg}</div>
+      <h2>توزيع الأنشطة</h2>
+      <table><tr><th>الفئة</th><th>الوقت</th></tr>${catRows || '<tr><td colspan=2>لا بيانات</td></tr>'}</table>
+      ${(sleepAvgHours !== null || nutritionActiveDays > 0) ? `<h2>الصحة والتغذية</h2><div class="kpis">
+        ${sleepAvgHours !== null ? `<div class="kpi"><div class="v">${sleepAvgHours.toFixed(1)} س</div><div class="l">متوسط النوم</div></div>` : ""}
+        ${nutritionActiveDays > 0 ? `<div class="kpi"><div class="v">${nutritionAvgCalories}</div><div class="l">متوسط السعرات اليومي</div></div>` : ""}
+      </div>` : ""}
+      ${smartTip ? `<h2>توصية مسار الذكية</h2><div class="smart-box">${escapeHtml(smartTip)}</div>` : ""}
+      <div class="footer">مسار · أداتك الشخصية للوقت وتطوير الذات · صدر بتاريخ ${arabicDate(todayKey(), { day: "numeric", month: "long", year: "numeric" })}</div>
       </body></html>`;
     const w = window.open("", "_blank");
-    if (!w) { showToast("اسمح بالنوافذ المنبثقة للتصدير"); return; }
+    if (!w) { showToast("اسمح بالنوافذ المنبثقة للتصدير"); setExporting(false); return; }
     w.document.write(html); w.document.close();
+    setExporting(false);
     setTimeout(() => { w.focus(); w.print(); }, 600);
   }
 
@@ -1496,58 +1668,178 @@ function ReportsView({ entries, categories, focus, profile, sleepLog, setSleepLo
         </div>
       </div>
 
-      <button onClick={exportPdf} style={S.exportBtn}><Download size={15} /> تصدير التقرير PDF</button>
+      <button onClick={exportPdf} disabled={exporting} style={S.exportBtn}>
+        {exporting ? <Loader2 size={15} className="spin" /> : <Download size={15} />} {exporting ? "جارٍ تجهيز التقرير..." : "تصدير التقرير PDF"}
+      </button>
 
-      <div style={S.kpiRow}>
-        <div style={S.kpiCard}><div style={S.kpiValue}>{fmtHM(totalMin)}</div><div style={S.kpiLabel}>الإجمالي</div></div>
-        <div style={S.kpiCard}><div style={S.kpiValue}>{activeDays}</div><div style={S.kpiLabel}>أيام نشطة</div></div>
-        <div style={S.kpiCard}><div style={S.kpiValue}>{fmtHM(avgPerActiveDay)}</div><div style={S.kpiLabel}>معدل اليوم</div></div>
+      <div style={S.subTabRow}>
+        {REPORT_SUB_TABS.map((t) => {
+          const Icon = t.icon;
+          return (
+            <button key={t.id} onClick={() => setSubTab(t.id)} style={{ ...S.subTab, ...(subTab === t.id ? S.subTabActive : {}) }}>
+              <Icon size={13} /> {t.label}
+            </button>
+          );
+        })}
       </div>
-      <div style={S.chartCard}>
-        <div style={S.chartTitle}>الساعات {range === "week" ? "اليومية" : "خلال الشهر"}</div>
-        <ResponsiveContainer width="100%" height={190}>
-          <BarChart data={barData} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="2 4" stroke="var(--surface-raised)" vertical={false} />
-            <XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: range === "week" ? 11 : 8, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} interval={range === "week" ? 0 : 3} />
-            <YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
-            <Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [`${v} ساعة`, ""]} />
-            <Bar dataKey="hours" radius={[3, 3, 3, 3]} fill="#C9A24B" maxBarSize={range === "week" ? 28 : 12} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-      <div style={S.chartCard}>
-        <div style={S.chartTitle}>توزيع الأنشطة</div>
-        {catTotals.length === 0 ? <div style={S.emptyHint}>لا بيانات كافية بعد</div> : (
-          <div style={S.pieRow}>
-            <ResponsiveContainer width={140} height={140}>
-              <PieChart>
-                <Pie data={catTotals} dataKey="value" nameKey="name" innerRadius={38} outerRadius={62} paddingAngle={2} stroke="none">
-                  {catTotals.map((c, i) => <Cell key={i} fill={c.color} />)}
-                </Pie>
-                <Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v, n) => [fmtHM(v), n]} />
-              </PieChart>
-            </ResponsiveContainer>
-            <div style={S.pieLegend}>
-              {catTotals.map((c, i) => (
-                <div key={i} style={S.legendChip}><span style={{ ...S.legendDot, background: c.color }} /><span>{c.name}</span><span style={S.legendMins}>{fmtHM(c.value)}</span></div>
-              ))}
-            </div>
+
+      {subTab === "overview" && (
+        <>
+          <div style={S.kpiRow}>
+            <div style={S.kpiCard}><div style={S.kpiValue}>{fmtHM(totalMin)}</div><div style={S.kpiLabel}>الإجمالي</div></div>
+            <div style={S.kpiCard}><div style={S.kpiValue}>{activeDays}</div><div style={S.kpiLabel}>أيام نشطة</div></div>
+            <div style={S.kpiCard}><div style={S.kpiValue}>{fmtHM(avgPerActiveDay)}</div><div style={S.kpiLabel}>معدل اليوم</div></div>
           </div>
-        )}
-      </div>
-      <div style={S.chartCard}>
-        <div style={S.chartTitle}>اتجاه الإنتاجية</div>
-        <ResponsiveContainer width="100%" height={150}>
-          <LineChart data={barData} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="2 4" stroke="var(--surface-raised)" vertical={false} />
-            <XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: range === "week" ? 11 : 8, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} interval={range === "week" ? 0 : 3} />
-            <YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
-            <Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [`${v} ساعة`, ""]} />
-            <Line type="monotone" dataKey="hours" stroke="#C9A24B" strokeWidth={2} dot={{ fill: "#C9A24B", r: range === "week" ? 3 : 0 }} />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-      <SleepSection sleepLog={sleepLog} setSleepLog={setSleepLog} days={days} range={range} showToast={showToast} />
+          <div style={S.chartCard}>
+            <div style={S.chartTitle}>الساعات {range === "week" ? "اليومية" : "خلال الشهر"}</div>
+            {totalMin === 0 ? <div style={S.emptyHint}>لا توجد بيانات كافية بعد</div> : (
+              <ResponsiveContainer width="100%" height={190}>
+                <BarChart data={barData} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="repOverviewBar" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#E0B868" />
+                      <stop offset="100%" stopColor="#9A7529" />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="2 4" stroke="var(--surface-raised)" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: range === "week" ? 11 : 8, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} interval={range === "week" ? 0 : 3} />
+                  <YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <Tooltip cursor={{ fill: "rgba(201,162,75,0.08)" }} contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [`${v} ساعة`, ""]} />
+                  <Bar dataKey="hours" radius={[3, 3, 3, 3]} fill="url(#repOverviewBar)" maxBarSize={range === "week" ? 28 : 12} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+          <div style={S.chartCard}>
+            <div style={S.chartTitle}>توزيع الأنشطة</div>
+            {catTotals.length === 0 ? <div style={S.emptyHint}>لا توجد بيانات كافية بعد</div> : (
+              <div style={S.pieRow}>
+                <ResponsiveContainer width={140} height={140}>
+                  <PieChart>
+                    <Pie data={catTotals} dataKey="value" nameKey="name" innerRadius={38} outerRadius={62} paddingAngle={2} stroke="none">
+                      {catTotals.map((c, i) => <Cell key={i} fill={c.color} />)}
+                    </Pie>
+                    <Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v, n) => [fmtHM(v), n]} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div style={S.pieLegend}>
+                  {catTotals.map((c, i) => (
+                    <div key={i} style={S.legendChip}><span style={{ ...S.legendDot, background: c.color }} /><span>{c.name}</span><span style={S.legendMins}>{fmtHM(c.value)}</span></div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          <div style={S.chartCard}>
+            <div style={S.chartTitle}>اتجاه الإنتاجية</div>
+            {totalMin === 0 ? <div style={S.emptyHint}>لا توجد بيانات كافية بعد</div> : (
+              <ResponsiveContainer width="100%" height={150}>
+                <LineChart data={barData} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="repTrendLine" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#9A7529" />
+                      <stop offset="100%" stopColor="#E0B868" />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="2 4" stroke="var(--surface-raised)" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: range === "week" ? 11 : 8, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} interval={range === "week" ? 0 : 3} />
+                  <YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <Tooltip cursor={{ stroke: "var(--border2)" }} contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [`${v} ساعة`, ""]} />
+                  <Line type="monotone" dataKey="hours" stroke="url(#repTrendLine)" strokeWidth={2.5} dot={{ fill: "#C9A24B", r: range === "week" ? 3 : 0 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </>
+      )}
+
+      {subTab === "study" && (
+        <>
+          <div style={S.kpiRow}>
+            <div style={S.kpiCard}><div style={S.kpiValue}>{fmtHM(studyTotalMin)}</div><div style={S.kpiLabel}>إجمالي الدراسة</div></div>
+            <div style={S.kpiCard}><div style={S.kpiValue}>{studySessions}</div><div style={S.kpiLabel}>جلسات</div></div>
+            <div style={S.kpiCard}><div style={S.kpiValue}>{fmtHM(studyAvgPerActiveDay)}</div><div style={S.kpiLabel}>معدل اليوم</div></div>
+          </div>
+          <div style={S.chartCard}>
+            <div style={S.chartTitle}>دقائق الدراسة {range === "week" ? "اليومية" : "خلال الشهر"}</div>
+            {studyTotalMin === 0 ? <div style={S.emptyHint}>لا توجد بيانات كافية بعد - شغّل مؤقت الدراسة لتظهر هنا</div> : (
+              <ResponsiveContainer width="100%" height={190}>
+                <BarChart data={studyBarData} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="repStudyBar" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#7FC4BC" />
+                      <stop offset="100%" stopColor="#1B3A3A" />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="2 4" stroke="var(--surface-raised)" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: range === "week" ? 11 : 8, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} interval={range === "week" ? 0 : 3} />
+                  <YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <Tooltip cursor={{ fill: "rgba(95,168,160,0.08)" }} contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [fmtHM(v), ""]} />
+                  <Bar dataKey="minutes" radius={[3, 3, 3, 3]} fill="url(#repStudyBar)" maxBarSize={range === "week" ? 28 : 12} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </>
+      )}
+
+      {subTab === "health" && (
+        <SleepSection sleepLog={sleepLog} setSleepLog={setSleepLog} days={days} range={range} showToast={showToast} />
+      )}
+
+      {subTab === "nutrition" && (
+        !nutritionLoaded ? (
+          <div style={{ display: "flex", justifyContent: "center", padding: 30 }}><Loader2 size={20} className="spin" color="#C9A24B" /></div>
+        ) : (
+          <>
+            <div style={S.kpiRow}>
+              <div style={S.kpiCard}><div style={S.kpiValue}>{nutritionAvgCalories || "—"}</div><div style={S.kpiLabel}>متوسط السعرات</div></div>
+              <div style={S.kpiCard}><div style={S.kpiValue}>{nutritionActiveDays}</div><div style={S.kpiLabel}>أيام مسجَّلة</div></div>
+              <div style={S.kpiCard}><div style={S.kpiValue}>{healthProfile?.tee ? Math.round(healthProfile.tee) : "—"}</div><div style={S.kpiLabel}>هدفك اليومي (TEE)</div></div>
+            </div>
+            <div style={S.chartCard}>
+              <div style={S.chartTitle}>السعرات {range === "week" ? "اليومية" : "خلال الشهر"}</div>
+              {nutritionActiveDays === 0 ? <div style={S.emptyHint}>لا توجد بيانات كافية بعد - سجّل وجباتك في قسم التغذية</div> : (
+                <ResponsiveContainer width="100%" height={190}>
+                  <BarChart data={nutritionByDay} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="repNutritionBar" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#E0B868" />
+                        <stop offset="100%" stopColor="#9A7529" />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="2 4" stroke="var(--surface-raised)" vertical={false} />
+                    <XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: range === "week" ? 11 : 8, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} interval={range === "week" ? 0 : 3} />
+                    <YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <Tooltip cursor={{ fill: "rgba(201,162,75,0.08)" }} contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [`${v} سعرة`, ""]} />
+                    <Bar dataKey="calories" radius={[3, 3, 3, 3]} fill="url(#repNutritionBar)" maxBarSize={range === "week" ? 28 : 12} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+            <div style={S.chartCard}>
+              <div style={S.chartTitle}>توزيع الماكروز</div>
+              {macroData.length === 0 ? <div style={S.emptyHint}>لا توجد بيانات كافية بعد</div> : (
+                <div style={S.pieRow}>
+                  <ResponsiveContainer width={140} height={140}>
+                    <PieChart>
+                      <Pie data={macroData} dataKey="value" nameKey="name" innerRadius={38} outerRadius={62} paddingAngle={2} stroke="none">
+                        {macroData.map((c, i) => <Cell key={i} fill={c.color} />)}
+                      </Pie>
+                      <Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v, n) => [`${v}غ`, n]} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div style={S.pieLegend}>
+                    {macroData.map((c, i) => (
+                      <div key={i} style={S.legendChip}><span style={{ ...S.legendDot, background: c.color }} /><span>{c.name}</span><span style={S.legendMins}>{c.value}غ</span></div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </>
+        )
+      )}
     </div>
   );
 }
@@ -3938,7 +4230,7 @@ function AchieveCard({ item, kindLabel, onToggle, onRemove }) {
 
 const FREE_CATEGORY_LIMIT = 5;
 
-function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, profile, setProfile, pointsLog, onStartTour, subscription, theme, toggleTheme }) {
+function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, profile, setProfile, pointsLog, onStartTour, subscription, theme, toggleTheme, fontSize, changeFontSize, highContrast, toggleHighContrast, spacious, toggleSpacious }) {
   const isSub = isActiveSubscriber(subscription);
   const [editing, setEditing] = useState(null);
   // While a category is being renamed, edits live here only — nothing is
@@ -4019,6 +4311,35 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
           <button onClick={() => theme !== "dark" && toggleTheme()} style={{ ...S.rangeBtn, flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, ...(theme === "dark" ? S.rangeBtnActive : {}) }}>
             <Moon size={14} /> داكن (أسود/كحلي)
           </button>
+        </div>
+      </div>
+      <div style={S.catEditorCard}>
+        <div style={S.catEditorHeader}><Accessibility size={15} color="#C9A24B" /><span>إتاحة الوصول</span></div>
+        <p style={S.profileHint}>يمكنك تفعيل أكثر من خيار معاً - كل خيار مستقل عن الآخر.</p>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--muted2)", marginBottom: 8 }}>
+          <ALargeSmall size={14} color="#C9A24B" /> حجم الخط
+        </div>
+        <div style={S.rangeToggle}>
+          <button onClick={() => changeFontSize("normal")} style={{ ...S.rangeBtn, flex: 1, ...(fontSize === "normal" ? S.rangeBtnActive : {}) }}>عادي</button>
+          <button onClick={() => changeFontSize("large")} style={{ ...S.rangeBtn, flex: 1, ...(fontSize === "large" ? S.rangeBtnActive : {}) }}>كبير</button>
+          <button onClick={() => changeFontSize("xlarge")} style={{ ...S.rangeBtn, flex: 1, ...(fontSize === "xlarge" ? S.rangeBtnActive : {}) }}>كبير جداً</button>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--muted2)", margin: "14px 0 8px" }}>
+          <Contrast size={14} color="#C9A24B" /> وضع التباين العالي
+        </div>
+        <div style={S.rangeToggle}>
+          <button onClick={() => highContrast && toggleHighContrast()} style={{ ...S.rangeBtn, flex: 1, ...(!highContrast ? S.rangeBtnActive : {}) }}>متوقف</button>
+          <button onClick={() => !highContrast && toggleHighContrast()} style={{ ...S.rangeBtn, flex: 1, ...(highContrast ? S.rangeBtnActive : {}) }}>مفعّل</button>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--muted2)", margin: "14px 0 8px" }}>
+          <StretchHorizontal size={14} color="#C9A24B" /> تباعد أكبر بين العناصر
+        </div>
+        <div style={S.rangeToggle}>
+          <button onClick={() => spacious && toggleSpacious()} style={{ ...S.rangeBtn, flex: 1, ...(!spacious ? S.rangeBtnActive : {}) }}>متوقف</button>
+          <button onClick={() => !spacious && toggleSpacious()} style={{ ...S.rangeBtn, flex: 1, ...(spacious ? S.rangeBtnActive : {}) }}>مفعّل</button>
         </div>
       </div>
       <div style={S.catEditorCard}>

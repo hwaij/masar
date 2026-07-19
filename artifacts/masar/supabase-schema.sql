@@ -67,6 +67,11 @@ alter table profile add column if not exists notifications_enabled boolean not n
 alter table profile add column if not exists notifications_asked boolean not null default false;
 alter table profile add column if not exists language text not null default 'ar';
 alter table profile add column if not exists name text default '';
+-- إتاحة الوصول (Accessibility): حجم الخط، وضع التباين العالي، والتباعد
+-- الموسّع بين العناصر - ثلاثة محاور مستقلة يمكن الجمع بينها معاً.
+alter table profile add column if not exists font_size text not null default 'normal';
+alter table profile add column if not exists high_contrast boolean not null default false;
+alter table profile add column if not exists spacious boolean not null default false;
 
 -- قسم "أنت": بيانات صحية أساسية + القيم المحسوبة منها (BMI/IBW/REE/TEE)
 -- مخزّنة جاهزة حتى تقرأها أقسام التغذية والرياضة لاحقاً دون إعادة حسابها.

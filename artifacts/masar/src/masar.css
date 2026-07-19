@@ -47,6 +47,65 @@
   --header-bg: rgba(247,245,240,0.92);
 }
 
+/* إتاحة الوصول: ثلاثة محاور مستقلة تُطبَّق عبر سمات على <html> (راجع
+   MasarApp.jsx)، ويمكن الجمع بينها معاً (لا تتعارض لأنها تعمل على طبقات
+   CSS مختلفة تماماً: zoom عام، متغيّر تباعد يقرأه styles.js، وألوان). */
+
+/* حجم الخط: zoom يكبّر النص وكل شيء حوله معاً (الحشوات، أهداف اللمس...)
+   بدل مجرد تكبير الخط منفصلاً عن حاويته - هذا فعلياً السلوك المطلوب لإتاحة
+   وصول حقيقية (نص أكبر يحتاج مساحة لمس أكبر أيضاً)، ومدعوم الآن في كل
+   المتصفحات الحديثة الرئيسية (Chrome/Safari/Edge/Firefox). */
+html[data-font-size="large"] { zoom: 1.15; }
+html[data-font-size="xlarge"] { zoom: 1.3; }
+
+/* التباعد الموسّع: متغيّر يقرأه styles.js عبر calc() على أبرز الحشوات
+   والمسافات المشتركة عبر كل الشاشات الرئيسية (S.view، الأزرار، البطاقات،
+   قوائم العناصر) - محور مستقل تماماً عن حجم الخط. */
+:root { --app-spacing-scale: 1; }
+html[data-spacing="relaxed"] { --app-spacing-scale: 1.45; }
+
+/* وضع التباين العالي: ألوان حادة صريحة (أسود/أبيض/ذهبي) بلا أي تدرجات أو
+   شفافيات هادئة، مستقل عن الوضع الداكن/الفاتح العادي - يُطبَّق فوق أياً
+   منهما كان مفعّلاً وقتها. */
+html[data-theme="dark"][data-contrast="high"] {
+  --bg: #000000;
+  --panel: #000000;
+  --gold: #FFD666;
+  --ink: #FFFFFF;
+  --muted: #FFFFFF;
+  --muted2: #FFFFFF;
+  --line: #FFFFFF;
+  --border2: #FFFFFF;
+  --surface-sunken: #000000;
+  --surface-raised: #1A1A1A;
+  --ink-soft: #FFFFFF;
+  --warm-tint: #000000;
+  --warm-border: #FFD666;
+  --teal: #000000;
+  --teal-border: #66E0D0;
+  --header-bg: #000000;
+  --on-accent: #000000;
+}
+html[data-theme="light"][data-contrast="high"] {
+  --bg: #FFFFFF;
+  --panel: #FFFFFF;
+  --gold: #7A5A00;
+  --ink: #000000;
+  --muted: #000000;
+  --muted2: #000000;
+  --line: #000000;
+  --border2: #000000;
+  --surface-sunken: #FFFFFF;
+  --surface-raised: #EDEDED;
+  --ink-soft: #000000;
+  --warm-tint: #FFFFFF;
+  --warm-border: #7A5A00;
+  --teal: #FFFFFF;
+  --teal-border: #00695C;
+  --header-bg: #FFFFFF;
+  --on-accent: #FFFFFF;
+}
+
 * { box-sizing: border-box; }
 html, body {
   margin: 0;

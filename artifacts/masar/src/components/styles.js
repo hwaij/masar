@@ -1,3 +1,12 @@
+// إتاحة الوصول - "تباعد موسّع": يلفّ أي قيمة padding/margin/gap (رقماً أو
+// نصاً مركّباً مثل "18px 18px 40px") بـ calc() يقرأ --app-spacing-scale
+// (المتغيّر الذي يضبطه data-spacing="relaxed" في masar.css). القيمة
+// الافتراضية للمتغيّر هي 1 (بلا أي تغيير) عندما يكون الخيار غير مفعَّل.
+function sp(v) {
+  if (typeof v === "number") return `calc(${v}px * var(--app-spacing-scale, 1))`;
+  return String(v).replace(/(-?\d+(?:\.\d+)?)px/g, "calc($1px * var(--app-spacing-scale, 1))");
+}
+
 export const S = {
   app: { minHeight: "100vh", background: "var(--bg)", color: "var(--ink)" },
   header: { position: "sticky", top: 0, background: "var(--header-bg)", backdropFilter: "blur(10px)", borderBottom: "1px solid var(--line)", zIndex: 20, maxWidth: 480, margin: "0 auto", padding: "16px 18px 0" },
@@ -12,7 +21,7 @@ export const S = {
   tabBtn: { flex: "1 0 auto", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "8px 10px", border: "none", borderBottom: "2px solid transparent", background: "transparent", color: "var(--muted2)", fontSize: 11, fontFamily: "inherit", fontWeight: 600, cursor: "pointer", transition: "all 0.15s" },
   tabBtnActive: { color: "var(--gold)", borderBottom: "2px solid var(--gold)" },
   body: { maxWidth: 480, margin: "0 auto" },
-  view: { padding: "18px 18px 40px" },
+  view: { padding: sp("18px 18px 40px") },
 
   dateRow: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
   dateLabel: { fontSize: 14, color: "var(--muted2)", display: "flex", alignItems: "center", gap: 8 },
@@ -29,7 +38,7 @@ export const S = {
   legendMins: { color: "var(--muted)", fontSize: 11 },
   emptyHint: { color: "var(--muted)", fontSize: 13, textAlign: "center", padding: "12px 0" },
 
-  evolutionCard: { background: "linear-gradient(160deg, var(--warm-tint), var(--panel))", border: "1px solid var(--warm-border)", borderRadius: 16, padding: "14px", marginBottom: 20 },
+  evolutionCard: { background: "linear-gradient(160deg, var(--warm-tint), var(--panel))", border: "1px solid var(--warm-border)", borderRadius: 16, padding: sp("14px"), marginBottom: sp(20) },
   evolutionHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
   evolutionTitleRow: { display: "flex", alignItems: "center", gap: 7 },
   evolutionTitle: { fontFamily: "'Amiri', serif", fontSize: 16, fontWeight: 700 },
@@ -40,9 +49,9 @@ export const S = {
   tipBox: { display: "flex", alignItems: "flex-start", gap: 8, background: "rgba(95,168,160,0.08)", border: "1px solid rgba(95,168,160,0.2)", borderRadius: 10, padding: "9px 11px", fontSize: 12.5, color: "#A8D5CF", lineHeight: 1.6 },
 
   entryListHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
-  addBtn: { display: "flex", alignItems: "center", gap: 6, background: "var(--gold)", color: "var(--bg)", border: "none", borderRadius: 10, padding: "8px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
-  entryList: { display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 },
-  entryRow: { display: "flex", alignItems: "center", gap: 10, background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, padding: "10px 12px", cursor: "pointer" },
+  addBtn: { display: "flex", alignItems: "center", gap: 6, background: "var(--gold)", color: "var(--bg)", border: "none", borderRadius: 10, padding: sp("8px 14px"), fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
+  entryList: { display: "flex", flexDirection: "column", gap: sp(8), marginBottom: sp(16) },
+  entryRow: { display: "flex", alignItems: "center", gap: sp(10), background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, padding: sp("10px 12px"), cursor: "pointer" },
   entryRowActive: { borderColor: "#3A3530" },
   entryBar: { width: 4, height: 32, borderRadius: 3, flexShrink: 0 },
   entryInfo: { flex: 1, minWidth: 0 },
@@ -76,8 +85,8 @@ export const S = {
   dayChipNum: { fontSize: 14, fontWeight: 700, color: "var(--ink)", fontVariantNumeric: "tabular-nums" },
   dayChipTodayDot: { width: 4, height: 4, borderRadius: "50%", background: "#C9A24B" },
   dayCompleteBanner: { textAlign: "center", background: "rgba(95,168,160,0.1)", border: "1px solid rgba(95,168,160,0.3)", color: "#5FA8A0", borderRadius: 12, padding: "12px 10px", fontSize: 13, fontWeight: 600 },
-  taskList: { display: "flex", flexDirection: "column", gap: 8 },
-  taskRow: { display: "flex", alignItems: "flex-start", gap: 10, background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, padding: "11px 12px" },
+  taskList: { display: "flex", flexDirection: "column", gap: sp(8) },
+  taskRow: { display: "flex", alignItems: "flex-start", gap: sp(10), background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, padding: sp("11px 12px") },
   checkbox: { width: 24, height: 24, borderRadius: 7, border: "1.5px solid var(--border2)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--bg)", flexShrink: 0, marginTop: 1 },
   checkboxDone: { background: "#5FA8A0", borderColor: "#5FA8A0" },
   taskInfo: { flex: 1, minWidth: 0 },
@@ -90,11 +99,11 @@ export const S = {
   rangeToggle: { display: "flex", gap: 4, background: "var(--surface-sunken)", borderRadius: 10, padding: 3 },
   rangeBtn: { background: "transparent", border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 12.5, color: "var(--muted2)", cursor: "pointer", fontFamily: "inherit", fontWeight: 600 },
   rangeBtnActive: { background: "var(--gold)", color: "var(--bg)" },
-  kpiRow: { display: "flex", gap: 10, marginBottom: 16 },
-  kpiCard: { flex: 1, background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, padding: "14px 10px", textAlign: "center" },
+  kpiRow: { display: "flex", gap: sp(10), marginBottom: sp(16) },
+  kpiCard: { flex: 1, background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, padding: sp("14px 10px"), textAlign: "center" },
   kpiValue: { fontFamily: "'Amiri', serif", fontSize: 18, fontWeight: 700, color: "var(--gold)" },
   kpiLabel: { fontSize: 11, color: "var(--muted)", marginTop: 4 },
-  chartCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 12px", marginBottom: 14 },
+  chartCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: sp("14px 12px"), marginBottom: sp(14) },
   chartTitle: { fontSize: 13, fontWeight: 600, color: "var(--muted2)", marginBottom: 8, paddingRight: 4 },
   detailLine: { fontSize: 11.5, color: "var(--muted2)", marginTop: 8, textAlign: "center" },
   pieRow: { display: "flex", alignItems: "center", gap: 10 },
@@ -102,8 +111,8 @@ export const S = {
 
   reportDot: { color: "var(--gold)", flexShrink: 0 },
 
-  badgesCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 12px", marginBottom: 16 },
-  badgesGrid: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 },
+  badgesCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: sp("14px 12px"), marginBottom: sp(16) },
+  badgesGrid: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: sp(10) },
   badge: { background: "var(--surface-sunken)", border: "1px solid var(--line)", borderRadius: 12, padding: "14px 8px", textAlign: "center", opacity: 0.5 },
   badgeEarned: { opacity: 1, borderColor: "var(--warm-border)", background: "var(--warm-tint)" },
   badgeIcon: { fontSize: 22, color: "var(--muted2)", marginBottom: 6 },
@@ -111,10 +120,10 @@ export const S = {
   badgeName: { fontSize: 11.5, fontWeight: 700, color: "var(--ink-soft)" },
   badgeDesc: { fontSize: 10, color: "var(--muted)", marginTop: 2 },
 
-  catEditorCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 12px", marginBottom: 16 },
+  catEditorCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: sp("14px 12px"), marginBottom: sp(16) },
   catEditorHeader: { display: "flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 700, color: "var(--muted2)", marginBottom: 12 },
-  catEditList: { display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 },
-  catEditRow: { display: "flex", alignItems: "center", gap: 8, background: "var(--surface-sunken)", border: "1px solid var(--line)", borderRadius: 10, padding: "8px 10px", flexWrap: "wrap" },
+  catEditList: { display: "flex", flexDirection: "column", gap: sp(8), marginBottom: sp(14) },
+  catEditRow: { display: "flex", alignItems: "center", gap: sp(8), background: "var(--surface-sunken)", border: "1px solid var(--line)", borderRadius: 10, padding: sp("8px 10px"), flexWrap: "wrap" },
   catEditName: { flex: 1, fontSize: 13, color: "var(--ink)" },
   catIconBtn: { background: "none", border: "none", color: "var(--muted)", cursor: "pointer", padding: 4, display: "flex" },
   catEditInput: { flex: 1, background: "var(--bg)", border: "1px solid var(--border2)", borderRadius: 8, padding: "8px 10px", color: "var(--ink)", fontSize: 13, fontFamily: "inherit", minWidth: 100 },
@@ -124,11 +133,11 @@ export const S = {
   catAddRow: { borderTop: "1px solid var(--line)", paddingTop: 12 },
   catAddInputRow: { display: "flex", gap: 8, marginTop: 4 },
 
-  setupCard: { background: "var(--teal)", border: "1px solid #2A4A4A", borderRadius: 14, padding: "14px", marginBottom: 16, display: "flex", gap: 10, alignItems: "flex-start" },
+  setupCard: { background: "var(--teal)", border: "1px solid #2A4A4A", borderRadius: 14, padding: sp("14px"), marginBottom: sp(16), display: "flex", gap: sp(10), alignItems: "flex-start" },
   setupText: { fontSize: 12.5, color: "#BFD8D4", lineHeight: 1.7 },
   linkBtn: { background: "var(--gold)", color: "var(--bg)", border: "none", borderRadius: 10, padding: "8px 14px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
 
-  roadmapCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 12px" },
+  roadmapCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: sp("14px 12px") },
   roadmapPhaseRow: { marginBottom: 14, paddingBottom: 14, borderBottom: "1px solid var(--surface-sunken)" },
   roadmapPhaseHead: { display: "flex", alignItems: "center", gap: 8, marginBottom: 6 },
   roadmapPhaseTag: { fontSize: 10, fontWeight: 700, color: "var(--gold)", background: "rgba(201,162,75,0.09)", padding: "2px 8px", borderRadius: 20 },
@@ -137,7 +146,7 @@ export const S = {
   roadmapPhaseItem: { display: "flex", gap: 8, fontSize: 12.5, color: "#9A968F", lineHeight: 1.6 },
 
   modalOverlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.67)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 100 },
-  modal: { background: "var(--surface-sunken)", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 480, padding: "16px 18px 24px", border: "1px solid var(--border2)", borderBottom: "none" },
+  modal: { background: "var(--surface-sunken)", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 480, padding: sp("16px 18px 24px"), border: "1px solid var(--border2)", borderBottom: "none" },
   modalHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 15, fontWeight: 700, marginBottom: 16 },
   modalBody: { display: "flex", flexDirection: "column", gap: 4 },
   label: { fontSize: 11.5, color: "var(--muted)", fontWeight: 600, marginBottom: 6, marginTop: 10 },
@@ -145,8 +154,8 @@ export const S = {
   catChip: { display: "flex", alignItems: "center", gap: 6, border: "1px solid var(--border2)", borderRadius: 20, padding: "6px 12px", fontSize: 12.5, color: "var(--ink)", cursor: "pointer", fontFamily: "inherit" },
   timeRow: { display: "flex", gap: 10 },
   timeField: { flex: 1 },
-  input: { width: "100%", background: "var(--surface-sunken)", border: "1px solid var(--border2)", borderRadius: 10, padding: "10px 12px", color: "var(--ink)", fontSize: 14, fontFamily: "inherit" },
-  saveBtn: { width: "100%", background: "var(--gold)", color: "var(--bg)", border: "none", borderRadius: 12, padding: "13px 0", fontSize: 14, fontWeight: 700, cursor: "pointer", marginTop: 18, fontFamily: "inherit" },
+  input: { width: "100%", background: "var(--surface-sunken)", border: "1px solid var(--border2)", borderRadius: 10, padding: sp("10px 12px"), color: "var(--ink)", fontSize: 14, fontFamily: "inherit" },
+  saveBtn: { width: "100%", background: "var(--gold)", color: "var(--bg)", border: "none", borderRadius: 12, padding: sp("13px 0"), fontSize: 14, fontWeight: 700, cursor: "pointer", marginTop: 18, fontFamily: "inherit" },
   toast: { position: "fixed", bottom: 20, left: "50%", transform: "translateX(-50%)", background: "var(--surface-raised)", color: "var(--ink)", padding: "9px 18px", borderRadius: 20, fontSize: 13, border: "1px solid var(--border2)", zIndex: 200 },
   loaderWrap: { display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh" },
 
@@ -157,8 +166,8 @@ export const S = {
   achieveTabs: { display: "flex", gap: 6, marginBottom: 14 },
   achieveTab: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "9px 0", border: "1px solid var(--surface-raised)", borderRadius: 10, background: "transparent", color: "var(--muted2)", fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" },
   achieveTabActive: { background: "var(--surface-sunken)", color: "var(--gold)", borderColor: "var(--border2)" },
-  achieveList: { display: "flex", flexDirection: "column", gap: 10, marginTop: 4 },
-  achieveCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px" },
+  achieveList: { display: "flex", flexDirection: "column", gap: sp(10), marginTop: 4 },
+  achieveCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: sp("14px") },
   achieveCardDone: { opacity: 0.6, borderColor: "rgba(95,168,160,0.3)" },
   achieveCardTop: { display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 8 },
   achieveCardHead: { display: "flex", alignItems: "center", gap: 8, marginBottom: 4 },
@@ -172,20 +181,20 @@ export const S = {
   achieveStepNum: { width: 18, height: 18, borderRadius: "50%", background: "var(--surface-raised)", color: "var(--gold)", fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 },
   achieveLink: { display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, color: "#5FA8A0", textDecoration: "none", fontWeight: 600 },
 
-  profileCard: { background: "linear-gradient(160deg, var(--warm-tint), var(--panel))", border: "1px solid var(--warm-border)", borderRadius: 14, padding: "14px 12px", marginBottom: 16 },
+  profileCard: { background: "linear-gradient(160deg, var(--warm-tint), var(--panel))", border: "1px solid var(--warm-border)", borderRadius: 14, padding: sp("14px 12px"), marginBottom: sp(16) },
   profileHint: { fontSize: 12, color: "var(--muted2)", lineHeight: 1.6, margin: "0 0 8px" },
 
-  timerCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 18, padding: "20px 16px", marginBottom: 16 },
+  timerCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 18, padding: sp("20px 16px"), marginBottom: sp(16) },
   timerTime: { fontFamily: "'Amiri', serif", fontSize: 44, fontWeight: 700, color: "var(--ink)", fontVariantNumeric: "tabular-nums", lineHeight: 1 },
   timerTargetLabel: { fontSize: 12, color: "var(--muted2)", marginTop: 8 },
   timerControls: { display: "flex", gap: 10, marginTop: 14, alignItems: "center" },
   timerPrimary: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "var(--gold)", color: "var(--bg)", border: "none", borderRadius: 12, padding: "14px 0", fontSize: 15, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
   timerSecondary: { width: 50, height: 50, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 12, color: "var(--muted2)", cursor: "pointer", flexShrink: 0 },
-  focusStatsRow: { display: "flex", gap: 10, marginBottom: 16 },
+  focusStatsRow: { display: "flex", gap: sp(10), marginBottom: sp(16) },
 
-  commitCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 12px", marginTop: 4 },
-  commitList: { display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 },
-  commitItem: { background: "var(--surface-sunken)", border: "1px solid var(--line)", borderRadius: 12, padding: "12px" },
+  commitCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: sp("14px 12px"), marginTop: 4 },
+  commitList: { display: "flex", flexDirection: "column", gap: sp(10), marginBottom: sp(14) },
+  commitItem: { background: "var(--surface-sunken)", border: "1px solid var(--line)", borderRadius: 12, padding: sp("12px") },
   commitItemTop: { display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 10 },
   commitTitle: { fontSize: 14, fontWeight: 700, color: "var(--ink)" },
   commitMeta: { fontSize: 11, color: "var(--muted2)", marginTop: 3 },
@@ -197,7 +206,7 @@ export const S = {
   commitSelect: { background: "var(--bg)", border: "1px solid var(--border2)", borderRadius: 8, padding: "9px 8px", color: "var(--ink)", fontSize: 12, fontFamily: "inherit", flexShrink: 0 },
 
   defaultsBtn: { display: "flex", alignItems: "center", gap: 5, background: "rgba(95,168,160,0.1)", border: "1px solid rgba(95,168,160,0.3)", borderRadius: 20, padding: "6px 12px", fontSize: 12, color: "#5FA8A0", cursor: "pointer", fontFamily: "inherit", fontWeight: 600, marginRight: "auto" },
-  exportBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", background: "transparent", border: "1px solid var(--border2)", color: "var(--muted2)", borderRadius: 12, padding: "11px 0", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", marginBottom: 16 },
+  exportBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", background: "transparent", border: "1px solid var(--border2)", color: "var(--muted2)", borderRadius: 12, padding: sp("11px 0"), fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", marginBottom: sp(16) },
 
   subTabRow: { display: "flex", gap: 4, marginBottom: 16, background: "var(--surface-sunken)", borderRadius: 12, padding: 4 },
   subTab: { flex: "1 1 0", minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, padding: "8px 4px", border: "none", borderRadius: 9, background: "transparent", color: "var(--muted2)", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", textAlign: "center", lineHeight: 1.3 },
@@ -220,8 +229,8 @@ export const S = {
 
   rankBanner: { display: "flex", alignItems: "center", gap: 8, background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, padding: "12px 14px", fontSize: 13, color: "var(--muted2)", marginBottom: 14 },
   leadPill: { marginRight: "auto", background: "rgba(201,162,75,0.12)", color: "var(--gold)", fontSize: 10.5, fontWeight: 700, padding: "3px 10px", borderRadius: 20 },
-  botsList: { display: "flex", flexDirection: "column", gap: 8 },
-  botRow: { display: "flex", alignItems: "center", gap: 10, background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, padding: "12px" },
+  botsList: { display: "flex", flexDirection: "column", gap: sp(8) },
+  botRow: { display: "flex", alignItems: "center", gap: sp(10), background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, padding: sp("12px") },
   botRowMe: { borderColor: "rgba(201,162,75,0.4)", background: "linear-gradient(160deg, var(--warm-tint), var(--panel))" },
   botRank: { fontFamily: "'Amiri', serif", fontSize: 16, fontWeight: 700, color: "var(--muted)", width: 20, textAlign: "center", flexShrink: 0 },
   botEmoji: { fontSize: 18, flexShrink: 0 },
@@ -234,7 +243,7 @@ export const S = {
   botMins: { fontSize: 12.5, fontWeight: 700, color: "var(--gold)", fontVariantNumeric: "tabular-nums", flexShrink: 0 },
 
   smartBanner: { display: "flex", alignItems: "center", gap: 8, background: "rgba(201,162,75,0.06)", border: "1px solid rgba(201,162,75,0.2)", borderRadius: 10, padding: "9px 12px", fontSize: 12, color: "#C9A24B", marginBottom: 14 },
-  coachCard: { background: "linear-gradient(160deg, var(--warm-tint), var(--panel))", border: "1px solid var(--warm-border)", borderRadius: 16, padding: "14px", marginBottom: 16 },
+  coachCard: { background: "linear-gradient(160deg, var(--warm-tint), var(--panel))", border: "1px solid var(--warm-border)", borderRadius: 16, padding: sp("14px"), marginBottom: sp(16) },
   coachTitleRow: { display: "flex", alignItems: "center", gap: 7, marginBottom: 6 },
   coachTitle: { fontFamily: "'Amiri', serif", fontSize: 16, fontWeight: 700 },
   moodRow: { display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 },

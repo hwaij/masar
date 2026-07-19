@@ -225,8 +225,20 @@ export const store = {
   getLocalLanguage() {
     return lsGet("masar_profile", { language: "ar" }).language === "en" ? "en" : "ar";
   },
+  // نفس فكرة getLocalTheme لثلاثة إعدادات إتاحة الوصول - تُقرأ متزامنة قبل
+  // أول رسم حتى لا تظهر ومضة بلا تباعد/تباين/حجم خط قبل اكتمال loadProfile().
+  getLocalFontSize() {
+    const v = lsGet("masar_profile", { fontSize: "normal" }).fontSize;
+    return ["normal", "large", "xlarge"].includes(v) ? v : "normal";
+  },
+  getLocalHighContrast() {
+    return !!lsGet("masar_profile", { highContrast: false }).highContrast;
+  },
+  getLocalSpacious() {
+    return !!lsGet("masar_profile", { spacious: false }).spacious;
+  },
   async loadProfile() {
-    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar" });
+    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false });
     if (!useCloud()) return local;
     const { data, error } = await supabase.from("profile").select("*").eq("owner", CURRENT_OWNER).maybeSingle();
     if (error || !data) return local;
@@ -235,6 +247,8 @@ export const store = {
       tourSeen: !!data.tour_seen, theme: data.theme === "light" ? "light" : "dark",
       notificationsEnabled: !!data.notifications_enabled, notificationsAsked: !!data.notifications_asked,
       language: data.language === "en" ? "en" : "ar",
+      fontSize: ["normal", "large", "xlarge"].includes(data.font_size) ? data.font_size : "normal",
+      highContrast: !!data.high_contrast, spacious: !!data.spacious,
     };
     lsSet("masar_profile", p);
     return p;
@@ -247,7 +261,7 @@ export const store = {
     }
   },
   async saveTourSeen(seen) {
-    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar" });
+    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false });
     lsSet("masar_profile", { ...local, tourSeen: seen });
     if (useCloud()) {
       const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, tour_seen: seen, updated_at: new Date().toISOString() });
@@ -255,7 +269,7 @@ export const store = {
     }
   },
   async saveTheme(theme) {
-    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar" });
+    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false });
     lsSet("masar_profile", { ...local, theme });
     if (useCloud()) {
       const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, theme, updated_at: new Date().toISOString() });
@@ -263,17 +277,41 @@ export const store = {
     }
   },
   async saveLanguage(language) {
-    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar" });
+    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false });
     lsSet("masar_profile", { ...local, language });
     if (useCloud()) {
       const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, language, updated_at: new Date().toISOString() });
       if (error) console.error("[saveLanguage] Supabase error:", error.message);
     }
   },
+  async saveFontSize(fontSize) {
+    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false });
+    lsSet("masar_profile", { ...local, fontSize });
+    if (useCloud()) {
+      const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, font_size: fontSize, updated_at: new Date().toISOString() });
+      if (error) console.error("[saveFontSize] Supabase error:", error.message);
+    }
+  },
+  async saveHighContrast(highContrast) {
+    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false });
+    lsSet("masar_profile", { ...local, highContrast });
+    if (useCloud()) {
+      const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, high_contrast: highContrast, updated_at: new Date().toISOString() });
+      if (error) console.error("[saveHighContrast] Supabase error:", error.message);
+    }
+  },
+  async saveSpacious(spacious) {
+    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false });
+    lsSet("masar_profile", { ...local, spacious });
+    if (useCloud()) {
+      const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, spacious, updated_at: new Date().toISOString() });
+      if (error) console.error("[saveSpacious] Supabase error:", error.message);
+    }
+  },
   // enabled: هل الاشتراك في الإشعارات مفعّل الآن. asked: هل عُرض على
   // المستخدم طلب الإذن ولو مرة (سواء وافق أو رفض) — حتى لا يُسأل مجدداً.
   async saveNotificationsPreference(enabled, asked) {
-    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar" });
+    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false });
     lsSet("masar_profile", { ...local, notificationsEnabled: enabled, notificationsAsked: asked });
     if (useCloud()) {
       const { error } = await supabase.from("profile").upsert({

@@ -9,7 +9,12 @@ import {
 import { store } from "../lib/store";
 import TasbihIcon from "./TasbihIcon";
 
-const MENU_SECTIONS = [
+// لمسة الألوان المخصصة (اختيارية بحتة، مُطفأة افتراضياً): ست ألوان محدودة
+// منتقاة من ألوان مستخدمة أصلاً في هوية مسار البصرية في أماكن أخرى (التركيز
+// الجماعي، الرياضة، بطاقات الخطر...)، وليست ألواناً حرة قد تكسر التناسق.
+export const SECTION_COLOR_PALETTE = ["#5FA8A0", "#8A7BD1", "#D17B5F", "#6FA8DC", "#E0B868", "#7FAEEE"];
+
+export const MENU_SECTIONS = [
   {
     titleKey: "nav.worship",
     items: [
@@ -73,6 +78,7 @@ const MS = {
   item: { display: "flex", alignItems: "center", gap: 12, width: "100%", border: "none", background: "transparent", color: "var(--ink-soft)", borderRadius: 12, padding: "12px 10px", fontSize: 14.5, fontFamily: "inherit", fontWeight: 600, cursor: "pointer", textAlign: "start", minHeight: 44 },
   itemActive: { background: "rgba(201,162,75,0.12)", color: "var(--gold)" },
   itemIcon: { display: "flex", alignItems: "center", justifyContent: "center", width: 22, flexShrink: 0 },
+  colorDot: { width: 7, height: 7, borderRadius: "50%", flexShrink: 0, marginInlineStart: "auto" },
   itemDisabled: { opacity: 0.45, cursor: "not-allowed" },
   soonBadge: { marginInlineStart: "auto", fontSize: 10, fontWeight: 700, color: "var(--muted2)", background: "var(--surface-sunken)", border: "1px solid var(--line)", borderRadius: 20, padding: "2px 8px", flexShrink: 0 },
   langRow: { display: "flex", alignItems: "center", gap: 10, padding: "10px 10px 4px", minHeight: 44 },
@@ -83,7 +89,7 @@ const MS = {
   langPillActive: { background: "var(--gold)", color: "var(--on-accent)" },
 };
 
-export default function SideMenu({ open, onClose, view, setView }) {
+export default function SideMenu({ open, onClose, view, setView, customColorsEnabled, sectionColors }) {
   const { t, i18n } = useTranslation();
 
   function go(id) {
@@ -141,10 +147,19 @@ export default function SideMenu({ open, onClose, view, setView }) {
                         </div>
                       );
                     }
+                    // اللون المخصص (إن فُعِّل هذا الخيار الاختياري ووُجد لون
+                    // لهذا القسم تحديداً) يستبدل فقط لون التمييز عند التفعيل
+                    // + نقطة صغيرة دائمة بجانب الاسم - لا يغيّر أي شيء آخر في
+                    // تصميم العنصر نفسه.
+                    const customColor = customColorsEnabled ? sectionColors?.[item.id] : null;
+                    const activeStyle = customColor
+                      ? { background: `${customColor}20`, color: customColor }
+                      : MS.itemActive;
                     return (
-                      <button key={item.id} onClick={() => go(item.id)} style={{ ...MS.item, ...(active ? MS.itemActive : {}) }}>
+                      <button key={item.id} onClick={() => go(item.id)} style={{ ...MS.item, ...(active ? activeStyle : {}) }}>
                         <span style={MS.itemIcon}><Icon size={18} /></span>
                         {t(item.labelKey)}
+                        {customColor && <span style={{ ...MS.colorDot, background: customColor }} />}
                       </button>
                     );
                   })}

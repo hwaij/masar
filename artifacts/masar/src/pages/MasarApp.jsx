@@ -19,7 +19,7 @@ import {
   Heart, GraduationCap, Eye, AlertTriangle,
   Wallet, ArrowDownCircle, ArrowUpCircle, Crown,
   Utensils, Dumbbell, Menu, Users,
-  Accessibility, ALargeSmall, Contrast, StretchHorizontal,
+  Accessibility, ALargeSmall, Contrast, StretchHorizontal, Volume2,
 } from "lucide-react";
 import { fivePrayers, nextPrayer, to12h } from "../lib/prayer";
 import { ADHKAR_CATEGORIES, ADHKAR } from "../lib/adhkar";
@@ -32,6 +32,7 @@ import { ACTIVITY_LEVELS, HEALTH_CONDITIONS, NO_CONDITION, MEDICAL_DISCLAIMER, c
 import { createGoal, isReviewDue, GOAL_PERIODS, GOAL_POINTS_SUCCESS, GOAL_POINTS_FAILURE } from "../lib/goals";
 import { FITNESS_GOALS } from "../lib/exercises";
 import { sumNutritionEntries, waterGoalCups } from "../lib/nutrition";
+import { playSaveSound, playAchievementSound } from "../lib/sound";
 import { getSession, onAuthChange, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut, userFromSession, hasAuth } from "../lib/auth";
 import {
   todayKey, fmtHM, uid, diffMinutes, arabicDate, computeStreak, escapeHtml,
@@ -50,7 +51,7 @@ const NutritionView = lazy(() => import("../components/NutritionView"));
 const FitnessView = lazy(() => import("../components/FitnessView"));
 const MentalHealthView = lazy(() => import("../components/MentalHealthView"));
 const GroupsView = lazy(() => import("../components/GroupsView"));
-import SideMenu from "../components/SideMenu";
+import SideMenu, { MENU_SECTIONS, SECTION_COLOR_PALETTE } from "../components/SideMenu";
 import TasbihIcon from "../components/TasbihIcon";
 
 // active session storage
@@ -547,7 +548,7 @@ export default function MasarApp() {
 
   return (
     <div style={S.app} className="masar-app">
-      <Header view={view} setView={setView} gamify={gamify} stats={stats} hasCloud={store.hasCloud} user={user} onSignIn={handleSignIn} onSignOut={handleSignOut} subscription={subscription} theme={theme} toggleTheme={toggleTheme} />
+      <Header view={view} setView={setView} gamify={gamify} stats={stats} hasCloud={store.hasCloud} user={user} onSignIn={handleSignIn} onSignOut={handleSignOut} subscription={subscription} theme={theme} toggleTheme={toggleTheme} customColorsEnabled={profile.customColorsEnabled} sectionColors={profile.sectionColors} />
       <div style={S.body} key={view} className="view-fade masar-body">
         {view === "today" && (
           <TodayView
@@ -964,7 +965,7 @@ function LandingPage({ onSignIn, onEmailSignIn, onEmailSignUp }) {
   );
 }
 
-function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSignOut, subscription, theme, toggleTheme }) {
+function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSignOut, subscription, theme, toggleTheme, customColorsEnabled, sectionColors }) {
   const { t, i18n } = useTranslation();
   const isVip = !!subscription?.isVip;
   const isSub = isActiveSubscriber(subscription);
@@ -1045,7 +1046,7 @@ function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSign
           <span style={S.hStat}><Star size={13} color="#C9A24B" /> {gamify.points}</span>
         </div>
       </div>
-      <SideMenu open={menuOpen} onClose={() => setMenuOpen(false)} view={view} setView={setView} />
+      <SideMenu open={menuOpen} onClose={() => setMenuOpen(false)} view={view} setView={setView} customColorsEnabled={customColorsEnabled} sectionColors={sectionColors} />
     </>
   );
 }
@@ -2267,6 +2268,7 @@ function PrayerView({
       setPrayerLog((prev) => [entry, ...prev]);
       await store.savePrayer(entry);
       addPoints(20);
+      playSaveSound();
       showToast(prayerTimingMessage(p.name, minutesAfterAdhan));
     }
   }
@@ -3037,7 +3039,7 @@ function GoalsView({ goals, setGoals, addPoints, showToast }) {
     const updated = { ...goal, status: "done" };
     setGoals((prev) => prev.map((g) => (g.id === goal.id ? updated : g)));
     const ok = await store.saveGoal(updated);
-    if (ok) { addPoints(GOAL_POINTS_SUCCESS, `تحقيق هدف: ${goal.title}`); showToast(`أحسنت! تحقّق هدفك. +${GOAL_POINTS_SUCCESS} نقطة`); }
+    if (ok) { addPoints(GOAL_POINTS_SUCCESS, `تحقيق هدف: ${goal.title}`); playSaveSound(); showToast(`أحسنت! تحقّق هدفك. +${GOAL_POINTS_SUCCESS} نقطة`); }
     else { setGoals((prev) => prev.map((g) => (g.id === goal.id ? goal : g))); showToast("تعذّر الحفظ، حاول مرة أخرى"); }
   }
 
@@ -3439,6 +3441,15 @@ function FocusView({ focus, setFocus, commitments, setCommitments, categories, e
   const [stopChoice, setStopChoice] = useState(null); // { elapsedSec } عند إيقاف جلسة قيد التشغيل قبل اكتمالها
   const intervalRef = useRef(null);
   const sessionRef = useRef(null);
+  // جروبات المستخدم (لإشعار الأعضاء الآخرين لحظياً ببدء/انتهاء الجلسة) -
+  // تُجلب مرة واحدة فقط عند فتح تركيز، لا حاجة لإعادة الجلب أثناء الجلسة.
+  const myGroupIdsRef = useRef([]);
+  useEffect(() => {
+    if (!isSub) return;
+    let active = true;
+    store.loadMyGroups().then((groups) => { if (active) myGroupIdsRef.current = (groups || []).map((g) => g.id); });
+    return () => { active = false; };
+  }, [isSub]);
 
   useEffect(() => {
     (async () => {
@@ -3502,6 +3513,9 @@ function FocusView({ focus, setFocus, commitments, setCommitments, categories, e
     await store.saveActiveSession(session);
     setRemaining(targetMin * 60);
     setRunning(true);
+    // إشعار لحظي (لا يُخزَّن كسجل دائم) لأعضاء جروباتي - لا ننتظر النتيجة
+    // حتى لا يُبطئ بدء الجلسة، ولا نُظهر أي خطأ إن فشل (ثانوي بحت).
+    myGroupIdsRef.current.forEach((gid) => store.sendGroupActivityPing(gid, "started", targetMin));
   }
 
   // Continues an existing (paused) session from whatever time is left,
@@ -3572,6 +3586,7 @@ function FocusView({ focus, setFocus, commitments, setCommitments, categories, e
       store.saveCommitment(updated);
       return updated;
     }));
+    myGroupIdsRef.current.forEach((gid) => store.sendGroupActivityPing(gid, "finished", minutesDone));
   }
 
   function finishSession() {
@@ -4100,7 +4115,7 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
     const updated = { ...item, done: !item.done };
     setAchieve((prev) => prev.map((a) => a.id === item.id ? updated : a));
     await store.saveAchieve(updated);
-    if (!item.done) { addPoints(25); showToast("أحسنت! +25 نقطة"); }
+    if (!item.done) { addPoints(25); playAchievementSound(); showToast("أحسنت! +25 نقطة"); }
     else addPoints(-25, "التراجع عن إنجاز");
   }
   async function remove(id) {
@@ -4231,6 +4246,7 @@ function AchieveCard({ item, kindLabel, onToggle, onRemove }) {
 const FREE_CATEGORY_LIMIT = 5;
 
 function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, profile, setProfile, pointsLog, onStartTour, subscription, theme, toggleTheme, fontSize, changeFontSize, highContrast, toggleHighContrast, spacious, toggleSpacious }) {
+  const { t } = useTranslation();
   const isSub = isActiveSubscriber(subscription);
   const [editing, setEditing] = useState(null);
   // While a category is being renamed, edits live here only — nothing is
@@ -4255,6 +4271,22 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
     setProfile((p) => ({ ...p, notificationsEnabled: false, notificationsAsked: true }));
     await store.saveNotificationsPreference(false, true);
     showToast("تم إيقاف الإشعارات");
+  }
+  async function toggleCustomColors() {
+    const next = !profile.customColorsEnabled;
+    setProfile((p) => ({ ...p, customColorsEnabled: next }));
+    await store.saveCustomColorsEnabled(next);
+  }
+  async function setSectionColor(sectionId, color) {
+    const next = { ...(profile.sectionColors || {}) };
+    if (color === null) delete next[sectionId]; else next[sectionId] = color;
+    setProfile((p) => ({ ...p, sectionColors: next }));
+    await store.saveSectionColors(next);
+  }
+  async function toggleSoundEnabled() {
+    const next = !profile.soundEnabled;
+    setProfile((p) => ({ ...p, soundEnabled: next }));
+    await store.saveSoundEnabled(next);
   }
   const [newColor, setNewColor] = useState(COLOR_CHOICES[0]);
 
@@ -4343,6 +4375,30 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
         </div>
       </div>
       <div style={S.catEditorCard}>
+        <div style={S.catEditorHeader}><Palette size={15} color="#C9A24B" /><span>ألوان الأقسام</span></div>
+        <p style={S.profileHint}>لمسة اختيارية بحتة - الهوية الذهبية/الكحلية الموحدة تبقى الافتراضي دائماً ما لم تُفعّل هذا الخيار وتختار ألواناً بنفسك من قائمة محدودة منسجمة مع التصميم.</p>
+        <div style={S.rangeToggle}>
+          <button onClick={() => profile.customColorsEnabled && toggleCustomColors()} style={{ ...S.rangeBtn, flex: 1, ...(!profile.customColorsEnabled ? S.rangeBtnActive : {}) }}>متوقف</button>
+          <button onClick={() => !profile.customColorsEnabled && toggleCustomColors()} style={{ ...S.rangeBtn, flex: 1, ...(profile.customColorsEnabled ? S.rangeBtnActive : {}) }}>مفعّل</button>
+        </div>
+        {profile.customColorsEnabled && (
+          <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 12 }}>
+            {MENU_SECTIONS.flatMap((s) => s.items).filter((it) => !it.comingSoon).map((item) => {
+              const current = profile.sectionColors?.[item.id];
+              return (
+                <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                  <span style={{ fontSize: 12, color: "var(--ink-soft)", flex: 1 }}>{t(item.labelKey)}</span>
+                  <button onClick={() => setSectionColor(item.id, null)} title="افتراضي (ذهبي)" style={{ width: 20, height: 20, borderRadius: "50%", border: !current ? "2px solid var(--ink)" : "1px solid var(--border2)", background: "var(--gold)", cursor: "pointer", padding: 0, flexShrink: 0 }} />
+                  {SECTION_COLOR_PALETTE.map((c) => (
+                    <button key={c} onClick={() => setSectionColor(item.id, c)} title={c} style={{ width: 20, height: 20, borderRadius: "50%", border: current === c ? "2px solid var(--ink)" : "1px solid var(--border2)", background: c, cursor: "pointer", padding: 0, flexShrink: 0 }} />
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+      <div style={S.catEditorCard}>
         <div style={S.catEditorHeader}><Bell size={15} color="#C9A24B" /><span>الإشعارات</span></div>
         <p style={S.profileHint}>فعّل الإشعارات ليذكّرك مسار بشرب الماء وتسجيل وجباتك.</p>
         {profile.notificationsEnabled ? (
@@ -4350,6 +4406,14 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
         ) : (
           <button onClick={handleEnableNotifications} style={{ ...S.saveBtn, marginTop: 0 }}><Bell size={14} /> تفعيل الإشعارات</button>
         )}
+      </div>
+      <div style={S.catEditorCard}>
+        <div style={S.catEditorHeader}><Volume2 size={15} color="#C9A24B" /><span>المؤثرات الصوتية</span></div>
+        <p style={S.profileHint}>أصوات قصيرة وناعمة جداً عند إنجاز مهم فقط (تسجيل صلاة، تحقيق هدف، إكمال تحدٍّ) - لا صوت لأي ضغطة زر عادية. مُطفأة افتراضياً لأن مسار قد يُستخدم في أماكن هادئة كالصلاة والدراسة.</p>
+        <div style={S.rangeToggle}>
+          <button onClick={() => profile.soundEnabled && toggleSoundEnabled()} style={{ ...S.rangeBtn, flex: 1, ...(!profile.soundEnabled ? S.rangeBtnActive : {}) }}>متوقفة</button>
+          <button onClick={() => !profile.soundEnabled && toggleSoundEnabled()} style={{ ...S.rangeBtn, flex: 1, ...(profile.soundEnabled ? S.rangeBtnActive : {}) }}>مفعّلة</button>
+        </div>
       </div>
       <SubscriptionCard subscription={subscription} />
       <button onClick={onStartTour} style={S.exportBtn}><GraduationCap size={15} /> إعادة الجولة التعريفية</button>

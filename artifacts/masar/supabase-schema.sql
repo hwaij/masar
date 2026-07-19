@@ -72,6 +72,14 @@ alter table profile add column if not exists name text default '';
 alter table profile add column if not exists font_size text not null default 'normal';
 alter table profile add column if not exists high_contrast boolean not null default false;
 alter table profile add column if not exists spacious boolean not null default false;
+-- ألوان مخصّصة لكل قسم (الدفعة الرابعة): اختياري بحت، مُطفأ افتراضياً - لا
+-- يغيّر شيئاً في الهوية الموحدة الذهبية/الكحلية إلا إن فعّله المستخدم صراحة
+-- واختار ألواناً من نفس القائمة المحدودة المنسجمة مع الهوية.
+alter table profile add column if not exists custom_colors_enabled boolean not null default false;
+alter table profile add column if not exists section_colors jsonb not null default '{}';
+-- مؤثرات صوتية خفيفة (الدفعة الرابعة): مُطفأة افتراضياً (Opt-in) نظراً
+-- لطبيعة مسار كتطبيق قد يُستخدم في أماكن هادئة (الصلاة، الدراسة...).
+alter table profile add column if not exists sound_enabled boolean not null default false;
 
 -- قسم "أنت": بيانات صحية أساسية + القيم المحسوبة منها (BMI/IBW/REE/TEE)
 -- مخزّنة جاهزة حتى تقرأها أقسام التغذية والرياضة لاحقاً دون إعادة حسابها.
@@ -876,6 +884,12 @@ create table if not exists study_groups (
   invite_code  text unique not null default substr(md5(random()::text || clock_timestamp()::text), 1, 8),
   created_at   timestamptz default now()
 );
+-- حماية كود الدعوة (الدفعة الرابعة): حد اختياري لعدد مرات الاستخدام
+-- وصلاحية زمنية اختيارية - كلاهما NULL افتراضياً (بلا حد/بلا انتهاء)، حتى
+-- لا يتأثر أي جروب موجود مسبقاً بأي تقييد لم يفعّله صاحبه صراحة.
+alter table study_groups add column if not exists invite_max_uses integer;
+alter table study_groups add column if not exists invite_uses_count integer not null default 0;
+alter table study_groups add column if not exists invite_expires_at timestamptz;
 
 create table if not exists group_members (
   group_id     uuid not null references study_groups(id) on delete cascade,
@@ -1029,12 +1043,73 @@ on conflict (owner, date) do update set workout_done = excluded.workout_done, up
 -- لازم كدالة security definer ضيّقة بدل تخفيف RLS على study_groups نفسه:
 -- تجاوز RLS هنا آمن لأنها لا تُعيد سوى id/name، ولا تكشف أي جروب لا يملك
 -- الطالب رمز دعوته الصحيح (البحث بالتساوي التام على invite_code فقط).
+-- الدفعة الرابعة: أضيف expired/exhausted لإرجاع سبب واضح فوراً عند
+-- الاستعلام (بدل رسالة "غير صحيح" عامة) - التوقيع تغيّر (أعمدة إضافية في
+-- returns table) لذا يجب حذف الدالة القديمة أولاً (CREATE OR REPLACE لا
+-- يقبل تغيير شكل الإرجاع).
+drop function if exists get_group_by_invite_code(text);
 create or replace function get_group_by_invite_code(code text)
-returns table(id uuid, name text)
+returns table(id uuid, name text, expired boolean, exhausted boolean)
 language sql security definer set search_path = public stable
 as $$
-  select sg.id, sg.name from study_groups sg where sg.invite_code = code;
+  select sg.id, sg.name,
+    (sg.invite_expires_at is not null and sg.invite_expires_at < now()) as expired,
+    (sg.invite_max_uses is not null and sg.invite_uses_count >= sg.invite_max_uses) as exhausted
+  from study_groups sg where sg.invite_code = code;
 $$;
+
+-- إنشاء كود دعوة جديد (يُبطل القديم فوراً لأن invite_code فريد، ويصفّر
+-- عدّاد الاستخدام) - متاحة لصاحب الجروب فقط، بفحص صريح داخل الدالة نفسها
+-- (وليس بالاعتماد على RLS خارجي) لأنها security definer تتجاوز RLS أصلاً.
+create or replace function regenerate_invite_code(p_group_id uuid)
+returns text
+language plpgsql security definer set search_path = public
+as $$
+declare
+  new_code text;
+begin
+  if not exists (select 1 from study_groups where id = p_group_id and owner = auth.uid()::text) then
+    raise exception 'NOT_GROUP_OWNER' using errcode = 'P0001';
+  end if;
+  new_code := substr(md5(random()::text || clock_timestamp()::text), 1, 8);
+  update study_groups set invite_code = new_code, invite_uses_count = 0 where id = p_group_id;
+  return new_code;
+end;
+$$;
+
+-- تُفرض قيود كود الدعوة هنا أيضاً (لا فقط عند get_group_by_invite_code)
+-- حتى تبقى نافذة مهما كان مسار الإدراج - "بغض النظر عن صحته الظاهرية".
+-- تُستثنى عضوية المالك التلقائية (عند إنشاء الجروب) لأنها ليست انضماماً
+-- عبر كود دعوة أصلاً.
+create or replace function enforce_invite_code_validity()
+returns trigger
+language plpgsql security definer set search_path = public
+as $$
+declare
+  grp record;
+begin
+  select owner, invite_max_uses, invite_uses_count, invite_expires_at
+  into grp from study_groups where id = new.group_id;
+
+  if new.member_owner = grp.owner then
+    return new;
+  end if;
+
+  if grp.invite_expires_at is not null and grp.invite_expires_at < now() then
+    raise exception 'INVITE_EXPIRED' using errcode = 'P0001';
+  end if;
+  if grp.invite_max_uses is not null and grp.invite_uses_count >= grp.invite_max_uses then
+    raise exception 'INVITE_EXHAUSTED' using errcode = 'P0001';
+  end if;
+
+  update study_groups set invite_uses_count = invite_uses_count + 1 where id = new.group_id;
+  return new;
+end;
+$$;
+drop trigger if exists group_members_invite_validity on group_members;
+create trigger group_members_invite_validity
+  before insert on group_members
+  for each row execute function enforce_invite_code_validity();
 
 -- دالتا مساعدة (security definer) لفحص العضوية داخل سياسات RLS نفسها.
 -- السبب: أي سياسة RLS على group_members تستعلم على group_members نفسه
@@ -1121,10 +1196,87 @@ drop policy if exists group_daily_stats_select on group_daily_stats;
 create policy group_daily_stats_select on group_daily_stats for select to authenticated
   using (owner = auth.uid()::text or shares_group_with(owner));
 
--- تفعيل التحديث اللحظي (Realtime) فقط على جدول الإحصائيات — لا حاجة له
--- على الأسماء (نادراً ما تتغيّر) ولا على جداول الجروب/العضوية نفسها.
--- ملفوفة بفحص وجود مسبق لأن ALTER PUBLICATION لا يدعم IF NOT EXISTS، حتى
--- يبقى هذا الملف قابلاً لإعادة التنفيذ بأمان كبقية الملف.
+-- =====================================================================
+-- الدفعة الرابعة: "تفاعل تحديات الأصدقاء" - إشعار نشاط لحظي (بدء/انتهاء
+-- جلسة تركيز) وتفاعلات رمزية بسيطة (👍🔥👏) على نشاط اليوم لعضو آخر.
+-- كلاهما يستخدم نفس نمط الأمان المُثبت أصلاً في هذا الملف (is_group_member
+-- عبر RLS)، لا آلية جديدة غير مُتحقَّق من أمانها.
+-- =====================================================================
+
+-- إشعارات النشاط اللحظي: لا تُخزَّن كسجل دائم فعلياً - Trigger تنظيف ذاتي
+-- يحذف أي صف أقدم من 10 دقائق فور أي إدراج جديد، والتطبيق نفسه لا يعرض
+-- إلا الأحداث اللحظية الواردة عبر الاشتراك (لا صفحة "سجل نشاط" تعرض
+-- التاريخ القديم من هذا الجدول إطلاقاً). لا عمود owner_name عمداً - الاسم
+-- يُستنتَج من group_shared_profile/بيانات الأعضاء المحمَّلة أصلاً لدى
+-- المستقبِل، فلا تكرار للبيانات.
+create table if not exists group_activity_pings (
+  id         uuid primary key default gen_random_uuid(),
+  group_id   uuid not null references study_groups(id) on delete cascade,
+  owner      text not null,
+  kind       text not null check (kind in ('started', 'finished')),
+  minutes    integer,
+  created_at timestamptz not null default now()
+);
+
+create or replace function cleanup_old_group_activity_pings()
+returns trigger
+language plpgsql security definer set search_path = public
+as $$
+begin
+  delete from group_activity_pings where created_at < now() - interval '10 minutes';
+  return new;
+end;
+$$;
+drop trigger if exists group_activity_pings_cleanup on group_activity_pings;
+create trigger group_activity_pings_cleanup
+  after insert on group_activity_pings
+  for each row execute function cleanup_old_group_activity_pings();
+
+alter table group_activity_pings enable row level security;
+drop policy if exists group_activity_pings_select on group_activity_pings;
+create policy group_activity_pings_select on group_activity_pings for select to authenticated
+  using (is_group_member(group_id));
+drop policy if exists group_activity_pings_insert on group_activity_pings;
+create policy group_activity_pings_insert on group_activity_pings for insert to authenticated
+  with check (owner = auth.uid()::text and is_group_member(group_id));
+
+-- تفاعلات رمزية محدودة (👍🔥👏) على نشاط عضو ليوم بعينه. WITH CHECK يتحقق
+-- من أمرين معاً: أن المُرسِل عضو في الجروب (is_group_member)، وأن المُستقبِل
+-- أيضاً عضو في نفس الجروب تحديداً (exists على group_members) - لا يكفي أن
+-- يكون المُرسِل عضواً فقط، فقد يحاول إرسال تفاعل لشخص خارج الجروب لو خمّن
+-- معرّفه. قيد unique يمنع تكرار نفس الشخص لنفس التفاعل لنفس اليوم أكثر
+-- من مرة (لا حاجة لسياسة update/delete خارج حذف المرء لتفاعله هو نفسه).
+create table if not exists group_reactions (
+  id         uuid primary key default gen_random_uuid(),
+  group_id   uuid not null references study_groups(id) on delete cascade,
+  from_owner text not null,
+  to_owner   text not null,
+  date       text not null,
+  emoji      text not null check (emoji in ('👍', '🔥', '👏')),
+  created_at timestamptz not null default now(),
+  unique (group_id, from_owner, to_owner, date, emoji)
+);
+
+alter table group_reactions enable row level security;
+drop policy if exists group_reactions_select on group_reactions;
+create policy group_reactions_select on group_reactions for select to authenticated
+  using (is_group_member(group_id));
+drop policy if exists group_reactions_insert on group_reactions;
+create policy group_reactions_insert on group_reactions for insert to authenticated
+  with check (
+    from_owner = auth.uid()::text
+    and is_group_member(group_id)
+    and exists (select 1 from group_members gm where gm.group_id = group_reactions.group_id and gm.member_owner = group_reactions.to_owner)
+  );
+drop policy if exists group_reactions_delete_own on group_reactions;
+create policy group_reactions_delete_own on group_reactions for delete to authenticated
+  using (from_owner = auth.uid()::text);
+
+-- تفعيل التحديث اللحظي (Realtime) على جدول الإحصائيات وجدول إشعارات
+-- النشاط (التفاعلات لا تحتاج بثاً لحظياً - تُحمَّل مع تفاصيل الجروب).
+-- لا حاجة له على الأسماء (نادراً ما تتغيّر) ولا على جداول الجروب/العضوية
+-- نفسها. ملفوفة بفحص وجود مسبق لأن ALTER PUBLICATION لا يدعم IF NOT
+-- EXISTS، حتى يبقى هذا الملف قابلاً لإعادة التنفيذ بأمان كبقية الملف.
 do $$
 begin
   if not exists (
@@ -1132,6 +1284,12 @@ begin
     where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'group_daily_stats'
   ) then
     alter publication supabase_realtime add table group_daily_stats;
+  end if;
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'group_activity_pings'
+  ) then
+    alter publication supabase_realtime add table group_activity_pings;
   end if;
 end $$;
 
@@ -1142,6 +1300,7 @@ end $$;
 -- عليه تشديد أمني يزيل صلاحيات PUBLIC الافتراضية عن الدوال الجديدة.
 grant execute on function get_group_by_invite_code(text) to anon, authenticated;
 grant execute on function shares_group_with(text) to authenticated;
+grant execute on function regenerate_invite_code(uuid) to authenticated;
 
 -- إجبار طبقة PostgREST (التي تُعرِّض RPC عبر supabase.rpc(...)) على إعادة
 -- تحميل ذاكرتها المؤقتة للمخطط فوراً، بدل انتظار إعادة التحميل التلقائية

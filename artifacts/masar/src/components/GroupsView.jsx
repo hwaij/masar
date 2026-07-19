@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Users, Copy, UserPlus, LogOut, Trash2, Edit3, Check, X,
-  Timer, Dumbbell, Crown, Loader2, Plus,
+  Timer, Dumbbell, Crown, Loader2, Plus, RefreshCw, Clock, Hash, Settings2,
 } from "lucide-react";
 import { store } from "../lib/store";
 import { todayKey, fmtHM } from "../lib/helpers";
 import { S } from "./styles";
+
+const REACTION_EMOJIS = ["👍", "🔥", "👏"];
 
 const GS = {
   hero: { display: "flex", alignItems: "center", gap: 12, marginBottom: 16 },
@@ -58,6 +60,21 @@ const GS = {
   pendingCard: { background: "var(--panel)", border: "1px solid var(--border2)", borderRadius: 18, padding: "22px 18px", maxWidth: 340, width: "100%", textAlign: "center" },
   pendingTitle: { fontFamily: "'Amiri', serif", fontSize: 17, fontWeight: 700, marginBottom: 16 },
   pendingBtnRow: { display: "flex", gap: 8 },
+
+  activityBanner: { display: "flex", alignItems: "center", gap: 8, background: "rgba(95,168,160,0.1)", border: "1px solid rgba(95,168,160,0.3)", borderRadius: 12, padding: "10px 14px", fontSize: 12.5, color: "#5FA8A0", fontWeight: 600, marginBottom: 14 },
+
+  reactionsRow: { display: "flex", gap: 5, marginTop: 6, alignItems: "center", flexWrap: "wrap" },
+  reactionBtn: { display: "flex", alignItems: "center", gap: 3, background: "var(--surface-raised)", border: "1px solid var(--border2)", borderRadius: 20, padding: "3px 8px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", color: "var(--muted2)" },
+  reactionBtnSent: { background: "rgba(138,123,209,0.15)", borderColor: "rgba(138,123,209,0.45)" },
+  reactionCount: { fontSize: 10.5, fontWeight: 700, color: "var(--muted2)" },
+
+  inviteSettingsToggle: { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "none", border: "none", color: "var(--muted2)", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", padding: "6px 0", width: "100%" },
+  inviteSettingsCard: { background: "var(--surface-sunken)", border: "1px solid var(--line)", borderRadius: 12, padding: "12px", marginTop: 8 },
+  inviteSettingsRow: { display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, color: "var(--muted2)", marginBottom: 8 },
+  inviteSettingsInputRow: { display: "flex", gap: 8, marginBottom: 8, alignItems: "center" },
+  inviteSettingsInput: { flex: 1, background: "var(--bg)", border: "1px solid var(--border2)", borderRadius: 8, padding: "8px 10px", color: "var(--ink)", fontSize: 12.5, fontFamily: "inherit" },
+  inviteSettingsLabel: { fontSize: 11, color: "var(--muted2)", minWidth: 70 },
+  regenerateBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", background: "rgba(209,123,95,0.08)", border: "1px solid rgba(209,123,95,0.25)", color: "#D17B5F", borderRadius: 10, padding: "8px 0", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", marginTop: 4 },
 };
 
 function RankIcon({ rank }) {
@@ -72,6 +89,8 @@ function joinErrorMessage(err) {
     ALREADY_MEMBER: "أنت عضو في هذا الجروب مسبقاً",
     GROUP_FULL: "هذا الجروب وصل للحد الأقصى (10 أعضاء)",
     NEEDS_ACCOUNT: "سجّل الدخول أولاً",
+    INVITE_EXPIRED: "انتهت صلاحية هذا الكود، اطلب من صاحب الجروب كوداً جديداً",
+    INVITE_EXHAUSTED: "وصل هذا الكود لحد الاستخدام الأقصى، اطلب من صاحب الجروب كوداً جديداً",
   }[err.message] || "تعذّر الانضمام الآن";
 }
 
@@ -90,7 +109,15 @@ export default function GroupsView({ showToast }) {
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const [pendingInvite, setPendingInvite] = useState(null);
+  const [activityPing, setActivityPing] = useState(null);
+  const [showInviteSettings, setShowInviteSettings] = useState(false);
+  const [maxUsesInput, setMaxUsesInput] = useState("");
+  const [expiresDaysInput, setExpiresDaysInput] = useState("");
+  const [savingInviteSettings, setSavingInviteSettings] = useState(false);
+  const [regeneratingCode, setRegeneratingCode] = useState(false);
   const memberOwnersRef = useRef(new Set());
+  const memberNamesRef = useRef({});
+  const pingTimerRef = useRef(null);
 
   const today = todayKey();
 
@@ -114,6 +141,7 @@ export default function GroupsView({ showToast }) {
     const detail = await store.loadGroupDetail(groupId, today);
     setGroupDetail(detail);
     memberOwnersRef.current = new Set(detail.map((m) => m.owner));
+    memberNamesRef.current = Object.fromEntries(detail.map((m) => [m.owner, m.name || "عضو"]));
   }, [today]);
 
   useEffect(() => { loadDetail(selectedGroupId); }, [selectedGroupId, loadDetail]);
@@ -132,6 +160,50 @@ export default function GroupsView({ showToast }) {
     });
     return unsubscribe;
   }, [hasCloud, today]);
+
+  // إشعار نشاط لحظي (بدء/انتهاء جلسة تركيز) - يظهر لبقية الأعضاء فقط (لا
+  // إشعار عن نشاطي أنا)، ويختفي تلقائياً بعد دقيقة أو عند وصول حدث جديد.
+  // اشتراك جديد لكل جروب مُختار (يُلغى ويُعاد عند تبديل الجروب المعروض).
+  useEffect(() => {
+    if (!hasCloud || !selectedGroupId) return;
+    const unsubscribe = store.subscribeGroupActivity(selectedGroupId, (row) => {
+      if (row.owner === (groupDetail || []).find((m) => m.isMe)?.owner) return;
+      const name = memberNamesRef.current[row.owner] || "عضو";
+      setActivityPing({ name, kind: row.kind, minutes: row.minutes });
+      clearTimeout(pingTimerRef.current);
+      pingTimerRef.current = setTimeout(() => setActivityPing(null), 60000);
+    });
+    return () => { unsubscribe(); clearTimeout(pingTimerRef.current); };
+  }, [hasCloud, selectedGroupId]);
+
+  async function handleReact(memberOwner, emoji) {
+    const result = await store.sendGroupReaction(selectedGroupId, memberOwner, today, emoji);
+    if (result.ok) loadDetail(selectedGroupId);
+    else if (!result.alreadySent) showToast("تعذّر إرسال التفاعل الآن");
+  }
+
+  async function handleSaveInviteSettings(groupId) {
+    setSavingInviteSettings(true);
+    try {
+      const maxUses = maxUsesInput.trim() ? Math.max(1, parseInt(maxUsesInput, 10) || 1) : null;
+      const expiresInDays = expiresDaysInput.trim() ? Math.max(1, parseInt(expiresDaysInput, 10) || 1) : null;
+      await store.updateGroupInviteSettings(groupId, { maxUses, expiresInDays });
+      await refreshGroups();
+      showToast("تم حفظ إعدادات كود الدعوة");
+    } catch { showToast("تعذّر الحفظ الآن"); }
+    finally { setSavingInviteSettings(false); }
+  }
+
+  async function handleRegenerateCode(groupId) {
+    if (!window.confirm("سيتوقف الكود الحالي عن العمل فوراً لكل من لم ينضم بعد. إنشاء كود جديد؟")) return;
+    setRegeneratingCode(true);
+    try {
+      await store.regenerateInviteCode(groupId);
+      await refreshGroups();
+      showToast("تم إنشاء كود جديد");
+    } catch { showToast("تعذّر إنشاء كود جديد الآن"); }
+    finally { setRegeneratingCode(false); }
+  }
 
   async function handleCreate() {
     const name = newGroupName.trim();
@@ -264,6 +336,14 @@ export default function GroupsView({ showToast }) {
         </div>
       </div>
 
+      {activityPing && (
+        <div style={GS.activityBanner} className="overlay-in">
+          {activityPing.kind === "started"
+            ? `🟢 ${activityPing.name} بدأ جلسة دراسة${activityPing.minutes ? ` (${activityPing.minutes} دقيقة)` : ""}`
+            : `🎉 ${activityPing.name} أنهى جلسة دراسة لمدة ${activityPing.minutes || 0} دقيقة`}
+        </div>
+      )}
+
       {pendingInvite && (
         <div style={GS.pendingOverlay} className="overlay-in">
           <div style={GS.pendingCard} className="modal-card-in">
@@ -340,6 +420,40 @@ export default function GroupsView({ showToast }) {
               </div>
               <div style={GS.codeBoxHint}>شارك هذا الكود مع أصدقائك ليدخلوه من قسم تحديات الأصدقاء</div>
 
+              {isOwner && (
+                <>
+                  <button onClick={() => setShowInviteSettings((v) => !v)} style={GS.inviteSettingsToggle}>
+                    <Settings2 size={13} /> {showInviteSettings ? "إخفاء إعدادات الكود" : "إعدادات كود الدعوة"}
+                  </button>
+                  {showInviteSettings && (
+                    <div style={GS.inviteSettingsCard}>
+                      <div style={GS.inviteSettingsRow}>
+                        <span><Hash size={12} style={{ verticalAlign: "-1px" }} /> الاستخدام</span>
+                        <span>{selectedGroup.inviteMaxUses ? `${selectedGroup.inviteUsesCount || 0} من ${selectedGroup.inviteMaxUses}` : `${selectedGroup.inviteUsesCount || 0} (بلا حد)`}</span>
+                      </div>
+                      <div style={GS.inviteSettingsRow}>
+                        <span><Clock size={12} style={{ verticalAlign: "-1px" }} /> الصلاحية</span>
+                        <span>{selectedGroup.inviteExpiresAt ? new Date(selectedGroup.inviteExpiresAt).toLocaleDateString("ar") : "بلا انتهاء"}</span>
+                      </div>
+                      <div style={GS.inviteSettingsInputRow}>
+                        <span style={GS.inviteSettingsLabel}>حد الاستخدام</span>
+                        <input type="number" min="1" value={maxUsesInput} onChange={(e) => setMaxUsesInput(e.target.value)} placeholder="بلا حد" style={GS.inviteSettingsInput} />
+                      </div>
+                      <div style={GS.inviteSettingsInputRow}>
+                        <span style={GS.inviteSettingsLabel}>ينتهي خلال (أيام)</span>
+                        <input type="number" min="1" value={expiresDaysInput} onChange={(e) => setExpiresDaysInput(e.target.value)} placeholder="بلا انتهاء" style={GS.inviteSettingsInput} />
+                      </div>
+                      <button onClick={() => handleSaveInviteSettings(selectedGroup.id)} disabled={savingInviteSettings} style={{ ...GS.createBtn, width: "100%", justifyContent: "center" }}>
+                        {savingInviteSettings ? <Loader2 size={14} className="spin" /> : "حفظ الإعدادات"}
+                      </button>
+                      <button onClick={() => handleRegenerateCode(selectedGroup.id)} disabled={regeneratingCode} style={GS.regenerateBtn}>
+                        {regeneratingCode ? <Loader2 size={13} className="spin" /> : <RefreshCw size={13} />} إنشاء كود جديد (يُبطل الحالي)
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+
               {groupDetail === null ? (
                 <div style={{ display: "flex", justifyContent: "center", padding: 20 }}><Loader2 size={18} className="spin" color="#8A7BD1" /></div>
               ) : (
@@ -353,6 +467,19 @@ export default function GroupsView({ showToast }) {
                           <span style={GS.leaderStat}><Timer size={12} /> {fmtHM(m.studyMinutes)}</span>
                           <span style={{ ...GS.leaderStat, ...(m.workoutDone ? GS.leaderStatDone : {}) }}><Dumbbell size={12} /> {m.workoutDone ? "أنجز تمرين اليوم" : "لم يُنجز بعد"}</span>
                         </div>
+                        {!m.isMe && (
+                          <div style={GS.reactionsRow}>
+                            {REACTION_EMOJIS.map((emoji) => {
+                              const sent = (m.reactions?.sentByMe || []).includes(emoji);
+                              const count = m.reactions?.counts?.[emoji] || 0;
+                              return (
+                                <button key={emoji} onClick={() => handleReact(m.owner, emoji)} disabled={sent} style={{ ...GS.reactionBtn, ...(sent ? GS.reactionBtnSent : {}) }} title={sent ? "أرسلته اليوم" : "أرسل تفاعلاً"}>
+                                  {emoji}{count > 0 && <span style={GS.reactionCount}>{count}</span>}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                       {!m.isMe && isOwner && (
                         <button onClick={() => handleRemoveMember(selectedGroup.id, m.owner)} style={GS.removeBtn} title="إزالة من الجروب"><X size={15} /></button>

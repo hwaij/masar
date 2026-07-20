@@ -786,9 +786,11 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
   }
 
   async function addWaterCup() {
+    const prevCups = todayCups;
     const next = todayCups + 1;
     setWaterLog((prev) => ({ ...prev, [today]: next }));
-    await store.saveWaterCups(today, next);
+    const res = await store.saveWaterCups(today, next);
+    if (!res.ok) { setWaterLog((prev) => ({ ...prev, [today]: prevCups })); showToast("تعذّر حفظ كوب الماء، حاول مرة أخرى"); }
   }
 
   async function enableNotifications() {
@@ -841,11 +843,15 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
   // حسابات خاطئة لأي عملية مسح لاحقة لنفس الباركود بكمية مختلفة.
   async function saveManualEntry(entry) {
     if (entry.barcode && entry.productPer100) {
-      await store.saveCustomFood({
+      const cacheRes = await store.saveCustomFood({
         barcode: entry.barcode, foodName: entry.foodName, ...entry.productPer100,
         brand: entry.brand, country: entry.country, servingSizeLabel: entry.servingSizeLabel,
         servingGrams: entry.servingGrams, imageUrl: entry.imageUrl,
       });
+      // فشل هذا الحفظ لا يفقد إدخال المستخدم فعلياً (يُحفظ منفصلاً أدناه عبر
+      // addEntry) - فقط يعني عدم تذكّر هذا الباركود لعملية مسح لاحقة، لذا
+      // toast تنبيهي غير حاجب بدل رسالة خطأ ملحّة.
+      if (!cacheRes.ok) showToast("سُجِّلت الوجبة، لكن تعذّر حفظ بيانات المنتج للمرة القادمة");
     }
     const { productPer100, brand, country, servingSizeLabel, servingGrams, imageUrl, ...logEntry } = entry;
     await addEntry(logEntry);

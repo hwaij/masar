@@ -120,7 +120,7 @@ export const store = {
     }
     return DEFAULT_CATEGORIES;
   },
-  // Returns true/false so callers can tell a silent cloud failure apart from
+  // Returns {ok, error} so callers can tell a silent cloud failure apart from
   // success — a caller that always assumes success can show a "saved" toast
   // for a write that never actually landed, then have it vanish on refresh.
   async saveCategory(cat) {
@@ -133,9 +133,9 @@ export const store = {
         { id: cat.id, name: cat.name, color: cat.color, owner: CURRENT_OWNER },
         { onConflict: "owner,id" }
       );
-      if (error) { console.error("[saveCategory] Supabase error:", error.message); return false; }
+      if (error) { console.error("[saveCategory] Supabase error:", error.message); return { ok: false, error: error.message }; }
     }
-    return true;
+    return { ok: true };
   },
   async deleteCategory(id) {
     const local = lsGet(LS.categories, DEFAULT_CATEGORIES).filter((c) => c.id !== id);
@@ -143,9 +143,9 @@ export const store = {
     if (useCloud()) {
       lsSet("masar_categories_seeded", true);
       const { error } = await supabase.from("categories").delete().eq("id", id).eq("owner", CURRENT_OWNER);
-      if (error) { console.error("[deleteCategory] Supabase error:", error.message); return false; }
+      if (error) { console.error("[deleteCategory] Supabase error:", error.message); return { ok: false, error: error.message }; }
     }
-    return true;
+    return { ok: true };
   },
 
   async loadEntries() {
@@ -163,15 +163,17 @@ export const store = {
     lsSet(LS.entries, next);
     if (useCloud()) {
       const { error } = await supabase.from("entries").upsert(toDbEntry(entry));
-      if (error) console.error("[saveEntry] Supabase error:", error.message);
+      if (error) { console.error("[saveEntry] Supabase error:", error.message); return { ok: false, error: error.message }; }
     }
+    return { ok: true };
   },
   async deleteEntry(id) {
     lsSet(LS.entries, lsGet(LS.entries, []).filter((e) => e.id !== id));
     if (useCloud()) {
       const { error } = await supabase.from("entries").delete().eq("id", id).eq("owner", CURRENT_OWNER);
-      if (error) console.error("[deleteEntry] Supabase error:", error.message);
+      if (error) { console.error("[deleteEntry] Supabase error:", error.message); return { ok: false, error: error.message }; }
     }
+    return { ok: true };
   },
 
   async loadTasks() {
@@ -189,15 +191,17 @@ export const store = {
     lsSet(LS.tasks, next);
     if (useCloud()) {
       const { error } = await supabase.from("tasks").upsert(toDbTask(task));
-      if (error) console.error("[saveTask] Supabase error:", error.message);
+      if (error) { console.error("[saveTask] Supabase error:", error.message); return { ok: false, error: error.message }; }
     }
+    return { ok: true };
   },
   async deleteTask(id) {
     lsSet(LS.tasks, lsGet(LS.tasks, []).filter((t) => t.id !== id));
     if (useCloud()) {
       const { error } = await supabase.from("tasks").delete().eq("id", id).eq("owner", CURRENT_OWNER);
-      if (error) console.error("[deleteTask] Supabase error:", error.message);
+      if (error) { console.error("[deleteTask] Supabase error:", error.message); return { ok: false, error: error.message }; }
     }
+    return { ok: true };
   },
 
   async loadReports() {
@@ -214,8 +218,9 @@ export const store = {
     lsSet(LS.reports, [report, ...local]);
     if (useCloud()) {
       const { error } = await supabase.from("reports").upsert({ id: report.id, kind: report.kind, date: report.date, payload: report.payload, gist: report.gist, owner: CURRENT_OWNER });
-      if (error) console.error("[saveReport] Supabase error:", error.message);
+      if (error) { console.error("[saveReport] Supabase error:", error.message); return { ok: false, error: error.message }; }
     }
+    return { ok: true };
   },
 
   // قراءة متزامنة فورية (لا تنتظر Supabase) لتطبيق المظهر قبل أول رسم
@@ -396,9 +401,10 @@ export const store = {
           bmi: p.bmi, bmi_category: p.bmiCategory, ibw_kg: p.ibw, ree: p.ree, tee: p.tee,
           updated_at: new Date().toISOString(),
         });
-        if (error) console.error("[saveHealthProfile] Supabase error:", error.message);
-      } catch (e) { console.error("[saveHealthProfile] write failed:", e); }
+        if (error) { console.error("[saveHealthProfile] Supabase error:", error.message); return { ok: false, error: error.message }; }
+      } catch (e) { console.error("[saveHealthProfile] write failed:", e); return { ok: false, error: String(e) }; }
     }
+    return { ok: true };
   },
 
   // قسم "الرياضة": إعداد أولي (هدف/معدات/أيام أسبوعياً) + سجل بسيط لأيام
@@ -422,9 +428,10 @@ export const store = {
           owner: CURRENT_OWNER, goal: p.goal, equipment: p.equipment, days_per_week: p.daysPerWeek,
           updated_at: new Date().toISOString(),
         });
-        if (error) console.error("[saveFitnessProfile] Supabase error:", error.message);
-      } catch (e) { console.error("[saveFitnessProfile] write failed:", e); }
+        if (error) { console.error("[saveFitnessProfile] Supabase error:", error.message); return { ok: false, error: error.message }; }
+      } catch (e) { console.error("[saveFitnessProfile] write failed:", e); return { ok: false, error: String(e) }; }
     }
+    return { ok: true };
   },
 
   async loadFitnessLog() {
@@ -448,9 +455,10 @@ export const store = {
           { owner: CURRENT_OWNER, date, day_completed: completed, updated_at: new Date().toISOString() },
           { onConflict: "owner,date" },
         );
-        if (error) console.error("[saveFitnessDayCompleted] Supabase error:", error.message);
-      } catch (e) { console.error("[saveFitnessDayCompleted] write failed:", e); }
+        if (error) { console.error("[saveFitnessDayCompleted] Supabase error:", error.message); return { ok: false, error: error.message }; }
+      } catch (e) { console.error("[saveFitnessDayCompleted] write failed:", e); return { ok: false, error: String(e) }; }
     }
+    return { ok: true };
   },
 
   // قسم "الصحة النفسية": تسجيل يومي واحد لكل يوم (مزاج/توتر/طاقة/ملاحظة
@@ -481,9 +489,10 @@ export const store = {
           },
           { onConflict: "owner,date" },
         );
-        if (error) console.error("[saveMentalHealthEntry] Supabase error:", error.message);
-      } catch (e) { console.error("[saveMentalHealthEntry] write failed:", e); }
+        if (error) { console.error("[saveMentalHealthEntry] Supabase error:", error.message); return { ok: false, error: error.message }; }
+      } catch (e) { console.error("[saveMentalHealthEntry] write failed:", e); return { ok: false, error: String(e) }; }
     }
+    return { ok: true };
   },
 
   // قسم "التغذية": سجل الطعام اليومي، ذاكرة الإدخالات اليدوية للباركود
@@ -601,9 +610,10 @@ export const store = {
           serving_grams: food.servingGrams || null, image_url: food.imageUrl || "",
           micronutrients: food.micronutrients || {}, updated_at: new Date().toISOString(),
         });
-        if (error) console.error("[saveCustomFood] Supabase error:", error.message);
-      } catch (e) { console.error("[saveCustomFood] write failed:", e); }
+        if (error) { console.error("[saveCustomFood] Supabase error:", error.message); return { ok: false, error: error.message }; }
+      } catch (e) { console.error("[saveCustomFood] write failed:", e); return { ok: false, error: String(e) }; }
     }
+    return { ok: true };
   },
 
   // جدول مرجعي عام (نفس نمط app_flags) - يُقرأ حتى بلا اتصال سحابي حقيقي
@@ -645,9 +655,10 @@ export const store = {
           { owner: CURRENT_OWNER, date, cups_count: count, updated_at: new Date().toISOString() },
           { onConflict: "owner,date" }
         );
-        if (error) console.error("[saveWaterCups] Supabase error:", error.message);
-      } catch (e) { console.error("[saveWaterCups] write failed:", e); }
+        if (error) { console.error("[saveWaterCups] Supabase error:", error.message); return { ok: false, error: error.message }; }
+      } catch (e) { console.error("[saveWaterCups] write failed:", e); return { ok: false, error: String(e) }; }
     }
+    return { ok: true };
   },
 
   async loadAchieve() {
@@ -665,15 +676,17 @@ export const store = {
     lsSet("masar_achieve", next);
     if (useCloud()) {
       const { error } = await supabase.from("achieve").upsert({ id: item.id, kind: item.kind, title: item.title, detail: item.detail, steps: item.steps, topic: item.topic, done: !!item.done, owner: CURRENT_OWNER });
-      if (error) console.error("[saveAchieve] Supabase error:", error.message);
+      if (error) { console.error("[saveAchieve] Supabase error:", error.message); return { ok: false, error: error.message }; }
     }
+    return { ok: true };
   },
   async deleteAchieve(id) {
     lsSet("masar_achieve", lsGet("masar_achieve", []).filter((a) => a.id !== id));
     if (useCloud()) {
       const { error } = await supabase.from("achieve").delete().eq("id", id).eq("owner", CURRENT_OWNER);
-      if (error) console.error("[deleteAchieve] Supabase error:", error.message);
+      if (error) { console.error("[deleteAchieve] Supabase error:", error.message); return { ok: false, error: error.message }; }
     }
+    return { ok: true };
   },
 
   async loadFocus() {
@@ -690,8 +703,9 @@ export const store = {
     lsSet("masar_focus", [session, ...local]);
     if (useCloud()) {
       const { error } = await supabase.from("focus_sessions").upsert({ id: session.id, date: session.date, minutes: session.minutes, label: session.label || "", is_study: !!session.isStudy, start_time: session.start || null, end_time: session.end || null, owner: CURRENT_OWNER });
-      if (error) console.error("[saveFocus] Supabase error:", error.message);
+      if (error) { console.error("[saveFocus] Supabase error:", error.message); return { ok: false, error: error.message }; }
     }
+    return { ok: true };
   },
 
   async loadCommitments() {
@@ -709,15 +723,17 @@ export const store = {
     lsSet("masar_commitments", next);
     if (useCloud()) {
       const { error } = await supabase.from("commitments").upsert({ id: c.id, title: c.title, target_minutes: c.targetMinutes, cat_id: c.catId || null, log: c.log || {}, owner: CURRENT_OWNER });
-      if (error) console.error("[saveCommitment] Supabase error:", error.message);
+      if (error) { console.error("[saveCommitment] Supabase error:", error.message); return { ok: false, error: error.message }; }
     }
+    return { ok: true };
   },
   async deleteCommitment(id) {
     lsSet("masar_commitments", lsGet("masar_commitments", []).filter((c) => c.id !== id));
     if (useCloud()) {
       const { error } = await supabase.from("commitments").delete().eq("id", id).eq("owner", CURRENT_OWNER);
-      if (error) console.error("[deleteCommitment] Supabase error:", error.message);
+      if (error) { console.error("[deleteCommitment] Supabase error:", error.message); return { ok: false, error: error.message }; }
     }
+    return { ok: true };
   },
 
   async loadPrayerLog() {
@@ -734,23 +750,25 @@ export const store = {
   },
   async savePrayer(entry) {
     const local = lsGet("masar_prayer_log", []);
-    if (local.some((p) => p.date === entry.date && p.prayerId === entry.prayerId)) return;
+    if (local.some((p) => p.date === entry.date && p.prayerId === entry.prayerId)) return { ok: true };
     lsSet("masar_prayer_log", [entry, ...local]);
     if (useCloud()) {
       const { error } = await supabase.from("prayer_log").upsert({
         id: entry.id, date: entry.date, prayer_id: entry.prayerId, owner: CURRENT_OWNER,
         minutes_after_adhan: typeof entry.minutesAfterAdhan === "number" ? entry.minutesAfterAdhan : null,
       });
-      if (error) console.error("[savePrayer] Supabase error:", error.message);
+      if (error) { console.error("[savePrayer] Supabase error:", error.message); return { ok: false, error: error.message }; }
     }
+    return { ok: true };
   },
   async removePrayer(date, prayerId) {
     const local = lsGet("masar_prayer_log", []).filter((p) => !(p.date === date && p.prayerId === prayerId));
     lsSet("masar_prayer_log", local);
     if (useCloud()) {
       const { error } = await supabase.from("prayer_log").delete().eq("date", date).eq("prayer_id", prayerId).eq("owner", CURRENT_OWNER);
-      if (error) console.error("[removePrayer] Supabase error:", error.message);
+      if (error) { console.error("[removePrayer] Supabase error:", error.message); return { ok: false, error: error.message }; }
     }
+    return { ok: true };
   },
 
   async loadReligious() {
@@ -768,15 +786,17 @@ export const store = {
     lsSet("masar_religious", next);
     if (useCloud()) {
       const { error } = await supabase.from("religious_tasks").upsert({ id: t.id, date: t.date, task_key: t.taskKey, title: t.title, target_count: t.targetCount || null, target_minutes: t.targetMinutes || null, minutes_spent: t.minutesSpent || 0, done: !!t.done, done_at: t.done ? new Date().toISOString() : null, owner: CURRENT_OWNER });
-      if (error) console.error("[saveReligious] Supabase error:", error.message);
+      if (error) { console.error("[saveReligious] Supabase error:", error.message); return { ok: false, error: error.message }; }
     }
+    return { ok: true };
   },
   async deleteReligious(id) {
     lsSet("masar_religious", lsGet("masar_religious", []).filter((t) => t.id !== id));
     if (useCloud()) {
       const { error } = await supabase.from("religious_tasks").delete().eq("id", id).eq("owner", CURRENT_OWNER);
-      if (error) console.error("[deleteReligious] Supabase error:", error.message);
+      if (error) { console.error("[deleteReligious] Supabase error:", error.message); return { ok: false, error: error.message }; }
     }
+    return { ok: true };
   },
 
   async loadMandatoryLog() {
@@ -803,9 +823,10 @@ export const store = {
           { date, task_key: taskKey, done, owner: CURRENT_OWNER, updated_at: new Date().toISOString() },
           { onConflict: "owner,date,task_key" }
         );
-        if (error) console.warn("mandatory_log sync error:", error.message);
-      } catch (e) { console.warn("mandatory_log write failed:", e); }
+        if (error) { console.error("[saveMandatoryItem] Supabase error:", error.message); return { ok: false, error: error.message }; }
+      } catch (e) { console.error("[saveMandatoryItem] write failed:", e); return { ok: false, error: String(e) }; }
     }
+    return { ok: true };
   },
 
   async loadAzkarLog() {
@@ -841,9 +862,10 @@ export const store = {
           { date, session, done, owner: CURRENT_OWNER, updated_at: new Date().toISOString() },
           { onConflict: "owner,date,session" }
         );
-        if (error) console.warn("azkar_log sync error:", error.message);
-      } catch (e) { console.warn("azkar_log write failed:", e); }
+        if (error) { console.error("[saveAzkarLog] Supabase error:", error.message); return { ok: false, error: error.message }; }
+      } catch (e) { console.error("[saveAzkarLog] write failed:", e); return { ok: false, error: String(e) }; }
     }
+    return { ok: true };
   },
 
   async loadQuranProgress() {
@@ -866,9 +888,10 @@ export const store = {
     if (useCloud()) {
       try {
         const { error } = await supabase.from("quran_progress").upsert({ juz_num: juzNum, done, owner: CURRENT_OWNER });
-        if (error) console.warn("quran_progress sync error:", error.message);
-      } catch (e) { console.warn("quran_progress write failed:", e); }
+        if (error) { console.error("[saveQuranJuz] Supabase error:", error.message); return { ok: false, error: error.message }; }
+      } catch (e) { console.error("[saveQuranJuz] write failed:", e); return { ok: false, error: String(e) }; }
     }
+    return { ok: true };
   },
 
   async loadIstighfar() {
@@ -888,9 +911,10 @@ export const store = {
     if (useCloud()) {
       try {
         const { error } = await supabase.from("istighfar").upsert({ owner: CURRENT_OWNER, daily: data.daily, total: data.total, updated_at: new Date().toISOString() });
-        if (error) console.warn("istighfar sync error:", error.message);
-      } catch (e) { console.warn("istighfar write failed:", e); }
+        if (error) { console.error("[saveIstighfar] Supabase error:", error.message); return { ok: false, error: error.message }; }
+      } catch (e) { console.error("[saveIstighfar] write failed:", e); return { ok: false, error: String(e) }; }
     }
+    return { ok: true };
   },
 
   async loadPointsLog() {
@@ -912,9 +936,10 @@ export const store = {
     if (useCloud()) {
       try {
         const { error } = await supabase.from("points_log").insert({ id: entry.id, date: entry.date, amount: entry.amount, reason: entry.reason, owner: CURRENT_OWNER });
-        if (error) console.warn("points_log sync error:", error.message);
-      } catch (e) { console.warn("points_log write failed:", e); }
+        if (error) { console.error("[addPointsLog] Supabase error:", error.message); return { ok: false, error: error.message }; }
+      } catch (e) { console.error("[addPointsLog] write failed:", e); return { ok: false, error: String(e) }; }
     }
+    return { ok: true };
   },
 
   async loadGamify() {
@@ -930,8 +955,9 @@ export const store = {
     lsSet(LS.gamify, g);
     if (useCloud()) {
       const { error } = await supabase.from("gamify").upsert({ owner: CURRENT_OWNER, points: g.points, badges: g.badges, updated_at: new Date().toISOString() });
-      if (error) console.error("[saveGamify] Supabase error:", error.message);
+      if (error) { console.error("[saveGamify] Supabase error:", error.message); return { ok: false, error: error.message }; }
     }
+    return { ok: true };
   },
 
   async loadChatMessages() {
@@ -948,15 +974,17 @@ export const store = {
     lsSet("masar_chat_messages", [...local, msg]);
     if (useCloud()) {
       const { error } = await supabase.from("chat_messages").insert({ id: msg.id, owner: CURRENT_OWNER, role: msg.role, content: msg.content });
-      if (error) console.error("[saveChatMessage] Supabase error:", error.message);
+      if (error) { console.error("[saveChatMessage] Supabase error:", error.message); return { ok: false, error: error.message }; }
     }
+    return { ok: true };
   },
   async clearChatMessages() {
     lsSet("masar_chat_messages", []);
     if (useCloud()) {
       const { error } = await supabase.from("chat_messages").delete().eq("owner", CURRENT_OWNER);
-      if (error) console.error("[clearChatMessages] Supabase error:", error.message);
+      if (error) { console.error("[clearChatMessages] Supabase error:", error.message); return { ok: false, error: error.message }; }
     }
+    return { ok: true };
   },
 
   async loadAdhkarProgress(date) {
@@ -988,9 +1016,10 @@ export const store = {
           { date, category, item_id: itemId, remaining, done, owner: CURRENT_OWNER, updated_at: new Date().toISOString() },
           { onConflict: "owner,date,category,item_id" }
         );
-        if (error) console.warn("adhkar_progress sync error:", error.message);
-      } catch (e) { console.warn("adhkar_progress write failed:", e); }
+        if (error) { console.error("[saveAdhkarProgressItem] Supabase error:", error.message); return { ok: false, error: error.message }; }
+      } catch (e) { console.error("[saveAdhkarProgressItem] write failed:", e); return { ok: false, error: String(e) }; }
     }
+    return { ok: true };
   },
 
   async loadTipsLog() {
@@ -1020,9 +1049,10 @@ export const store = {
           { date, tip_id: tipId, owner: CURRENT_OWNER, seen_at: new Date().toISOString() },
           { onConflict: "owner,date" }
         );
-        if (error) console.warn("tips_log sync error:", error.message);
-      } catch (e) { console.warn("tips_log write failed:", e); }
+        if (error) { console.error("[saveTipsLog] Supabase error:", error.message); return { ok: false, error: error.message }; }
+      } catch (e) { console.error("[saveTipsLog] write failed:", e); return { ok: false, error: String(e) }; }
     }
+    return { ok: true };
   },
 
   // Synchronous, local-only "already shown today" flag for the daily-tip

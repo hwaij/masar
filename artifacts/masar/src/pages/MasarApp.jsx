@@ -315,12 +315,15 @@ export default function MasarApp() {
         const missedPrayers = PRAYER_IDS.filter((pid) => !yPrayers.some((p) => p.prayerId === pid)).length;
         if (missedPrayers > 0) { deduction += missedPrayers * 5; reasons.push(`${missedPrayers} صلوات فائتة`); }
         if (deduction > 0) {
+          const prevGamify = g;
           const next = { ...g, points: Math.max(0, g.points - deduction) };
           setGamify(next);
-          await store.saveGamify(next);
+          const gRes = await store.saveGamify(next);
+          if (!gRes.ok) { setGamify(prevGamify); showToast("تعذّر تسجيل خصم النقاط، حاول لاحقاً"); }
           const logEntry = { id: uid(), date: today, amount: -deduction, reason: `خصم فائتات (${yesterday}): ${[...new Set(reasons)].join("، ")}` };
           setPointsLog((prev) => [logEntry, ...prev]);
-          await store.addPointsLog(logEntry);
+          const pRes = await store.addPointsLog(logEntry);
+          if (!pRes.ok) setPointsLog((prev) => prev.filter((p) => p.id !== logEntry.id));
         }
       }
       localStorage.setItem("masar_last_open", today);
@@ -483,7 +486,9 @@ export default function MasarApp() {
     setDailyTip(tip);
     store.setDailyTipShownDate(today);
     setTipsLog((prev) => ({ ...prev, [today]: tip.id }));
-    store.saveTipsLog(today, tip.id);
+    store.saveTipsLog(today, tip.id).then((res) => {
+      if (!res.ok) { setTipsLog((prev) => { const next = { ...prev }; delete next[today]; return next; }); showToast("تعذّر حفظ نصيحة اليوم، حاول لاحقاً"); }
+    });
   }, [showSplash, loaded, tourOpen, profile.tourSeen, isSub]);
 
   const aiHistory = useMemo(() => reports.filter((r) => r.gist).map((r) => ({ date: r.date, gist: r.gist })), [reports]);
@@ -512,19 +517,29 @@ export default function MasarApp() {
     const earned = BADGES.filter((b) => b.threshold(stats)).map((b) => b.id);
     const newOnes = earned.filter((id) => !gamify.badges.includes(id));
     if (newOnes.length) {
+      const prevGamify = gamify;
       const next = { ...gamify, badges: [...gamify.badges, ...newOnes] };
-      setGamify(next); store.saveGamify(next);
+      setGamify(next);
+      store.saveGamify(next).then((res) => {
+        if (!res.ok) { setGamify(prevGamify); showToast("تعذّر حفظ الشارة الجديدة، حاول لاحقاً"); }
+      });
       showToast(`شارة جديدة: ${BADGES.find((b) => b.id === newOnes[0]).name}`);
     }
   }, [stats, loaded]);
 
   const addPoints = useCallback((n, reason = "") => {
-    setGamify((g) => { const next = { ...g, points: Math.max(0, g.points + n) }; store.saveGamify(next); return next; });
+    let prevGamify;
+    setGamify((g) => { prevGamify = g; return { ...g, points: Math.max(0, g.points + n) }; });
     const logReason = reason || (n >= 0 ? "نقاط مكتسبة" : "خصم نقاط");
     const logEntry = { id: uid(), date: todayKey(), amount: n, reason: logReason };
     setPointsLog((prev) => [logEntry, ...prev].slice(0, 200));
-    store.addPointsLog(logEntry);
-  }, []);
+    (async () => {
+      const gRes = await store.saveGamify({ ...prevGamify, points: Math.max(0, prevGamify.points + n) });
+      if (!gRes.ok) { setGamify(prevGamify); showToast("تعذّر حفظ النقاط، حاول مرة أخرى"); }
+      const pRes = await store.addPointsLog(logEntry);
+      if (!pRes.ok) setPointsLog((prev) => prev.filter((p) => p.id !== logEntry.id));
+    })();
+  }, [showToast]);
 
   const handleSignIn = useCallback(async () => {
     try { await signInWithGoogle(); } catch { showToast("تعذّر تسجيل الدخول الآن"); }
@@ -595,7 +610,7 @@ export default function MasarApp() {
         {view === "reports" && (isSub ? <ReportsView entries={entries} categories={categories} focus={focus} profile={profile} healthProfile={healthProfile} sleepLog={sleepLog} setSleepLog={setSleepLog} showToast={showToast} /> : (
           <div style={S.view}><UpsellCard icon={TrendingUp} title="تقاريرك التفصيلية في مسار الكامل" message="شاهد تقدّمك بأرقام وتحليلات واضحة، وتتبّع نومك ونمط راحتك عبر الأيام." /></div>
         ))}
-        {view === "assistant" && (isSub ? <AssistantView entries={entries} tasks={tasks} categories={categories} focus={focus} prayerLog={prayerLog} religious={religious} profile={profile} stats={stats} setView={setView} healthProfile={healthProfile} goals={goals} /> : (
+        {view === "assistant" && (isSub ? <AssistantView entries={entries} tasks={tasks} categories={categories} focus={focus} prayerLog={prayerLog} religious={religious} profile={profile} stats={stats} setView={setView} healthProfile={healthProfile} goals={goals} showToast={showToast} /> : (
           <div style={S.view}><UpsellCard icon={MessageCircle} title="مساعدك الذكي في مسار الكامل" message="مدرّب شخصي يحلّل يومك وعاداتك ويقترح خطوات عملية بناءً على بياناتك الفعلية." /></div>
         ))}
         {view === "you" && <YouView healthProfile={healthProfile} setHealthProfile={setHealthProfile} showToast={showToast} />}
@@ -1118,30 +1133,41 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
   async function toggleMandatoryToday(task) {
     const today = todayKey();
     const done = !todayMandatory[task.key];
+    const prevLog = mandatoryLog;
     const newLog = { ...(mandatoryLog || {}), [today]: { ...todayMandatory, [task.key]: done } };
     if (setMandatoryLog) setMandatoryLog(newLog);
-    await store.saveMandatoryItem(today, task.key, done);
+    const res = await store.saveMandatoryItem(today, task.key, done);
+    if (!res.ok) { if (setMandatoryLog) setMandatoryLog(prevLog); showToast("تعذّر حفظ المهمة، حاول مرة أخرى"); return; }
     const label = mandatoryTaskLabel(task, t);
     if (done) { addPoints(task.points, label); showToast(`+${task.points} ${t("todayView.pointsSuffix")}`); }
     else addPoints(-task.points, t("todayView.revertedTask", { label }));
   }
 
   async function saveEntry(entry) {
+    const isNew = !editingEntry;
     setEntries((prev) => prev.some((e) => e.id === entry.id) ? prev.map((e) => (e.id === entry.id ? entry : e)) : [...prev, entry]);
-    await store.saveEntry(entry);
-    if (!editingEntry) addPoints(15);
+    const res = await store.saveEntry(entry);
+    if (!res.ok) {
+      setEntries((prev) => isNew ? prev.filter((e) => e.id !== entry.id) : prev);
+      showToast("تعذّر حفظ النشاط، حاول مرة أخرى");
+      return;
+    }
+    if (isNew) addPoints(15);
     setModalOpen(false); setEditingEntry(null); showToast(t("todayView.savedSuccess"));
   }
   async function deleteEntry(id) {
+    const removed = entries.find((e) => e.id === id);
     setEntries((prev) => prev.filter((e) => e.id !== id));
-    await store.deleteEntry(id);
+    const res = await store.deleteEntry(id);
+    if (!res.ok) { if (removed) setEntries((prev) => [...prev, removed]); showToast("تعذّر حذف النشاط، حاول مرة أخرى"); return; }
     addPoints(-15, t("todayView.deletedActivity"));
     showToast(t("todayView.deletedSuccess"));
   }
   async function toggleTask(taskItem) {
     const updated = { ...taskItem, done: !taskItem.done };
     setTasks((prev) => prev.map((x) => x.id === taskItem.id ? updated : x));
-    await store.saveTask(updated);
+    const res = await store.saveTask(updated);
+    if (!res.ok) { setTasks((prev) => prev.map((x) => x.id === taskItem.id ? taskItem : x)); showToast("تعذّر حفظ المهمة، حاول مرة أخرى"); return; }
     if (!taskItem.done) addPoints(10);
     else addPoints(-10, t("todayView.revertedTaskGeneric"));
   }
@@ -1226,9 +1252,11 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
         report={dailyReport?.payload} aiHistory={aiHistory}
         subscription={subscription}
         onSave={async (payload, gist) => {
+          const prevReports = reports;
           const rep = { id: uid(), kind: "daily", date, payload, gist };
           setReports((prev) => [rep, ...prev.filter((r) => !(r.kind === "daily" && r.date === date))]);
-          await store.saveReport(rep);
+          const res = await store.saveReport(rep);
+          if (!res.ok) { setReports(prevReports); showToast("تعذّر حفظ التقرير، حاول مرة أخرى"); }
         }}
       />
 
@@ -1246,7 +1274,8 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
             const newEnd = addMinutesToTime(e.start, newDur);
             const updated = { ...e, end: newEnd };
             setEntries((prev) => prev.map((x) => x.id === e.id ? updated : x));
-            await store.saveEntry(updated);
+            const res = await store.saveEntry(updated);
+            if (!res.ok) { setEntries((prev) => prev.map((x) => x.id === e.id ? e : x)); showToast("تعذّر حفظ التعديل، حاول مرة أخرى"); }
           }
           return (
             <div key={e.id} style={S.entryRow} onClick={() => { setEditingEntry(e); setModalOpen(true); }}>
@@ -1386,12 +1415,16 @@ function TasksView({ tasks, setTasks, categories, addPoints, showToast, subscrip
       return;
     }
     const t = { id: uid(), title: title.trim(), catId, due: selectedDay, done: false, created: todayKey() };
-    setTasks((prev) => [...prev, t]); await store.saveTask(t); setTitle(""); showToast("تمت إضافة المهمة");
+    setTasks((prev) => [...prev, t]);
+    const res = await store.saveTask(t);
+    if (!res.ok) { setTasks((prev) => prev.filter((x) => x.id !== t.id)); showToast("تعذّر حفظ المهمة، حاول مرة أخرى"); return; }
+    setTitle(""); showToast("تمت إضافة المهمة");
   }
   async function toggle(t) {
     const updated = { ...t, done: !t.done };
     setTasks((prev) => prev.map((x) => x.id === t.id ? updated : x));
-    await store.saveTask(updated);
+    const res = await store.saveTask(updated);
+    if (!res.ok) { setTasks((prev) => prev.map((x) => x.id === t.id ? t : x)); showToast("تعذّر حفظ المهمة، حاول مرة أخرى"); return; }
     if (!t.done) {
       addPoints(10);
       const after = tasksForDay(t.due).map((x) => (x.id === t.id ? updated : x));
@@ -1403,7 +1436,8 @@ function TasksView({ tasks, setTasks, categories, addPoints, showToast, subscrip
   async function remove(id) {
     const removed = tasks.find((t) => t.id === id);
     setTasks((prev) => prev.filter((t) => t.id !== id));
-    await store.deleteTask(id);
+    const res = await store.deleteTask(id);
+    if (!res.ok) { if (removed) setTasks((prev) => [...prev, removed]); showToast("تعذّر حذف المهمة، حاول مرة أخرى"); return; }
     if (removed?.done) addPoints(-10, "حذف مهمة منجزة");
     showToast("تم الحذف");
   }
@@ -1961,7 +1995,7 @@ function SleepSection({ sleepLog, setSleepLog, days, range, showToast }) {
   );
 }
 
-function AssistantView({ entries, tasks, categories, focus, prayerLog, religious, profile, stats, setView, healthProfile, goals }) {
+function AssistantView({ entries, tasks, categories, focus, prayerLog, religious, profile, stats, setView, healthProfile, goals, showToast }) {
   const today = todayKey();
   const hasIdentity = !!(profile?.hobbies?.trim() || profile?.about?.trim());
 
@@ -2102,12 +2136,16 @@ function AssistantView({ entries, tasks, categories, focus, prayerLog, religious
     setMessages(next);
     setInput("");
     setSending(true);
-    store.saveChatMessage(userMsg);
+    store.saveChatMessage(userMsg).then((res) => {
+      if (!res.ok) showToast?.("تعذّر حفظ رسالتك في السجل، قد تُفقد عند إعادة التحميل");
+    });
     try {
       const reply = await coachChat(next, buildContext());
       const botMsg = { id: uid(), role: "assistant", content: reply };
       setMessages([...next, botMsg]);
-      store.saveChatMessage(botMsg);
+      store.saveChatMessage(botMsg).then((res) => {
+        if (!res.ok) showToast?.("تعذّر حفظ رد المساعد في السجل، قد يُفقد عند إعادة التحميل");
+      });
     } catch (err) {
       // Transient failures aren't saved — retrying shouldn't clutter the
       // permanent conversation history with dead-end error bubbles.
@@ -2119,8 +2157,10 @@ function AssistantView({ entries, tasks, categories, focus, prayerLog, religious
   }
 
   async function clearChat() {
+    const prevMessages = messages;
     setMessages([]);
-    await store.clearChatMessages();
+    const res = await store.clearChatMessages();
+    if (!res.ok) { setMessages(prevMessages); showToast?.("تعذّر مسح المحادثة، حاول مرة أخرى"); }
   }
 
   const suggestions = ["كيف أحسّن يومي؟", "خطط لي يومي", "اقترح نشاطاً يناسب هواياتي", "كيف أنظّم وقتي؟"];
@@ -2266,15 +2306,18 @@ function PrayerView({
 
   async function togglePrayer(p) {
     if (isDone(p.id)) {
+      const removed = prayerLog.find((x) => x.date === today && x.prayerId === p.id);
       setPrayerLog((prev) => prev.filter((x) => !(x.date === today && x.prayerId === p.id)));
-      await store.removePrayer(today, p.id);
+      const res = await store.removePrayer(today, p.id);
+      if (!res.ok) { if (removed) setPrayerLog((prev) => [removed, ...prev]); showToast("تعذّر التراجع عن الصلاة، حاول مرة أخرى"); return; }
       addPoints(-20, `التراجع عن ${p.name}`);
     } else {
       const [adhanH, adhanM] = p.time.split(":").map(Number);
       const minutesAfterAdhan = Math.max(0, (now.getHours() * 60 + now.getMinutes()) - (adhanH * 60 + adhanM));
       const entry = { id: uid(), date: today, prayerId: p.id, minutesAfterAdhan };
       setPrayerLog((prev) => [entry, ...prev]);
-      await store.savePrayer(entry);
+      const res = await store.savePrayer(entry);
+      if (!res.ok) { setPrayerLog((prev) => prev.filter((x) => x.id !== entry.id)); showToast("تعذّر حفظ الصلاة، حاول مرة أخرى"); return; }
       addPoints(20);
       playSaveSound();
       showToast(prayerTimingMessage(p.name, minutesAfterAdhan));
@@ -2297,13 +2340,22 @@ function PrayerView({
   async function addReligiousPreset(preset) {
     if (todayReligious.some((r) => r.taskKey === preset.key)) { showToast("مضافة بالفعل اليوم"); return; }
     const t = { id: uid(), date: today, taskKey: preset.key, title: preset.title, targetCount: preset.targetCount, targetMinutes: preset.targetMinutes, minutesSpent: 0, done: false };
-    setReligious((prev) => [t, ...prev]); await store.saveReligious(t); showToast("أضيفت المهمة");
+    setReligious((prev) => [t, ...prev]);
+    const res = await store.saveReligious(t);
+    if (!res.ok) { setReligious((prev) => prev.filter((x) => x.id !== t.id)); showToast("تعذّر حفظ المهمة، حاول مرة أخرى"); return; }
+    showToast("أضيفت المهمة");
   }
   async function updateReligious(t) {
-    setReligious((prev) => prev.map((x) => x.id === t.id ? t : x)); await store.saveReligious(t);
+    const prev = religious.find((x) => x.id === t.id);
+    setReligious((prevList) => prevList.map((x) => x.id === t.id ? t : x));
+    const res = await store.saveReligious(t);
+    if (!res.ok) { if (prev) setReligious((prevList) => prevList.map((x) => x.id === t.id ? prev : x)); showToast("تعذّر حفظ المهمة، حاول مرة أخرى"); }
   }
   async function removeReligious(id) {
-    setReligious((prev) => prev.filter((x) => x.id !== id)); await store.deleteReligious(id);
+    const removed = religious.find((x) => x.id === id);
+    setReligious((prev) => prev.filter((x) => x.id !== id));
+    const res = await store.deleteReligious(id);
+    if (!res.ok) { if (removed) setReligious((prev) => [...prev, removed]); showToast("تعذّر حذف المهمة، حاول مرة أخرى"); }
   }
 
   const todayAzkar = azkarLog[today] || {};
@@ -2321,33 +2373,41 @@ function PrayerView({
     const wasSessionDone = allSessionIds.every((id) => !!todayItems[id]);
     const isNowSessionDone = allSessionIds.every((id) => !!newTodayItems[id]);
     if (!wasSessionDone && isNowSessionDone) {
+      const prevLog = azkarLog;
       const newLog = { ...azkarLog, [today]: { ...todayAzkar, [session]: true } };
       setAzkarLog(newLog);
-      await store.saveAzkarLog(today, session, true);
+      const res = await store.saveAzkarLog(today, session, true);
+      if (!res.ok) { setAzkarLog(prevLog); showToast("تعذّر حفظ الأذكار، حاول مرة أخرى"); return; }
       addPoints(15, `أذكار ${session === "morning" ? "الصباح" : "المساء"}`);
       showToast("أتممت الأذكار! +15 نقطة");
     } else if (wasSessionDone && !isNowSessionDone && todayAzkar[session]) {
+      const prevLog = azkarLog;
       const newLog = { ...azkarLog, [today]: { ...todayAzkar, [session]: false } };
       setAzkarLog(newLog);
-      await store.saveAzkarLog(today, session, false);
+      const res = await store.saveAzkarLog(today, session, false);
+      if (!res.ok) { setAzkarLog(prevLog); showToast("تعذّر حفظ الأذكار، حاول مرة أخرى"); return; }
       addPoints(-15, `التراجع عن أذكار ${session === "morning" ? "الصباح" : "المساء"}`);
     }
   }
 
   async function toggleJuz(juzNum) {
+    const prevProgress = quranProgress;
     const done = !quranProgress[juzNum];
     const next2 = { ...quranProgress, [juzNum]: done };
     setQuranProgress(next2);
-    await store.saveQuranJuz(juzNum, done);
+    const res = await store.saveQuranJuz(juzNum, done);
+    if (!res.ok) { setQuranProgress(prevProgress); showToast("تعذّر حفظ تقدّم القرآن، حاول مرة أخرى"); return; }
     if (done) { addPoints(20, `الجزء ${juzNum} من القرآن`); showToast(`الجزء ${juzNum} مكتمل! +20 نقطة`); }
     else addPoints(-20, `التراجع عن الجزء ${juzNum} من القرآن`);
   }
 
   async function toggleQuran30() {
+    const prevLog = azkarLog;
     const done = !todayAzkar.quran30;
     const newLog = { ...azkarLog, [today]: { ...todayAzkar, quran30: done } };
     setAzkarLog(newLog);
-    await store.saveAzkarLog(today, "quran30", done);
+    const res = await store.saveAzkarLog(today, "quran30", done);
+    if (!res.ok) { setAzkarLog(prevLog); showToast("تعذّر الحفظ، حاول مرة أخرى"); return; }
     if (done) { addPoints(15, "قراءة القرآن 30 دقيقة"); showToast("أحسنت! +15 نقطة"); }
     else addPoints(-15, "التراجع عن قراءة القرآن");
   }
@@ -2355,21 +2415,25 @@ function PrayerView({
   async function addIstighfar(amount) {
     const remaining = todayIstighfar;
     if (remaining <= 0) return;
+    const prevIstighfar = istighfar;
     const newRemaining = Math.max(0, remaining - amount);
     const newTotal = (istighfar.total || 0) + Math.min(amount, remaining);
     const newData = { daily: { ...(istighfar.daily || {}), [today]: newRemaining }, total: newTotal };
     setIstighfar(newData);
-    await store.saveIstighfar(newData);
+    const res = await store.saveIstighfar(newData);
+    if (!res.ok) { setIstighfar(prevIstighfar); showToast("تعذّر حفظ الاستغفار، حاول مرة أخرى"); return; }
     if (remaining > 0 && newRemaining === 0) {
       addPoints(10, "إتمام ألف استغفار"); showToast("أحسنت! أكملت ألف استغفار اليوم +10 نقطة");
     }
   }
 
   async function resetIstighfarDay() {
+    const prevIstighfar = istighfar;
     const wasDone = todayIstighfar === 0;
     const newData = { daily: { ...(istighfar.daily || {}), [today]: ISTIGHFAR_TARGET }, total: istighfar.total || 0 };
     setIstighfar(newData);
-    await store.saveIstighfar(newData);
+    const res = await store.saveIstighfar(newData);
+    if (!res.ok) { setIstighfar(prevIstighfar); showToast("تعذّر إعادة التعيين، حاول مرة أخرى"); return; }
     if (wasDone) addPoints(-10, "إعادة تعيين الاستغفار");
     showToast("تم إعادة العداد إلى 1000");
   }
@@ -2670,7 +2734,12 @@ function AdhkarView({ showToast }) {
       ...prev,
       [catId]: { ...(prev[catId] || {}), [item.id]: { remaining: nextRemaining, done } },
     }));
-    await store.saveAdhkarProgressItem(today, catId, item.id, nextRemaining, done);
+    const res = await store.saveAdhkarProgressItem(today, catId, item.id, nextRemaining, done);
+    if (!res.ok) {
+      setProgress((prev) => ({ ...prev, [catId]: { ...(prev[catId] || {}), [item.id]: cur } }));
+      showToast("تعذّر حفظ الذكر، حاول مرة أخرى");
+      return;
+    }
     if (done) showToast("أُتمّ الذكر ✓");
   }
 
@@ -2856,7 +2925,12 @@ function TipsView({ tipsLog, setTipsLog, showToast, subscription }) {
     try {
       if ((tipsLog || {})[today] === todayTip.id) return;
       setTipsLog((prev) => ({ ...(prev || {}), [today]: todayTip.id }));
-      store.saveTipsLog(today, todayTip.id).catch((e) => console.warn("[TipsView] tips_log save failed:", e));
+      store.saveTipsLog(today, todayTip.id).then((res) => {
+        if (!res.ok) {
+          setTipsLog((prev) => { const next = { ...(prev || {}) }; delete next[today]; return next; });
+          showToast("تعذّر حفظ نصيحة اليوم، حاول لاحقاً");
+        }
+      });
     } catch (e) {
       console.warn("[TipsView] could not record today's tip in the log:", e);
     }
@@ -3584,16 +3658,23 @@ function FocusView({ focus, setFocus, commitments, setCommitments, categories, e
     const start = addMinutesToTime(end, -minutesDone);
     const session = { id: uid(), date: todayKey(), minutes: minutesDone, label: (sess?.label || "").trim(), isStudy: sess?.isStudy ?? isStudy, start, end };
     setFocus((prev) => [session, ...prev]);
-    await store.saveFocus(session);
+    const res = await store.saveFocus(session);
+    if (!res.ok) {
+      setFocus((prev) => prev.filter((f) => f.id !== session.id));
+      showToast("تعذّر حفظ جلسة التركيز، حاول مرة أخرى");
+      return;
+    }
     await store.saveActiveSession(null);
     addPoints(minutesDone);
     showToast(wasAway ? `أكملت ${minutesDone} دقيقة أثناء غيابك! +${minutesDone} نقطة` : `أكملت ${minutesDone} دقيقة! +${minutesDone} نقطة`);
     setRemaining(targetMin * 60);
-    setCommitments((prev) => prev.map((c) => {
-      const updated = { ...c, log: { ...c.log, [todayKey()]: (c.log[todayKey()] || 0) + minutesDone } };
-      store.saveCommitment(updated);
-      return updated;
-    }));
+    setCommitments((prev) => {
+      const next = prev.map((c) => ({ ...c, log: { ...c.log, [todayKey()]: (c.log[todayKey()] || 0) + minutesDone } }));
+      Promise.all(next.map((updated) => store.saveCommitment(updated))).then((results) => {
+        if (results.some((r) => !r.ok)) { setCommitments(prev); showToast("تعذّر تحديث بعض الالتزامات، حاول لاحقاً"); }
+      });
+      return next;
+    });
     myGroupIdsRef.current.forEach((gid) => store.sendGroupActivityPing(gid, "finished", minutesDone));
   }
 
@@ -3993,10 +4074,16 @@ function CommitmentsSection({ commitments, setCommitments, categories, focus, sh
   async function add() {
     if (!title.trim()) return;
     const c = { id: uid(), title: title.trim(), targetMinutes: mins, catId: categories[0]?.id, log: {} };
-    setCommitments((prev) => [...prev, c]); await store.saveCommitment(c); setTitle(""); showToast("أضفت تحدي التزام");
+    setCommitments((prev) => [...prev, c]);
+    const res = await store.saveCommitment(c);
+    if (!res.ok) { setCommitments((prev) => prev.filter((x) => x.id !== c.id)); showToast("تعذّر حفظ الالتزام، حاول مرة أخرى"); return; }
+    setTitle(""); showToast("أضفت تحدي التزام");
   }
   async function remove(id) {
-    setCommitments((prev) => prev.filter((c) => c.id !== id)); await store.deleteCommitment(id);
+    const removed = commitments.find((c) => c.id === id);
+    setCommitments((prev) => prev.filter((c) => c.id !== id));
+    const res = await store.deleteCommitment(id);
+    if (!res.ok) { if (removed) setCommitments((prev) => [...prev, removed]); showToast("تعذّر حذف الالتزام، حاول مرة أخرى"); }
   }
 
   function streakOf(c) {
@@ -4095,20 +4182,24 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
       const text = await analyze(prompt, 2048);
       const parsed = parseJsonLoose(text);
       const newItems = (parsed.items || []).map((it) => ({ id: uid(), kind, title: it.title, detail: it.detail, steps: it.steps || [], topic: it.topic || "", done: false }));
-      for (const it of newItems) await store.saveAchieve(it);
-      setAchieve((prev) => [...newItems, ...prev]);
+      const results = await Promise.all(newItems.map((it) => store.saveAchieve(it)));
+      const savedItems = newItems.filter((_, i) => results[i].ok);
+      setAchieve((prev) => [...savedItems, ...prev]);
       setSmartUnavailable(false);
       setPromptText("");
-      showToast(`أضفت ${newItems.length} عناصر جديدة`);
+      if (savedItems.length < newItems.length) showToast(`أُضيف ${savedItems.length} من ${newItems.length} فقط، تعذّر حفظ الباقي`);
+      else showToast(`أضفت ${newItems.length} عناصر جديدة`);
     } catch (err) {
       console.error("[AchieveView] generate failed:", err);
       setSmartUnavailable(true);
       const existing = achieve.slice(0, 8).map((a) => a.title);
       const localItems = localAchieveSuggestions(profile, kind, existing);
       const newItems = localItems.map((it) => ({ id: uid(), kind, title: it.title, detail: it.detail, steps: it.steps || [], topic: it.topic || "", done: false }));
-      for (const it of newItems) await store.saveAchieve(it);
-      setAchieve((prev) => [...newItems, ...prev]);
-      showToast(`أضفت ${newItems.length} مهام جاهزة`);
+      const results = await Promise.all(newItems.map((it) => store.saveAchieve(it)));
+      const savedItems = newItems.filter((_, i) => results[i].ok);
+      setAchieve((prev) => [...savedItems, ...prev]);
+      if (savedItems.length < newItems.length) showToast(`أُضيف ${savedItems.length} من ${newItems.length} فقط، تعذّر حفظ الباقي`);
+      else showToast(`أضفت ${newItems.length} مهام جاهزة`);
     }
     finally { setLoading(false); }
   }
@@ -4122,14 +4213,16 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
   async function toggleDone(item) {
     const updated = { ...item, done: !item.done };
     setAchieve((prev) => prev.map((a) => a.id === item.id ? updated : a));
-    await store.saveAchieve(updated);
+    const res = await store.saveAchieve(updated);
+    if (!res.ok) { setAchieve((prev) => prev.map((a) => a.id === item.id ? item : a)); showToast("تعذّر حفظ الإنجاز، حاول مرة أخرى"); return; }
     if (!item.done) { addPoints(25); playAchievementSound(); showToast("أحسنت! +25 نقطة"); }
     else addPoints(-25, "التراجع عن إنجاز");
   }
   async function remove(id) {
     const removed = achieve.find((a) => a.id === id);
     setAchieve((prev) => prev.filter((a) => a.id !== id));
-    await store.deleteAchieve(id);
+    const res = await store.deleteAchieve(id);
+    if (!res.ok) { if (removed) setAchieve((prev) => [...prev, removed]); showToast("تعذّر حذف الإنجاز، حاول مرة أخرى"); return; }
     if (removed?.done) addPoints(-25, "حذف إنجاز مكتمل");
     showToast("تم الحذف");
   }
@@ -4313,8 +4406,8 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
     }
     const cat = { id: uid(), name, color: newColor };
     setCategories((prev) => [...prev, cat]);
-    const ok = await store.saveCategory(cat);
-    if (ok) { setNewName(""); showToast("تمت إضافة الفئة"); }
+    const res = await store.saveCategory(cat);
+    if (res.ok) { setNewName(""); showToast("تمت إضافة الفئة"); }
     else {
       setCategories((prev) => prev.filter((c) => c.id !== cat.id));
       showToast("تعذّر حفظ الفئة، حاول مرة أخرى");
@@ -4329,15 +4422,15 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
     if (!name) { showToast("اسم الفئة لا يمكن أن يكون فارغاً"); return; }
     let updated;
     setCategories((prev) => prev.map((c) => { if (c.id === id) { updated = { ...c, name, color: editDraft.color }; return updated; } return c; }));
-    const ok = updated ? await store.saveCategory(updated) : true;
-    if (ok) setEditing(null);
+    const res = updated ? await store.saveCategory(updated) : { ok: true };
+    if (res.ok) setEditing(null);
     else showToast("تعذّر حفظ التعديل، حاول مرة أخرى");
   }
   async function removeCategory(id) {
     const removed = categories.find((c) => c.id === id);
     setCategories((prev) => prev.filter((c) => c.id !== id));
-    const ok = await store.deleteCategory(id);
-    if (ok) showToast("تم حذف الفئة");
+    const res = await store.deleteCategory(id);
+    if (res.ok) showToast("تم حذف الفئة");
     else {
       if (removed) setCategories((prev) => [...prev, removed]);
       showToast("تعذّر حذف الفئة، حاول مرة أخرى");
@@ -4636,8 +4729,10 @@ function YouView({ healthProfile, setHealthProfile, showToast }) {
       bmi: metrics.bmi?.value ?? null, bmiCategory: metrics.bmi?.category ?? null,
       ibw: metrics.ibw, ree: metrics.ree, tee: metrics.tee,
     };
+    const prevHealthProfile = healthProfile;
     setHealthProfile(next);
-    await store.saveHealthProfile(next);
+    const res = await store.saveHealthProfile(next);
+    if (!res.ok) { setHealthProfile(prevHealthProfile); showToast("تعذّر حفظ بياناتك، حاول مرة أخرى"); return; }
     setEditing(false);
     showToast("تم حفظ بياناتك بنجاح");
   }

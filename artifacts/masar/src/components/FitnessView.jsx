@@ -111,8 +111,10 @@ export default function FitnessView({ healthProfile, showToast }) {
       showToast("أكمل الهدف والمعدات وعدد الأيام");
       return;
     }
+    const prevProfile = fitnessProfile;
     setFitnessProfile(draft);
-    await store.saveFitnessProfile(draft);
+    const res = await store.saveFitnessProfile(draft);
+    if (!res.ok) { setFitnessProfile(prevProfile); showToast("تعذّر حفظ برنامجك، حاول مرة أخرى"); return; }
     setEditing(false);
     showToast("تم حفظ برنامجك");
   }
@@ -120,7 +122,8 @@ export default function FitnessView({ healthProfile, showToast }) {
   async function toggleTodayDone() {
     const next = !todayDone;
     setFitnessLog((prev) => ({ ...prev, [today]: next }));
-    await store.saveFitnessDayCompleted(today, next);
+    const res = await store.saveFitnessDayCompleted(today, next);
+    if (!res.ok) { setFitnessLog((prev) => ({ ...prev, [today]: !next })); showToast("تعذّر حفظ التمرين، حاول مرة أخرى"); return; }
     if (next) showToast("أحسنت! تم تسجيل تمرين اليوم");
   }
 

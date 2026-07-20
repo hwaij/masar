@@ -181,8 +181,14 @@ export default function MentalHealthView({ setView, showToast }) {
     const flaggedRisk = detectRisk(note);
     if (flaggedRisk && !crisisAcknowledged) { setShowCrisis(true); return; }
     const entry = { mood, stress, energy, note, flaggedRisk };
+    const prevEntry = existing;
     setLog((prev) => ({ ...prev, [today]: entry }));
-    await store.saveMentalHealthEntry(today, entry);
+    const res = await store.saveMentalHealthEntry(today, entry);
+    if (!res.ok) {
+      setLog((prev) => { const next = { ...prev }; if (prevEntry) next[today] = prevEntry; else delete next[today]; return next; });
+      showToast("تعذّر حفظ التسجيل، حاول مرة أخرى");
+      return;
+    }
     showToast("تم حفظ تسجيل اليوم");
   }
 

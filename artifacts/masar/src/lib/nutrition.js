@@ -291,3 +291,71 @@ export async function recognizeMealFromImage(imageFile) {
     return { ok: false, error: e?.message || "تعذّر تحليل صورة الوجبة الآن. جرّب مرة أخرى أو أضف الطعام يدوياً." };
   }
 }
+
+// نقطة تكامل معزولة ثانية ومنفصلة تماماً عن recognizeMealFromImage: تلك
+// تقدّر وجبة كاملة بصرياً (تخمين)، بينما هذه تقرأ أرقاماً مطبوعة صريحة على
+// جدول القيم الغذائية (Nutrition Facts) - مهمة مختلفة جوهرياً (قراءة نص لا
+// تقدير بصري)، فتُعزل بدالتها الخاصة حتى يبقى استبدال أي منهما مستقبلاً
+// (خدمة OCR متخصصة مثلاً بدل Gemini) تغييراً معزولاً تماماً عن الأخرى.
+// "basis": الأساس المرجعي الفعلي كما هو مكتوب على الملصق - لا نفترضه
+// أبداً، بل نطلب من Gemini قراءته كما هو (بعض الملصقات لكل 100g، بعضها لكل
+// حصة فقط، بعضها الاثنان معاً - عندها نُفضّل 100g/100ml كأساس أدق، لكن هذا
+// اختيار Gemini نفسه بحسب التعليمة أدناه، لا افتراض من هذا الكود).
+export async function readNutritionLabel(imageFile) {
+  try {
+    const { base64, mimeType } = await compressImageToBase64(imageFile);
+    const prompt = `حلّل صورة "جدول القيم الغذائية" (Nutrition Facts label) المطبوع هذا. اقرأ الأرقام المطبوعة فعلياً على الملصق فقط، ولا تخترع أو تقدّر أي رقم غير مكتوب. أرجع فقط JSON صالحاً بدون أي نص أو markdown إضافي، بهذا الشكل بالضبط:
+{"basis":"100g أو 100ml أو serving","servingGrams":رقم أو null,"calories":رقم,"protein":رقم,"carbs":رقم,"fat":رقم,"fiber":رقم,"sugar":رقم,"sodium":رقم}
+
+حيث:
+- "basis": الأساس المرجعي الفعلي المكتوب على الملصق لهذه القيم تحديداً - "100g" إن كانت القيم لكل 100 غرام، "100ml" إن كانت لكل 100 مليلتر، أو "serving" إن كانت لكل حصة واحدة (Per Serving) فقط بدون أي عمود آخر لكل 100g/100ml. إن ذُكر كلاهما معاً على نفس الملصق (شائع جداً)، اختر "100g" أو "100ml" (الأدق دائماً) لا "serving".
+- "servingGrams": فقط إن كان basis="serving"، حجم الحصة الواحدة بالغرام كما هو مكتوب أو محسوب من الملصق (مثال: Serving Size 30g → 30، أو 240ml → 240). اجعلها null دائماً إن كان basis="100g" أو "100ml".
+- calories/protein/carbs/fat/fiber/sugar: أرقام كما هي مطبوعة تماماً بالنسبة للأساس المرجعي basis (سعرات، وبروتين/كارب/دهون/ألياف/سكر بالغرام). اجعل القيمة 0 فقط إن كانت غير مذكورة إطلاقاً على الملصق - لا تخترع رقماً غائباً.
+- "sodium": بالميليغرام (mg) كما هو مطبوع، أو محسوباً من غرام إلى ميليغرام إن كُتب بالغرام على الملصق.
+
+إن تعذّرت قراءة الملصق بوضوح كافٍ (صورة غير واضحة، إضاءة سيئة، الجدول غير ظاهر بالكامل في الصورة)، أرجع بالضبط هذا فقط: {"error":"unreadable"}`;
+    const { geminiAnalyzeImage } = await import("./gemini.js");
+    const text = await geminiAnalyzeImage(prompt, base64, mimeType, 500);
+    const parsed = parseJsonLoose(text);
+    if (parsed.error || !parsed.basis) {
+      return { ok: false, error: "تعذّر قراءة الملصق بوضوح. جرّب صورة أوضح (إضاءة أفضل، الجدول كاملاً) أو أضف الطعام يدوياً." };
+    }
+    const basis = ["100g", "100ml", "serving"].includes(parsed.basis) ? parsed.basis : "100g";
+    return {
+      ok: true,
+      basis,
+      servingGrams: basis === "serving" ? (Number(parsed.servingGrams) || null) : null,
+      calories: Number(parsed.calories) || 0,
+      protein: Number(parsed.protein) || 0,
+      carbs: Number(parsed.carbs) || 0,
+      fat: Number(parsed.fat) || 0,
+      fiber: Number(parsed.fiber) || 0,
+      sugar: Number(parsed.sugar) || 0,
+      sodium: Number(parsed.sodium) || 0,
+    };
+  } catch (e) {
+    console.error("[nutrition] readNutritionLabel failed:", e);
+    return { ok: false, error: e?.message || "تعذّر قراءة الملصق الآن. جرّب مرة أخرى أو أضف الطعام يدوياً." };
+  }
+}
+
+// يحوّل نتيجة readNutritionLabel (أياً كان أساسها المرجعي) إلى "منتج لكل
+// 100g" قياسي - نفس الشكل الذي يتوقعه scaleNutrients/unitToGrams أصلاً
+// (caloriesPer100g...)، حتى تُستخدم آلية الحصص/الوحدات الموحّدة نفسها بلا
+// أي تفريع خاص. عند basis="serving"، يُطبَّق تحويل نسبي بسيط (القيمة لكل
+// حصة × 100/حجم الحصة)؛ servingGrams تفترض 100 إن كانت غير معروفة (نفس
+// افتراض unitToGrams الافتراضي الموجود أصلاً لوحدات "قطعة"/"حصة" المجهولة).
+export function labelToPer100Product(label) {
+  const servingGrams = label.basis === "serving" ? (label.servingGrams && label.servingGrams > 0 ? label.servingGrams : 100) : null;
+  const factor = label.basis === "serving" ? 100 / servingGrams : 1;
+  return {
+    caloriesPer100g: (label.calories || 0) * factor,
+    proteinPer100g: (label.protein || 0) * factor,
+    carbsPer100g: (label.carbs || 0) * factor,
+    fatPer100g: (label.fat || 0) * factor,
+    fiberPer100g: (label.fiber || 0) * factor,
+    sugarPer100g: (label.sugar || 0) * factor,
+    sodiumPer100gMg: (label.sodium || 0) * factor,
+    servingGrams: label.basis === "serving" ? servingGrams : null,
+  };
+}

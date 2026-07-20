@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Plus, X, Trash2, Camera, Search, Loader2, Droplet, Flame, Check, Bell,
-  Hash, Sparkles, ImagePlus,
+  Hash, Sparkles, ImagePlus, ClipboardList,
 } from "lucide-react";
 import { store } from "../lib/store";
 import { todayKey, uid, analyze, parseJsonLoose } from "../lib/helpers";
@@ -10,7 +10,8 @@ import {
   fetchProductByBarcode, searchProductsByName, scaleNutrients,
   sumNutritionEntries, waterGoalCups, servingPresets,
   isSecureContextForCamera, describeCameraError,
-  normalizeSearchTerm, recognizeMealFromImage, DAILY_GUIDELINES,
+  normalizeSearchTerm, recognizeMealFromImage, readNutritionLabel,
+  labelToPer100Product, DAILY_GUIDELINES,
   UNIT_OPTIONS, unitById, unitToGrams, unitServingSize,
 } from "../lib/nutrition";
 import { requestNotificationPermission } from "../lib/push";
@@ -781,6 +782,225 @@ function AIPhotoPanel({ onSave, onManual }) {
   );
 }
 
+// تصوير "جدول القيم الغذائية" المطبوع وقراءته بالذكاء الاصطناعي - نقطة
+// تكامل معزولة (readNutritionLabel في lib/nutrition.js) منفصلة تماماً عن
+// recognizeMealFromImage المستخدمة في AIPhotoPanel أعلاه: تلك تقدّر وجبة
+// كاملة بصرياً، وهذه تقرأ أرقاماً مطبوعة صريحة (basis + قيمها) فتُحوَّل عبر
+// labelToPer100Product إلى نفس شكل "منتج لكل 100g" الذي تستخدمه أيضاً
+// ConfirmQuantityCard، فتُعاد الاستفادة من نفس دوال الحصص/الوحدات الموحّدة
+// (unitServingSize/unitToGrams/scaleNutrients) بلا أي منطق حساب جديد.
+function LabelPhotoPanel({ onSave, onManual }) {
+  const [preview, setPreview] = useState(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [error, setError] = useState(null);
+  const [label, setLabel] = useState(null); // نتيجة readNutritionLabel الخام (basis + servingGrams + قيم)
+  const [basisValues, setBasisValues] = useState(null); // نفس قيم label القابلة للتعديل يدوياً قبل الحفظ
+  const [unit, setUnit] = useState("g");
+  const [multiplier, setMultiplier] = useState(1);
+  const [grams, setGrams] = useState(100);
+  const [unitQty, setUnitQty] = useState(1);
+  const cameraInputRef = useRef(null);
+  const galleryInputRef = useRef(null);
+
+  // نفس أثر تزامن "عدد الحصص" الموجود في ConfirmQuantityCard، معمَّم هنا
+  // على أي وحدة - يعمل فقط بعد اكتمال قراءة الملصق (label غير null). يجب
+  // أن يبقى هذا الاستدعاء غير مشروط في أعلى المكوّن (لا بعد أي return مبكر)
+  // حتى لا يخالف "Rules of Hooks".
+  useEffect(() => {
+    if (!label || !basisValues) return;
+    const per100Now = labelToPer100Product({ ...basisValues, basis: label.basis, servingGrams: label.servingGrams });
+    if (unit === "g") {
+      if (label.basis === "serving") setGrams(Math.round((per100Now.servingGrams || 100) * multiplier));
+    } else {
+      setUnitQty(Math.round(unitServingSize(unit, per100Now.servingGrams) * multiplier * 100) / 100);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [multiplier, unit, label]);
+
+  async function handleFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPreview(URL.createObjectURL(file));
+    setError(null);
+    setLabel(null);
+    setBasisValues(null);
+    setAnalyzing(true);
+    const res = await readNutritionLabel(file);
+    setAnalyzing(false);
+    if (!res.ok) { setError(res.error); return; }
+    setLabel(res);
+    setBasisValues({
+      calories: res.calories, protein: res.protein, carbs: res.carbs, fat: res.fat,
+      fiber: res.fiber, sugar: res.sugar, sodium: res.sodium,
+    });
+    // الوحدة الافتراضية تطابق طبيعة الأساس المرجعي المقروء: مل إن كانت
+    // القيم لكل 100ml، وإلا غرام (المستخدم يقدر يبدّل لاحقاً لأي وحدة أخرى).
+    const initialUnit = res.basis === "100ml" ? "ml" : "g";
+    setUnit(initialUnit);
+    setMultiplier(1);
+    const hasServing = res.basis === "serving";
+    setGrams(hasServing ? Math.round(res.servingGrams || 100) : 100);
+    setUnitQty(1);
+  }
+
+  function changeBasis(field, val) { setBasisValues((b) => ({ ...b, [field]: Number(val) || 0 })); }
+
+  if (!basisValues) {
+    return (
+      <>
+        <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFile} style={{ display: "none" }} />
+        <input ref={galleryInputRef} type="file" accept="image/*" onChange={handleFile} style={{ display: "none" }} />
+        {!preview && (
+          <div style={NS.chooserGrid}>
+            <button onClick={() => cameraInputRef.current?.click()} style={NS.chooserBtn}>
+              <span style={NS.chooserIcon}><Camera size={19} /></span>
+              التقط صورة
+            </button>
+            <button onClick={() => galleryInputRef.current?.click()} style={NS.chooserBtn}>
+              <span style={NS.chooserIcon}><ImagePlus size={19} /></span>
+              اختر من المعرض
+            </button>
+          </div>
+        )}
+        {preview && <img src={preview} alt="" style={NS.photoPreview} />}
+        {analyzing && (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "16px 0", gap: 10 }}>
+            <Loader2 size={22} className="spin" color="var(--gold)" />
+            <span style={{ fontSize: 13, color: "var(--muted2)" }}>نقرأ الملصق...</span>
+          </div>
+        )}
+        {error && (
+          <>
+            <div style={NS.errorText}>{error}</div>
+            <button onClick={() => { setPreview(null); setError(null); }} style={{ ...S.exportBtn, marginBottom: 8 }}>إعادة المحاولة بصورة أخرى</button>
+            <button onClick={onManual} style={{ ...S.exportBtn, marginBottom: 0 }}>إضافة يدوية بدلاً من ذلك</button>
+          </>
+        )}
+        {!preview && !error && (
+          <button onClick={onManual} style={{ ...S.exportBtn, marginTop: 8 }}>إضافة يدوية بدلاً من ذلك</button>
+        )}
+      </>
+    );
+  }
+
+  const hasServing = label.basis === "serving";
+  const basisSentence = label.basis === "100g" ? "هذه القيم لكل 100 غرام حسب الملصق."
+    : label.basis === "100ml" ? "هذه القيم لكل 100 مليلتر حسب الملصق."
+    : `هذه القيم لكل حصة واحدة (${Math.round(label.servingGrams || 100)} غرام) حسب الملصق.`;
+
+  const per100 = labelToPer100Product({ ...basisValues, basis: label.basis, servingGrams: label.servingGrams });
+  const unitMeta = unitById(unit);
+  const unitBaseQty = unitServingSize(unit, per100.servingGrams);
+  const gramsEquivalent = unit === "g" ? grams : unitToGrams(unit, unitQty, per100.servingGrams);
+  const preview2 = scaleNutrients(per100, gramsEquivalent || 0);
+
+  return (
+    <>
+      <img src={preview} alt="" style={NS.photoPreview} />
+      <div style={NS.disclaimerBox}>
+        <Sparkles size={15} color="#C9A24B" style={{ flexShrink: 0, marginTop: 1 }} />
+        <span>القيم مقروءة تلقائياً من صورة الملصق وقد تحتاج لمراجعة. تأكد من الأرقام قبل الحفظ.</span>
+      </div>
+      <p style={{ ...S.label, marginBottom: 4 }}>{basisSentence}</p>
+      <div style={NS.editableGrid}>
+        <div>
+          <label style={S.label}>السعرات</label>
+          <input type="number" inputMode="decimal" value={basisValues.calories} onChange={(e) => changeBasis("calories", e.target.value)} style={S.input} />
+        </div>
+        <div>
+          <label style={S.label}>بروتين (غ)</label>
+          <input type="number" inputMode="decimal" value={basisValues.protein} onChange={(e) => changeBasis("protein", e.target.value)} style={S.input} />
+        </div>
+        <div>
+          <label style={S.label}>كارب (غ)</label>
+          <input type="number" inputMode="decimal" value={basisValues.carbs} onChange={(e) => changeBasis("carbs", e.target.value)} style={S.input} />
+        </div>
+        <div>
+          <label style={S.label}>دهون (غ)</label>
+          <input type="number" inputMode="decimal" value={basisValues.fat} onChange={(e) => changeBasis("fat", e.target.value)} style={S.input} />
+        </div>
+        <div>
+          <label style={S.label}>ألياف (غ)</label>
+          <input type="number" inputMode="decimal" value={basisValues.fiber} onChange={(e) => changeBasis("fiber", e.target.value)} style={S.input} />
+        </div>
+        <div>
+          <label style={S.label}>سكر (غ)</label>
+          <input type="number" inputMode="decimal" value={basisValues.sugar} onChange={(e) => changeBasis("sugar", e.target.value)} style={S.input} />
+        </div>
+        <div>
+          <label style={S.label}>صوديوم (مغم)</label>
+          <input type="number" inputMode="decimal" value={basisValues.sodium} onChange={(e) => changeBasis("sodium", e.target.value)} style={S.input} />
+        </div>
+      </div>
+
+      <p style={{ ...S.label, marginTop: 16, marginBottom: 4 }}>كم تناولت فعلياً؟</p>
+      <label style={S.label}>وحدة القياس</label>
+      <div style={NS.unitRow}>
+        <select value={unit} onChange={(e) => setUnit(e.target.value)} style={NS.unitSelect}>
+          {UNIT_OPTIONS.map((u) => <option key={u.id} value={u.id}>{u.label}</option>)}
+        </select>
+      </div>
+      {unit === "g" ? (
+        <>
+          {hasServing && (
+            <>
+              <label style={S.label}>عدد الحصص (كل حصة {Math.round(per100.servingGrams)} غم)</label>
+              <div style={NS.multiplierRow}>
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <button key={n} onClick={() => setMultiplier(n)} style={{ ...NS.multiplierBtn, ...(multiplier === n ? NS.multiplierBtnActive : {}) }}>×{n}</button>
+                ))}
+                <input type="number" inputMode="decimal" value={multiplier} onChange={(e) => setMultiplier(Math.max(0.25, Number(e.target.value) || 0))} style={NS.multiplierInput} />
+              </div>
+            </>
+          )}
+          <label style={S.label}>{hasServing ? "أو عدّل الكمية بالغرام مباشرة" : "الكمية (غم)"}</label>
+          <input type="number" inputMode="decimal" value={grams} onChange={(e) => setGrams(Number(e.target.value))} style={S.input} />
+        </>
+      ) : (
+        <>
+          <label style={S.label}>عدد الحصص (كل حصة {fmtQty(unitBaseQty)} {unitMeta.label})</label>
+          <div style={NS.multiplierRow}>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button key={n} onClick={() => setMultiplier(n)} style={{ ...NS.multiplierBtn, ...(multiplier === n ? NS.multiplierBtnActive : {}) }}>×{n}</button>
+            ))}
+            <input type="number" inputMode="decimal" value={multiplier} onChange={(e) => setMultiplier(Math.max(0.25, Number(e.target.value) || 0))} style={NS.multiplierInput} />
+          </div>
+          <label style={S.label}>أو عدّل الكمية بـ{unitMeta.label} مباشرة</label>
+          <input type="number" inputMode="decimal" value={unitQty} onChange={(e) => setUnitQty(Number(e.target.value) || 0)} style={S.input} />
+          {unitMeta.approx && <p style={NS.unitApproxNote}>تحويل تقريبي إلى غرام لحساب القيم الغذائية (وحدة غير وزنية).</p>}
+        </>
+      )}
+
+      <div style={NS.previewGrid}>
+        <div style={NS.previewChip}><div style={NS.macroValue}>{preview2.calories}</div><div style={NS.macroLabel}>سعرة</div></div>
+        <div style={NS.previewChip}><div style={NS.macroValue}>{preview2.protein}غ</div><div style={NS.macroLabel}>بروتين</div></div>
+        <div style={NS.previewChip}><div style={NS.macroValue}>{preview2.carbs}غ</div><div style={NS.macroLabel}>كارب</div></div>
+        <div style={NS.previewChip}><div style={NS.macroValue}>{preview2.fat}غ</div><div style={NS.macroLabel}>دهون</div></div>
+      </div>
+      <div style={NS.previewGrid}>
+        <div style={NS.previewChip}><div style={NS.macroValue}>{preview2.fiber}غ</div><div style={NS.macroLabel}>ألياف</div></div>
+        <div style={NS.previewChip}><div style={NS.macroValue}>{preview2.sugar}غ</div><div style={NS.macroLabel}>سكر</div></div>
+        <div style={NS.previewChip}><div style={NS.macroValue}>{preview2.sodium}مغ</div><div style={NS.macroLabel}>صوديوم</div></div>
+      </div>
+      <button
+        onClick={() => onSave({
+          id: uid(), foodName: "طعام (ملصق غذائي)", ...preview2,
+          unit,
+          servingInfo: unit === "g"
+            ? (hasServing ? `${multiplier} × ${Math.round(per100.servingGrams)}غم` : `${grams} غم`)
+            : `${fmtQty(unitQty)} ${unitMeta.label}`,
+          source: "label",
+        })}
+        style={S.saveBtn}
+        disabled={!gramsEquivalent || gramsEquivalent <= 0}
+      >
+        إضافة إلى سجل اليوم
+      </button>
+      <button onClick={onManual} style={{ ...S.exportBtn, marginTop: 8, marginBottom: 0 }}>إضافة يدوية بدلاً من ذلك</button>
+    </>
+  );
+}
+
 export default function NutritionView({ healthProfile, showToast, profile, setProfile, subscription }) {
   const [loaded, setLoaded] = useState(false);
   const [nutritionLog, setNutritionLog] = useState([]);
@@ -1082,6 +1302,7 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
                   {sheet === "barcodeManual" && "إدخال الباركود"}
                   {sheet === "search" && "بحث بالاسم"}
                   {sheet === "aiPhoto" && "تصوير الوجبة"}
+                  {sheet === "labelPhoto" && "تصوير الملصق الغذائي"}
                   {sheet === "manual" && "إضافة يدوية"}
                   {sheet === "confirm" && "تأكيد الكمية"}
                   {sheet === "lookup" && "جاري البحث..."}
@@ -1118,6 +1339,14 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
                   تصوير الوجبة بالذكاء الاصطناعي
                   {!isSub && <span style={NS.chooserBadge}>مسار الكامل</span>}
                 </button>
+                <button
+                  onClick={() => setSheet(isSub ? "labelPhoto" : "labelPhotoLocked")}
+                  style={{ ...NS.chooserBtn, ...(!isSub ? NS.chooserBtnDisabled : {}) }}
+                >
+                  <span style={NS.chooserIcon}><ClipboardList size={19} /></span>
+                  تصوير الملصق الغذائي
+                  {!isSub && <span style={NS.chooserBadge}>مسار الكامل</span>}
+                </button>
               </div>
             )}
 
@@ -1138,6 +1367,17 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
 
             {sheet === "aiPhoto" && (
               <AIPhotoPanel
+                onSave={(entry) => addEntry(entry)}
+                onManual={() => setSheet("manual")}
+              />
+            )}
+
+            {sheet === "labelPhotoLocked" && (
+              <MiniUpsell title="تصوير الملصق الغذائي" message="صوّر جدول القيم الغذائية المطبوع على المنتج، ويقرأ الذكاء الاصطناعي أرقامه مباشرة - أدق من التقدير البصري." />
+            )}
+
+            {sheet === "labelPhoto" && (
+              <LabelPhotoPanel
                 onSave={(entry) => addEntry(entry)}
                 onManual={() => setSheet("manual")}
               />

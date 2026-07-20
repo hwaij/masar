@@ -147,7 +147,7 @@ create table if not exists nutrition_log (
   carbs         numeric not null default 0,
   fat           numeric not null default 0,
   serving_info  text default '',
-  source        text check (source in ('barcode', 'manual', 'search', 'ai_photo')),
+  source        text check (source in ('barcode', 'manual', 'search', 'ai_photo', 'label')),
   created_at    timestamptz default now()
 );
 create index if not exists nutrition_log_owner_date on nutrition_log (owner, date);
@@ -156,8 +156,9 @@ alter table nutrition_log add column if not exists sugar numeric not null defaul
 alter table nutrition_log add column if not exists sodium numeric not null default 0;
 -- source كان يمنع القيمة الجديدة 'ai_photo' (تصوير الوجبة بالذكاء الاصطناعي)
 -- عبر check constraint قديم لا يعرفها؛ يُعاد إنشاؤه هنا ليشملها أيضاً.
+-- أُضيفت لاحقاً 'label' (تصوير الملصق الغذائي وقراءته بالذكاء الاصطناعي) لنفس السبب.
 alter table nutrition_log drop constraint if exists nutrition_log_source_check;
-alter table nutrition_log add constraint nutrition_log_source_check check (source in ('barcode', 'manual', 'search', 'ai_photo'));
+alter table nutrition_log add constraint nutrition_log_source_check check (source in ('barcode', 'manual', 'search', 'ai_photo', 'label'));
 -- وحدة القياس التي اختارها المستخدم فعلياً عند التسجيل (غرام افتراضياً)،
 -- تُحفظ منفصلة حتى يظهر السجل لاحقاً بنفس الوحدة، حتى لو كانت القيم
 -- الغذائية نفسها محسوبة مسبقاً بمكافئها بالغرام.

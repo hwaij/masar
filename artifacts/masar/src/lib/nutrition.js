@@ -151,6 +151,21 @@ export function unitToGrams(unitId, qty, servingGrams) {
   return n * base;
 }
 
+// "حجم حصة واحدة" بالوحدة المطلوبة — تُستخدم لإظهار "كل حصة = X <وحدة>"
+// وكقيمة أساس لأزرار عدد الحصص السريعة (×1..×5) في كل وحدات القياس، لا
+// الغرام فقط. إن كان حجم حصة حقيقي للمنتج معروفاً (servingGrams) ولهذه
+// الوحدة معامل تحويل ثابت (وزن/حجم: g/kg/ml/l/tbsp/tsp/cup)، تُحوَّل حصة
+// المنتج الحقيقية لهذه الوحدة (حصة 250غم بوحدة "مل" = 250). لوحدات "قطعة"/
+// "حصة" (لا معامل ثابت لهما، تعتمد على servingGrams مباشرة داخل
+// unitToGrams) أو عند غياب أي حجم حصة معروف، "حصة واحدة" تعني ببساطة وحدة
+// طبيعية واحدة من هذه الوحدة (كوب واحد، ملعقة واحدة، قطعة واحدة) - نفس
+// الافتراض الذي يستخدمه unitToGrams أصلاً.
+export function unitServingSize(unitId, servingGrams) {
+  const unit = unitById(unitId);
+  if (servingGrams && servingGrams > 0 && unit.factor != null) return servingGrams / unit.factor;
+  return 1;
+}
+
 // يحسب القيم الفعلية لكمية معيّنة بالغرام انطلاقاً من قيم كل 100غم.
 export function scaleNutrients(product, grams) {
   const factor = grams / 100;

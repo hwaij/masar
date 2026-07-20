@@ -11,7 +11,7 @@ import {
   sumNutritionEntries, waterGoalCups, servingPresets,
   isSecureContextForCamera, describeCameraError,
   normalizeSearchTerm, recognizeMealFromImage, DAILY_GUIDELINES,
-  UNIT_OPTIONS, unitById, unitToGrams,
+  UNIT_OPTIONS, unitById, unitToGrams, unitServingSize,
 } from "../lib/nutrition";
 import { requestNotificationPermission } from "../lib/push";
 import { S } from "./styles";
@@ -307,16 +307,32 @@ function MacroRings({ totals, macroTargets }) {
   );
 }
 
+// تنسيق عرض بسيط للكميات (حصة/كمية بأي وحدة): يزيل الكسور العشرية الزائدة
+// (250 لا 250.00) بينما يحتفظ بمنزلتين عند الحاجة الفعلية (1.25 ملعقة).
+function fmtQty(n) {
+  const r = Math.round((n || 0) * 100) / 100;
+  return Number.isInteger(r) ? String(r) : String(r);
+}
+
 function ConfirmQuantityCard({ product, source, onAdd, onCancel }) {
   const hasServing = !!product.servingGrams;
   const [unit, setUnit] = useState("g");
   const [multiplier, setMultiplier] = useState(1);
   const [grams, setGrams] = useState(hasServing ? Math.round(product.servingGrams) : 100);
   const [unitQty, setUnitQty] = useState(1);
-  // تُطبَّق الحصص (×1/×2/...) فقط عندما يملك المنتج حجم حصة معروفاً، وفقط
-  // في وضع "غرام" (الوضع الافتراضي)؛ خلاف ذلك يبقى إدخال الغرامات مباشرة
-  // هو الخيار الوحيد (كما كان سابقاً).
-  useEffect(() => { if (unit === "g" && hasServing) setGrams(Math.round(product.servingGrams * multiplier)); }, [multiplier, hasServing, product.servingGrams, unit]);
+  // تُطبَّق الحصص (×1/×2/...) على وضع "غرام" فقط عندما يملك المنتج حجم حصة
+  // معروفاً (سلوك أصلي محفوظ كما هو). لكل الوحدات الأخرى (مل/لتر/كوب/ملعقة/
+  // قطعة/حصة/كيلوغرام...)، "الحصة الواحدة" بهذه الوحدة تُحسب دائماً عبر
+  // unitServingSize (حصة المنتج الحقيقية مُحوَّلة لهذه الوحدة إن عُرفت، أو
+  // وحدة طبيعية واحدة كافتراض معقول خلاف ذلك) - فأزرار ×1..×5 تعمل بنفس
+  // السهولة والمنطق في كل وحدة، لا الغرام فقط.
+  useEffect(() => {
+    if (unit === "g") {
+      if (hasServing) setGrams(Math.round(product.servingGrams * multiplier));
+    } else {
+      setUnitQty(Math.round(unitServingSize(unit, product.servingGrams) * multiplier * 100) / 100);
+    }
+  }, [multiplier, hasServing, product.servingGrams, unit]);
   const presets = servingPresets(product.servingGrams);
   // أي وحدة غير الغرام تُحوَّل داخلياً لغرام/مليلتر مكافئ (تقدير تقريبي
   // لغير الأوزان المباشرة) قبل حساب القيم الغذائية، حتى يبقى scaleNutrients
@@ -324,6 +340,7 @@ function ConfirmQuantityCard({ product, source, onAdd, onCancel }) {
   const gramsEquivalent = unit === "g" ? grams : unitToGrams(unit, unitQty, product.servingGrams);
   const preview = scaleNutrients(product, gramsEquivalent || 0);
   const unitMeta = unitById(unit);
+  const unitBaseQty = unitServingSize(unit, product.servingGrams);
 
   return (
     <>
@@ -369,7 +386,18 @@ function ConfirmQuantityCard({ product, source, onAdd, onCancel }) {
         </>
       ) : (
         <>
-          <label style={S.label}>الكمية ({unitMeta.label})</label>
+          <label style={S.label}>عدد الحصص (كل حصة {fmtQty(unitBaseQty)} {unitMeta.label})</label>
+          <div style={NS.multiplierRow}>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button key={n} onClick={() => setMultiplier(n)} style={{ ...NS.multiplierBtn, ...(multiplier === n ? NS.multiplierBtnActive : {}) }}>×{n}</button>
+            ))}
+            <input
+              type="number" inputMode="decimal" value={multiplier}
+              onChange={(e) => setMultiplier(Math.max(0.25, Number(e.target.value) || 0))}
+              style={NS.multiplierInput}
+            />
+          </div>
+          <label style={S.label}>أو عدّل الكمية بـ{unitMeta.label} مباشرة</label>
           <input type="number" inputMode="decimal" value={unitQty} onChange={(e) => setUnitQty(Number(e.target.value) || 0)} style={S.input} />
           {unitMeta.approx && <p style={NS.unitApproxNote}>تحويل تقريبي إلى غرام لحساب القيم الغذائية (وحدة غير وزنية).</p>}
         </>
@@ -391,7 +419,7 @@ function ConfirmQuantityCard({ product, source, onAdd, onCancel }) {
           unit,
           servingInfo: unit === "g"
             ? (hasServing ? `${multiplier} × ${Math.round(product.servingGrams)}غم` : `${grams} غم`)
-            : `${unitQty} ${unitMeta.label}`,
+            : `${fmtQty(unitQty)} ${unitMeta.label}`,
           source,
         })}
         style={S.saveBtn}
@@ -409,9 +437,19 @@ function ManualEntryForm({ barcode, onSave, onCancel }) {
     foodName: "", brand: "", country: "", servingSizeLabel: "", unit: "g", qty: "",
     calories: "", protein: "", carbs: "", fat: "", fiber: "", sugar: "", sodium: "", imageUrl: "",
   });
+  const [multiplier, setMultiplier] = useState(1);
   function change(field, val) { setDraft((d) => ({ ...d, [field]: val })); }
   const valid = draft.foodName.trim() && Number(draft.calories) > 0;
   const unitMeta = unitById(draft.unit);
+  // لا يوجد حجم حصة حقيقي معروف بعد لهذا الطعام الجديد (لم يُبنَ من باركود)،
+  // فـ"الحصة الواحدة" هنا تعني وحدة طبيعية واحدة دائماً (1 كوب/ملعقة/قطعة/
+  // غرام...) - نفس ما تُرجعه unitServingSize عند غياب servingGrams. أزرار
+  // ×1..×5 تملأ خانة الكمية تلقائياً فقط عند الضغط عليها صراحة؛ التبديل بين
+  // الوحدات وحده لا يغيّر رقماً كتبه المستخدم يدوياً بالفعل.
+  function applyMultiplier(n) {
+    setMultiplier(n);
+    change("qty", String(fmtQty(n)));
+  }
 
   return (
     <>
@@ -441,6 +479,17 @@ function ManualEntryForm({ barcode, onSave, onCancel }) {
           <label style={S.label}>الكمية المُستهلكة الآن ({unitMeta.label})</label>
           <input type="number" inputMode="decimal" value={draft.qty} onChange={(e) => change("qty", e.target.value)} placeholder="35" style={S.input} />
         </div>
+      </div>
+      <label style={S.label}>عدد الحصص (كل حصة 1 {unitMeta.label})</label>
+      <div style={NS.multiplierRow}>
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button key={n} onClick={() => applyMultiplier(n)} style={{ ...NS.multiplierBtn, ...(multiplier === n ? NS.multiplierBtnActive : {}) }}>×{n}</button>
+        ))}
+        <input
+          type="number" inputMode="decimal" value={multiplier}
+          onChange={(e) => applyMultiplier(Math.max(0.25, Number(e.target.value) || 0))}
+          style={NS.multiplierInput}
+        />
       </div>
       {unitMeta.approx && <p style={NS.unitApproxNote}>تحويل تقريبي إلى غرام (وحدة غير وزنية).</p>}
       <p style={{ ...S.label, marginTop: 16, marginBottom: 4 }}>القيم الغذائية (لكل 100غم)</p>
@@ -594,7 +643,9 @@ function AIPhotoPanel({ onSave, onManual }) {
   const [preview, setPreview] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState(null);
-  const [result, setResult] = useState(null); // { items, calories, protein, carbs, fat }
+  const [result, setResult] = useState(null); // { items, calories, protein, carbs, fat } - القيم المعروضة/القابلة للتعديل حالياً
+  const [baseResult, setBaseResult] = useState(null); // نفس شكل result، لكن ثابت: تقدير الذكاء الاصطناعي الخام لحصة واحدة (١×) كما وصل، يُستخدم أساساً لإعادة حساب عدد الحصص دون تراكم أخطاء تقريب
+  const [multiplier, setMultiplier] = useState(1);
   const cameraInputRef = useRef(null);
   const galleryInputRef = useRef(null);
 
@@ -604,14 +655,34 @@ function AIPhotoPanel({ onSave, onManual }) {
     setPreview(URL.createObjectURL(file));
     setError(null);
     setResult(null);
+    setBaseResult(null);
+    setMultiplier(1);
     setAnalyzing(true);
     const res = await recognizeMealFromImage(file);
     setAnalyzing(false);
     if (!res.ok) { setError(res.error); return; }
-    setResult({ items: res.items, calories: res.calories, protein: res.protein, carbs: res.carbs, fat: res.fat });
+    const initial = { items: res.items, calories: res.calories, protein: res.protein, carbs: res.carbs, fat: res.fat };
+    setResult(initial);
+    setBaseResult(initial);
   }
 
   function change(field, val) { setResult((r) => ({ ...r, [field]: val })); }
+  // عدد الحصص هنا يعني "كم مرة مثل ما في الصورة" - لا وحدة فعلية (غم/مل/كوب)
+  // معقولة لصورة وجبة مختلطة، فتُعامَل الصورة كاملة كـ"حصة واحدة" وتُضرب كل
+  // قيمها الأربع بعدد الحصص المختار، بنفس سهولة أزرار ×1..×5 في باقي طرق
+  // الإضافة. يُعاد الحساب دائماً من baseResult (تقدير الحصة الواحدة الأصلي)
+  // لا من القيم المعروضة حالياً، تفادياً لتراكم أخطاء تقريب عبر ضغطات متكررة.
+  function applyMultiplier(n) {
+    setMultiplier(n);
+    if (!baseResult) return;
+    setResult({
+      items: baseResult.items,
+      calories: Math.round((baseResult.calories || 0) * n),
+      protein: Math.round((baseResult.protein || 0) * n * 10) / 10,
+      carbs: Math.round((baseResult.carbs || 0) * n * 10) / 10,
+      fat: Math.round((baseResult.fat || 0) * n * 10) / 10,
+    });
+  }
 
   return (
     <>
@@ -660,6 +731,17 @@ function AIPhotoPanel({ onSave, onManual }) {
             <Sparkles size={15} color="#C9A24B" style={{ flexShrink: 0, marginTop: 1 }} />
             <span>هذه القيم تقديرية اعتماداً على تحليل الصورة، وقد تختلف عن القيم الفعلية. يمكنك تعديل الكميات يدوياً قبل الحفظ.</span>
           </div>
+          <label style={S.label}>عدد الحصص (الصورة تمثّل حصة واحدة)</label>
+          <div style={NS.multiplierRow}>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button key={n} onClick={() => applyMultiplier(n)} style={{ ...NS.multiplierBtn, ...(multiplier === n ? NS.multiplierBtnActive : {}) }}>×{n}</button>
+            ))}
+            <input
+              type="number" inputMode="decimal" value={multiplier}
+              onChange={(e) => applyMultiplier(Math.max(0.25, Number(e.target.value) || 0))}
+              style={NS.multiplierInput}
+            />
+          </div>
           <div style={NS.editableGrid}>
             <div>
               <label style={S.label}>السعرات</label>
@@ -685,7 +767,7 @@ function AIPhotoPanel({ onSave, onManual }) {
               calories: Number(result.calories) || 0, protein: Number(result.protein) || 0,
               carbs: Number(result.carbs) || 0, fat: Number(result.fat) || 0,
               fiber: 0, sugar: 0, sodium: 0,
-              servingInfo: "تقدير بالذكاء الاصطناعي", source: "ai_photo",
+              servingInfo: multiplier !== 1 ? `تقدير بالذكاء الاصطناعي (×${fmtQty(multiplier)})` : "تقدير بالذكاء الاصطناعي", source: "ai_photo",
             })}
             style={S.saveBtn}
           >

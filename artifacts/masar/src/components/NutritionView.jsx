@@ -13,6 +13,7 @@ import {
   normalizeSearchTerm, recognizeMealFromImage, readNutritionLabel,
   labelToPer100Product, DAILY_GUIDELINES,
   UNIT_OPTIONS, unitById, unitToGrams, unitServingSize,
+  scaleMicronutrients, MICRONUTRIENT_META,
 } from "../lib/nutrition";
 import { requestNotificationPermission } from "../lib/push";
 import { S } from "./styles";
@@ -90,6 +91,7 @@ const NS = {
   guidelineRow: { marginBottom: 12 },
   guidelineHead: { display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--muted2)", marginBottom: 5 },
   guidelineName: { fontWeight: 700, color: "var(--ink-soft)" },
+  microHead: { fontSize: 13, fontWeight: 700, color: "var(--muted2)", marginTop: 18, marginBottom: 10 },
 
   disclaimerBox: { display: "flex", gap: 8, alignItems: "flex-start", background: "rgba(201,162,75,0.08)", border: "1px solid rgba(201,162,75,0.3)", borderRadius: 12, padding: "10px 11px", marginBottom: 12, fontSize: 12, color: "var(--ink-soft)", lineHeight: 1.7 },
   photoDropZone: { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", minHeight: 140, background: "var(--surface-sunken)", border: "1.5px dashed var(--border2)", borderRadius: 14, cursor: "pointer", color: "var(--muted2)", fontSize: 13, fontWeight: 600, marginBottom: 12 },
@@ -422,6 +424,7 @@ function ConfirmQuantityCard({ product, source, onAdd, onCancel }) {
             ? (hasServing ? `${multiplier} × ${Math.round(product.servingGrams)}غم` : `${grams} غم`)
             : `${fmtQty(unitQty)} ${unitMeta.label}`,
           source,
+          micronutrients: scaleMicronutrients(product.micronutrientsPer100g, gramsEquivalent || 0),
         })}
         style={S.saveBtn}
         disabled={!gramsEquivalent || gramsEquivalent <= 0}
@@ -808,7 +811,7 @@ function LabelPhotoPanel({ onSave, onManual }) {
   // حتى لا يخالف "Rules of Hooks".
   useEffect(() => {
     if (!label || !basisValues) return;
-    const per100Now = labelToPer100Product({ ...basisValues, basis: label.basis, servingGrams: label.servingGrams });
+    const per100Now = labelToPer100Product({ ...basisValues, basis: label.basis, servingGrams: label.servingGrams, micronutrients: label.micronutrients });
     if (unit === "g") {
       if (label.basis === "serving") setGrams(Math.round((per100Now.servingGrams || 100) * multiplier));
     } else {
@@ -888,7 +891,7 @@ function LabelPhotoPanel({ onSave, onManual }) {
     : label.basis === "100ml" ? "هذه القيم لكل 100 مليلتر حسب الملصق."
     : `هذه القيم لكل حصة واحدة (${Math.round(label.servingGrams || 100)} غرام) حسب الملصق.`;
 
-  const per100 = labelToPer100Product({ ...basisValues, basis: label.basis, servingGrams: label.servingGrams });
+  const per100 = labelToPer100Product({ ...basisValues, basis: label.basis, servingGrams: label.servingGrams, micronutrients: label.micronutrients });
   const unitMeta = unitById(unit);
   const unitBaseQty = unitServingSize(unit, per100.servingGrams);
   const gramsEquivalent = unit === "g" ? grams : unitToGrams(unit, unitQty, per100.servingGrams);
@@ -990,6 +993,7 @@ function LabelPhotoPanel({ onSave, onManual }) {
             ? (hasServing ? `${multiplier} × ${Math.round(per100.servingGrams)}غم` : `${grams} غم`)
             : `${fmtQty(unitQty)} ${unitMeta.label}`,
           source: "label",
+          micronutrients: scaleMicronutrients(per100.micronutrientsPer100g, gramsEquivalent || 0),
         })}
         style={S.saveBtn}
         disabled={!gramsEquivalent || gramsEquivalent <= 0}
@@ -1033,6 +1037,17 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
 
   const todayLog = nutritionLog.filter((e) => e.date === today);
   const totals = sumNutritionEntries(todayLog);
+  // فقط العناصر التي استُهلكت فعلياً اليوم (قيمة > 0) - لا نعرض شريطاً لعنصر
+  // لم يأكل المستخدم منه شيئاً اليوم أصلاً (مبدأ "لا اختراع/لا تضليل" نفسه
+  // المتّبع في كل مكان في هذا القسم).
+  const microRows = Object.entries(totals.micronutrients || {})
+    .filter(([, value]) => value > 0)
+    .map(([key, value]) => {
+      const meta = MICRONUTRIENT_META[key];
+      if (!meta) return null;
+      return { key, label: meta.label, unit: meta.unit, rdi: meta.rdi, value: Math.round(value * 100) / 100, pct: Math.min(100, Math.round((value / meta.rdi) * 100)) };
+    })
+    .filter(Boolean);
   const tee = healthProfile?.tee || null;
   const teePercent = tee ? Math.min(100, Math.round((totals.calories / tee) * 100)) : 0;
   // أهداف الماكروز لدوائر التقدم: نسبة عامة معروفة (بروتين 30%، كارب 40%،
@@ -1120,6 +1135,7 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
           carbsPer100g: cached.carbs, fatPer100g: cached.fat, fiberPer100g: cached.fiber,
           sugarPer100g: cached.sugar, sodiumPer100gMg: cached.sodium,
           imageUrl: cached.imageUrl || null, servingGrams: cached.servingGrams || null,
+          micronutrientsPer100g: cached.micronutrients || {},
         },
         source: "barcode",
       });
@@ -1243,6 +1259,25 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
             );
           })}
         </div>
+
+        {microRows.length > 0 && (
+          <div>
+            <div style={NS.microHead}>الفيتامينات والمعادن اليوم</div>
+            <div style={NS.disclaimerBox}>
+              <Sparkles size={15} color="#C9A24B" style={{ flexShrink: 0, marginTop: 1 }} />
+              <span>هذه القيم تقديرية عامة (بناءً على مرجعية يومية شائعة)، وقد تختلف حسب عمرك وجنسك وحالتك الصحية. استشر مختصاً للاحتياج الدقيق.</span>
+            </div>
+            {microRows.map((m) => (
+              <div key={m.key} style={NS.guidelineRow}>
+                <div style={NS.guidelineHead}>
+                  <span><span style={NS.guidelineName}>{m.label}</span> — {m.value}{m.unit}</span>
+                  <span>{m.pct}% من {m.rdi}{m.unit} (تقديري)</span>
+                </div>
+                <div style={NS.barTrack}><div style={{ ...NS.barFill, width: `${m.pct}%` }} /></div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div style={NS.waterCard}>

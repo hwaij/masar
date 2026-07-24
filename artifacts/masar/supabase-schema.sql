@@ -163,6 +163,12 @@ alter table nutrition_log add constraint nutrition_log_source_check check (sourc
 -- تُحفظ منفصلة حتى يظهر السجل لاحقاً بنفس الوحدة، حتى لو كانت القيم
 -- الغذائية نفسها محسوبة مسبقاً بمكافئها بالغرام.
 alter table nutrition_log add column if not exists unit text not null default 'g';
+-- الفيتامينات والمعادن الفعلية المستهلكة لهذا الإدخال (إن توفّرت من مصدر
+-- حقيقي: باركود Open Food Facts أو قراءة ملصق غذائي بالذكاء الاصطناعي) -
+-- بنفس نمط micronutrients في custom_foods (jsonb بمفاتيح مرنة، لا تعديل
+-- بنيوي لإضافة عنصر جديد مستقبلاً). كائن فارغ يعني لا بيانات متوفرة لهذا
+-- الإدخال تحديداً، لا صفراً حقيقياً.
+alter table nutrition_log add column if not exists micronutrients jsonb not null default '{}'::jsonb;
 
 -- مفتاحها (owner, barcode) — لو أدخل المستخدم منتجاً يدوياً لباركود غير
 -- موجود في Open Food Facts، يُستخدم هذا الصف تلقائياً في المرة القادمة

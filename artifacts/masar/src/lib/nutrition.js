@@ -23,6 +23,45 @@ async function fetchWithTimeout(url) {
   }
 }
 
+// الفيتامينات والمعادن المستهدفة (الأكثر شيوعاً فعلياً على الملصقات
+// والباركود). كل مفتاح: تسمية عربية، الوحدة المعروضة، والاحتياج اليومي
+// التقديري العام (RDI/DV مرجعية بالغة معروفة، وليست حساباً شخصياً دقيقاً -
+// نفس مبدأ "تقديرية" المُتَّبَع في DAILY_GUIDELINES أدناه). إضافة عنصر جديد
+// مستقبلاً = سطر واحد هنا فقط، بلا أي تعديل بنيوي (jsonb مرن في القاعدة).
+export const MICRONUTRIENT_META = {
+  vitamin_d: { label: "فيتامين د", unit: "مكغ", rdi: 20 },
+  vitamin_c: { label: "فيتامين ج", unit: "مغ", rdi: 90 },
+  vitamin_a: { label: "فيتامين أ", unit: "مكغ", rdi: 900 },
+  vitamin_b12: { label: "فيتامين ب12", unit: "مكغ", rdi: 2.4 },
+  iron: { label: "الحديد", unit: "مغ", rdi: 18 },
+  calcium: { label: "الكالسيوم", unit: "مغ", rdi: 1300 },
+  potassium: { label: "البوتاسيوم", unit: "مغ", rdi: 4700 },
+  zinc: { label: "الزنك", unit: "مغ", rdi: 11 },
+  magnesium: { label: "المغنيسيوم", unit: "مغ", rdi: 420 },
+};
+
+// اسم حقل Open Food Facts المقابل لكل مفتاح لدينا. الوحدة القانونية لكل
+// عنصر في تصنيف Open Food Facts الرسمي (taxonomies/nutrients.txt) تطابق
+// بالضبط الوحدة المعروضة أعلاه (مكغ لفيتامين د/أ/ب12، مغ للباقي) - لا حاجة
+// لأي تحويل وحدة إضافي هنا، خلافاً للصوديوم أعلاه (وحدته القانونية غرام).
+const OFF_MICRO_FIELDS = {
+  vitamin_d: "vitamin-d_100g", vitamin_c: "vitamin-c_100g", vitamin_a: "vitamin-a_100g",
+  vitamin_b12: "vitamin-b12_100g", iron: "iron_100g", calcium: "calcium_100g",
+  potassium: "potassium_100g", zinc: "zinc_100g", magnesium: "magnesium_100g",
+};
+
+// يستخرج فقط العناصر الموجودة فعلياً في استجابة الـAPI - لا يُضيف مفتاحاً
+// لعنصر غائب عن بيانات المنتج (مبدأ "لا اختراع قيم": كائن قد يكون فارغاً
+// تماماً لمنتج لا تتوفر له أي بيانات فيتامينات، وهذا متوقَّع وطبيعي).
+function extractMicronutrients(n) {
+  const result = {};
+  for (const [key, offField] of Object.entries(OFF_MICRO_FIELDS)) {
+    const v = n[offField];
+    if (v != null && !Number.isNaN(Number(v))) result[key] = Number(v);
+  }
+  return result;
+}
+
 // تُطبَّع بيانات Open Food Facts (اسم مختلف الحقول واختلاف توفّرها) إلى
 // شكل موحّد يفهمه بقية القسم، بغضّ النظر عن مصدرها (منتج أو نتيجة بحث).
 function normalizeProduct(p, barcode) {
@@ -54,6 +93,7 @@ function normalizeProduct(p, barcode) {
     sodiumPer100gMg: sodiumGramsPer100g != null ? Math.round(sodiumGramsPer100g * 1000) : 0,
     servingSizeLabel: p.serving_size || null,
     servingGrams: servingGrams && servingGrams > 0 ? servingGrams : null,
+    micronutrientsPer100g: extractMicronutrients(n),
   };
 }
 
@@ -180,8 +220,23 @@ export function scaleNutrients(product, grams) {
   };
 }
 
+// نفس منطق scaleNutrients بالضبط (كمية بالغرام ÷ 100 × القيمة لكل 100غم)،
+// لكن لكائن micronutrientsPer100g المرن (مفاتيح متغيرة حسب توفّر البيانات)
+// بدل حقول ثابتة. مفتاح غير موجود في المدخل يبقى غائباً في الخرج تماماً -
+// لا صفر مخترَع لعنصر لم تتوفر له بيانات أصلاً لهذا المنتج.
+export function scaleMicronutrients(micronutrientsPer100g, grams) {
+  if (!micronutrientsPer100g) return {};
+  const factor = grams / 100;
+  const result = {};
+  for (const [key, val] of Object.entries(micronutrientsPer100g)) {
+    if (val == null) continue;
+    result[key] = Math.round(val * factor * 100) / 100;
+  }
+  return result;
+}
+
 export function sumNutritionEntries(entries) {
-  return entries.reduce(
+  const totals = entries.reduce(
     (acc, e) => ({
       calories: acc.calories + (e.calories || 0),
       protein: acc.protein + (e.protein || 0),
@@ -193,6 +248,19 @@ export function sumNutritionEntries(entries) {
     }),
     { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sugar: 0, sodium: 0 },
   );
+  // تُجمَع الفيتامينات/المعادن بمعزل عن الأربعة الأساسية أعلاه لأن مفاتيحها
+  // متغيّرة (لا كل إدخال يحمل نفس العناصر، أو أياً منها أصلاً) - أي إدخال
+  // بلا micronutrients لا يُسهم بشيء، ولا يظهر أي عنصر لم يُساهم فيه ولو
+  // إدخال واحد اليوم بقيمة حقيقية.
+  const micronutrients = {};
+  for (const e of entries) {
+    if (!e.micronutrients) continue;
+    for (const [key, val] of Object.entries(e.micronutrients)) {
+      if (val == null) continue;
+      micronutrients[key] = (micronutrients[key] || 0) + Number(val);
+    }
+  }
+  return { ...totals, micronutrients };
 }
 
 // الكاميرا تحتاج سياقاً آمناً (HTTPS) لتعمل في أي متصفح — localhost مستثنى
@@ -305,22 +373,29 @@ export async function readNutritionLabel(imageFile) {
   try {
     const { base64, mimeType } = await compressImageToBase64(imageFile);
     const prompt = `حلّل صورة "جدول القيم الغذائية" (Nutrition Facts label) المطبوع هذا. اقرأ الأرقام المطبوعة فعلياً على الملصق فقط، ولا تخترع أو تقدّر أي رقم غير مكتوب. أرجع فقط JSON صالحاً بدون أي نص أو markdown إضافي، بهذا الشكل بالضبط:
-{"basis":"100g أو 100ml أو serving","servingGrams":رقم أو null,"calories":رقم,"protein":رقم,"carbs":رقم,"fat":رقم,"fiber":رقم,"sugar":رقم,"sodium":رقم}
+{"basis":"100g أو 100ml أو serving","servingGrams":رقم أو null,"calories":رقم,"protein":رقم,"carbs":رقم,"fat":رقم,"fiber":رقم,"sugar":رقم,"sodium":رقم,"micronutrients":{}}
 
 حيث:
 - "basis": الأساس المرجعي الفعلي المكتوب على الملصق لهذه القيم تحديداً - "100g" إن كانت القيم لكل 100 غرام، "100ml" إن كانت لكل 100 مليلتر، أو "serving" إن كانت لكل حصة واحدة (Per Serving) فقط بدون أي عمود آخر لكل 100g/100ml. إن ذُكر كلاهما معاً على نفس الملصق (شائع جداً)، اختر "100g" أو "100ml" (الأدق دائماً) لا "serving".
 - "servingGrams": فقط إن كان basis="serving"، حجم الحصة الواحدة بالغرام كما هو مكتوب أو محسوب من الملصق (مثال: Serving Size 30g → 30، أو 240ml → 240). اجعلها null دائماً إن كان basis="100g" أو "100ml".
 - calories/protein/carbs/fat/fiber/sugar: أرقام كما هي مطبوعة تماماً بالنسبة للأساس المرجعي basis (سعرات، وبروتين/كارب/دهون/ألياف/سكر بالغرام). اجعل القيمة 0 فقط إن كانت غير مذكورة إطلاقاً على الملصق - لا تخترع رقماً غائباً.
 - "sodium": بالميليغرام (mg) كما هو مطبوع، أو محسوباً من غرام إلى ميليغرام إن كُتب بالغرام على الملصق.
+- "micronutrients": كائن JSON يحوي فقط الفيتامينات/المعادن المذكورة فعلياً على نفس الملصق من هذه القائمة تحديداً (بنفس هذه المفاتيح بالضبط): vitamin_d (فيتامين د بالميكروغرام mcg)، vitamin_c (فيتامين ج بالميليغرام mg)، vitamin_a (فيتامين أ بالميكروغرام mcg)، vitamin_b12 (فيتامين ب12 بالميكروغرام mcg)، iron (الحديد بالميليغرام mg)، calcium (الكالسيوم بالميليغرام mg)، potassium (البوتاسيوم بالميليغرام mg)، zinc (الزنك بالميليغرام mg)، magnesium (المغنيسيوم بالميليغرام mg). حوّل الوحدة إلى ما ذُكر أعلاه إن كانت مختلفة على الملصق (مثال: إن كُتب الحديد بالغرام حوّله لميليغرام). لا تُضف مفتاحاً لعنصر غير مذكور إطلاقاً على الملصق - أرجع كائناً فارغاً {} إن لم يُذكر أي منها.
 
 إن تعذّرت قراءة الملصق بوضوح كافٍ (صورة غير واضحة، إضاءة سيئة، الجدول غير ظاهر بالكامل في الصورة)، أرجع بالضبط هذا فقط: {"error":"unreadable"}`;
     const { geminiAnalyzeImage } = await import("./gemini.js");
-    const text = await geminiAnalyzeImage(prompt, base64, mimeType, 500);
+    const text = await geminiAnalyzeImage(prompt, base64, mimeType, 700);
     const parsed = parseJsonLoose(text);
     if (parsed.error || !parsed.basis) {
       return { ok: false, error: "تعذّر قراءة الملصق بوضوح. جرّب صورة أوضح (إضاءة أفضل، الجدول كاملاً) أو أضف الطعام يدوياً." };
     }
     const basis = ["100g", "100ml", "serving"].includes(parsed.basis) ? parsed.basis : "100g";
+    const rawMicros = parsed.micronutrients && typeof parsed.micronutrients === "object" ? parsed.micronutrients : {};
+    const micronutrients = {};
+    for (const key of Object.keys(MICRONUTRIENT_META)) {
+      const v = rawMicros[key];
+      if (v != null && !Number.isNaN(Number(v))) micronutrients[key] = Number(v);
+    }
     return {
       ok: true,
       basis,
@@ -332,6 +407,7 @@ export async function readNutritionLabel(imageFile) {
       fiber: Number(parsed.fiber) || 0,
       sugar: Number(parsed.sugar) || 0,
       sodium: Number(parsed.sodium) || 0,
+      micronutrients,
     };
   } catch (e) {
     console.error("[nutrition] readNutritionLabel failed:", e);
@@ -348,6 +424,12 @@ export async function readNutritionLabel(imageFile) {
 export function labelToPer100Product(label) {
   const servingGrams = label.basis === "serving" ? (label.servingGrams && label.servingGrams > 0 ? label.servingGrams : 100) : null;
   const factor = label.basis === "serving" ? 100 / servingGrams : 1;
+  const micronutrientsPer100g = {};
+  for (const [key, value] of Object.entries(label.micronutrients || {})) {
+    if (typeof value === "number" && !Number.isNaN(value)) {
+      micronutrientsPer100g[key] = value * factor;
+    }
+  }
   return {
     caloriesPer100g: (label.calories || 0) * factor,
     proteinPer100g: (label.protein || 0) * factor,
@@ -357,5 +439,6 @@ export function labelToPer100Product(label) {
     sugarPer100g: (label.sugar || 0) * factor,
     sodiumPer100gMg: (label.sodium || 0) * factor,
     servingGrams: label.basis === "serving" ? servingGrams : null,
+    micronutrientsPer100g,
   };
 }

@@ -405,6 +405,21 @@ async function compressImageToBase64(file, maxDim = 1024, quality = 0.75) {
   return { base64: compressedDataUrl.split(",")[1], mimeType: "image/jpeg" };
 }
 
+// خطأ حقيقي وُجد فعلياً: import("./gemini.js") أدناه قد يفشل تحديداً بعد
+// نشر جديد إن كان هذا التبويب مفتوحاً منذ قبل النشر (يحمل اسم ملف الجزء
+// المقسَّم القديم الذي لم يعد موجوداً على الخادم، فيُعيد Netlify صفحة
+// index.html بدل JS حقيقي - يظهر هذا كخطأ متصفح خام تقني بحت مثل
+// "'text/html' is not a valid JavaScript MIME type" لا رسالة مفهومة).
+// معالج vite:preloadError العام في main.tsx يعيد تحميل الصفحة تلقائياً في
+// أغلب الأحيان قبل أن يصل أي خطأ هنا أصلاً، لكن هذا فحص دفاعي إضافي: إن
+// وصلت هذه الحالة تحديداً هنا رغم ذلك، لا نعرض نص الخطأ التقني الخام
+// للمستخدم (e?.message)، بل رسالة واضحة قابلة للتنفيذ.
+function isChunkLoadError(e) {
+  const msg = String(e?.message || "");
+  return /MIME type|dynamically imported module|module script failed|Failed to fetch/i.test(msg);
+}
+const CHUNK_LOAD_ERROR_MESSAGE = "التطبيق تحديث نسخته الآن، يرجى تحديث الصفحة (Refresh) والمحاولة مرة أخرى.";
+
 // نقطة التكامل الوحيدة مع "التعرّف على الطعام بالذكاء الاصطناعي". اليوم
 // تستدعي Gemini داخلياً، لكنها معزولة عمداً هنا بواجهة ثابتة (صورة تدخل،
 // تقدير غذائي منظّم يخرج) - استبدال Gemini مستقبلاً بخدمة تعرّف متخصصة
@@ -429,7 +444,8 @@ export async function recognizeMealFromImage(imageFile) {
     };
   } catch (e) {
     console.error("[nutrition] recognizeMealFromImage failed:", e);
-    return { ok: false, error: e?.message || "تعذّر تحليل صورة الوجبة الآن. جرّب مرة أخرى أو أضف الطعام يدوياً." };
+    const error = isChunkLoadError(e) ? CHUNK_LOAD_ERROR_MESSAGE : "تعذّر تحليل صورة الوجبة الآن. جرّب مرة أخرى أو أضف الطعام يدوياً.";
+    return { ok: false, error };
   }
 }
 
@@ -484,7 +500,8 @@ export async function readNutritionLabel(imageFile) {
     };
   } catch (e) {
     console.error("[nutrition] readNutritionLabel failed:", e);
-    return { ok: false, error: e?.message || "تعذّر قراءة الملصق الآن. جرّب مرة أخرى أو أضف الطعام يدوياً." };
+    const error = isChunkLoadError(e) ? CHUNK_LOAD_ERROR_MESSAGE : "تعذّر قراءة الملصق الآن. جرّب مرة أخرى أو أضف الطعام يدوياً.";
+    return { ok: false, error };
   }
 }
 

@@ -1309,6 +1309,29 @@ grant execute on function get_group_by_invite_code(text) to anon, authenticated;
 grant execute on function shares_group_with(text) to authenticated;
 grant execute on function regenerate_invite_code(uuid) to authenticated;
 
+-- تخزين صور المنتجات (معالج "منتج جديد" في التغذية، الخطوة 3). قرار
+-- هندسي: تم اختيار الرفع الفعلي إلى Supabase Storage بدل الاكتفاء بحقل
+-- رابط URL نصي، لأن الطلب صراحة كان "تصوير أو اختيار من المعرض" - أي
+-- التقاط صورة فعلية من جهاز المستخدم لا لصق رابط جاهز؛ حقل URL وحده لا
+-- يخدم هذا السيناريو أصلاً (لن يكون لدى المستخدم رابطاً لصورة التقطها للتو).
+-- الحاوية (bucket) عامة القراءة (public=true) لأن custom_foods.image_url
+-- نفسها بيانات مشتركة بين كل المستخدمين أصلاً (نفس مبدأ القراءة العامة
+-- المطبَّق على custom_foods بالكامل)، بينما الكتابة (insert) مقيَّدة بمجلد
+-- المستخدم نفسه فقط (اسم الملف يجب أن يبدأ بـ auth.uid() الخاص به) عبر
+-- storage.foldername() - يمنع أي مستخدم من الكتابة داخل مجلد مستخدم آخر
+-- حتى لو كانت الحاوية عامة القراءة، بنفس مبدأ "لا إضعاف لأي RLS قائم".
+insert into storage.buckets (id, name, public)
+values ('product-photos', 'product-photos', true)
+on conflict (id) do nothing;
+
+drop policy if exists product_photos_insert_own on storage.objects;
+create policy product_photos_insert_own on storage.objects for insert to authenticated
+  with check (bucket_id = 'product-photos' and (storage.foldername(name))[1] = auth.uid()::text);
+
+drop policy if exists product_photos_read_public on storage.objects;
+create policy product_photos_read_public on storage.objects for select to public
+  using (bucket_id = 'product-photos');
+
 -- إجبار طبقة PostgREST (التي تُعرِّض RPC عبر supabase.rpc(...)) على إعادة
 -- تحميل ذاكرتها المؤقتة للمخطط فوراً، بدل انتظار إعادة التحميل التلقائية
 -- (تحدث عادة خلال ثوانٍ، لكن قد تتأخر) - يضمن أن get_group_by_invite_code

@@ -405,6 +405,31 @@ async function compressImageToBase64(file, maxDim = 1024, quality = 0.75) {
   return { base64: compressedDataUrl.split(",")[1], mimeType: "image/jpeg" };
 }
 
+// نفس منطق التصغير أعلاه لكن يُخرج Blob حقيقياً (لا base64) - تُستخدم عند
+// رفع صورة منتج فعلياً لتخزين Supabase Storage (معالج "منتج جديد")، بخلاف
+// compressImageToBase64 المخصَّصة لإرسال الصورة إلى Gemini تحديداً.
+export async function compressImageToBlob(file, maxDim = 1024, quality = 0.8) {
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("تعذّر قراءة الصورة"));
+    reader.readAsDataURL(file);
+  });
+  const img = await new Promise((resolve, reject) => {
+    const el = new Image();
+    el.onload = () => resolve(el);
+    el.onerror = () => reject(new Error("تعذّر تحميل الصورة"));
+    el.src = dataUrl;
+  });
+  const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(img.width * scale);
+  canvas.height = Math.round(img.height * scale);
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  return new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+}
+
 // خطأ حقيقي وُجد فعلياً: import("./gemini.js") أدناه قد يفشل تحديداً بعد
 // نشر جديد إن كان هذا التبويب مفتوحاً منذ قبل النشر (يحمل اسم ملف الجزء
 // المقسَّم القديم الذي لم يعد موجوداً على الخادم، فيُعيد Netlify صفحة
@@ -462,7 +487,7 @@ export async function readNutritionLabel(imageFile) {
   try {
     const { base64, mimeType } = await compressImageToBase64(imageFile);
     const prompt = `حلّل صورة "جدول القيم الغذائية" (Nutrition Facts label) المطبوع هذا. اقرأ الأرقام المطبوعة فعلياً على الملصق فقط، ولا تخترع أو تقدّر أي رقم غير مكتوب. أرجع فقط JSON صالحاً بدون أي نص أو markdown إضافي، بهذا الشكل بالضبط:
-{"basis":"100g أو 100ml أو serving","servingGrams":رقم أو null,"calories":رقم,"protein":رقم,"carbs":رقم,"fat":رقم,"fiber":رقم,"sugar":رقم,"sodium":رقم,"micronutrients":{}}
+{"basis":"100g أو 100ml أو serving","servingGrams":رقم أو null,"calories":رقم,"protein":رقم,"carbs":رقم,"fat":رقم,"fiber":رقم,"sugar":رقم,"sodium":رقم,"micronutrients":{},"productName":نص أو null}
 
 حيث:
 - "basis": الأساس المرجعي الفعلي المكتوب على الملصق لهذه القيم تحديداً - "100g" إن كانت القيم لكل 100 غرام، "100ml" إن كانت لكل 100 مليلتر، أو "serving" إن كانت لكل حصة واحدة (Per Serving) فقط بدون أي عمود آخر لكل 100g/100ml. إن ذُكر كلاهما معاً على نفس الملصق (شائع جداً)، اختر "100g" أو "100ml" (الأدق دائماً) لا "serving".
@@ -470,6 +495,7 @@ export async function readNutritionLabel(imageFile) {
 - calories/protein/carbs/fat/fiber/sugar: أرقام كما هي مطبوعة تماماً بالنسبة للأساس المرجعي basis (سعرات، وبروتين/كارب/دهون/ألياف/سكر بالغرام). اجعل القيمة 0 فقط إن كانت غير مذكورة إطلاقاً على الملصق - لا تخترع رقماً غائباً.
 - "sodium": بالميليغرام (mg) كما هو مطبوع، أو محسوباً من غرام إلى ميليغرام إن كُتب بالغرام على الملصق.
 - "micronutrients": كائن JSON يحوي فقط الفيتامينات/المعادن المذكورة فعلياً على نفس الملصق من هذه القائمة تحديداً (بنفس هذه المفاتيح بالضبط): vitamin_d (فيتامين د بالميكروغرام mcg)، vitamin_c (فيتامين ج بالميليغرام mg)، vitamin_a (فيتامين أ بالميكروغرام mcg)، vitamin_b12 (فيتامين ب12 بالميكروغرام mcg)، iron (الحديد بالميليغرام mg)، calcium (الكالسيوم بالميليغرام mg)، potassium (البوتاسيوم بالميليغرام mg)، zinc (الزنك بالميليغرام mg)، magnesium (المغنيسيوم بالميليغرام mg). حوّل الوحدة إلى ما ذُكر أعلاه إن كانت مختلفة على الملصق (مثال: إن كُتب الحديد بالغرام حوّله لميليغرام). لا تُضف مفتاحاً لعنصر غير مذكور إطلاقاً على الملصق - أرجع كائناً فارغاً {} إن لم يُذكر أي منها.
+- "productName": اسم المنتج فقط إن كان مكتوباً بوضوح وقابلاً للقراءة في نفس الصورة (على العبوة/الملصق نفسه، لا مجرد جدول القيم الغذائية وحده) - أرجع null إن لم يظهر اسم واضح في الصورة، لا تخمّن اسماً.
 
 إن تعذّرت قراءة الملصق بوضوح كافٍ (صورة غير واضحة، إضاءة سيئة، الجدول غير ظاهر بالكامل في الصورة)، أرجع بالضبط هذا فقط: {"error":"unreadable"}`;
     const { geminiAnalyzeImage } = await import("./gemini.js");
@@ -485,6 +511,7 @@ export async function readNutritionLabel(imageFile) {
       const v = rawMicros[key];
       if (v != null && !Number.isNaN(Number(v))) micronutrients[key] = Number(v);
     }
+    const productName = typeof parsed.productName === "string" && parsed.productName.trim() ? parsed.productName.trim() : null;
     return {
       ok: true,
       basis,
@@ -497,6 +524,7 @@ export async function readNutritionLabel(imageFile) {
       sugar: Number(parsed.sugar) || 0,
       sodium: Number(parsed.sodium) || 0,
       micronutrients,
+      productName,
     };
   } catch (e) {
     console.error("[nutrition] readNutritionLabel failed:", e);

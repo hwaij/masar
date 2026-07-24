@@ -617,6 +617,25 @@ export const store = {
     }
     return { ok: true };
   },
+  // رفع صورة منتج فعلية (معالج "منتج جديد"، الخطوة 3) إلى حاوية Storage
+  // العامة "product-photos" - المسار يبدأ دائماً بمعرّف المستخدم الحالي
+  // (owner/...) لأن سياسة RLS على storage.objects تفرض ذلك حرفياً (انظر
+  // supabase-schema.sql)، فأي محاولة رفع خارج مجلد المستخدم نفسه ستُرفض من
+  // القاعدة بغض النظر عما يرسله هذا الكود. لا حاجة لتسجيل الدخول محلياً
+  // (solo) لأن الحاوية سحابية بحتة، فتُرفض بلطف بدل محاولة رفع لن تنجح.
+  async uploadProductPhoto(file, barcode) {
+    if (!useCloud()) return { ok: false, error: "رفع الصور يحتاج تسجيل الدخول." };
+    try {
+      const ext = (file.type && file.type.split("/")[1]) || "jpg";
+      const path = `${CURRENT_OWNER}/${barcode || "product"}-${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from("product-photos").upload(path, file, {
+        contentType: file.type || "image/jpeg", upsert: false,
+      });
+      if (error) { console.error("[uploadProductPhoto] Supabase error:", error.message); return { ok: false, error: error.message }; }
+      const { data } = supabase.storage.from("product-photos").getPublicUrl(path);
+      return { ok: true, url: data.publicUrl };
+    } catch (e) { console.error("[uploadProductPhoto] failed:", e); return { ok: false, error: String(e) }; }
+  },
 
   // جدول مرجعي عام (نفس نمط app_flags) - يُقرأ حتى بلا اتصال سحابي حقيقي
   // بمعزل عن useCloud() عمداً، مطابقةً لباقي البيانات المرجعية العامة.

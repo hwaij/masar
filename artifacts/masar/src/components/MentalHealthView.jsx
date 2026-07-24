@@ -285,7 +285,7 @@ export default function MentalHealthView({ setView, showToast }) {
         <button onClick={saveEntry} style={MHS.saveBtn}>{existing ? "تحديث تسجيل اليوم" : "حفظ تسجيل اليوم"}</button>
       </div>
 
-      <div className="stagger-in">
+      <div className="stagger-in responsive-card-list">
         {suggestions.map((s, i) => (
           <div key={i} style={MHS.suggestionCard}>
             <div style={MHS.suggestionText}>{s.text}</div>

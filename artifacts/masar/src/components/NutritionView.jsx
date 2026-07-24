@@ -300,7 +300,7 @@ function MacroRings({ totals, macroTargets }) {
     { key: "sodium", label: "صوديوم", color: "#D17B5F", value: totals.sodium, target: DAILY_GUIDELINES.sodiumMaxMg, unit: "مغ" },
   ];
   return (
-    <div style={NS.ringsRow}>
+    <div style={NS.ringsRow} className="masar-hero-graphic">
       {rings.map((r) => {
         const percent = r.target ? (r.value / r.target) * 100 : 0;
         const valueText = r.target ? `${Math.round(r.value)}/${Math.round(r.target)}${r.unit}` : `${Math.round(r.value)}${r.unit}`;
@@ -1315,7 +1315,7 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
 
       <div style={NS.logHead}>سجل اليوم</div>
       {loaded && todayLog.length === 0 && <div style={NS.emptyHint}>لم تُضِف أي طعام اليوم بعد.</div>}
-      <div className="stagger-in">
+      <div className="stagger-in responsive-card-list">
       {todayLog.map((e) => (
         <div key={e.id} style={NS.logItem}>
           <div style={{ flex: 1 }}>

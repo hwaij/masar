@@ -52,6 +52,7 @@ const FitnessView = lazy(() => import("../components/FitnessView"));
 const MentalHealthView = lazy(() => import("../components/MentalHealthView"));
 const GroupsView = lazy(() => import("../components/GroupsView"));
 import SideMenu, { MENU_SECTIONS, SECTION_COLOR_PALETTE } from "../components/SideMenu";
+import Sidebar from "../components/Sidebar";
 import TasbihIcon from "../components/TasbihIcon";
 
 // active session storage
@@ -572,6 +573,12 @@ export default function MasarApp() {
   return (
     <div style={S.app} className="masar-app">
       <Header view={view} setView={setView} gamify={gamify} stats={stats} hasCloud={store.hasCloud} user={user} onSignIn={handleSignIn} onSignOut={handleSignOut} subscription={subscription} theme={theme} toggleTheme={toggleTheme} customColorsEnabled={profile.customColorsEnabled} sectionColors={profile.sectionColors} />
+      <div className="masar-shell">
+      {/* الشريط الجانبي الثابت (masar-sidebar) لا يُعرَض فعلياً إلا على
+          الشاشات العريضة (>=1024px) عبر CSS في masar.css - على الجوال/التابلت
+          الأضيق يبقى display:none فيستبدله زر ☰ + SideMenu المنبثقة كما هو،
+          فلا تكرار ولا تعارض بين الاثنين. */}
+      <Sidebar view={view} setView={setView} customColorsEnabled={profile.customColorsEnabled} sectionColors={profile.sectionColors} />
       <div style={S.body} key={view} className="view-fade masar-body">
         {view === "today" && (
           <TodayView
@@ -626,6 +633,7 @@ export default function MasarApp() {
           <div style={S.view}><UpsellCard icon={Users} title="تحديات الأصدقاء في مسار الكامل" message="أنشئ جروب دراسة مع أصدقائك وتنافسوا بساعات الدراسة وإنجاز الرياضة، بتحديث لحظي بينكم." /></div>
         )}
         {view === "settings" && <SettingsView categories={categories} setCategories={setCategories} gamify={gamify} hasCloud={store.hasCloud} showToast={showToast} profile={profile} setProfile={setProfile} pointsLog={pointsLog} onStartTour={startTour} subscription={subscription} theme={theme} toggleTheme={toggleTheme} fontSize={fontSize} changeFontSize={changeFontSize} highContrast={highContrast} toggleHighContrast={toggleHighContrast} spacious={spacious} toggleSpacious={toggleSpacious} />}
+      </div>
       </div>
       {toast && <div style={S.toast}>{toast}</div>}
       {tourOpen && <OnboardingTour onClose={closeTour} />}
@@ -1004,6 +1012,7 @@ function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSign
             <button
               onClick={() => setMenuOpen(true)}
               aria-label={t("nav.menu")}
+              className="masar-menu-btn"
               style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: 10, background: "var(--surface-sunken)", border: "1px solid var(--line)", color: "var(--ink)", cursor: "pointer", flexShrink: 0, padding: 0 }}
             >
               <Menu size={18} />
@@ -1212,7 +1221,7 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
         </div>
       )}
 
-      <div style={S.wheelSection}>
+      <div style={S.wheelSection} className="masar-hero-graphic">
         <DayWheel
           entries={halfEntries}
           focusSessions={halfFocusSessions}
@@ -1264,7 +1273,7 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
         <span>{t("todayView.log")}</span>
         <button onClick={() => { setEditingEntry(null); setModalOpen(true); }} style={S.addBtn}><Plus size={16} /><span>{t("todayView.addActivity")}</span></button>
       </div>
-      <div style={S.entryList} className="stagger-in">
+      <div style={S.entryList} className="stagger-in responsive-card-list">
         {dayEntries.length === 0 && <div style={S.emptyState}><div style={S.emptyStateTitle}>{t("todayView.startYourDay")}</div><div style={S.emptyStateSub}>{t("todayView.emptyStateSub")}</div></div>}
         {dayEntries.map((e) => {
           const cat = catMap[e.catId] || { name: t("todayView.unspecified"), color: "#9A968F" };
@@ -1489,7 +1498,7 @@ function TasksView({ tasks, setTasks, categories, addPoints, showToast, subscrip
         <UpsellCard icon={ListChecks} title="مهام بلا حدود مع مسار الكامل" message="نظّم كل مهامك بلا سقف، واحصل على تذكيرات ومتابعة كاملة لكل يوم." compact />
       )}
 
-      <div style={S.taskList} className="stagger-in">
+      <div style={S.taskList} className="stagger-in responsive-card-list">
         {selectedList.length === 0 && <div style={S.emptyState}><div style={S.emptyStateTitle}>لا مهام هذا اليوم</div><div style={S.emptyStateSub}>أضف مهمة لتبدأ التخطيط</div></div>}
         {selectedList.map((t) => {
           const cat = catMap[t.catId];
@@ -2993,7 +3002,7 @@ function TipsView({ tipsLog, setTipsLog, showToast, subscription }) {
         {archive.length > 0 && (
           <>
             <div style={TS.archiveHeader}><span style={TS.archiveHeaderLine} /><span>أرشيف النصائح</span><span style={TS.archiveHeaderLine} /></div>
-            <div style={TS.archiveList} className="stagger-in">
+            <div style={TS.archiveList} className="stagger-in responsive-card-list">
               {archive.map(({ date, tip }) => {
                 // arabicDate(dateString) would parse "YYYY-MM-DD" as UTC
                 // midnight, shifting the shown day back by one for anyone
@@ -3185,7 +3194,7 @@ function GoalsView({ goals, setGoals, addPoints, showToast }) {
           </button>
         </div>
 
-        <div style={GS.goalsList} className="stagger-in">
+        <div style={GS.goalsList} className="stagger-in responsive-card-list">
           {activeGoals.length === 0 && <div style={S.emptyHint}>لا أهداف بعد. أضف هدفك الأول أعلاه.</div>}
           {activeGoals.map((goal) => {
             const due = isReviewDue(goal, today);
@@ -3454,7 +3463,7 @@ function VaultView({ vault, setVault, vaultTx, setVaultTx, showToast }) {
         </div>
 
         <div style={VS.logHeader}><span style={VS.logHeaderLine} /><span>سجل الحركات</span><span style={VS.logHeaderLine} /></div>
-        <div style={VS.logList} className="stagger-in">
+        <div style={VS.logList} className="stagger-in responsive-card-list">
           {sortedTx.length === 0 && <div style={S.emptyHint}>لا حركات بعد. سجّل أول مصروف أو إضافة أعلاه.</div>}
           {sortedTx.map((tx) => {
             const [y, m, d] = tx.date.split("-").map(Number);
@@ -4299,7 +4308,7 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
         </button>
       </div>
       )}
-      <div style={S.achieveList} className="stagger-in">
+      <div style={S.achieveList} className="stagger-in responsive-card-list">
         {filtered.length === 0 && !loading && <div style={S.emptyState}><div style={S.emptyStateTitle}>لا شيء بعد</div><div style={S.emptyStateSub}>اكتب طلبك في الأعلى ثم اضغط إرسال</div></div>}
         {filtered.map((item) => <AchieveCard key={item.id} item={item} kindLabel={kindMap[item.kind]} onToggle={() => toggleDone(item)} onRemove={() => remove(item.id)} />)}
       </div>

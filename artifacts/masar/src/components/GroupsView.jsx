@@ -457,7 +457,7 @@ export default function GroupsView({ showToast }) {
               {groupDetail === null ? (
                 <div style={{ display: "flex", justifyContent: "center", padding: 20 }}><Loader2 size={18} className="spin" color="#8A7BD1" /></div>
               ) : (
-                <div style={GS.leaderList} className="stagger-in">
+                <div style={GS.leaderList} className="stagger-in responsive-card-list">
                   {sortedMembers.map((m, i) => (
                     <div key={m.owner} style={{ ...GS.leaderRow, ...(m.isMe ? GS.leaderRowMe : {}) }}>
                       <RankIcon rank={i + 1} />

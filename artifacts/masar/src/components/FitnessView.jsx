@@ -204,7 +204,7 @@ export default function FitnessView({ healthProfile, showToast }) {
         </button>
       </div>
 
-      <div className="stagger-in">
+      <div className="stagger-in responsive-card-list">
         {plan.map((day) => (
           <div key={day.dayIndex} style={FS.dayCard}>
             <div style={FS.dayCardHead}>اليوم {day.dayIndex + 1} · {day.dayLabel}</div>

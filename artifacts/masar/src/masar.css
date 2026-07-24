@@ -169,12 +169,18 @@ button:active:not(:disabled) {
   .overlay-in, .sheet-in, .modal-card-in { animation: none !important; transition: none !important; }
 }
 
-/* Desktop responsiveness: the app is built mobile-first at a fixed 480px
-   column (set inline via S.header/S.body). On larger viewports that inline
-   max-width is widened here so the app grows into a comfortable reading
-   column instead of staying pinned at phone width in the middle of the
-   screen — the layout itself stays single-column and mobile behavior
-   below 640px is completely untouched. */
+/* ============================================================
+   الاستجابة الكاملة عبر كل أحجام الشاشات (جوال صغير → تلفزيون)
+   ============================================================
+   التطبيق مبني أصلاً mobile-first بعمود ثابت 480px (S.header/S.body
+   المضمَّنين). كل ما يلي تحسينات "فوق" هذا الأساس عبر media queries فقط -
+   لا شيء منها يُغيّر السلوك تحت 640px، فتجربة الجوال (الأهم والأكثر
+   استخداماً) تبقى كما هي تماماً بلا أي مساس. */
+
+/* 1) عمود القراءة: يتّسع تدريجياً مع اتساع الشاشة بدل الانكماش الدائم على
+   عرض الجوال، لكن بحدّ أقصى معقول (920-1040px) حتى لا يتمدد النص/البطاقات
+   عبر شاشة عريضة جداً (2560px فما فوق) بشكل قبيح - يبقى محتوى مُتوسَّطاً
+   ومحدوداً دائماً. */
 @media (min-width: 640px) {
   .masar-header, .masar-body { max-width: 640px !important; }
 }
@@ -184,4 +190,62 @@ button:active:not(:disabled) {
 @media (min-width: 1200px) {
   .masar-header, .masar-body { max-width: 920px !important; }
   .masar-app { background: radial-gradient(ellipse 900px 500px at 50% 0%, rgba(201,162,75,0.045), transparent 70%), var(--bg); }
+}
+@media (min-width: 1920px) {
+  .masar-header, .masar-body { max-width: 1040px !important; }
+}
+
+/* 2) القائمة الجانبية الثابتة (Sidebar.jsx): من 1024px فما فوق تظهر قائمة
+   تنقّل ثابتة دائمة الظهور بدل زر ☰ + السحب المنبثق (SideMenu) - على هذا
+   العرض توجد مساحة كافية لعمود تنقّل دائم دون مزاحمة عمود المحتوى (الذي
+   يبقى بعرضه الأقصى نفسه أعلاه)، وهذا النمط شائع ومريح في تطبيقات لوحة
+   التحكم على شاشات الحاسوب. تحت 1024px القائمة الجانبية مخفية تماماً
+   (display:none) ويبقى زر ☰ هو الطريق الوحيد للتنقّل كما كان أصلاً. */
+.masar-sidebar { display: none; }
+.masar-shell { display: block; }
+@media (min-width: 1024px) {
+  .masar-shell { display: flex; justify-content: center; align-items: flex-start; gap: 28px; padding: 0 24px; }
+  .masar-sidebar { display: flex; position: sticky; top: 100px; width: 240px; flex-shrink: 0; max-height: calc(100vh - 116px); overflow-y: auto; }
+  .masar-body { margin: 0 !important; }
+  .masar-menu-btn { display: none; }
+}
+
+/* 3) شاشات كبيرة جداً/تلفزيون: تكبير بسيط ومتناسق لكل شيء معاً (نص، أزرار،
+   حشوات، الدوائر/الرسوم البيانية) عبر zoom على حاوية التطبيق نفسها - نفس
+   الأسلوب المُستخدَم أصلاً لإتاحة الوصول (data-font-size على html)، لكن هنا
+   على عنصر مختلف (.masar-app) فلا يتعارض معه، بل يتراكم معه إن فعّل
+   المستخدم كبر الخط أيضاً (وهذا مرغوب: مستخدم إتاحة وصول على شاشة 2560px
+   يحصل على الكبر المطلوب للاثنين معاً). نسبة معتدلة (6-12%) لا "عملاقة".*/
+@media (min-width: 1920px) {
+  .masar-app { zoom: 1.06; }
+}
+@media (min-width: 2560px) {
+  .masar-app { zoom: 1.12; }
+}
+
+/* 4) قوائم البطاقات التي تُعرض عمودية على الجوال (سجل الأنشطة، المهام،
+   الأطعمة، الأهداف، خطة الرياضة، أرشيف النصائح، الخزنة، الإنجازات،
+   لوحة الصدارة...) تتحوّل لعمودين على التابلت وثلاثة على الحاسوب حيث توجد
+   مساحة كافية، بدل عمود واحد طويل يهدر عرض الشاشة. مُفعَّلة صراحة عبر
+   className="responsive-card-list" على كل حاوية قائمة اختيرت لهذا الغرض -
+   لا تشمل قوائم لها بنية خاصة (كلوحة المهام الأسبوعية أو شبكة الأوسمة). */
+@media (min-width: 768px) {
+  .responsive-card-list { display: grid !important; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .responsive-card-list > * { margin-bottom: 0 !important; }
+}
+@media (min-width: 1200px) {
+  .responsive-card-list { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* 5) العناصر الدائرية الرئيسية (عجلة اليوم، دوائر الماكروز) لها عرض/ارتفاع
+   px ثابت في التصميم الأصلي (مبني للجوال) - على التابلت/الحاسوب حيث تتوفر
+   مساحة أكبر حولها بكثير، zoom على الحاوية المباشرة (masar-hero-graphic)
+   يكبّرها بتناسق (يحجز مساحتها الفعلية في التخطيط، خلافاً لـ transform:scale
+   الذي يرسم فوق العناصر التالية بلا حجز مساحة) بدل بقائها بحجم الجوال وسط
+   عمود أوسع بكثير. */
+@media (min-width: 768px) {
+  .masar-hero-graphic { zoom: 1.12; }
+}
+@media (min-width: 1200px) {
+  .masar-hero-graphic { zoom: 1.22; }
 }

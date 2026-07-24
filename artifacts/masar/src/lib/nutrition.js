@@ -40,6 +40,79 @@ export const MICRONUTRIENT_META = {
   magnesium: { label: "المغنيسيوم", unit: "مغ", rdi: 420 },
 };
 
+// جداول RDA/AI مرجعية معتمدة (NIH Office of Dietary Supplements) حسب الفئة
+// العمرية والجنس - تُستخدم لتخصيص الاحتياج اليومي عندما يتوفّر عمر وجنس
+// المستخدم في health_profile. ملاحظة علمية مهمة: الوزن والطول لا يدخلان في
+// حساب احتياج أغلب الفيتامينات/المعادن (خلافاً للسعرات/TEE) فلا نستخدمهما
+// هنا. القيم دون سن 14 غير مغطّاة (فئات الأطفال تختلف جذرياً ولم تُراجَع
+// هنا) - عندها ترجع personalizedRDI قيمة null ويستخدم المستدعي rdi العام
+// في MICRONUTRIENT_META أعلاه بدلاً منها.
+const RDI_RULES = {
+  vitamin_d: [
+    { minAge: 14, maxAge: 70, value: 15 },
+    { minAge: 71, maxAge: Infinity, value: 20 },
+  ],
+  vitamin_c: [
+    { minAge: 14, maxAge: 18, gender: "male", value: 75 },
+    { minAge: 14, maxAge: 18, gender: "female", value: 65 },
+    { minAge: 19, maxAge: Infinity, gender: "male", value: 90 },
+    { minAge: 19, maxAge: Infinity, gender: "female", value: 75 },
+  ],
+  vitamin_a: [
+    { minAge: 14, maxAge: Infinity, gender: "male", value: 900 },
+    { minAge: 14, maxAge: Infinity, gender: "female", value: 700 },
+  ],
+  vitamin_b12: [
+    { minAge: 14, maxAge: Infinity, value: 2.4 },
+  ],
+  iron: [
+    { minAge: 14, maxAge: 18, gender: "male", value: 11 },
+    { minAge: 14, maxAge: 18, gender: "female", value: 15 },
+    { minAge: 19, maxAge: 50, gender: "male", value: 8 },
+    { minAge: 19, maxAge: 50, gender: "female", value: 18 },
+    { minAge: 51, maxAge: Infinity, value: 8 },
+  ],
+  calcium: [
+    { minAge: 14, maxAge: 18, value: 1300 },
+    { minAge: 19, maxAge: 50, value: 1000 },
+    { minAge: 51, maxAge: 70, gender: "male", value: 1000 },
+    { minAge: 51, maxAge: 70, gender: "female", value: 1200 },
+    { minAge: 71, maxAge: Infinity, value: 1200 },
+  ],
+  potassium: [
+    { minAge: 14, maxAge: 18, gender: "male", value: 3000 },
+    { minAge: 14, maxAge: 18, gender: "female", value: 2300 },
+    { minAge: 19, maxAge: Infinity, gender: "male", value: 3400 },
+    { minAge: 19, maxAge: Infinity, gender: "female", value: 2600 },
+  ],
+  zinc: [
+    { minAge: 14, maxAge: 18, gender: "male", value: 11 },
+    { minAge: 14, maxAge: 18, gender: "female", value: 9 },
+    { minAge: 19, maxAge: Infinity, gender: "male", value: 11 },
+    { minAge: 19, maxAge: Infinity, gender: "female", value: 8 },
+  ],
+  magnesium: [
+    { minAge: 14, maxAge: 18, gender: "male", value: 410 },
+    { minAge: 14, maxAge: 18, gender: "female", value: 360 },
+    { minAge: 19, maxAge: 30, gender: "male", value: 400 },
+    { minAge: 19, maxAge: 30, gender: "female", value: 310 },
+    { minAge: 31, maxAge: Infinity, gender: "male", value: 420 },
+    { minAge: 31, maxAge: Infinity, gender: "female", value: 320 },
+  ],
+};
+
+// يُرجع الاحتياج اليومي المخصَّص لعنصر معيّن حسب العمر والجنس، أو null إن
+// تعذّر التخصيص (عمر غير مُدخَل بعد، أو أصغر من 14، أو لا توجد قاعدة تطابق
+// الجنس المطلوب) - عندها يستخدم المستدعي القيمة العامة الافتراضية بدلاً.
+export function personalizedRDI(key, age, gender) {
+  const rules = RDI_RULES[key];
+  if (!rules || !age || age < 14) return null;
+  const matches = rules.filter((r) => age >= r.minAge && age <= r.maxAge && (!r.gender || r.gender === gender));
+  if (matches.length === 0) return null;
+  const genderSpecific = matches.find((r) => r.gender === gender);
+  return (genderSpecific || matches[0]).value;
+}
+
 // اسم حقل Open Food Facts المقابل لكل مفتاح لدينا. الوحدة القانونية لكل
 // عنصر في تصنيف Open Food Facts الرسمي (taxonomies/nutrients.txt) تطابق
 // بالضبط الوحدة المعروضة أعلاه (مكغ لفيتامين د/أ/ب12، مغ للباقي) - لا حاجة

@@ -13,7 +13,7 @@ import {
   normalizeSearchTerm, recognizeMealFromImage, readNutritionLabel,
   labelToPer100Product, DAILY_GUIDELINES,
   UNIT_OPTIONS, unitById, unitToGrams, unitServingSize,
-  scaleMicronutrients, MICRONUTRIENT_META,
+  scaleMicronutrients, MICRONUTRIENT_META, personalizedRDI,
 } from "../lib/nutrition";
 import { requestNotificationPermission } from "../lib/push";
 import { S } from "./styles";
@@ -1037,17 +1037,17 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
 
   const todayLog = nutritionLog.filter((e) => e.date === today);
   const totals = sumNutritionEntries(todayLog);
-  // فقط العناصر التي استُهلكت فعلياً اليوم (قيمة > 0) - لا نعرض شريطاً لعنصر
-  // لم يأكل المستخدم منه شيئاً اليوم أصلاً (مبدأ "لا اختراع/لا تضليل" نفسه
-  // المتّبع في كل مكان في هذا القسم).
-  const microRows = Object.entries(totals.micronutrients || {})
-    .filter(([, value]) => value > 0)
-    .map(([key, value]) => {
-      const meta = MICRONUTRIENT_META[key];
-      if (!meta) return null;
-      return { key, label: meta.label, unit: meta.unit, rdi: meta.rdi, value: Math.round(value * 100) / 100, pct: Math.min(100, Math.round((value / meta.rdi) * 100)) };
-    })
-    .filter(Boolean);
+  // تُعرض العناصر التسعة كلها دائماً (حتى غير المُستهلَك اليوم يظهر بصفر
+  // و0%) حتى يرى المستخدم ما ينقصه فعلياً، لا فقط ما أكله. الاحتياج (rdi)
+  // يُخصَّص حسب العمر والجنس من health_profile عبر personalizedRDI إن
+  // توفّرا (جداول RDA/AI معتمدة علمياً)، وإلا يُستخدم rdi العام الافتراضي.
+  const hasAgeGender = !!(healthProfile?.age && healthProfile?.gender);
+  const microRows = Object.keys(MICRONUTRIENT_META).map((key) => {
+    const meta = MICRONUTRIENT_META[key];
+    const value = Math.round((totals.micronutrients?.[key] || 0) * 100) / 100;
+    const rdi = personalizedRDI(key, healthProfile?.age, healthProfile?.gender) ?? meta.rdi;
+    return { key, label: meta.label, unit: meta.unit, rdi, value, pct: Math.min(100, Math.round((value / rdi) * 100)) };
+  });
   const tee = healthProfile?.tee || null;
   const teePercent = tee ? Math.min(100, Math.round((totals.calories / tee) * 100)) : 0;
   // أهداف الماكروز لدوائر التقدم: نسبة عامة معروفة (بروتين 30%، كارب 40%،
@@ -1260,24 +1260,25 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
           })}
         </div>
 
-        {microRows.length > 0 && (
-          <div>
-            <div style={NS.microHead}>الفيتامينات والمعادن اليوم</div>
-            <div style={NS.disclaimerBox}>
-              <Sparkles size={15} color="#C9A24B" style={{ flexShrink: 0, marginTop: 1 }} />
-              <span>هذه القيم تقديرية عامة (بناءً على مرجعية يومية شائعة)، وقد تختلف حسب عمرك وجنسك وحالتك الصحية. استشر مختصاً للاحتياج الدقيق.</span>
-            </div>
-            {microRows.map((m) => (
-              <div key={m.key} style={NS.guidelineRow}>
-                <div style={NS.guidelineHead}>
-                  <span><span style={NS.guidelineName}>{m.label}</span> — {m.value}{m.unit}</span>
-                  <span>{m.pct}% من {m.rdi}{m.unit} (تقديري)</span>
-                </div>
-                <div style={NS.barTrack}><div style={{ ...NS.barFill, width: `${m.pct}%` }} /></div>
-              </div>
-            ))}
+        <div>
+          <div style={NS.microHead}>الفيتامينات والمعادن اليوم</div>
+          <div style={NS.disclaimerBox}>
+            <Sparkles size={15} color="#C9A24B" style={{ flexShrink: 0, marginTop: 1 }} />
+            <span>
+              هذه القيم تقديرية عامة (بناءً على مرجعية يومية شائعة)، وقد تختلف حسب عمرك وجنسك وحالتك الصحية. استشر مختصاً للاحتياج الدقيق.
+              {!hasAgeGender && " أكمل بياناتك في قسم \"أنت\" لاحتياج أدق."}
+            </span>
           </div>
-        )}
+          {microRows.map((m) => (
+            <div key={m.key} style={NS.guidelineRow}>
+              <div style={NS.guidelineHead}>
+                <span><span style={NS.guidelineName}>{m.label}</span> — {m.value}{m.unit}</span>
+                <span>{m.pct}% من {m.rdi}{m.unit} (تقديري)</span>
+              </div>
+              <div style={NS.barTrack}><div style={{ ...NS.barFill, width: `${m.pct}%` }} /></div>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div style={NS.waterCard}>

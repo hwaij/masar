@@ -600,8 +600,7 @@ function ManualEntryForm({ barcode, onSave, onCancel }) {
     <>
       {barcode && <p style={NS.notFoundNote}>{t("nutrition.productNotFound", { barcode })}</p>}
       <label style={S.label}>{t("nutrition.foodName")}</label>
-      {/* nutrition.foodNamePlaceholder doesn't exist in locales yet — literal Arabic fallback, see report */}
-      <input value={draft.foodName} onChange={(e) => change("foodName", e.target.value)} placeholder="مثال: تمر سكري" style={S.input} />
+      <input value={draft.foodName} onChange={(e) => change("foodName", e.target.value)} placeholder={t("nutrition.foodNamePlaceholder")} style={S.input} />
       <div style={{ display: "flex", gap: 10 }}>
         <div style={{ flex: 1 }}>
           <label style={S.label}>{t("nutrition.brand")}</label>
@@ -640,8 +639,7 @@ function ManualEntryForm({ barcode, onSave, onCancel }) {
       {unitMeta.approx && <p style={NS.unitApproxNote}>{t("nutrition.approxConversionNoUnit")}</p>}
       <p style={{ ...S.label, marginTop: 16, marginBottom: 4 }}>{t("nutrition.nutritionValuesPer100g")}</p>
       <label style={S.label}>{t("nutrition.calories")}</label>
-      {/* nutrition.caloriesPlaceholder doesn't exist in locales yet — literal fallback, see report */}
-      <input type="number" inputMode="decimal" value={draft.calories} onChange={(e) => change("calories", e.target.value)} placeholder="مثال: 250" style={S.input} />
+      <input type="number" inputMode="decimal" value={draft.calories} onChange={(e) => change("calories", e.target.value)} placeholder={t("nutrition.caloriesPlaceholder")} style={S.input} />
       <div style={{ display: "flex", gap: 10 }}>
         <div style={{ flex: 1 }}>
           <label style={S.label}>{t("common.units.protein")} ({t("common.units.g")})</label>
@@ -737,9 +735,9 @@ function AddProductWizard({ initialBarcode, onSave, onManual, showToast }) {
     setLabelPreview(URL.createObjectURL(file));
     setLabelError(null);
     setLabelAnalyzing(true);
-    const res = await readNutritionLabel(file);
+    const res = await readNutritionLabel(file, i18n.language);
     setLabelAnalyzing(false);
-    if (!res.ok) { setLabelError(res.error); return; }
+    if (!res.ok) { setLabelError(i18n.language === "en" ? (res.errorEn || res.error) : res.error); return; }
     setLabel(res);
     setBasisValues({ calories: res.calories, protein: res.protein, carbs: res.carbs, fat: res.fat, fiber: res.fiber, sugar: res.sugar, sodium: res.sodium });
     setMicroValues({ ...res.micronutrients });
@@ -923,8 +921,7 @@ function AddProductWizard({ initialBarcode, onSave, onManual, showToast }) {
             </button>
           )}
           <label style={S.label}>{t("nutrition.productName")}</label>
-          {/* nutrition.foodNamePlaceholder doesn't exist in locales yet — literal Arabic fallback, see report */}
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="مثال: تمر سكري" style={S.input} />
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("nutrition.foodNamePlaceholder")} style={S.input} />
           {label?.productName && name === label.productName && (
             <p style={NS.unitApproxNote}>{t("nutrition.autoSuggestedNote")}</p>
           )}
@@ -1020,7 +1017,7 @@ function AddProductWizard({ initialBarcode, onSave, onManual, showToast }) {
 }
 
 function SearchPanel({ onPick, onManual }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -1044,7 +1041,7 @@ function SearchPanel({ onPick, onManual }) {
     setLoading(true); setError(null); setSearched(true);
     const res = await searchProductsByName(q);
     if (requestId !== requestIdRef.current) return; // رد متأخر لطلب سابق، تجاهله
-    if (!res.ok) { setLoading(false); setError(res.error); setResults([]); return; }
+    if (!res.ok) { setLoading(false); setError(i18n.language === "en" ? (res.errorEn || res.error) : res.error); setResults([]); return; }
     if (res.products.length > 0) { setLoading(false); setResults(res.products); return; }
     const canonical = await store.lookupFoodSynonym(q);
     if (requestId !== requestIdRef.current) return;
@@ -1113,9 +1110,9 @@ function AIPhotoPanel({ onSave, onManual }) {
     setBaseResult(null);
     setMultiplier(1);
     setAnalyzing(true);
-    const res = await recognizeMealFromImage(file);
+    const res = await recognizeMealFromImage(file, i18n.language);
     setAnalyzing(false);
-    if (!res.ok) { setError(res.error); return; }
+    if (!res.ok) { setError(i18n.language === "en" ? (res.errorEn || res.error) : res.error); return; }
     const initial = { items: res.items, calories: res.calories, protein: res.protein, carbs: res.carbs, fat: res.fat };
     setResult(initial);
     setBaseResult(initial);
@@ -1244,7 +1241,7 @@ function AIPhotoPanel({ onSave, onManual }) {
 // ConfirmQuantityCard، فتُعاد الاستفادة من نفس دوال الحصص/الوحدات الموحّدة
 // (unitServingSize/unitToGrams/scaleNutrients) بلا أي منطق حساب جديد.
 function LabelPhotoPanel({ onSave, onManual }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [preview, setPreview] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState(null);
@@ -1280,9 +1277,9 @@ function LabelPhotoPanel({ onSave, onManual }) {
     setLabel(null);
     setBasisValues(null);
     setAnalyzing(true);
-    const res = await readNutritionLabel(file);
+    const res = await readNutritionLabel(file, i18n.language);
     setAnalyzing(false);
-    if (!res.ok) { setError(res.error); return; }
+    if (!res.ok) { setError(i18n.language === "en" ? (res.errorEn || res.error) : res.error); return; }
     setLabel(res);
     setBasisValues({
       calories: res.calories, protein: res.protein, carbs: res.carbs, fat: res.fat,
@@ -1568,7 +1565,7 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
     const enabled = !!(result.granted && result.subscribed);
     setProfile?.((p) => ({ ...p, notificationsEnabled: enabled, notificationsAsked: true }));
     await store.saveNotificationsPreference(enabled, true);
-    showToast(enabled ? t("nutrition.notifEnabled") : (result.error || t("nutrition.notifNotEnabled")));
+    showToast(enabled ? t("nutrition.notifEnabled") : (result.error ? t(`common.errors.${result.error}`) : t("nutrition.notifNotEnabled")));
   }
   async function dismissNotificationBanner() {
     setProfile?.((p) => ({ ...p, notificationsAsked: true }));
@@ -1606,7 +1603,7 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
       setPendingProduct({ product: { ...res.product, origin: "off", barcode }, source: "barcode" });
       setSheet("confirm");
     } else {
-      if (res.error) setLookupError(res.error);
+      if (res.error) setLookupError(i18n.language === "en" ? (res.errorEn || res.error) : res.error);
       setPendingBarcode(barcode);
       // معالج "منتج جديد" الثلاثي الخطوات يستخدم قراءة الملصق بالذكاء
       // الاصطناعي (مسار الكامل) - غير المشترك يذهب للنموذج اليدوي الكامل
@@ -1781,27 +1778,27 @@ Write a short paragraph (two to three sentences) analyzing today's eating patter
         </div>
         {isSub ? (
           <>
-            {!dailyAnalysis && <div style={NS.emptyHint}>اطلب تحليلاً ذكياً لنمط تغذيتك اليوم بناءً على ما سجّلته فعلياً.</div>}
+            {!dailyAnalysis && <div style={NS.emptyHint}>{t("nutrition.analysisRequestNote")}</div>}
             {dailyAnalysis?.error && <div style={NS.emptyHint}>{dailyAnalysis.error}</div>}
             {dailyAnalysis?.text && <p style={NS.aiAnalysisText}>{dailyAnalysis.text}</p>}
           </>
         ) : (
-          <MiniUpsell title="تحليل تغذية ذكي" message="احصل على تحليل يومي لنمط تغذيتك بناءً على ما تسجّله فعلياً." />
+          <MiniUpsell title={t("nutrition.upsellAnalysisTitle")} message={t("nutrition.upsellAnalysisMessage")} />
         )}
       </div>
 
-      <button onClick={() => setSheet("choose")} style={NS.addFoodBtn}><Plus size={16} /> أضف طعاماً</button>
+      <button onClick={() => setSheet("choose")} style={NS.addFoodBtn}><Plus size={16} /> {t("nutrition.addFood")}</button>
 
-      <div style={NS.logHead}>سجل اليوم</div>
-      {loaded && todayLog.length === 0 && <div style={NS.emptyHint}>لم تُضِف أي طعام اليوم بعد.</div>}
+      <div style={NS.logHead}>{t("nutrition.todayLog")}</div>
+      {loaded && todayLog.length === 0 && <div style={NS.emptyHint}>{t("nutrition.noFoodToday")}</div>}
       <div className="stagger-in responsive-card-list">
       {todayLog.map((e) => (
         <div key={e.id} style={NS.logItem}>
           <div style={{ flex: 1 }}>
             <div style={NS.logItemName}>{e.foodName}</div>
-            <div style={NS.logItemMeta}>{e.servingInfo} · بروتين {e.protein}غ · كارب {e.carbs}غ · دهون {e.fat}غ</div>
+            <div style={NS.logItemMeta}>{t("nutrition.servingSummary", { servingInfo: e.servingInfo, p: e.protein, c: e.carbs, f: e.fat })}</div>
           </div>
-          <div style={NS.logItemCalories}>{Math.round(e.calories)} سعرة</div>
+          <div style={NS.logItemCalories}>{t("nutrition.calSuffix", { cal: Math.round(e.calories) })}</div>
           <button onClick={() => removeEntry(e.id)} style={NS.deleteBtn}><Trash2 size={15} /></button>
         </div>
       ))}
@@ -1813,15 +1810,15 @@ Write a short paragraph (two to three sentences) analyzing today's eating patter
             {sheet !== "scan" && (
               <div style={NS.sheetHead}>
                 <span style={NS.sheetTitle}>
-                  {sheet === "choose" && "أضف طعاماً"}
-                  {sheet === "barcodeManual" && "إدخال الباركود"}
-                  {sheet === "search" && "بحث بالاسم"}
-                  {sheet === "aiPhoto" && "تصوير الوجبة"}
-                  {sheet === "labelPhoto" && "تصوير الملصق الغذائي"}
-                  {sheet === "addProduct" && "إضافة منتج جديد"}
-                  {sheet === "manual" && "إضافة يدوية"}
-                  {sheet === "confirm" && "تأكيد الكمية"}
-                  {sheet === "lookup" && "جاري البحث..."}
+                  {sheet === "choose" && t("nutrition.sheetTitles.addFood")}
+                  {sheet === "barcodeManual" && t("nutrition.sheetTitles.barcodeEntry")}
+                  {sheet === "search" && t("nutrition.sheetTitles.searchByName")}
+                  {sheet === "aiPhoto" && t("nutrition.sheetTitles.photographMeal")}
+                  {sheet === "labelPhoto" && t("nutrition.sheetTitles.photographLabel")}
+                  {sheet === "addProduct" && t("nutrition.sheetTitles.addNewProduct")}
+                  {sheet === "manual" && t("nutrition.sheetTitles.manualEntry")}
+                  {sheet === "confirm" && t("nutrition.sheetTitles.confirmQuantity")}
+                  {sheet === "lookup" && t("nutrition.sheetTitles.searching")}
                 </span>
                 <button onClick={closeSheet} style={NS.closeBtn}><X size={16} /></button>
               </div>
@@ -1839,37 +1836,37 @@ Write a short paragraph (two to three sentences) analyzing today's eating patter
             {sheet === "choose" && (
               <div style={NS.chooserGrid}>
                 <button onClick={() => setSheet("scan")} style={NS.chooserBtn}>
-                  <span style={NS.chooserIcon}><Camera size={19} /></span> مسح بالكاميرا
+                  <span style={NS.chooserIcon}><Camera size={19} /></span> {t("nutrition.scanWithCameraOption")}
                 </button>
                 <button onClick={() => setSheet("barcodeManual")} style={NS.chooserBtn}>
-                  <span style={NS.chooserIcon}><Hash size={19} /></span> إدخال الباركود يدوياً
+                  <span style={NS.chooserIcon}><Hash size={19} /></span> {t("nutrition.enterBarcodeManually")}
                 </button>
                 <button onClick={() => setSheet("search")} style={NS.chooserBtn}>
-                  <span style={NS.chooserIcon}><Search size={19} /></span> البحث بالاسم
+                  <span style={NS.chooserIcon}><Search size={19} /></span> {t("nutrition.searchByNameOption")}
                 </button>
                 <button
                   onClick={() => setSheet(isSub ? "aiPhoto" : "aiPhotoLocked")}
                   style={{ ...NS.chooserBtn, ...(!isSub ? NS.chooserBtnDisabled : {}) }}
                 >
                   <span style={NS.chooserIcon}><ImagePlus size={19} /></span>
-                  تصوير الوجبة بالذكاء الاصطناعي
-                  {!isSub && <span style={NS.chooserBadge}>مسار الكامل</span>}
+                  {t("nutrition.photographMealAi")}
+                  {!isSub && <span style={NS.chooserBadge}>{t("nutrition.premiumBadge")}</span>}
                 </button>
                 <button
                   onClick={() => setSheet(isSub ? "labelPhoto" : "labelPhotoLocked")}
                   style={{ ...NS.chooserBtn, ...(!isSub ? NS.chooserBtnDisabled : {}) }}
                 >
                   <span style={NS.chooserIcon}><ClipboardList size={19} /></span>
-                  تصوير الملصق الغذائي
-                  {!isSub && <span style={NS.chooserBadge}>مسار الكامل</span>}
+                  {t("nutrition.photographLabelOption")}
+                  {!isSub && <span style={NS.chooserBadge}>{t("nutrition.premiumBadge")}</span>}
                 </button>
                 <button
                   onClick={() => setSheet(isSub ? "addProduct" : "addProductLocked")}
                   style={{ ...NS.chooserBtn, ...(!isSub ? NS.chooserBtnDisabled : {}) }}
                 >
                   <span style={NS.chooserIcon}><Plus size={19} /></span>
-                  إضافة منتج جديد
-                  {!isSub && <span style={NS.chooserBadge}>مسار الكامل</span>}
+                  {t("nutrition.addNewProductOption")}
+                  {!isSub && <span style={NS.chooserBadge}>{t("nutrition.premiumBadge")}</span>}
                 </button>
               </div>
             )}
@@ -1886,7 +1883,7 @@ Write a short paragraph (two to three sentences) analyzing today's eating patter
             )}
 
             {sheet === "aiPhotoLocked" && (
-              <MiniUpsell title="تصوير الوجبة بالذكاء الاصطناعي" message="صوّر وجبتك واحصل على تقدير فوري للسعرات والماكروز عبر الذكاء الاصطناعي." />
+              <MiniUpsell title={t("nutrition.upsellPhotoTitle")} message={t("nutrition.upsellPhotoMessage")} />
             )}
 
             {sheet === "aiPhoto" && (
@@ -1897,7 +1894,7 @@ Write a short paragraph (two to three sentences) analyzing today's eating patter
             )}
 
             {sheet === "labelPhotoLocked" && (
-              <MiniUpsell title="تصوير الملصق الغذائي" message="صوّر جدول القيم الغذائية المطبوع على المنتج، ويقرأ الذكاء الاصطناعي أرقامه مباشرة - أدق من التقدير البصري." />
+              <MiniUpsell title={t("nutrition.upsellLabelTitle")} message={t("nutrition.upsellLabelMessage")} />
             )}
 
             {sheet === "labelPhoto" && (
@@ -1908,7 +1905,7 @@ Write a short paragraph (two to three sentences) analyzing today's eating patter
             )}
 
             {sheet === "addProductLocked" && (
-              <MiniUpsell title="إضافة منتج جديد بخطوات مبسّطة" message="صوّر الملصق الغذائي ويملأ الذكاء الاصطناعي القيم تلقائياً، ثم أضف الباركود والاسم وصورة اختيارية - المنتج يتوفر لكل مستخدم آخر بعدها." />
+              <MiniUpsell title={t("nutrition.upsellWizardTitle")} message={t("nutrition.upsellWizardMessage")} />
             )}
 
             {sheet === "addProduct" && (
@@ -1930,7 +1927,7 @@ Write a short paragraph (two to three sentences) analyzing today's eating patter
             {sheet === "lookup" && (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "20px 0", gap: 10 }}>
                 <Loader2 size={22} className="spin" color="var(--gold)" />
-                <span style={{ fontSize: 13, color: "var(--muted2)" }}>نبحث عن المنتج...</span>
+                <span style={{ fontSize: 13, color: "var(--muted2)" }}>{t("nutrition.searchingForProduct")}</span>
               </div>
             )}
 

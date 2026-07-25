@@ -28,7 +28,7 @@ import { pickDailyTip, TIP_CATEGORY_LABELS, localDayKey, TIPS, FALLBACK_TIP } fr
 import { pickDailyMoneyTip, MONEY_TIP_CATEGORY_LABELS } from "../lib/money-tips";
 import { isActiveSubscriber } from "../lib/subscription";
 import { requestNotificationPermission, disablePush } from "../lib/push";
-import { ACTIVITY_LEVELS, HEALTH_CONDITIONS, NO_CONDITION, MEDICAL_DISCLAIMER, computeHealthMetrics } from "../lib/health";
+import { ACTIVITY_LEVELS, HEALTH_CONDITIONS, NO_CONDITION, computeHealthMetrics } from "../lib/health";
 import { createGoal, isReviewDue, GOAL_PERIODS, GOAL_POINTS_SUCCESS, GOAL_POINTS_FAILURE } from "../lib/goals";
 import { FITNESS_GOALS } from "../lib/exercises";
 import { sumNutritionEntries, waterGoalCups } from "../lib/nutrition";
@@ -218,7 +218,7 @@ const YS = {
   resultCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 12px" },
   resultLabel: { fontSize: 12, fontWeight: 700, color: "var(--muted2)" },
   resultValue: { fontFamily: "'Amiri', serif", fontSize: 24, fontWeight: 700, color: "var(--gold)", marginTop: 6 },
-  resultUnit: { fontSize: 11, color: "var(--muted2)", marginRight: 4 },
+  resultUnit: { fontSize: 11, color: "var(--muted2)", marginInlineStart: 4 },
   resultCategory: { fontSize: 12, fontWeight: 700, color: "#5FA8A0", marginTop: 4 },
   resultHint: { fontSize: 11.5, color: "var(--muted2)", lineHeight: 1.6, marginTop: 8 },
   summaryCard: { background: "linear-gradient(160deg, var(--warm-tint), var(--panel))", border: "1px solid var(--warm-border)", borderRadius: 14, padding: "14px 12px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" },
@@ -1018,7 +1018,7 @@ function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSign
           </button>
           <span style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.25)", borderRadius: 10, padding: "3px 8px", fontSize: 11.5, color: "#C9A24B", fontWeight: 700 }}>
             <Star size={11} color="#C9A24B" /> {lv.label} {lv.level}
-            <span style={{ width: 36, height: 4, borderRadius: 2, background: "var(--surface-raised)", overflow: "hidden", marginRight: 2 }}>
+            <span style={{ width: 36, height: 4, borderRadius: 2, background: "var(--surface-raised)", overflow: "hidden", marginInlineStart: 2 }}>
               <span style={{ display: "block", height: "100%", width: `${Math.round(lvProgress * 100)}%`, background: "#C9A24B", borderRadius: 2 }} />
             </span>
           </span>
@@ -2939,6 +2939,8 @@ const TS = {
 };
 
 function TipsView({ tipsLog, setTipsLog, showToast, subscription }) {
+  const { t, i18n } = useTranslation();
+  const language = i18n.language;
   const isSub = isActiveSubscriber(subscription);
   // Deliberately NOT todayKey() (UTC-based, a quirk relied on elsewhere in
   // the app) — the daily tip must flip at the user's own local midnight,
@@ -3003,7 +3005,7 @@ function TipsView({ tipsLog, setTipsLog, showToast, subscription }) {
       store.saveTipsLog(today, todayTip.id).then((res) => {
         if (!res.ok) {
           setTipsLog((prev) => { const next = { ...(prev || {}) }; delete next[today]; return next; });
-          showToast("تعذّر حفظ نصيحة اليوم، حاول لاحقاً");
+          showToast(t("tips.saveFailed"));
         }
       });
     } catch (e) {
@@ -3026,15 +3028,15 @@ function TipsView({ tipsLog, setTipsLog, showToast, subscription }) {
       .filter(([date]) => date !== today)
       .sort((a, b) => b[0].localeCompare(a[0]))
       .map(([date, tipId]) => {
-        let tip = TIPS.find((t) => t.id === tipId);
+        let tip = TIPS.find((tp) => tp.id === tipId);
         if (!tip && tipId === FALLBACK_TIP.id) tip = FALLBACK_TIP;
         if (!tip) {
           console.warn(`[TipsView] archive: معرّف نصيحة غير معروف (${tipId}) ليوم ${date} - يُعرض ببطاقة بديلة بدل إسقاطه`);
-          tip = { id: tipId, category: "selfdev", text: "نصيحة هذا اليوم من إصدار سابق ولم يعد نصّها الأصلي متوفراً." };
+          tip = { id: tipId, category: "selfdev", text: t("tips.oldTipUnavailable") };
         }
         return { date, tip };
       }),
-    [tipsLog, today]
+    [tipsLog, today, language]
   );
 
   return (
@@ -3043,31 +3045,31 @@ function TipsView({ tipsLog, setTipsLog, showToast, subscription }) {
         <div style={TS.hero}>
           <div style={TS.heroIcon}><Eye size={22} color="var(--on-accent)" /></div>
           <div>
-            <div style={TS.heroTitle}>بصيرة</div>
-            <div style={TS.heroSub}>نصيحة جديدة كل يوم، بين الدنيا والدين.</div>
+            <div style={TS.heroTitle}>{t("tips.heroTitle")}</div>
+            <div style={TS.heroSub}>{t("tips.heroSub")}</div>
           </div>
         </div>
         {canSeeTodayTip ? (
           <>
-            <div style={TS.dateLabel}>{arabicDate(new Date(), { weekday: "long", day: "numeric", month: "long" })}</div>
+            <div style={TS.dateLabel}>{arabicDate(new Date(), { weekday: "long", day: "numeric", month: "long" }, language === "en" ? "en-US" : undefined)}</div>
             <div style={TS.card}>
               <div style={TS.ornament}>
                 <span style={TS.ornamentLine} /><span style={TS.ornamentDot}>◆</span><span style={TS.ornamentLineRev} />
               </div>
               <p style={TS.quoteText}>{todayTip.text}</p>
               <div style={TS.footerRow}>
-                <span style={TS.categoryPill}>{TIP_CATEGORY_LABELS[todayTip.category] || "حكمة"}</span>
+                <span style={TS.categoryPill}>{t(`tips.categories.${todayTip.category}`, TIP_CATEGORY_LABELS[todayTip.category] || t("tips.categoryFallback"))}</span>
               </div>
             </div>
-            <div style={TS.footerNote}>عد غداً لتجد نصيحة جديدة بانتظارك</div>
+            <div style={TS.footerNote}>{t("tips.comeBackTomorrow")}</div>
           </>
         ) : (
-          <UpsellCard icon={Eye} title="نصيحة يومية متجددة في مسار الكامل" message="استمتعت بنصيحة يومك الأول. احصل على حكمة جديدة كل يوم بين الدنيا والدين مع مشتركي مسار الكامل." />
+          <UpsellCard icon={Eye} title={t("tips.upsellTitle")} message={t("tips.upsellMessage")} />
         )}
 
         {archive.length > 0 && (
           <>
-            <div style={TS.archiveHeader}><span style={TS.archiveHeaderLine} /><span>أرشيف النصائح</span><span style={TS.archiveHeaderLine} /></div>
+            <div style={TS.archiveHeader}><span style={TS.archiveHeaderLine} /><span>{t("tips.archiveTitle")}</span><span style={TS.archiveHeaderLine} /></div>
             <div style={TS.archiveList} className="stagger-in responsive-card-list">
               {archive.map(({ date, tip }) => {
                 // arabicDate(dateString) would parse "YYYY-MM-DD" as UTC
@@ -3077,8 +3079,8 @@ function TipsView({ tipsLog, setTipsLog, showToast, subscription }) {
                 return (
                   <div key={date} style={TS.archiveItem}>
                     <div style={TS.archiveTop}>
-                      <span style={TS.categoryPill}>{TIP_CATEGORY_LABELS[tip.category] || "حكمة"}</span>
-                      <span style={TS.archiveDate}>{arabicDate(new Date(y, m - 1, d), { weekday: "long", day: "numeric", month: "long" })}</span>
+                      <span style={TS.categoryPill}>{t(`tips.categories.${tip.category}`, TIP_CATEGORY_LABELS[tip.category] || t("tips.categoryFallback"))}</span>
+                      <span style={TS.archiveDate}>{arabicDate(new Date(y, m - 1, d), { weekday: "long", day: "numeric", month: "long" }, language === "en" ? "en-US" : undefined)}</span>
                     </div>
                     <p style={TS.archiveText}>{tip.text}</p>
                   </div>
@@ -3093,20 +3095,21 @@ function TipsView({ tipsLog, setTipsLog, showToast, subscription }) {
 }
 
 function DailyTipModal({ tip, onClose }) {
+  const { t } = useTranslation();
   return (
     <div style={S.modalOverlay} className="overlay-in" onClick={onClose}>
       <div style={{ ...S.modal, borderRadius: 20, maxWidth: 420 }} className="sheet-in" onClick={(e) => e.stopPropagation()}>
-        <div style={S.modalHeader}><span>نصيحة اليوم</span><button onClick={onClose} style={S.iconBtn}><X size={18} /></button></div>
+        <div style={S.modalHeader}><span>{t("tips.modalTitle")}</span><button onClick={onClose} style={S.iconBtn}><X size={18} /></button></div>
         <div style={TS.card}>
           <div style={TS.ornament}>
             <span style={TS.ornamentLine} /><span style={TS.ornamentDot}>◆</span><span style={TS.ornamentLineRev} />
           </div>
           <p style={TS.quoteText}>{tip.text}</p>
           <div style={TS.footerRow}>
-            <span style={TS.categoryPill}>{TIP_CATEGORY_LABELS[tip.category] || "حكمة"}</span>
+            <span style={TS.categoryPill}>{t(`tips.categories.${tip.category}`, TIP_CATEGORY_LABELS[tip.category] || t("tips.categoryFallback"))}</span>
           </div>
         </div>
-        <button onClick={onClose} style={S.saveBtn}>حسناً</button>
+        <button onClick={onClose} style={S.saveBtn}>{t("common.buttons.ok")}</button>
       </div>
     </div>
   );
@@ -3156,6 +3159,8 @@ const GS = {
 };
 
 function GoalCalendar({ goal, today }) {
+  const { i18n } = useTranslation();
+  const language = i18n.language;
   const isMonthUnit = goal.unit === "month";
   const todayMonthKey = today.slice(0, 7);
   return (
@@ -3163,7 +3168,7 @@ function GoalCalendar({ goal, today }) {
       {goal.cells.map((cell, i) => {
         const isPast = isMonthUnit ? cell.slice(0, 7) < todayMonthKey : cell < today;
         const isToday = isMonthUnit ? cell.slice(0, 7) === todayMonthKey : cell === today;
-        const label = isMonthUnit ? arabicDate(cell, { month: "short" }) : String(Number(cell.slice(8, 10)));
+        const label = isMonthUnit ? arabicDate(cell, { month: "short" }, language === "en" ? "en-US" : undefined) : String(Number(cell.slice(8, 10)));
         return (
           <div key={i} style={{ ...GS.cell, ...(isMonthUnit ? GS.cellMonth : {}), ...(isPast ? GS.cellPast : {}), ...(isToday ? GS.cellToday : {}) }}>
             {label}
@@ -3175,6 +3180,7 @@ function GoalCalendar({ goal, today }) {
 }
 
 function GoalsView({ goals, setGoals, addPoints, showToast }) {
+  const { t, i18n } = useTranslation();
   const [title, setTitle] = useState("");
   const [period, setPeriod] = useState("weekly");
   const [reviewDrafts, setReviewDrafts] = useState({});
@@ -3184,20 +3190,20 @@ function GoalsView({ goals, setGoals, addPoints, showToast }) {
 
   async function addGoal() {
     if (!title.trim()) return;
-    if (hasPendingReason) { showToast("أكمل كتابة سبب عدم التحقيق أولاً قبل إضافة هدف جديد"); return; }
+    if (hasPendingReason) { showToast(t("goals.finishReasonFirst")); return; }
     const goal = createGoal({ id: uid(), title: title.trim(), period });
     setGoals((prev) => [goal, ...prev]);
     const ok = await store.saveGoal(goal);
-    if (ok) { setTitle(""); showToast("أضفت هدفاً جديداً"); }
-    else { setGoals((prev) => prev.filter((g) => g.id !== goal.id)); showToast("تعذّر حفظ الهدف، حاول مرة أخرى"); }
+    if (ok) { setTitle(""); showToast(t("goals.goalAdded")); }
+    else { setGoals((prev) => prev.filter((g) => g.id !== goal.id)); showToast(t("common.errors.saveFailed")); }
   }
 
   async function confirmSuccess(goal) {
     const updated = { ...goal, status: "done" };
     setGoals((prev) => prev.map((g) => (g.id === goal.id ? updated : g)));
     const ok = await store.saveGoal(updated);
-    if (ok) { addPoints(GOAL_POINTS_SUCCESS, `تحقيق هدف: ${goal.title}`); playSaveSound(); showToast(`أحسنت! تحقّق هدفك. +${GOAL_POINTS_SUCCESS} نقطة`); }
-    else { setGoals((prev) => prev.map((g) => (g.id === goal.id ? goal : g))); showToast("تعذّر الحفظ، حاول مرة أخرى"); }
+    if (ok) { addPoints(GOAL_POINTS_SUCCESS, t("goals.achievedLogReason", { title: goal.title })); playSaveSound(); showToast(t("goals.achievedToast", { points: GOAL_POINTS_SUCCESS })); }
+    else { setGoals((prev) => prev.map((g) => (g.id === goal.id ? goal : g))); showToast(t("common.errors.saveFailed")); }
   }
 
   async function confirmFailure(goal) {
@@ -3214,12 +3220,12 @@ function GoalsView({ goals, setGoals, addPoints, showToast }) {
     setGoals((prev) => prev.map((g) => (g.id === goal.id ? updated : g)));
     const ok = await store.saveGoal(updated);
     if (ok) {
-      addPoints(-GOAL_POINTS_FAILURE, `لم يتحقق هدف: ${goal.title}`);
+      addPoints(-GOAL_POINTS_FAILURE, t("goals.notAchievedLogReason", { title: goal.title }));
       setReviewDrafts((prev) => { const next = { ...prev }; delete next[goal.id]; return next; });
-      showToast(`سُجِّل. -${GOAL_POINTS_FAILURE} نقطة`);
+      showToast(t("goals.notAchievedToast", { points: GOAL_POINTS_FAILURE }));
     } else {
       setGoals((prev) => prev.map((g) => (g.id === goal.id ? goal : g)));
-      showToast("تعذّر الحفظ، حاول مرة أخرى");
+      showToast(t("common.errors.saveFailed"));
     }
   }
 
@@ -3241,27 +3247,27 @@ function GoalsView({ goals, setGoals, addPoints, showToast }) {
         <div style={GS.hero}>
           <div style={GS.heroIcon}><Target size={22} color="var(--on-accent)" /></div>
           <div>
-            <div style={GS.heroTitle}>أهداف</div>
-            <div style={GS.heroSub}>حدّد هدفك، وتابعه حتى تراجعه في وقته.</div>
+            <div style={GS.heroTitle}>{t("goals.heroTitle")}</div>
+            <div style={GS.heroSub}>{t("goals.heroSub")}</div>
           </div>
         </div>
 
         <div style={GS.addCard}>
-          <label style={S.label}>هدف جديد</label>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addGoal()} placeholder="مثال: قراءة كتاب كامل" style={{ ...S.input, marginTop: 6 }} />
+          <label style={S.label}>{t("goals.newGoalLabel")}</label>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addGoal()} placeholder={t("goals.newGoalPlaceholder")} style={{ ...S.input, marginTop: 6 }} />
           <div style={GS.periodRow}>
-            {Object.entries(GOAL_PERIODS).map(([key, p]) => (
-              <button key={key} onClick={() => setPeriod(key)} style={{ ...GS.periodChip, ...(period === key ? GS.periodChipActive : {}) }}>{p.label}</button>
+            {Object.keys(GOAL_PERIODS).map((key) => (
+              <button key={key} onClick={() => setPeriod(key)} style={{ ...GS.periodChip, ...(period === key ? GS.periodChipActive : {}) }}>{t(`goals.periods.${key}.label`)}</button>
             ))}
           </div>
-          {hasPendingReason && <div style={GS.pendingNote}>أكمل سبب عدم تحقيق الهدف المعلَّق أولاً قبل إضافة هدف جديد</div>}
+          {hasPendingReason && <div style={GS.pendingNote}>{t("goals.finishPendingFirst")}</div>}
           <button onClick={addGoal} disabled={hasPendingReason} style={{ ...S.saveBtn, marginTop: hasPendingReason ? 8 : 0, ...(hasPendingReason ? { opacity: 0.5, cursor: "default" } : {}) }}>
-            <Plus size={16} style={{ display: "inline", verticalAlign: "-3px" }} /> إضافة الهدف
+            <Plus size={16} style={{ display: "inline", verticalAlign: "-3px" }} /> {t("goals.addGoal")}
           </button>
         </div>
 
         <div style={GS.goalsList} className="stagger-in responsive-card-list">
-          {activeGoals.length === 0 && <div style={S.emptyHint}>لا أهداف بعد. أضف هدفك الأول أعلاه.</div>}
+          {activeGoals.length === 0 && <div style={S.emptyHint}>{t("goals.emptyState")}</div>}
           {activeGoals.map((goal) => {
             const due = isReviewDue(goal, today);
             const draft = reviewDrafts[goal.id];
@@ -3270,37 +3276,37 @@ function GoalsView({ goals, setGoals, addPoints, showToast }) {
                 <div style={GS.goalTop}>
                   <div>
                     <div style={GS.goalTitle}>{goal.title}</div>
-                    <div style={GS.goalMeta}>{GOAL_PERIODS[goal.period].label} · {GOAL_PERIODS[goal.period].reviewLabel}</div>
+                    <div style={GS.goalMeta}>{t(`goals.periods.${goal.period}.label`)} · {t(`goals.periods.${goal.period}.reviewLabel`)}</div>
                   </div>
-                  {goal.status === "done" && <span style={{ ...GS.statusBadge, ...GS.statusDone }}><Check size={11} style={{ display: "inline", verticalAlign: "-1px" }} /> تحقّق</span>}
+                  {goal.status === "done" && <span style={{ ...GS.statusBadge, ...GS.statusDone }}><Check size={11} style={{ display: "inline", verticalAlign: "-1px" }} /> {t("goals.achievedBadge")}</span>}
                   <button onClick={() => removeGoal(goal.id)} style={S.deleteBtn}><Trash2 size={14} /></button>
                 </div>
                 <GoalCalendar goal={goal} today={today} />
                 {due && !draft?.active && (
                   <div style={GS.reviewCard}>
-                    <div style={GS.reviewTitle}>حان وقت المراجعة</div>
-                    <div style={GS.reviewQuestion}>هل حققت هدفك "{goal.title}"؟</div>
+                    <div style={GS.reviewTitle}>{t("goals.reviewTime")}</div>
+                    <div style={GS.reviewQuestion}>{t("goals.reviewQuestion", { title: goal.title })}</div>
                     <div style={GS.reviewBtnRow}>
-                      <button onClick={() => confirmSuccess(goal)} style={GS.reviewYesBtn}>نعم</button>
-                      <button onClick={() => setReviewDrafts((prev) => ({ ...prev, [goal.id]: { active: true, reason: "" } }))} style={GS.reviewNoBtn}>لا</button>
+                      <button onClick={() => confirmSuccess(goal)} style={GS.reviewYesBtn}>{t("common.buttons.yes")}</button>
+                      <button onClick={() => setReviewDrafts((prev) => ({ ...prev, [goal.id]: { active: true, reason: "" } }))} style={GS.reviewNoBtn}>{t("common.buttons.no")}</button>
                     </div>
                   </div>
                 )}
                 {due && draft?.active && (
                   <div style={GS.reviewCard}>
-                    <div style={GS.reviewTitle}>ما سبب عدم تحقيق الهدف؟</div>
+                    <div style={GS.reviewTitle}>{t("goals.reasonPrompt")}</div>
                     <div style={GS.reasonBox}>
                       <textarea
                         value={draft.reason}
                         onChange={(e) => setReviewDrafts((prev) => ({ ...prev, [goal.id]: { active: true, reason: e.target.value } }))}
-                        placeholder="اكتب السبب هنا (إلزامي)..."
+                        placeholder={t("goals.reasonPlaceholder")}
                         style={GS.reasonInput}
                       />
                       <button
                         onClick={() => confirmFailure(goal)}
                         disabled={!draft.reason.trim()}
                         style={{ ...GS.reasonConfirmBtn, ...(!draft.reason.trim() ? GS.reasonConfirmBtnDisabled : {}) }}
-                      >تأكيد</button>
+                      >{t("common.buttons.confirm")}</button>
                     </div>
                   </div>
                 )}
@@ -3310,14 +3316,14 @@ function GoalsView({ goals, setGoals, addPoints, showToast }) {
         </div>
 
         <div style={GS.failuresCard}>
-          <div style={S.catEditorHeader}><AlertTriangle size={15} color="#E05252" /><span>أهداف لم تتحقق</span></div>
+          <div style={S.catEditorHeader}><AlertTriangle size={15} color="#E05252" /><span>{t("goals.unmetGoals")}</span></div>
           <div style={GS.failuresList}>
-            {allFailures.length === 0 && <div style={S.emptyHint}>لا يوجد أهداف غير محققة — استمر هكذا.</div>}
+            {allFailures.length === 0 && <div style={S.emptyHint}>{t("goals.noUnmetGoals")}</div>}
             {allFailures.map((f, i) => (
               <div key={i} style={GS.failureItem}>
                 <div style={GS.failureTop}>
                   <span style={GS.failureTitle}>{f.goalTitle}</span>
-                  <span style={GS.failureDate}>{arabicDate(f.checkpointDate, { day: "numeric", month: "short" })}</span>
+                  <span style={GS.failureDate}>{arabicDate(f.checkpointDate, { day: "numeric", month: "short" }, i18n.language === "en" ? "en-US" : undefined)}</span>
                 </div>
                 <span style={GS.failureReason}>{f.reason}</span>
               </div>
@@ -3353,6 +3359,8 @@ function formatVaultAmount(amount, code) {
 }
 
 function VaultView({ vault, setVault, vaultTx, setVaultTx, showToast }) {
+  const { t, i18n } = useTranslation();
+  const language = i18n.language;
   const [setupBalance, setSetupBalance] = useState("");
   const [setupCurrency, setSetupCurrency] = useState("KWD");
   const [editingSetup, setEditingSetup] = useState(false);
@@ -3384,14 +3392,14 @@ function VaultView({ vault, setVault, vaultTx, setVaultTx, showToast }) {
 
   async function submitSetup() {
     const balance = parseFloat(setupBalance);
-    if (!Number.isFinite(balance) || balance < 0) { showToast("أدخل رصيداً صحيحاً"); return; }
+    if (!Number.isFinite(balance) || balance < 0) { showToast(t("vault.invalidBalance")); return; }
     const next = { balance, currency: setupCurrency };
     const prev = vault;
     setVault(next);
     setEditingSetup(false);
     const ok = await store.saveVault(next);
-    if (ok) showToast("تم حفظ رصيدك");
-    else { setVault(prev); showToast("تعذّر الحفظ، حاول مرة أخرى"); }
+    if (ok) showToast(t("vault.balanceSaved"));
+    else { setVault(prev); showToast(t("common.errors.saveFailed")); }
   }
 
   function startEditSetup() {
@@ -3403,8 +3411,8 @@ function VaultView({ vault, setVault, vaultTx, setVaultTx, showToast }) {
   async function submitTransaction() {
     const amount = parseFloat(txAmount);
     const reason = txReason.trim();
-    if (!Number.isFinite(amount) || amount <= 0) { showToast("أدخل مبلغاً صحيحاً"); return; }
-    if (!reason) { showToast(txType === "expense" ? "اكتب سبب الصرف" : "اكتب سبب الإضافة"); return; }
+    if (!Number.isFinite(amount) || amount <= 0) { showToast(t("vault.invalidAmount")); return; }
+    if (!reason) { showToast(txType === "expense" ? t("vault.writeExpenseReason") : t("vault.writeDepositReason")); return; }
     const tx = { id: uid(), date: localDayKey(), amount, type: txType, reason, createdAt: new Date().toISOString() };
     const prevVault = vault;
     const newBalance = txType === "expense" ? vault.balance - amount : vault.balance + amount;
@@ -3414,11 +3422,11 @@ function VaultView({ vault, setVault, vaultTx, setVaultTx, showToast }) {
     const balOk = await store.saveVault({ balance: newBalance, currency: vault.currency });
     if (txOk && balOk) {
       setTxType(null); setTxAmount(""); setTxReason("");
-      showToast(txType === "expense" ? "سُجِّل المصروف" : "سُجِّلت الإضافة");
+      showToast(txType === "expense" ? t("vault.expenseRecorded") : t("vault.depositRecorded"));
     } else {
-      setVaultTx((prevTx) => prevTx.filter((t) => t.id !== tx.id));
+      setVaultTx((prevTx) => prevTx.filter((x) => x.id !== tx.id));
       setVault(prevVault);
-      showToast("تعذّر الحفظ، حاول مرة أخرى");
+      showToast(t("common.errors.saveFailed"));
     }
   }
 
@@ -3426,11 +3434,11 @@ function VaultView({ vault, setVault, vaultTx, setVaultTx, showToast }) {
     const prevVault = vault;
     const prevTx = vaultTx;
     const revertedBalance = tx.type === "expense" ? vault.balance + tx.amount : vault.balance - tx.amount;
-    setVaultTx((list) => list.filter((t) => t.id !== tx.id));
+    setVaultTx((list) => list.filter((x) => x.id !== tx.id));
     setVault({ ...vault, balance: revertedBalance });
     const delOk = await store.deleteVaultTransaction(tx.id);
     const balOk = await store.saveVault({ balance: revertedBalance, currency: vault.currency });
-    if (!delOk || !balOk) { setVaultTx(prevTx); setVault(prevVault); showToast("تعذّر الحذف، حاول مرة أخرى"); }
+    if (!delOk || !balOk) { setVaultTx(prevTx); setVault(prevVault); showToast(t("common.errors.deleteFailed")); }
   }
 
   const sortedTx = useMemo(
@@ -3445,24 +3453,24 @@ function VaultView({ vault, setVault, vaultTx, setVaultTx, showToast }) {
           <div style={VS.hero}>
             <div style={VS.heroIcon}><Wallet size={22} color="var(--on-accent)" /></div>
             <div>
-              <div style={VS.heroTitle}>خزنة</div>
-              <div style={VS.heroSub}>تتبّع رصيدك ونفقاتك بوضوح.</div>
+              <div style={VS.heroTitle}>{t("vault.heroTitleSetup")}</div>
+              <div style={VS.heroSub}>{t("vault.heroSubSetup")}</div>
             </div>
           </div>
           <div style={VS.setupCard}>
-            <label style={S.label}>رصيدك الحالي</label>
+            <label style={S.label}>{t("vault.currentBalance")}</label>
             <input
               type="number" step="0.01" inputMode="decimal"
               value={setupBalance} onChange={(e) => setSetupBalance(e.target.value)}
               placeholder="0.00" style={{ ...S.input, marginTop: 6 }}
             />
-            <label style={S.label}>العملة</label>
+            <label style={S.label}>{t("vault.currency")}</label>
             <select value={setupCurrency} onChange={(e) => setSetupCurrency(e.target.value)} style={{ ...S.input, marginTop: 6 }}>
-              {VAULT_CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.label} ({c.symbol})</option>)}
+              {VAULT_CURRENCIES.map((c) => <option key={c.code} value={c.code}>{t(`vault.currencies.${c.code}`)} ({c.symbol})</option>)}
             </select>
-            <button onClick={submitSetup} style={{ ...S.saveBtn, marginTop: 14 }}>حفظ الرصيد</button>
+            <button onClick={submitSetup} style={{ ...S.saveBtn, marginTop: 14 }}>{t("vault.saveBalance")}</button>
             {vault && editingSetup && (
-              <button onClick={() => setEditingSetup(false)} style={{ ...S.saveBtn, marginTop: 8, background: "transparent", border: "1px solid var(--border2)", color: "var(--muted2)" }}>إلغاء</button>
+              <button onClick={() => setEditingSetup(false)} style={{ ...S.saveBtn, marginTop: 8, background: "transparent", border: "1px solid var(--border2)", color: "var(--muted2)" }}>{t("common.buttons.cancel")}</button>
             )}
           </div>
         </div>
@@ -3476,44 +3484,44 @@ function VaultView({ vault, setVault, vaultTx, setVaultTx, showToast }) {
         <div style={VS.hero}>
           <div style={VS.heroIcon}><Wallet size={22} color="var(--on-accent)" /></div>
           <div>
-            <div style={VS.heroTitle}>خزنة</div>
-            <div style={VS.heroSub}>اعرف أين تذهب أموالك بالضبط.</div>
+            <div style={VS.heroTitle}>{t("vault.heroTitle")}</div>
+            <div style={VS.heroSub}>{t("vault.heroSub")}</div>
           </div>
         </div>
 
         <div style={VS.balanceCard}>
-          <div style={VS.balanceLabel}>رصيدك الحالي</div>
+          <div style={VS.balanceLabel}>{t("vault.currentBalance")}</div>
           <div style={VS.balanceAmount}>{formatVaultAmount(vault.balance, vault.currency)}</div>
-          <button onClick={startEditSetup} style={VS.editBalanceBtn}><Edit3 size={12} /> تعديل الرصيد أو العملة</button>
+          <button onClick={startEditSetup} style={VS.editBalanceBtn}><Edit3 size={12} /> {t("vault.editBalanceOrCurrency")}</button>
           <div style={VS.actionRow}>
             <button onClick={() => { setTxType("expense"); setTxAmount(""); setTxReason(""); }} style={VS.expenseBtn}>
-              <ArrowDownCircle size={16} /> تسجيل مصروف
+              <ArrowDownCircle size={16} /> {t("vault.recordExpense")}
             </button>
             <button onClick={() => { setTxType("income"); setTxAmount(""); setTxReason(""); }} style={VS.incomeBtn}>
-              <ArrowUpCircle size={16} /> تسجيل إضافة
+              <ArrowUpCircle size={16} /> {t("vault.recordDeposit")}
             </button>
           </div>
         </div>
 
         {txType && (
           <div style={VS.txForm}>
-            <div style={VS.txFormTitle}>{txType === "expense" ? "تسجيل مصروف" : "تسجيل إضافة"}</div>
-            <label style={S.label}>المبلغ</label>
+            <div style={VS.txFormTitle}>{txType === "expense" ? t("vault.recordExpense") : t("vault.recordDeposit")}</div>
+            <label style={S.label}>{t("vault.amount")}</label>
             <input
               type="number" step="0.01" inputMode="decimal" autoFocus
               value={txAmount} onChange={(e) => setTxAmount(e.target.value)}
               placeholder="0.00" style={{ ...S.input, marginTop: 6 }}
             />
-            <label style={S.label}>{txType === "expense" ? "سبب الصرف" : "سبب الإضافة"}</label>
+            <label style={S.label}>{txType === "expense" ? t("vault.expenseReason") : t("vault.depositReason")}</label>
             <input
               value={txReason} onChange={(e) => setTxReason(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && submitTransaction()}
-              placeholder={txType === "expense" ? "مثال: فاتورة كهرباء" : "مثال: راتب"}
+              placeholder={txType === "expense" ? t("vault.expensePlaceholder") : t("vault.depositPlaceholder")}
               style={{ ...S.input, marginTop: 6 }}
             />
             <div style={VS.txFormRow}>
-              <button onClick={() => setTxType(null)} style={VS.txCancelBtn}>إلغاء</button>
-              <button onClick={submitTransaction} style={{ ...S.saveBtn, marginTop: 0, flex: 1 }}>تأكيد</button>
+              <button onClick={() => setTxType(null)} style={VS.txCancelBtn}>{t("common.buttons.cancel")}</button>
+              <button onClick={submitTransaction} style={{ ...S.saveBtn, marginTop: 0, flex: 1 }}>{t("common.buttons.confirm")}</button>
             </div>
           </div>
         )}
@@ -3524,13 +3532,13 @@ function VaultView({ vault, setVault, vaultTx, setVaultTx, showToast }) {
           </div>
           <p style={TS.quoteText}>{todayMoneyTip.text}</p>
           <div style={TS.footerRow}>
-            <span style={TS.categoryPill}>{MONEY_TIP_CATEGORY_LABELS[todayMoneyTip.category] || "نصيحة مالية"}</span>
+            <span style={TS.categoryPill}>{MONEY_TIP_CATEGORY_LABELS[todayMoneyTip.category] || t("vault.financialTipFallback")}</span>
           </div>
         </div>
 
-        <div style={VS.logHeader}><span style={VS.logHeaderLine} /><span>سجل الحركات</span><span style={VS.logHeaderLine} /></div>
+        <div style={VS.logHeader}><span style={VS.logHeaderLine} /><span>{t("vault.transactionLog")}</span><span style={VS.logHeaderLine} /></div>
         <div style={VS.logList} className="stagger-in responsive-card-list">
-          {sortedTx.length === 0 && <div style={S.emptyHint}>لا حركات بعد. سجّل أول مصروف أو إضافة أعلاه.</div>}
+          {sortedTx.length === 0 && <div style={S.emptyHint}>{t("vault.noTransactionsYet")}</div>}
           {sortedTx.map((tx) => {
             const [y, m, d] = tx.date.split("-").map(Number);
             return (
@@ -3539,7 +3547,7 @@ function VaultView({ vault, setVault, vaultTx, setVaultTx, showToast }) {
                   <span style={{ ...VS.logAmount, color: tx.type === "expense" ? "#E05252" : "#5FA8A0" }}>
                     {tx.type === "expense" ? "−" : "+"}{formatVaultAmount(tx.amount, vault.currency)}
                   </span>
-                  <span style={VS.logDate}>{arabicDate(new Date(y, m - 1, d), { day: "numeric", month: "short" })}</span>
+                  <span style={VS.logDate}>{arabicDate(new Date(y, m - 1, d), { day: "numeric", month: "short" }, language === "en" ? "en-US" : undefined)}</span>
                   <button onClick={() => removeTransaction(tx)} style={S.deleteBtn}><Trash2 size={13} /></button>
                 </div>
                 <span style={VS.logReason}>{tx.reason}</span>
@@ -3582,6 +3590,8 @@ const VS = {
 };
 
 function FocusView({ focus, setFocus, commitments, setCommitments, categories, entries, addPoints, showToast, subscription }) {
+  const { t, i18n } = useTranslation();
+  const language = i18n.language;
   const isSub = isActiveSubscriber(subscription);
   const [targetMin, setTargetMin] = useState(25);
   const [remaining, setRemaining] = useState(25 * 60);
@@ -3632,7 +3642,7 @@ function FocusView({ focus, setFocus, commitments, setCommitments, categories, e
           } else {
             setRemaining(totalTargetSec - elapsedSec);
             setRunning(true);
-            showToast("استمرنا في حساب وقتك أثناء غيابك");
+            showToast(t("focus.cameBackToast"));
           }
         } else {
           // Paused: the countdown is frozen exactly where the user left it.
@@ -3736,17 +3746,17 @@ function FocusView({ focus, setFocus, commitments, setCommitments, categories, e
     const res = await store.saveFocus(session);
     if (!res.ok) {
       setFocus((prev) => prev.filter((f) => f.id !== session.id));
-      showToast("تعذّر حفظ جلسة التركيز، حاول مرة أخرى");
+      showToast(t("focus.saveFailed"));
       return;
     }
     await store.saveActiveSession(null);
     addPoints(minutesDone);
-    showToast(wasAway ? `أكملت ${minutesDone} دقيقة أثناء غيابك! +${minutesDone} نقطة` : `أكملت ${minutesDone} دقيقة! +${minutesDone} نقطة`);
+    showToast(t(wasAway ? "focus.completedAway" : "focus.completed", { min: minutesDone }));
     setRemaining(targetMin * 60);
     setCommitments((prev) => {
       const next = prev.map((c) => ({ ...c, log: { ...c.log, [todayKey()]: (c.log[todayKey()] || 0) + minutesDone } }));
       Promise.all(next.map((updated) => store.saveCommitment(updated))).then((results) => {
-        if (results.some((r) => !r.ok)) { setCommitments(prev); showToast("تعذّر تحديث بعض الالتزامات، حاول لاحقاً"); }
+        if (results.some((r) => !r.ok)) { setCommitments(prev); showToast(t("focus.commitmentsUpdateFailed")); }
       });
       return next;
     });
@@ -3762,7 +3772,7 @@ function FocusView({ focus, setFocus, commitments, setCommitments, categories, e
 
   function logManual() {
     const mins = Math.max(1, Math.min(600, parseInt(manualMinutes, 10) || 0));
-    if (!mins) { showToast("أدخل عدد دقائق صحيح"); return; }
+    if (!mins) { showToast(t("focus.invalidMinutes")); return; }
     setCustomEndTime(nowHHMM());
     setPendingCompletion({ sess: { label: label.trim(), isStudy }, minutesDone: mins });
   }
@@ -3786,14 +3796,14 @@ function FocusView({ focus, setFocus, commitments, setCommitments, categories, e
   const progress = 1 - remaining / (targetMin * 60);
 
   const subTabs = [
-    { id: "timer", label: "المؤقت", icon: Timer },
-    { id: "study", label: "تقرير الدراسة", icon: BookOpen },
-    { id: "general", label: "تقرير عام", icon: TrendingUp },
-    { id: "bots", label: "التحدي", icon: Zap },
+    { id: "timer", labelKey: "focus.timerTab", icon: Timer },
+    { id: "study", labelKey: "focus.studyReportTab", icon: BookOpen },
+    { id: "general", labelKey: "focus.generalReportTab", icon: TrendingUp },
+    { id: "bots", labelKey: "focus.challengeTab", icon: Zap },
   ];
 
   const studyEntries = useMemo(() => {
-    const studyCat = (categories || []).find((c) => c.name.includes("دراس"));
+    const studyCat = (categories || []).find((c) => c.id === "study" || c.name.includes("دراس"));
     if (!studyCat || !entries) return [];
     return entries.filter((e) => e.catId === studyCat.id);
   }, [entries, categories]);
@@ -3802,13 +3812,13 @@ function FocusView({ focus, setFocus, commitments, setCommitments, categories, e
 
   return (
     <div style={S.view}>
-      <div style={S.sectionTitle}>تركيز</div>
+      <div style={S.sectionTitle}>{t("focus.sectionTitle")}</div>
       <div style={S.subTabRow}>
-        {subTabs.map((t) => {
-          const Icon = t.icon;
+        {subTabs.map((tab) => {
+          const Icon = tab.icon;
           return (
-            <button key={t.id} onClick={() => setSubTab(t.id)} style={{ ...S.subTab, ...(subTab === t.id ? S.subTabActive : {}) }}>
-              <Icon size={13} /> {t.label}
+            <button key={tab.id} onClick={() => setSubTab(tab.id)} style={{ ...S.subTab, ...(subTab === tab.id ? S.subTabActive : {}) }}>
+              <Icon size={13} /> {t(tab.labelKey)}
             </button>
           );
         })}
@@ -3816,32 +3826,32 @@ function FocusView({ focus, setFocus, commitments, setCommitments, categories, e
       {subTab === "timer" && (
         <>
           <div style={PS.modeToggleRow}>
-            <button onClick={() => setManualMode(false)} style={{ ...PS.modeToggleBtn, ...(!manualMode ? PS.modeToggleBtnActive : {}) }}><Timer size={13} /> عدّاد تلقائي</button>
-            <button onClick={() => setManualMode(true)} style={{ ...PS.modeToggleBtn, ...(manualMode ? PS.modeToggleBtnActive : {}) }}><Edit3 size={13} /> إدخال يدوي</button>
+            <button onClick={() => setManualMode(false)} style={{ ...PS.modeToggleBtn, ...(!manualMode ? PS.modeToggleBtnActive : {}) }}><Timer size={13} /> {t("focus.autoTimer")}</button>
+            <button onClick={() => setManualMode(true)} style={{ ...PS.modeToggleBtn, ...(manualMode ? PS.modeToggleBtnActive : {}) }}><Edit3 size={13} /> {t("focus.manualEntry")}</button>
           </div>
           {!manualMode ? (
             <div style={S.timerCard}>
               <FocusRing progress={progress} size={224}>
                 <div style={S.timerTime}>{mm}:{ss}</div>
-                <div style={S.timerTargetLabel}>{running ? "ركّز الآن" : `${targetMin} دقيقة`}</div>
+                <div style={S.timerTargetLabel}>{running ? t("focus.focusNow") : t("focus.minutesLabel", { min: targetMin })}</div>
               </FocusRing>
               <div style={S.adjustRow}>
                 <button onClick={() => adjust(-5)} disabled={running} style={S.adjustBtn}>−5</button>
                 <button onClick={() => adjust(-1)} disabled={running} style={S.adjustBtnSmall}>−1</button>
-                <span style={S.adjustValue}>{targetMin} د</span>
+                <span style={S.adjustValue}>{t("focus.minutesAbbrev", { min: targetMin })}</span>
                 <button onClick={() => adjust(1)} disabled={running} style={S.adjustBtnSmall}>+1</button>
                 <button onClick={() => adjust(5)} disabled={running} style={S.adjustBtn}>+5</button>
               </div>
               <div style={S.studyToggleRow}>
-                <button onClick={() => setIsStudy(true)} disabled={running} style={{ ...S.studyToggle, ...(isStudy ? S.studyToggleActive : {}) }}><BookOpen size={13} /> دراسة</button>
-                <button onClick={() => setIsStudy(false)} disabled={running} style={{ ...S.studyToggle, ...(!isStudy ? S.studyToggleActive : {}) }}><Zap size={13} /> نشاط عام</button>
+                <button onClick={() => setIsStudy(true)} disabled={running} style={{ ...S.studyToggle, ...(isStudy ? S.studyToggleActive : {}) }}><BookOpen size={13} /> {t("focus.study")}</button>
+                <button onClick={() => setIsStudy(false)} disabled={running} style={{ ...S.studyToggle, ...(!isStudy ? S.studyToggleActive : {}) }}><Zap size={13} /> {t("focus.generalActivity")}</button>
               </div>
-              <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="على ماذا تركّز؟ (اختياري)" style={{ ...S.input, marginTop: 12 }} />
+              <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t("focus.focusOnPlaceholder")} style={{ ...S.input, marginTop: 12 }} />
               <div style={S.timerControls}>
                 <button onClick={reset} style={S.timerSecondary}><RotateCcw size={18} /></button>
                 <button onClick={toggle} style={S.timerPrimary}>
                   {running ? <Pause size={20} /> : <Play size={20} />}
-                  {running ? "إيقاف مؤقت" : sessionRef.current ? "متابعة" : "ابدأ"}
+                  {running ? t("focus.pause") : sessionRef.current ? t("focus.resume") : t("focus.start")}
                 </button>
               </div>
             </div>
@@ -3849,48 +3859,48 @@ function FocusView({ focus, setFocus, commitments, setCommitments, categories, e
             <div style={S.timerCard}>
               <div style={PS.manualEntryRow}>
                 <input type="number" inputMode="numeric" value={manualMinutes} onChange={(e) => setManualMinutes(e.target.value)} style={PS.manualInput} placeholder="25" />
-                <span style={PS.manualUnit}>دقيقة</span>
+                <span style={PS.manualUnit}>{t("focus.minutesUnit")}</span>
               </div>
               <div style={S.studyToggleRow}>
-                <button onClick={() => setIsStudy(true)} style={{ ...S.studyToggle, ...(isStudy ? S.studyToggleActive : {}) }}><BookOpen size={13} /> دراسة</button>
-                <button onClick={() => setIsStudy(false)} style={{ ...S.studyToggle, ...(!isStudy ? S.studyToggleActive : {}) }}><Zap size={13} /> نشاط عام</button>
+                <button onClick={() => setIsStudy(true)} style={{ ...S.studyToggle, ...(isStudy ? S.studyToggleActive : {}) }}><BookOpen size={13} /> {t("focus.study")}</button>
+                <button onClick={() => setIsStudy(false)} style={{ ...S.studyToggle, ...(!isStudy ? S.studyToggleActive : {}) }}><Zap size={13} /> {t("focus.generalActivity")}</button>
               </div>
-              <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="على ماذا ركّزت؟ (اختياري)" style={{ ...S.input, marginTop: 12 }} />
+              <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t("focus.focusedOnPlaceholder")} style={{ ...S.input, marginTop: 12 }} />
               <button onClick={logManual} style={{ ...S.timerPrimary, marginTop: 14, width: "100%" }}>
-                <Check size={18} /> سجّل الوقت
+                <Check size={18} /> {t("focus.logTime")}
               </button>
             </div>
           )}
-          <div style={S.memoryNote}><Save size={13} color="#5FA8A0" /><span>كل جلسة تُحفظ بشكل دائم، وتستمر بالعد حتى لو غادرت الصفحة أو أغلقت الجهاز وعدت لاحقاً.</span></div>
+          <div style={S.memoryNote}><Save size={13} color="#5FA8A0" /><span>{t("focus.persistNote")}</span></div>
           <CommitmentsSection commitments={commitments} setCommitments={setCommitments} categories={categories} focus={focus} showToast={showToast} />
         </>
       )}
-      {subTab === "study" && (isSub ? <FocusReport focus={focus.filter((f) => f.isStudy)} studyEntries={studyEntries} title="تقرير الدراسة" color="#5FA8A0" emptyMsg="لا جلسات دراسة بعد. شغّل المؤقت بوضع دراسة." /> : (
-        <UpsellCard icon={BookOpen} title="تقرير الدراسة في مسار الكامل" message="تتبّع تفاصيل جلسات دراستك وتقدّمك فيها بشكل منظّم عبر الأيام." compact />
+      {subTab === "study" && (isSub ? <FocusReport focus={focus.filter((f) => f.isStudy)} studyEntries={studyEntries} title={t("focus.studyReportTab")} color="#5FA8A0" emptyMsg={t("focus.studyReportEmpty")} /> : (
+        <UpsellCard icon={BookOpen} title={t("focus.studyReportUpsellTitle")} message={t("focus.studyReportUpsellMessage")} compact />
       ))}
-      {subTab === "general" && (isSub ? <FocusReport focus={focus.filter((f) => !f.isStudy)} title="التقرير العام" color="#C9A24B" emptyMsg="لا جلسات عامة بعد. شغّل المؤقت بوضع نشاط عام." /> : (
-        <UpsellCard icon={BookOpen} title="التقرير العام في مسار الكامل" message="شاهد تفاصيل كل جلسات تركيزك العامة وتوزيعها عبر الأيام." compact />
+      {subTab === "general" && (isSub ? <FocusReport focus={focus.filter((f) => !f.isStudy)} title={t("focus.generalReportTitle")} color="#C9A24B" emptyMsg={t("focus.generalReportEmpty")} /> : (
+        <UpsellCard icon={BookOpen} title={t("focus.generalReportUpsellTitle")} message={t("focus.generalReportUpsellMessage")} compact />
       ))}
       {subTab === "bots" && (isSub ? <BotsChallenge focus={focus} entries={entries} categories={categories} /> : (
-        <UpsellCard icon={Zap} title="التحدي في مسار الكامل" message="نافس شخصيات تحدٍّ واقعية بوقت تركيزك اليومي، وشاهد ترتيبك بينها." compact />
+        <UpsellCard icon={Zap} title={t("focus.challengeUpsellTitle")} message={t("focus.challengeUpsellMessage")} compact />
       ))}
       {pendingCompletion && (
         <div style={S.modalOverlay} className="overlay-in" onClick={() => { setPendingCompletion(null); setPickingTime(false); }}>
           <div style={S.modal} className="sheet-in" onClick={(e) => e.stopPropagation()}>
-            <div style={S.modalHeader}>أحسنت! 🎉</div>
+            <div style={S.modalHeader}>{t("focus.wellDone")}</div>
             <div style={{ fontSize: 13.5, color: "#C9C6C0", lineHeight: 1.7, marginBottom: 16 }}>
-              هل نسجّلها بوقت انتهائها الآن، أم تريد تحديد وقت آخر؟
+              {t("focus.endTimeQuestion")}
             </div>
             {!pickingTime ? (
               <div style={{ display: "flex", gap: 10 }}>
-                <button onClick={confirmCompletionNow} style={{ ...S.saveBtn, marginTop: 0, flex: 1 }}>الآن</button>
-                <button onClick={() => setPickingTime(true)} style={{ ...S.saveBtn, marginTop: 0, flex: 1, background: "var(--surface-raised)", color: "var(--ink)", border: "1px solid var(--border2)" }}>وقت آخر</button>
+                <button onClick={confirmCompletionNow} style={{ ...S.saveBtn, marginTop: 0, flex: 1 }}>{t("focus.now")}</button>
+                <button onClick={() => setPickingTime(true)} style={{ ...S.saveBtn, marginTop: 0, flex: 1, background: "var(--surface-raised)", color: "var(--ink)", border: "1px solid var(--border2)" }}>{t("focus.differentTime")}</button>
               </div>
             ) : (
               <>
-                <label style={S.label}>متى انتهت؟</label>
+                <label style={S.label}>{t("focus.whenDidItEnd")}</label>
                 <input type="time" value={customEndTime} onChange={(e) => setCustomEndTime(e.target.value)} style={{ ...S.input, marginBottom: 4 }} />
-                <button onClick={confirmCompletionCustomTime} style={S.saveBtn}>تأكيد</button>
+                <button onClick={confirmCompletionCustomTime} style={S.saveBtn}>{t("common.buttons.confirm")}</button>
               </>
             )}
           </div>
@@ -3900,13 +3910,13 @@ function FocusView({ focus, setFocus, commitments, setCommitments, categories, e
       {stopChoice && (
         <div style={S.modalOverlay} className="overlay-in" onClick={continueSessionLater}>
           <div style={S.modal} className="sheet-in" onClick={(e) => e.stopPropagation()}>
-            <div style={S.modalHeader}>إيقاف الجلسة</div>
+            <div style={S.modalHeader}>{t("focus.stopSessionTitle")}</div>
             <div style={{ fontSize: 13.5, color: "#C9C6C0", lineHeight: 1.7, marginBottom: 16 }}>
-              ركّزت {Math.round(stopChoice.elapsedSec / 60)} دقيقة حتى الآن من أصل {targetMin}. هل تنهي الجلسة وتسجّلها بهذه المدة، أم تكمّلها لاحقاً من نفس النقطة؟
+              {t("focus.stopSessionBody", { elapsed: Math.round(stopChoice.elapsedSec / 60), target: targetMin })}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <button onClick={finishSessionNow} style={{ ...S.saveBtn, marginTop: 0 }}>✅ إنهاء الجلسة الآن</button>
-              <button onClick={continueSessionLater} style={{ ...S.saveBtn, marginTop: 0, background: "var(--surface-raised)", color: "var(--ink)", border: "1px solid var(--border2)" }}>🔄 استكمال لاحقاً</button>
+              <button onClick={finishSessionNow} style={{ ...S.saveBtn, marginTop: 0 }}>{t("focus.finishNow")}</button>
+              <button onClick={continueSessionLater} style={{ ...S.saveBtn, marginTop: 0, background: "var(--surface-raised)", color: "var(--ink)", border: "1px solid var(--border2)" }}>{t("focus.continueLater")}</button>
             </div>
           </div>
         </div>
@@ -3916,6 +3926,8 @@ function FocusView({ focus, setFocus, commitments, setCommitments, categories, e
 }
 
 function FocusReport({ focus, title, color, emptyMsg, studyEntries }) {
+  const { t, i18n } = useTranslation();
+  const language = i18n.language;
   const entryMinutes = (studyEntries || []).reduce((s, e) => s + diffMinutes(e.start, e.end), 0);
   const totalMin = focus.reduce((s, f) => s + f.minutes, 0) + entryMinutes;
   const todayEntryMin = (studyEntries || []).filter((e) => e.date === todayKey()).reduce((s, e) => s + diffMinutes(e.start, e.end), 0);
@@ -3937,30 +3949,30 @@ function FocusReport({ focus, title, color, emptyMsg, studyEntries }) {
       const d = new Date(today); d.setDate(d.getDate() - i); const k = todayKey(d);
       const focusMins = focus.filter((f) => f.date === k).reduce((s, f) => s + f.minutes, 0);
       const entryMins = (studyEntries || []).filter((e) => e.date === k).reduce((s, e) => s + diffMinutes(e.start, e.end), 0);
-      arr.push({ label: arabicDate(k, { day: "numeric" }), mins: focusMins + entryMins });
+      arr.push({ label: arabicDate(k, { day: "numeric" }, language === "en" ? "en-US" : undefined), mins: focusMins + entryMins });
     }
     return arr;
-  }, [focus, studyEntries]);
+  }, [focus, studyEntries, language]);
   const hasAny = focus.length > 0 || (studyEntries || []).length > 0;
 
   return (
     <div>
       <div style={{ ...S.sectionTitle, fontSize: 17, color }}>{title}</div>
       <div style={S.focusStatsRow}>
-        <div style={S.kpiCard}><div style={{ ...S.kpiValue, color }}>{fmtHM(totalMin)}</div><div style={S.kpiLabel}>الإجمالي</div></div>
-        <div style={S.kpiCard}><div style={{ ...S.kpiValue, color }}>{fmtHM(todayMin)}</div><div style={S.kpiLabel}>اليوم</div></div>
-        <div style={S.kpiCard}><div style={{ ...S.kpiValue, color }}>{streak}</div><div style={S.kpiLabel}>سلسلة الأيام</div></div>
-        <div style={S.kpiCard}><div style={{ ...S.kpiValue, color }}>{focus.length + (studyEntries || []).length}</div><div style={S.kpiLabel}>جلسات</div></div>
+        <div style={S.kpiCard}><div style={{ ...S.kpiValue, color }}>{fmtHM(totalMin, language)}</div><div style={S.kpiLabel}>{t("focus.report.total")}</div></div>
+        <div style={S.kpiCard}><div style={{ ...S.kpiValue, color }}>{fmtHM(todayMin, language)}</div><div style={S.kpiLabel}>{t("focus.report.today")}</div></div>
+        <div style={S.kpiCard}><div style={{ ...S.kpiValue, color }}>{streak}</div><div style={S.kpiLabel}>{t("focus.report.dayStreak")}</div></div>
+        <div style={S.kpiCard}><div style={{ ...S.kpiValue, color }}>{focus.length + (studyEntries || []).length}</div><div style={S.kpiLabel}>{t("focus.report.sessions")}</div></div>
       </div>
       <div style={S.chartCard}>
-        <div style={S.chartTitle}>آخر 14 يوماً</div>
+        <div style={S.chartTitle}>{t("focus.report.last14Days")}</div>
         {!hasAny ? <div style={S.emptyHint}>{emptyMsg}</div> : (
           <ResponsiveContainer width="100%" height={160}>
             <BarChart data={last14} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
               <CartesianGrid strokeDasharray="2 4" stroke="var(--surface-raised)" vertical={false} />
               <XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: 9, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} interval={1} />
               <YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [`${v} دقيقة`, ""]} />
+              <Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [`${v} ${t("common.units.minutes")}`, ""]} />
               <Bar dataKey="mins" radius={[3, 3, 3, 3]} fill={color} maxBarSize={18} />
             </BarChart>
           </ResponsiveContainer>
@@ -3968,22 +3980,22 @@ function FocusReport({ focus, title, color, emptyMsg, studyEntries }) {
       </div>
       {hasAny && (
         <div style={S.chartCard}>
-          <div style={S.chartTitle}>سجل الجلسات المحفوظة</div>
+          <div style={S.chartTitle}>{t("focus.report.savedSessionsLog")}</div>
           <div style={S.sessionLog}>
             {focus.slice(0, 12).map((f) => (
               <div key={f.id} style={S.sessionRow}>
                 <span style={{ ...S.legendDot, background: color }} />
-                <span style={S.sessionLabel}>{f.label || "جلسة تركيز"}</span>
-                <span style={S.sessionMins}>{fmtHM(f.minutes)}</span>
-                <span style={S.sessionDate}>{arabicDate(f.date, { day: "numeric", month: "short" })}</span>
+                <span style={S.sessionLabel}>{f.label || t("focus.report.focusSessionFallback")}</span>
+                <span style={S.sessionMins}>{fmtHM(f.minutes, language)}</span>
+                <span style={S.sessionDate}>{arabicDate(f.date, { day: "numeric", month: "short" }, language === "en" ? "en-US" : undefined)}</span>
               </div>
             ))}
             {(studyEntries || []).slice(0, 12).map((e) => (
               <div key={e.id} style={S.sessionRow}>
                 <span style={{ ...S.legendDot, background: color }} />
-                <span style={S.sessionLabel}>{e.note || "نشاط دراسة (من اليوم)"}</span>
-                <span style={S.sessionMins}>{fmtHM(diffMinutes(e.start, e.end))}</span>
-                <span style={S.sessionDate}>{arabicDate(e.date, { day: "numeric", month: "short" })}</span>
+                <span style={S.sessionLabel}>{e.note || t("focus.report.studyActivityFallback")}</span>
+                <span style={S.sessionMins}>{fmtHM(diffMinutes(e.start, e.end), language)}</span>
+                <span style={S.sessionDate}>{arabicDate(e.date, { day: "numeric", month: "short" }, language === "en" ? "en-US" : undefined)}</span>
               </div>
             ))}
           </div>
@@ -3993,22 +4005,25 @@ function FocusReport({ focus, title, color, emptyMsg, studyEntries }) {
   );
 }
 
+// traitKey يطابق مفاتيح botsChallenge.traits.* في ملفات الترجمة بنفس ترتيب
+// هذه القائمة تماماً - trait نفسها (الوصف العربي الخام) تبقى fallback فقط
+// إن غاب المفتاح من ملف الترجمة لأي سبب.
 const ROBOT_DATA = [
-  { id: "ahmed",  name: "Ahmed",  flag: "🇸🇦", country: "Saudi Arabia", specialty: "Web Dev",      trait: "ناشط ومثابر",      persona: "veryActive" },
-  { id: "fatima", name: "Fatima", flag: "🇪🇬", country: "Egypt",        specialty: "Design",       trait: "مبدعة وملهمة",     persona: "moderate"   },
-  { id: "omar",   name: "Omar",   flag: "🇦🇪", country: "UAE",          specialty: "Marketing",    trait: "استراتيجي وذكي",   persona: "moderate"   },
-  { id: "layla",  name: "Layla",  flag: "🇯🇴", country: "Jordan",       specialty: "UX",           trait: "دقيقة ومتأنية",    persona: "sporadic"   },
-  { id: "karim",  name: "Karim",  flag: "🇲🇦", country: "Morocco",      specialty: "Data Science", trait: "تحليلي وعميق",     persona: "veryActive" },
-  { id: "noor",   name: "Noor",   flag: "🇰🇼", country: "Kuwait",       specialty: "Content",      trait: "رشيقة وسريعة",    persona: "sporadic"   },
-  { id: "hassan", name: "Hassan", flag: "🇶🇦", country: "Qatar",        specialty: "Backend",      trait: "صامت وفعّال",      persona: "veryActive" },
-  { id: "amira",  name: "Amira",  flag: "🇧🇭", country: "Bahrain",      specialty: "Branding",     trait: "أنيقة ومتجددة",    persona: "evening"    },
-  { id: "rashid", name: "Rashid", flag: "🇹🇳", country: "Tunisia",      specialty: "iOS Dev",      trait: "شغوف ومتطور",      persona: "veryActive" },
-  { id: "sara",   name: "Sara",   flag: "🇱🇧", country: "Lebanon",      specialty: "Photography",  trait: "حساسة وفنية",      persona: "evening"    },
-  { id: "zain",   name: "Zain",   flag: "🇮🇶", country: "Iraq",         specialty: "AI",           trait: "فضولي ومتعمق",     persona: "veryActive" },
-  { id: "dina",   name: "Dina",   flag: "🇾🇪", country: "Yemen",        specialty: "Writing",      trait: "شاعرية وعذبة",     persona: "absentish"  },
-  { id: "malik",  name: "Malik",  flag: "🇵🇸", country: "Palestine",    specialty: "SEO",          trait: "صبور ومنهجي",      persona: "moderate"   },
-  { id: "maya",   name: "Maya",   flag: "🇴🇲", country: "Oman",         specialty: "Video",        trait: "حيوية ومبتكرة",    persona: "absentish"  },
-  { id: "carlos", name: "Carlos", flag: "🇪🇸", country: "Spain",        specialty: "Music",        trait: "إيقاعي ومتدفق",    persona: "evening"    },
+  { id: "ahmed",  name: "Ahmed",  flag: "🇸🇦", country: "Saudi Arabia", specialty: "Web Dev",      trait: "ناشط ومثابر",      traitKey: "active_persistent",  persona: "veryActive" },
+  { id: "fatima", name: "Fatima", flag: "🇪🇬", country: "Egypt",        specialty: "Design",       trait: "مبدعة وملهمة",     traitKey: "creative_inspiring", persona: "moderate"   },
+  { id: "omar",   name: "Omar",   flag: "🇦🇪", country: "UAE",          specialty: "Marketing",    trait: "استراتيجي وذكي",   traitKey: "strategic_sharp",    persona: "moderate"   },
+  { id: "layla",  name: "Layla",  flag: "🇯🇴", country: "Jordan",       specialty: "UX",           trait: "دقيقة ومتأنية",    traitKey: "precise_deliberate", persona: "sporadic"   },
+  { id: "karim",  name: "Karim",  flag: "🇲🇦", country: "Morocco",      specialty: "Data Science", trait: "تحليلي وعميق",     traitKey: "analytical_deep",    persona: "veryActive" },
+  { id: "noor",   name: "Noor",   flag: "🇰🇼", country: "Kuwait",       specialty: "Content",      trait: "رشيقة وسريعة",    traitKey: "agile_quick",         persona: "sporadic"   },
+  { id: "hassan", name: "Hassan", flag: "🇶🇦", country: "Qatar",        specialty: "Backend",      trait: "صامت وفعّال",      traitKey: "quiet_effective",    persona: "veryActive" },
+  { id: "amira",  name: "Amira",  flag: "🇧🇭", country: "Bahrain",      specialty: "Branding",     trait: "أنيقة ومتجددة",    traitKey: "elegant_inventive",  persona: "evening"    },
+  { id: "rashid", name: "Rashid", flag: "🇹🇳", country: "Tunisia",      specialty: "iOS Dev",      trait: "شغوف ومتطور",      traitKey: "passionate_evolving", persona: "veryActive" },
+  { id: "sara",   name: "Sara",   flag: "🇱🇧", country: "Lebanon",      specialty: "Photography",  trait: "حساسة وفنية",      traitKey: "sensitive_artistic",  persona: "evening"    },
+  { id: "zain",   name: "Zain",   flag: "🇮🇶", country: "Iraq",         specialty: "AI",           trait: "فضولي ومتعمق",     traitKey: "curious_thorough",    persona: "veryActive" },
+  { id: "dina",   name: "Dina",   flag: "🇾🇪", country: "Yemen",        specialty: "Writing",      trait: "شاعرية وعذبة",     traitKey: "poetic_gentle",       persona: "absentish"  },
+  { id: "malik",  name: "Malik",  flag: "🇵🇸", country: "Palestine",    specialty: "SEO",          trait: "صبور ومنهجي",      traitKey: "patient_methodical", persona: "moderate"   },
+  { id: "maya",   name: "Maya",   flag: "🇴🇲", country: "Oman",         specialty: "Video",        trait: "حيوية ومبتكرة",    traitKey: "energetic_inventive", persona: "absentish"  },
+  { id: "carlos", name: "Carlos", flag: "🇪🇸", country: "Spain",        specialty: "Music",        trait: "إيقاعي ومتدفق",    traitKey: "rhythmic_fluid",      persona: "evening"    },
 ];
 
 // Each persona is a fixed list of [startHour, endHour, minutes] study
@@ -4048,6 +4063,8 @@ function computeBotMinutes(bot, now, todayStr) {
 }
 
 function BotsChallenge({ focus, entries, categories }) {
+  const { t, i18n } = useTranslation();
+  const language = i18n.language;
   const [tick, setTick] = useState(0);
   useEffect(() => {
     const iv = setInterval(() => setTick((t) => t + 1), 60000);
@@ -4081,21 +4098,21 @@ function BotsChallenge({ focus, entries, categories }) {
       mins: computeBotMinutes(r, now, today),
       color: "#5FA8A0",
     }));
-    const me = { id: "me", name: "أنت", flag: "⭐", country: "", specialty: "", trait: "تقدمك الحقيقي اليوم", mins: myToday, color: "var(--ink)", isMe: true };
+    const me = { id: "me", name: t("botsChallenge.you"), flag: "⭐", country: "", specialty: "", trait: t("botsChallenge.yourRealProgress"), mins: myToday, color: "var(--ink)", isMe: true };
     return [...list, me].sort((a, b) => b.mins - a.mins);
-  }, [tick, myToday]);
+  }, [tick, myToday, language]);
 
   const maxMins = Math.max(60, ...bots.map((b) => b.mins));
   const myRank = bots.findIndex((b) => b.isMe) + 1;
 
   return (
     <div>
-      <div style={{ ...S.sectionTitle, fontSize: 17 }}>تحدي الروبوتات</div>
-      <p style={S.profileHint}>15 منافس من دول مختلفة، لكل واحد عادات يومه الخاصة. ركّز أكثر لتتقدم عليهم.</p>
+      <div style={{ ...S.sectionTitle, fontSize: 17 }}>{t("botsChallenge.title")}</div>
+      <p style={S.profileHint}>{t("botsChallenge.subtitle")}</p>
       <div style={S.rankBanner}>
         <Trophy size={16} color={myRank === 1 ? "#C9A24B" : "var(--muted2)"} />
-        <span>ترتيبك الآن: <strong style={{ color: myRank === 1 ? "#C9A24B" : "var(--ink)" }}>{myRank} من 16</strong></span>
-        {myRank === 1 && <span style={S.leadPill}>متصدّر</span>}
+        <span>{t("botsChallenge.yourRank", { rank: myRank })}</span>
+        {myRank === 1 && <span style={S.leadPill}>{t("botsChallenge.leading")}</span>}
       </div>
       <div style={S.botsList}>
         {bots.map((b, i) => (
@@ -4105,17 +4122,17 @@ function BotsChallenge({ focus, entries, categories }) {
             <div style={S.botInfo}>
               <div style={S.botName}>
                 {b.name}
-                {b.isMe && <span style={S.botYou}>أنت</span>}
-                {!b.isMe && <span style={{ fontSize: 11, color: "var(--muted2)", marginRight: 6 }}>{b.specialty}</span>}
+                {b.isMe && <span style={S.botYou}>{t("botsChallenge.you")}</span>}
+                {!b.isMe && <span style={{ fontSize: 11, color: "var(--muted2)", marginInlineStart: 6 }}>{b.specialty}</span>}
               </div>
-              <div style={S.botTrait}>{!b.isMe && <span style={{ marginLeft: 4 }}>{b.country}</span>}{b.trait}</div>
+              <div style={S.botTrait}>{!b.isMe && <span style={{ marginInlineEnd: 4 }}>{b.country}</span>}{b.isMe ? b.trait : t(`botsChallenge.traits.${b.traitKey}`, b.trait)}</div>
               <div style={S.botBarWrap}><div style={{ ...S.botBarFill, width: `${(b.mins / maxMins) * 100}%`, background: b.isMe ? "var(--ink)" : b.color }} /></div>
             </div>
-            <span style={S.botMins}>{fmtHM(b.mins)}</span>
+            <span style={S.botMins}>{fmtHM(b.mins, language)}</span>
           </div>
         ))}
       </div>
-      <div style={S.memoryNote}><Zap size={13} color="#C9A24B" /><span>تتحرك أوقات المنافسين تدريجياً مع مرور ساعات يومك الحقيقية، كل واحد بعادات يومه الخاصة.</span></div>
+      <div style={S.memoryNote}><Zap size={13} color="#C9A24B" /><span>{t("botsChallenge.footnote")}</span></div>
     </div>
   );
 }
@@ -4143,6 +4160,8 @@ function FocusRing({ progress, size, children }) {
 }
 
 function CommitmentsSection({ commitments, setCommitments, categories, focus, showToast }) {
+  const { t, i18n } = useTranslation();
+  const language = i18n.language;
   const [title, setTitle] = useState("");
   const [mins, setMins] = useState(60);
 
@@ -4151,14 +4170,14 @@ function CommitmentsSection({ commitments, setCommitments, categories, focus, sh
     const c = { id: uid(), title: title.trim(), targetMinutes: mins, catId: categories[0]?.id, log: {} };
     setCommitments((prev) => [...prev, c]);
     const res = await store.saveCommitment(c);
-    if (!res.ok) { setCommitments((prev) => prev.filter((x) => x.id !== c.id)); showToast("تعذّر حفظ الالتزام، حاول مرة أخرى"); return; }
-    setTitle(""); showToast("أضفت تحدي التزام");
+    if (!res.ok) { setCommitments((prev) => prev.filter((x) => x.id !== c.id)); showToast(t("commitments.saveFailed")); return; }
+    setTitle(""); showToast(t("commitments.added"));
   }
   async function remove(id) {
     const removed = commitments.find((c) => c.id === id);
     setCommitments((prev) => prev.filter((c) => c.id !== id));
     const res = await store.deleteCommitment(id);
-    if (!res.ok) { if (removed) setCommitments((prev) => [...prev, removed]); showToast("تعذّر حذف الالتزام، حاول مرة أخرى"); }
+    if (!res.ok) { if (removed) setCommitments((prev) => [...prev, removed]); showToast(t("commitments.deleteFailed")); }
   }
 
   function streakOf(c) {
@@ -4171,8 +4190,8 @@ function CommitmentsSection({ commitments, setCommitments, categories, focus, sh
 
   return (
     <div style={S.commitCard}>
-      <div style={S.catEditorHeader}><Zap size={15} color="#C9A24B" /><span>تحديات الالتزام اليومية</span></div>
-      <p style={S.profileHint}>التزم بوقت يومي ثابت وشاهد سلسلتك تكبر.</p>
+      <div style={S.catEditorHeader}><Zap size={15} color="#C9A24B" /><span>{t("commitments.title")}</span></div>
+      <p style={S.profileHint}>{t("commitments.subtitle")}</p>
       <div style={S.commitList}>
         {commitments.map((c) => {
           const todayMin = c.log[todayKey()] || 0;
@@ -4184,25 +4203,25 @@ function CommitmentsSection({ commitments, setCommitments, categories, focus, sh
               <div style={S.commitItemTop}>
                 <div style={{ flex: 1 }}>
                   <div style={S.commitTitle}>{c.title}</div>
-                  <div style={S.commitMeta}>الهدف {c.targetMinutes} دقيقة يومياً · سلسلة {streak} {streak === 1 ? "يوم" : "أيام"}</div>
+                  <div style={S.commitMeta}>{t("commitments.goalStreak", { target: c.targetMinutes, streak, dayWord: t(streak === 1 ? "commitments.day" : "commitments.days") })}</div>
                 </div>
-                {done && <span style={S.commitDoneBadge}><Check size={12} /> اليوم</span>}
+                {done && <span style={S.commitDoneBadge}><Check size={12} /> {t("commitments.today")}</span>}
                 <button onClick={() => remove(c.id)} style={S.deleteBtn}><Trash2 size={14} /></button>
               </div>
               <div style={S.commitBarWrap}><div style={{ ...S.commitBarFill, width: `${pct}%`, background: done ? "#5FA8A0" : "#C9A24B" }} /></div>
-              <div style={S.commitProgress}>{fmtHM(todayMin)} من {fmtHM(c.targetMinutes)} · جلسات التركيز تُحتسب تلقائياً</div>
+              <div style={S.commitProgress}>{t("commitments.progress", { today: fmtHM(todayMin, language), target: fmtHM(c.targetMinutes, language) })}</div>
             </div>
           );
         })}
-        {commitments.length === 0 && <div style={S.emptyHint}>لا تحديات بعد. أضف واحداً لتبدأ.</div>}
+        {commitments.length === 0 && <div style={S.emptyHint}>{t("commitments.empty")}</div>}
       </div>
       <div style={S.commitAdd}>
-        <input value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} placeholder="مثال: ساعة دراسة يومياً" style={S.catEditInput} />
+        <input value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} placeholder={t("commitments.placeholder")} style={S.catEditInput} />
         <select value={mins} onChange={(e) => setMins(Number(e.target.value))} style={S.commitSelect}>
-          <option value={30}>30 د</option>
-          <option value={60}>60 د</option>
-          <option value={90}>90 د</option>
-          <option value={120}>120 د</option>
+          <option value={30}>{t("commitments.options.30")}</option>
+          <option value={60}>{t("commitments.options.60")}</option>
+          <option value={90}>{t("commitments.options.90")}</option>
+          <option value={120}>{t("commitments.options.120")}</option>
         </select>
         <button onClick={add} style={S.taskAddBtn}><Plus size={16} /></button>
       </div>
@@ -4211,6 +4230,8 @@ function CommitmentsSection({ commitments, setCommitments, categories, focus, sh
 }
 
 function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, religious, addPoints, showToast, setView }) {
+  const { t, i18n } = useTranslation();
+  const language = i18n.language;
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState("challenges");
   const [coachLoading, setCoachLoading] = useState(false);
@@ -4218,16 +4239,24 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
   const [smartUnavailable, setSmartUnavailable] = useState(false);
   const [promptText, setPromptText] = useState("");
   const hasIdentity = !!(profile?.hobbies?.trim() || profile?.about?.trim());
-  const IDENTITY_NUDGE = "اكتب هواياتك ونبذتك في التخصيص أولاً ليساعدك أنجز بشكل مخصّص";
+  const IDENTITY_NUDGE = t("achieve.identityNudge");
 
   async function askCoach(mood) {
     if (!hasIdentity) { showToast(IDENTITY_NUDGE); return; }
     setCoachLoading(true); setCoachReply(null);
     try {
-      const who = `نبذة: ${profile.about || "غير محدد"}. الهوايات: ${profile.hobbies || "غير محدد"}. التخصص: ${profile.field || "غير محدد"}.`;
+      const isEn = language === "en";
       const todayFocus = (focus || []).filter((f) => f.date === todayKey()).reduce((s, f) => s + f.minutes, 0);
-      const doneToday = (tasks || []).filter((t) => t.done && t.due === todayKey()).length;
-      const prompt = `أنت "أنجز"، مدرب شخصي ذكي ودود يكتب بالعربية الفصحى البسيطة بدون أي شرطات طويلة. المستخدم: ${who}\nمزاجه الآن: ${mood}. ركّز اليوم ${todayFocus} دقيقة وأنجز ${doneToday} مهمة.\n\nتحدّث معه بجملة تتفهّم مزاجه، ثم اقترح له نشاطاً واحداً محدداً وقصيراً يحسّن مزاجه أو إنتاجيته الآن، مرتبطاً بهواياته أو تخصصه إن أمكن. أعد فقط JSON بدون أي نص أو markdown:\n{"message":"جملة تتفهم مزاجه","activity":"نشاط واحد محدد مقترح الآن","why":"سبب قصير لماذا هذا النشاط"}`;
+      const doneToday = (tasks || []).filter((tk) => tk.done && tk.due === todayKey()).length;
+      // محتوى طلب الذكاء الاصطناعي (وليس واجهة المستخدم) يتبع لغة الواجهة
+      // أيضاً - نفس نمط DailyEvolution/ReportsView أعلاه، لكن دون مفتاح جاهز
+      // في ملفات الترجمة هنا فيُبنى النص كاملاً بلغتين.
+      const who = isEn
+        ? `Bio: ${profile.about || "not specified"}. Hobbies: ${profile.hobbies || "not specified"}. Field: ${profile.field || "not specified"}.`
+        : `نبذة: ${profile.about || "غير محدد"}. الهوايات: ${profile.hobbies || "غير محدد"}. التخصص: ${profile.field || "غير محدد"}.`;
+      const prompt = isEn
+        ? `You are "Achieve", a friendly, smart personal coach writing in clear, natural English with no long dashes. The user: ${who}\nTheir mood right now: ${mood}. Today they focused ${todayFocus} minutes and completed ${doneToday} tasks.\n\nSpeak to them with one sentence that shows you understand their mood, then suggest one specific, short activity to improve their mood or productivity right now, tied to their hobbies or field if possible. Reply ONLY with JSON, no other text or markdown:\n{"message":"a sentence that understands their mood","activity":"one specific suggested activity right now","why":"a short reason why this activity"}`
+        : `أنت "أنجز"، مدرب شخصي ذكي ودود يكتب بالعربية الفصحى البسيطة بدون أي شرطات طويلة. المستخدم: ${who}\nمزاجه الآن: ${mood}. ركّز اليوم ${todayFocus} دقيقة وأنجز ${doneToday} مهمة.\n\nتحدّث معه بجملة تتفهّم مزاجه، ثم اقترح له نشاطاً واحداً محدداً وقصيراً يحسّن مزاجه أو إنتاجيته الآن، مرتبطاً بهواياته أو تخصصه إن أمكن. أعد فقط JSON بدون أي نص أو markdown:\n{"message":"جملة تتفهم مزاجه","activity":"نشاط واحد محدد مقترح الآن","why":"سبب قصير لماذا هذا النشاط"}`;
       const text = await analyze(prompt, 800);
       setCoachReply(parseJsonLoose(text));
       setSmartUnavailable(false);
@@ -4249,11 +4278,18 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
 
   async function generate(kind, userRequest) {
     setLoading(true);
+    const isEn = language === "en";
     try {
-      const who = `نبذة: ${profile.about || "غير محدد"}. الهوايات: ${profile.hobbies || "غير محدد"}. التخصص: ${profile.field || "غير محدد"}.`;
+      const who = isEn
+        ? `Bio: ${profile.about || "not specified"}. Hobbies: ${profile.hobbies || "not specified"}. Field: ${profile.field || "not specified"}.`
+        : `نبذة: ${profile.about || "غير محدد"}. الهوايات: ${profile.hobbies || "غير محدد"}. التخصص: ${profile.field || "غير محدد"}.`;
       const existing = achieve.slice(0, 8).map((a) => a.title).join(" / ");
-      const kindAr = kind === "challenge" ? "تحديات أسبوعية عملية" : kind === "project" ? "مشاريع صغيرة قابلة للتنفيذ" : "مسارات تعلّم متدرجة";
-      const prompt = `أنت مدرب تطوير مهارات يكتب بالعربية الفصحى البسيطة بدون أي شرطات طويلة. طلب المستخدم بالضبط: "${userRequest}"\n\nسياق إضافي عن المستخدم، استخدمه لتخصيص الاقتراحات إن كان مناسباً: ${who}\n\nبناءً على طلب المستخدم أعلاه بالدرجة الأولى، اقترح 3 ${kindAr} تلبي طلبه بدقة.\n\n${existing ? `لا تكرر هذه العناصر الموجودة: ${existing}` : ""}\n\nأعد فقط JSON بدون أي نص أو markdown:\n{"items":[{"title":"عنوان قصير","detail":"وصف من جملتين","steps":["خطوة 1","خطوة 2","خطوة 3"],"topic":"الهواية أو التخصص المرتبط"}]}`;
+      const kindLabel = isEn
+        ? (kind === "challenge" ? "practical weekly challenges" : kind === "project" ? "small, doable projects" : "gradual learning paths")
+        : (kind === "challenge" ? "تحديات أسبوعية عملية" : kind === "project" ? "مشاريع صغيرة قابلة للتنفيذ" : "مسارات تعلّم متدرجة");
+      const prompt = isEn
+        ? `You are a skills-development coach writing in clear, natural English with no long dashes. The user's exact request: "${userRequest}"\n\nAdditional context about the user, use it to personalize suggestions if relevant: ${who}\n\nBased primarily on the user's request above, suggest 3 ${kindLabel} that precisely meet their request.\n\n${existing ? `Don't repeat these existing items: ${existing}` : ""}\n\nReply ONLY with JSON, no other text or markdown:\n{"items":[{"title":"short title","detail":"a two-sentence description","steps":["step 1","step 2","step 3"],"topic":"the related hobby or field"}]}`
+        : `أنت مدرب تطوير مهارات يكتب بالعربية الفصحى البسيطة بدون أي شرطات طويلة. طلب المستخدم بالضبط: "${userRequest}"\n\nسياق إضافي عن المستخدم، استخدمه لتخصيص الاقتراحات إن كان مناسباً: ${who}\n\nبناءً على طلب المستخدم أعلاه بالدرجة الأولى، اقترح 3 ${kindLabel} تلبي طلبه بدقة.\n\n${existing ? `لا تكرر هذه العناصر الموجودة: ${existing}` : ""}\n\nأعد فقط JSON بدون أي نص أو markdown:\n{"items":[{"title":"عنوان قصير","detail":"وصف من جملتين","steps":["خطوة 1","خطوة 2","خطوة 3"],"topic":"الهواية أو التخصص المرتبط"}]}`;
       const text = await analyze(prompt, 2048);
       const parsed = parseJsonLoose(text);
       const newItems = (parsed.items || []).map((it) => ({ id: uid(), kind, title: it.title, detail: it.detail, steps: it.steps || [], topic: it.topic || "", done: false }));
@@ -4262,8 +4298,8 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
       setAchieve((prev) => [...savedItems, ...prev]);
       setSmartUnavailable(false);
       setPromptText("");
-      if (savedItems.length < newItems.length) showToast(`أُضيف ${savedItems.length} من ${newItems.length} فقط، تعذّر حفظ الباقي`);
-      else showToast(`أضفت ${newItems.length} عناصر جديدة`);
+      if (savedItems.length < newItems.length) showToast(t("achieve.addedPartial", { saved: savedItems.length, total: newItems.length }));
+      else showToast(t("achieve.addedItems", { count: newItems.length }));
     } catch (err) {
       console.error("[AchieveView] generate failed:", err);
       setSmartUnavailable(true);
@@ -4273,15 +4309,15 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
       const results = await Promise.all(newItems.map((it) => store.saveAchieve(it)));
       const savedItems = newItems.filter((_, i) => results[i].ok);
       setAchieve((prev) => [...savedItems, ...prev]);
-      if (savedItems.length < newItems.length) showToast(`أُضيف ${savedItems.length} من ${newItems.length} فقط، تعذّر حفظ الباقي`);
-      else showToast(`أضفت ${newItems.length} مهام جاهزة`);
+      if (savedItems.length < newItems.length) showToast(t("achieve.addedPartial", { saved: savedItems.length, total: newItems.length }));
+      else showToast(t("achieve.addedTasks", { count: newItems.length }));
     }
     finally { setLoading(false); }
   }
 
   function handleGenerate() {
     if (!hasIdentity) { showToast(IDENTITY_NUDGE); return; }
-    if (!promptText.trim()) { showToast("اكتب ما تريد أولاً"); return; }
+    if (!promptText.trim()) { showToast(t("achieve.typeFirst")); return; }
     generate(kindForTab, promptText.trim());
   }
 
@@ -4289,57 +4325,66 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
     const updated = { ...item, done: !item.done };
     setAchieve((prev) => prev.map((a) => a.id === item.id ? updated : a));
     const res = await store.saveAchieve(updated);
-    if (!res.ok) { setAchieve((prev) => prev.map((a) => a.id === item.id ? item : a)); showToast("تعذّر حفظ الإنجاز، حاول مرة أخرى"); return; }
-    if (!item.done) { addPoints(25); playAchievementSound(); showToast("أحسنت! +25 نقطة"); }
-    else addPoints(-25, "التراجع عن إنجاز");
+    if (!res.ok) { setAchieve((prev) => prev.map((a) => a.id === item.id ? item : a)); showToast(t("achieve.saveFailed")); return; }
+    if (!item.done) { addPoints(25); playAchievementSound(); showToast(t("achieve.wellDonePoints")); }
+    else addPoints(-25, t("achieve.revertReason"));
   }
   async function remove(id) {
     const removed = achieve.find((a) => a.id === id);
     setAchieve((prev) => prev.filter((a) => a.id !== id));
     const res = await store.deleteAchieve(id);
-    if (!res.ok) { if (removed) setAchieve((prev) => [...prev, removed]); showToast("تعذّر حذف الإنجاز، حاول مرة أخرى"); return; }
-    if (removed?.done) addPoints(-25, "حذف إنجاز مكتمل");
-    showToast("تم الحذف");
+    if (!res.ok) { if (removed) setAchieve((prev) => [...prev, removed]); showToast(t("achieve.deleteFailed")); return; }
+    if (removed?.done) addPoints(-25, t("achieve.deleteCompletedReason"));
+    showToast(t("achieve.deleted"));
   }
 
   useEffect(() => { setPromptText(""); }, [tab]);
 
-  const kindMap = { challenge: "تحدي", project: "مشروع", path: "مسار تعلّم" };
-  const promptPlaceholder = tab === "challenges" ? "مثال: أبي تحدي رياضة خفيف" : tab === "projects" ? "مثال: مشروع تصوير بسيط لنهاية الأسبوع" : "مثال: أبي أتعلم أساسيات التصميم";
+  const kindMap = { challenge: t("achieve.kindMap.challenge"), project: t("achieve.kindMap.project"), path: t("achieve.kindMap.path") };
+  const promptPlaceholder = tab === "challenges" ? t("achieve.promptPlaceholder.challenge") : tab === "projects" ? t("achieve.promptPlaceholder.project") : t("achieve.promptPlaceholder.path");
+
+  const achieveTabs = [
+    { id: "challenges", labelKey: "achieve.tabs.challenges", icon: Trophy },
+    { id: "projects", labelKey: "achieve.tabs.projects", icon: Target },
+    { id: "paths", labelKey: "achieve.tabs.paths", icon: BookOpen },
+  ];
+  const moods = [
+    { key: "excited" }, { key: "normal" }, { key: "tired" }, { key: "distracted" },
+  ];
 
   return (
     <div style={S.view}>
       <div style={S.achieveHero}>
         <div style={S.achieveHeroIcon}><Rocket size={20} color="var(--on-accent)" /></div>
         <div>
-          <div style={S.achieveHeroTitle}>أنجز</div>
-          <div style={S.achieveHeroSub}>تحديات ومشاريع ومسارات مصممة لهواياتك وتخصصك</div>
+          <div style={S.achieveHeroTitle}>{t("achieve.heroTitle")}</div>
+          <div style={S.achieveHeroSub}>{t("achieve.heroSub")}</div>
         </div>
       </div>
       {smartUnavailable && (
-        <div style={S.smartBanner}><Zap size={14} color="#C9A24B" /><span>الوضع الذكي غير متاح الآن، نعرض لك مهام جاهزة.</span></div>
+        <div style={S.smartBanner}><Zap size={14} color="#C9A24B" /><span>{t("achieve.smartModeUnavailable")}</span></div>
       )}
       {!hasIdentity && (
         <div style={S.setupCard}>
           <User size={16} color="#5FA8A0" style={{ flexShrink: 0, marginTop: 2 }} />
           <div style={S.setupText}>
-            {IDENTITY_NUDGE}.
+            {IDENTITY_NUDGE}
             <div>
-              <button onClick={() => setView("settings")} style={{ ...S.linkBtn, marginTop: 8 }}>الذهاب إلى التخصيص</button>
+              <button onClick={() => setView("settings")} style={{ ...S.linkBtn, marginTop: 8 }}>{t("achieve.goToSettings")}</button>
             </div>
           </div>
         </div>
       )}
       {hasIdentity && (
       <div style={S.coachCard}>
-        <div style={S.coachTitleRow}><Sparkles size={15} color="#C9A24B" /><span style={S.coachTitle}>كيف يومك؟</span></div>
-        <p style={S.profileHint}>أخبر أنجز بمزاجك ليقترح لك نشاطاً يحسّنه الآن.</p>
+        <div style={S.coachTitleRow}><Sparkles size={15} color="#C9A24B" /><span style={S.coachTitle}>{t("achieve.moodCardTitle")}</span></div>
+        <p style={S.profileHint}>{t("achieve.moodCardSub")}</p>
         <div style={S.moodRow}>
-          {["متحمّس", "عادي", "متعب", "مشتّت"].map((m) => (
-            <button key={m} onClick={() => askCoach(m)} disabled={coachLoading} style={S.moodBtn}>{m}</button>
+          {moods.map((m) => (
+            <button key={m.key} onClick={() => askCoach(t(`achieve.moods.${m.key}`))} disabled={coachLoading} style={S.moodBtn}>{t(`achieve.moods.${m.key}`)}</button>
           ))}
         </div>
-        {coachLoading && <div style={S.coachLoading}><Loader2 size={15} className="spin" /> أنجز يفكّر...</div>}
+        {coachLoading && <div style={S.coachLoading}><Loader2 size={15} className="spin" /> {t("achieve.thinking")}</div>}
         {coachReply && !coachReply.error && (
           <div style={S.coachReply}>
             <div style={S.coachMessage}>{coachReply.message}</div>
@@ -4350,11 +4395,11 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
       </div>
       )}
       <div style={S.achieveTabs}>
-        {[{ id: "challenges", label: "تحديات", icon: Trophy }, { id: "projects", label: "مشاريع", icon: Target }, { id: "paths", label: "مسارات", icon: BookOpen }].map((t) => {
-          const Icon = t.icon;
+        {achieveTabs.map((tabItem) => {
+          const Icon = tabItem.icon;
           return (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{ ...S.achieveTab, ...(tab === t.id ? S.achieveTabActive : {}) }}>
-              <Icon size={14} /> {t.label}
+            <button key={tabItem.id} onClick={() => setTab(tabItem.id)} style={{ ...S.achieveTab, ...(tab === tabItem.id ? S.achieveTabActive : {}) }}>
+              <Icon size={14} /> {t(tabItem.labelKey)}
             </button>
           );
         })}
@@ -4375,7 +4420,7 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
       </div>
       )}
       <div style={S.achieveList} className="stagger-in responsive-card-list">
-        {filtered.length === 0 && !loading && <div style={S.emptyState}><div style={S.emptyStateTitle}>لا شيء بعد</div><div style={S.emptyStateSub}>اكتب طلبك في الأعلى ثم اضغط إرسال</div></div>}
+        {filtered.length === 0 && !loading && <div style={S.emptyState}><div style={S.emptyStateTitle}>{t("achieve.emptyTitle")}</div><div style={S.emptyStateSub}>{t("achieve.emptySub")}</div></div>}
         {filtered.map((item) => <AchieveCard key={item.id} item={item} kindLabel={kindMap[item.kind]} onToggle={() => toggleDone(item)} onRemove={() => remove(item.id)} />)}
       </div>
     </div>
@@ -4383,6 +4428,7 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
 }
 
 function AchieveCard({ item, kindLabel, onToggle, onRemove }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(item.title + " " + (item.topic || ""))}`;
   return (
@@ -4403,7 +4449,7 @@ function AchieveCard({ item, kindLabel, onToggle, onRemove }) {
         <>
           <button onClick={() => setOpen(!open)} style={S.achieveToggle}>
             <ChevronDown size={13} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
-            {open ? "إخفاء الخطوات" : `الخطوات (${item.steps.length})`}
+            {open ? t("achieve.hideSteps") : t("achieve.stepsCount", { count: item.steps.length })}
           </button>
           {open && (
             <div style={S.achieveSteps}>
@@ -4413,7 +4459,7 @@ function AchieveCard({ item, kindLabel, onToggle, onRemove }) {
         </>
       )}
       <a href={searchUrl} target="_blank" rel="noopener noreferrer" style={S.achieveLink}>
-        <ExternalLink size={12} /> فيديوهات تعليمية عن هذا
+        <ExternalLink size={12} /> {t("achieve.tutorialVideos")}
       </a>
     </div>
   );
@@ -4439,21 +4485,21 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
     const enabled = !!(result.granted && result.subscribed);
     setProfile((p) => ({ ...p, notificationsEnabled: enabled, notificationsAsked: true }));
     await store.saveNotificationsPreference(enabled, true);
-    if (enabled) showToast("تم تفعيل الإشعارات");
-    else showToast(result.error || "لم تُفعَّل الإشعارات");
+    if (enabled) showToast(t("settings.notifEnabled"));
+    else showToast(result.error ? t(`common.errors.${result.error}`) : t("settings.notifNotEnabled"));
   }
   async function handleDisableNotifications() {
     await disablePush();
     setProfile((p) => ({ ...p, notificationsEnabled: false, notificationsAsked: true }));
     await store.saveNotificationsPreference(false, true);
-    showToast("تم إيقاف الإشعارات");
+    showToast(t("settings.notifDisabled"));
   }
   async function toggleCustomColors() {
     const prev = profile.customColorsEnabled;
     const next = !prev;
     setProfile((p) => ({ ...p, customColorsEnabled: next }));
     const res = await store.saveCustomColorsEnabled(next);
-    if (!res.ok) { setProfile((p) => ({ ...p, customColorsEnabled: prev })); showToast("تعذّر حفظ الألوان المخصصة، حاول مرة أخرى"); }
+    if (!res.ok) { setProfile((p) => ({ ...p, customColorsEnabled: prev })); showToast(t("settings.colorsSaveFailed")); }
   }
   async function setSectionColor(sectionId, color) {
     const prev = { ...(profile.sectionColors || {}) };
@@ -4461,14 +4507,14 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
     if (color === null) delete next[sectionId]; else next[sectionId] = color;
     setProfile((p) => ({ ...p, sectionColors: next }));
     const res = await store.saveSectionColors(next);
-    if (!res.ok) { setProfile((p) => ({ ...p, sectionColors: prev })); showToast("تعذّر حفظ لون القسم، حاول مرة أخرى"); }
+    if (!res.ok) { setProfile((p) => ({ ...p, sectionColors: prev })); showToast(t("settings.sectionColorSaveFailed")); }
   }
   async function toggleSoundEnabled() {
     const prev = profile.soundEnabled;
     const next = !prev;
     setProfile((p) => ({ ...p, soundEnabled: next }));
     const res = await store.saveSoundEnabled(next);
-    if (!res.ok) { setProfile((p) => ({ ...p, soundEnabled: prev })); showToast("تعذّر حفظ إعداد الصوت، حاول مرة أخرى"); }
+    if (!res.ok) { setProfile((p) => ({ ...p, soundEnabled: prev })); showToast(t("settings.soundSaveFailed")); }
   }
   const [newColor, setNewColor] = useState(COLOR_CHOICES[0]);
 
@@ -4476,16 +4522,16 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
     const name = newName.trim();
     if (!name) return;
     if (!isSub && categories.length >= FREE_CATEGORY_LIMIT) {
-      showToast("أنشئ فئاتك بلا حدود مع مسار الكامل");
+      showToast(t("settings.unlimitedCategoriesUpsell"));
       return;
     }
     const cat = { id: uid(), name, color: newColor };
     setCategories((prev) => [...prev, cat]);
     const res = await store.saveCategory(cat);
-    if (res.ok) { setNewName(""); showToast("تمت إضافة الفئة"); }
+    if (res.ok) { setNewName(""); showToast(t("settings.categoryAdded")); }
     else {
       setCategories((prev) => prev.filter((c) => c.id !== cat.id));
-      showToast("تعذّر حفظ الفئة، حاول مرة أخرى");
+      showToast(t("settings.categorySaveFailed"));
     }
   }
   function startEditing(c) {
@@ -4494,74 +4540,74 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
   }
   async function confirmEditing(id) {
     const name = editDraft.name.trim();
-    if (!name) { showToast("اسم الفئة لا يمكن أن يكون فارغاً"); return; }
+    if (!name) { showToast(t("settings.categoryNameEmpty")); return; }
     let updated;
     setCategories((prev) => prev.map((c) => { if (c.id === id) { updated = { ...c, name, color: editDraft.color }; return updated; } return c; }));
     const res = updated ? await store.saveCategory(updated) : { ok: true };
     if (res.ok) setEditing(null);
-    else showToast("تعذّر حفظ التعديل، حاول مرة أخرى");
+    else showToast(t("settings.editSaveFailed"));
   }
   async function removeCategory(id) {
     const removed = categories.find((c) => c.id === id);
     setCategories((prev) => prev.filter((c) => c.id !== id));
     const res = await store.deleteCategory(id);
-    if (res.ok) showToast("تم حذف الفئة");
+    if (res.ok) showToast(t("settings.categoryDeleted"));
     else {
       if (removed) setCategories((prev) => [...prev, removed]);
-      showToast("تعذّر حذف الفئة، حاول مرة أخرى");
+      showToast(t("settings.categoryDeleteFailed"));
     }
   }
 
   return (
     <div style={S.view}>
-      <div style={S.sectionTitle}>التخصيص</div>
+      <div style={S.sectionTitle}>{t("settings.title")}</div>
       <ProfileCard profile={profile} setProfile={setProfile} showToast={showToast} />
       <div style={S.catEditorCard}>
-        <div style={S.catEditorHeader}>{theme === "dark" ? <Moon size={15} color="#C9A24B" /> : <Sun size={15} color="#C9A24B" />}<span>المظهر</span></div>
+        <div style={S.catEditorHeader}>{theme === "dark" ? <Moon size={15} color="#C9A24B" /> : <Sun size={15} color="#C9A24B" />}<span>{t("settings.appearance")}</span></div>
         <div style={S.rangeToggle}>
           <button onClick={() => theme !== "light" && toggleTheme()} style={{ ...S.rangeBtn, flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, ...(theme === "light" ? S.rangeBtnActive : {}) }}>
-            <Sun size={14} /> فاتح (أبيض)
+            <Sun size={14} /> {t("settings.light")}
           </button>
           <button onClick={() => theme !== "dark" && toggleTheme()} style={{ ...S.rangeBtn, flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, ...(theme === "dark" ? S.rangeBtnActive : {}) }}>
-            <Moon size={14} /> داكن (أسود/كحلي)
+            <Moon size={14} /> {t("settings.dark")}
           </button>
         </div>
       </div>
       <div style={S.catEditorCard}>
-        <div style={S.catEditorHeader}><Accessibility size={15} color="#C9A24B" /><span>إتاحة الوصول</span></div>
-        <p style={S.profileHint}>يمكنك تفعيل أكثر من خيار معاً - كل خيار مستقل عن الآخر.</p>
+        <div style={S.catEditorHeader}><Accessibility size={15} color="#C9A24B" /><span>{t("settings.accessibility")}</span></div>
+        <p style={S.profileHint}>{t("settings.accessibilityNote")}</p>
 
         <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--muted2)", marginBottom: 8 }}>
-          <ALargeSmall size={14} color="#C9A24B" /> حجم الخط
+          <ALargeSmall size={14} color="#C9A24B" /> {t("settings.fontSize")}
         </div>
         <div style={S.rangeToggle}>
-          <button onClick={() => changeFontSize("normal")} style={{ ...S.rangeBtn, flex: 1, ...(fontSize === "normal" ? S.rangeBtnActive : {}) }}>عادي</button>
-          <button onClick={() => changeFontSize("large")} style={{ ...S.rangeBtn, flex: 1, ...(fontSize === "large" ? S.rangeBtnActive : {}) }}>كبير</button>
-          <button onClick={() => changeFontSize("xlarge")} style={{ ...S.rangeBtn, flex: 1, ...(fontSize === "xlarge" ? S.rangeBtnActive : {}) }}>كبير جداً</button>
+          <button onClick={() => changeFontSize("normal")} style={{ ...S.rangeBtn, flex: 1, ...(fontSize === "normal" ? S.rangeBtnActive : {}) }}>{t("settings.fontNormal")}</button>
+          <button onClick={() => changeFontSize("large")} style={{ ...S.rangeBtn, flex: 1, ...(fontSize === "large" ? S.rangeBtnActive : {}) }}>{t("settings.fontLarge")}</button>
+          <button onClick={() => changeFontSize("xlarge")} style={{ ...S.rangeBtn, flex: 1, ...(fontSize === "xlarge" ? S.rangeBtnActive : {}) }}>{t("settings.fontXLarge")}</button>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--muted2)", margin: "14px 0 8px" }}>
-          <Contrast size={14} color="#C9A24B" /> وضع التباين العالي
+          <Contrast size={14} color="#C9A24B" /> {t("settings.highContrast")}
         </div>
         <div style={S.rangeToggle}>
-          <button onClick={() => highContrast && toggleHighContrast()} style={{ ...S.rangeBtn, flex: 1, ...(!highContrast ? S.rangeBtnActive : {}) }}>متوقف</button>
-          <button onClick={() => !highContrast && toggleHighContrast()} style={{ ...S.rangeBtn, flex: 1, ...(highContrast ? S.rangeBtnActive : {}) }}>مفعّل</button>
+          <button onClick={() => highContrast && toggleHighContrast()} style={{ ...S.rangeBtn, flex: 1, ...(!highContrast ? S.rangeBtnActive : {}) }}>{t("settings.off")}</button>
+          <button onClick={() => !highContrast && toggleHighContrast()} style={{ ...S.rangeBtn, flex: 1, ...(highContrast ? S.rangeBtnActive : {}) }}>{t("settings.on")}</button>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--muted2)", margin: "14px 0 8px" }}>
-          <StretchHorizontal size={14} color="#C9A24B" /> تباعد أكبر بين العناصر
+          <StretchHorizontal size={14} color="#C9A24B" /> {t("settings.moreSpacing")}
         </div>
         <div style={S.rangeToggle}>
-          <button onClick={() => spacious && toggleSpacious()} style={{ ...S.rangeBtn, flex: 1, ...(!spacious ? S.rangeBtnActive : {}) }}>متوقف</button>
-          <button onClick={() => !spacious && toggleSpacious()} style={{ ...S.rangeBtn, flex: 1, ...(spacious ? S.rangeBtnActive : {}) }}>مفعّل</button>
+          <button onClick={() => spacious && toggleSpacious()} style={{ ...S.rangeBtn, flex: 1, ...(!spacious ? S.rangeBtnActive : {}) }}>{t("settings.off")}</button>
+          <button onClick={() => !spacious && toggleSpacious()} style={{ ...S.rangeBtn, flex: 1, ...(spacious ? S.rangeBtnActive : {}) }}>{t("settings.on")}</button>
         </div>
       </div>
       <div style={S.catEditorCard}>
-        <div style={S.catEditorHeader}><Palette size={15} color="#C9A24B" /><span>ألوان الأقسام</span></div>
-        <p style={S.profileHint}>لمسة اختيارية بحتة - الهوية الذهبية/الكحلية الموحدة تبقى الافتراضي دائماً ما لم تُفعّل هذا الخيار وتختار ألواناً بنفسك من قائمة محدودة منسجمة مع التصميم.</p>
+        <div style={S.catEditorHeader}><Palette size={15} color="#C9A24B" /><span>{t("settings.sectionColors")}</span></div>
+        <p style={S.profileHint}>{t("settings.sectionColorsNote")}</p>
         <div style={S.rangeToggle}>
-          <button onClick={() => profile.customColorsEnabled && toggleCustomColors()} style={{ ...S.rangeBtn, flex: 1, ...(!profile.customColorsEnabled ? S.rangeBtnActive : {}) }}>متوقف</button>
-          <button onClick={() => !profile.customColorsEnabled && toggleCustomColors()} style={{ ...S.rangeBtn, flex: 1, ...(profile.customColorsEnabled ? S.rangeBtnActive : {}) }}>مفعّل</button>
+          <button onClick={() => profile.customColorsEnabled && toggleCustomColors()} style={{ ...S.rangeBtn, flex: 1, ...(!profile.customColorsEnabled ? S.rangeBtnActive : {}) }}>{t("settings.off")}</button>
+          <button onClick={() => !profile.customColorsEnabled && toggleCustomColors()} style={{ ...S.rangeBtn, flex: 1, ...(profile.customColorsEnabled ? S.rangeBtnActive : {}) }}>{t("settings.on")}</button>
         </div>
         {profile.customColorsEnabled && (
           <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 12 }}>
@@ -4570,7 +4616,7 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
               return (
                 <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 7 }}>
                   <span style={{ fontSize: 12, color: "var(--ink-soft)", flex: 1 }}>{t(item.labelKey)}</span>
-                  <button onClick={() => setSectionColor(item.id, null)} title="افتراضي (ذهبي)" style={{ width: 20, height: 20, borderRadius: "50%", border: !current ? "2px solid var(--ink)" : "1px solid var(--border2)", background: "var(--gold)", cursor: "pointer", padding: 0, flexShrink: 0 }} />
+                  <button onClick={() => setSectionColor(item.id, null)} title={t("settings.defaultGold")} style={{ width: 20, height: 20, borderRadius: "50%", border: !current ? "2px solid var(--ink)" : "1px solid var(--border2)", background: "var(--gold)", cursor: "pointer", padding: 0, flexShrink: 0 }} />
                   {SECTION_COLOR_PALETTE.map((c) => (
                     <button key={c} onClick={() => setSectionColor(item.id, c)} title={c} style={{ width: 20, height: 20, borderRadius: "50%", border: current === c ? "2px solid var(--ink)" : "1px solid var(--border2)", background: c, cursor: "pointer", padding: 0, flexShrink: 0 }} />
                   ))}
@@ -4581,32 +4627,32 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
         )}
       </div>
       <div style={S.catEditorCard}>
-        <div style={S.catEditorHeader}><Bell size={15} color="#C9A24B" /><span>الإشعارات</span></div>
-        <p style={S.profileHint}>فعّل الإشعارات ليذكّرك مسار بشرب الماء وتسجيل وجباتك.</p>
+        <div style={S.catEditorHeader}><Bell size={15} color="#C9A24B" /><span>{t("settings.notifications")}</span></div>
+        <p style={S.profileHint}>{t("settings.notifNote")}</p>
         {profile.notificationsEnabled ? (
-          <button onClick={handleDisableNotifications} style={{ ...S.exportBtn, marginBottom: 0 }}><Bell size={14} /> الإشعارات مفعّلة — إيقاف</button>
+          <button onClick={handleDisableNotifications} style={{ ...S.exportBtn, marginBottom: 0 }}><Bell size={14} /> {t("settings.notifOnTurnOff")}</button>
         ) : (
-          <button onClick={handleEnableNotifications} style={{ ...S.saveBtn, marginTop: 0 }}><Bell size={14} /> تفعيل الإشعارات</button>
+          <button onClick={handleEnableNotifications} style={{ ...S.saveBtn, marginTop: 0 }}><Bell size={14} /> {t("settings.enableNotif")}</button>
         )}
       </div>
       <div style={S.catEditorCard}>
-        <div style={S.catEditorHeader}><Volume2 size={15} color="#C9A24B" /><span>المؤثرات الصوتية</span></div>
-        <p style={S.profileHint}>أصوات قصيرة وناعمة جداً عند إنجاز مهم فقط (تسجيل صلاة، تحقيق هدف، إكمال تحدٍّ) - لا صوت لأي ضغطة زر عادية. مُطفأة افتراضياً لأن مسار قد يُستخدم في أماكن هادئة كالصلاة والدراسة.</p>
+        <div style={S.catEditorHeader}><Volume2 size={15} color="#C9A24B" /><span>{t("settings.soundEffects")}</span></div>
+        <p style={S.profileHint}>{t("settings.soundNote")}</p>
         <div style={S.rangeToggle}>
-          <button onClick={() => profile.soundEnabled && toggleSoundEnabled()} style={{ ...S.rangeBtn, flex: 1, ...(!profile.soundEnabled ? S.rangeBtnActive : {}) }}>متوقفة</button>
-          <button onClick={() => !profile.soundEnabled && toggleSoundEnabled()} style={{ ...S.rangeBtn, flex: 1, ...(profile.soundEnabled ? S.rangeBtnActive : {}) }}>مفعّلة</button>
+          <button onClick={() => profile.soundEnabled && toggleSoundEnabled()} style={{ ...S.rangeBtn, flex: 1, ...(!profile.soundEnabled ? S.rangeBtnActive : {}) }}>{t("settings.soundOff")}</button>
+          <button onClick={() => !profile.soundEnabled && toggleSoundEnabled()} style={{ ...S.rangeBtn, flex: 1, ...(profile.soundEnabled ? S.rangeBtnActive : {}) }}>{t("settings.soundOn")}</button>
         </div>
       </div>
       <SubscriptionCard subscription={subscription} />
-      <button onClick={onStartTour} style={S.exportBtn}><GraduationCap size={15} /> إعادة الجولة التعريفية</button>
+      <button onClick={onStartTour} style={S.exportBtn}><GraduationCap size={15} /> {t("settings.replayTour")}</button>
       {!hasCloud && (
         <div style={S.setupCard}>
           <Cloud size={16} color="#5FA8A0" style={{ flexShrink: 0, marginTop: 2 }} />
-          <div style={S.setupText}>أنت تعمل الآن بالتخزين المحلي فقط. لتفعيل المزامنة السحابية، أضف مفاتيح Supabase في ملف البيئة.</div>
+          <div style={S.setupText}>{t("settings.localOnlyNote")}</div>
         </div>
       )}
       <div style={S.badgesCard}>
-        <div style={S.chartTitle}>شاراتك</div>
+        <div style={S.chartTitle}>{t("settings.yourBadges")}</div>
         <div style={S.badgesGrid} className="stagger-in">
           {BADGES.map((b) => {
             const earned = gamify.badges.includes(b.id);
@@ -4614,14 +4660,14 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
               <div key={b.id} style={{ ...S.badge, ...(earned ? S.badgeEarned : {}) }}>
                 <div style={{ ...S.badgeIcon, ...(earned ? S.badgeIconEarned : {}) }}>{b.icon}</div>
                 <div style={S.badgeName}>{b.name}</div>
-                <div style={S.badgeDesc}>{earned ? b.desc : "مقفلة"}</div>
+                <div style={S.badgeDesc}>{earned ? b.desc : t("settings.locked")}</div>
               </div>
             );
           })}
         </div>
       </div>
       <div style={S.catEditorCard}>
-        <div style={S.catEditorHeader}><Palette size={15} color="#C9A24B" /><span>فئاتك</span></div>
+        <div style={S.catEditorHeader}><Palette size={15} color="#C9A24B" /><span>{t("settings.yourCategories")}</span></div>
         <div style={S.catEditList}>
           {categories.map((c) => (
             <div key={c.id} style={S.catEditRow}>
@@ -4651,17 +4697,17 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
         <div style={S.catAddRow}>
           <div style={S.colorPickRow}>{COLOR_CHOICES.map((col) => <button key={col} onClick={() => setNewColor(col)} style={{ ...S.colorDot, background: col, outline: newColor === col ? "2px solid #fff" : "none" }} />)}</div>
           <div style={S.catAddInputRow}>
-            <input value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addCategory()} placeholder="اسم فئة جديدة..." style={S.catEditInput} />
+            <input value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addCategory()} placeholder={t("settings.newCategoryPlaceholder")} style={S.catEditInput} />
             <button onClick={addCategory} style={S.taskAddBtn}><Plus size={16} /></button>
           </div>
         </div>
       </div>
       {!isSub && categories.length >= FREE_CATEGORY_LIMIT && (
-        <UpsellCard icon={Palette} title="فئات بلا حدود مع مسار الكامل" message="نظّم أنشطتك بأي عدد من الفئات الملوّنة التي تناسب حياتك." compact />
+        <UpsellCard icon={Palette} title={t("settings.categoriesUpsellTitle")} message={t("settings.categoriesUpsellMessage")} compact />
       )}
       {pointsLog && pointsLog.length > 0 && (
         <div style={S.catEditorCard}>
-          <div style={S.catEditorHeader}><span style={{ fontSize: 14 }}>📋</span><span>سجل النقاط</span></div>
+          <div style={S.catEditorHeader}><span style={{ fontSize: 14 }}>📋</span><span>{t("settings.pointsLog")}</span></div>
           <div>
             {pointsLog.slice(0, 20).map((entry) => (
               <div key={entry.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
@@ -4669,7 +4715,7 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
                   <div style={{ fontSize: 13, color: "var(--ink)" }}>{entry.reason}</div>
                   <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>{entry.date}</div>
                 </div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: entry.amount >= 0 ? "#5FA8A0" : "#E05252", whiteSpace: "nowrap", marginRight: 8 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: entry.amount >= 0 ? "#5FA8A0" : "#E05252", whiteSpace: "nowrap", marginInlineStart: 8 }}>
                   {entry.amount >= 0 ? "+" : ""}{entry.amount}
                 </div>
               </div>
@@ -4688,26 +4734,29 @@ const SUBSCRIBE_INSTAGRAM_URL = "https://www.instagram.com/hjmasar";
 // تركّز دائماً على القيمة التي يفوّتها المستخدم، لا على "ادفع"، بأسلوب
 // دعوة راقية غير مُلحّة — انظر تعليق SUB.upsellCard أعلاه لتبرير التصميم.
 function UpsellCard({ icon: Icon = Crown, title, message, compact }) {
+  const { t } = useTranslation();
   return (
     <div style={{ ...SUB.upsellCard, ...(compact ? SUB.upsellCardCompact : {}) }}>
       <div style={SUB.upsellIconBadge}><Icon size={compact ? 20 : 26} color="var(--on-accent)" /></div>
       <div style={SUB.upsellTitle}>{title}</div>
       <p style={SUB.upsellMessage}>{message}</p>
       <a href={SUBSCRIBE_INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" style={SUB.upsellBtn}>
-        <Send size={15} /> اشترك الآن عبر إنستقرام
+        <Send size={15} /> {t("common.buttons.subscribeInstagram")}
       </a>
     </div>
   );
 }
 
 function SubscriptionCard({ subscription }) {
+  const { t, i18n } = useTranslation();
+  const language = i18n.language;
   const isVip = !!subscription?.isVip;
   const active = isActiveSubscriber(subscription);
 
   let endLabel = null;
   if (active && !isVip && subscription?.subscriptionEnd) {
     const [y, m, d] = subscription.subscriptionEnd.split("-").map(Number);
-    endLabel = arabicDate(new Date(y, m - 1, d), { day: "numeric", month: "long", year: "numeric" });
+    endLabel = arabicDate(new Date(y, m - 1, d), { day: "numeric", month: "long", year: "numeric" }, language === "en" ? "en-US" : undefined);
   }
 
   return (
@@ -4715,20 +4764,20 @@ function SubscriptionCard({ subscription }) {
       <div style={SUB.head}>
         <div style={SUB.iconBadge}>{isVip ? <Crown size={20} color="var(--on-accent)" /> : <Star size={20} color="var(--on-accent)" />}</div>
         <div>
-          <div style={SUB.title}>{isVip ? "عضويتك VIP" : active ? "اشتراكك في مسار" : "اشترك في مسار"}</div>
+          <div style={SUB.title}>{isVip ? t("subscription.vipTitle") : active ? t("subscription.activeTitle") : t("subscription.inactiveTitle")}</div>
           <div style={SUB.subtitle}>
             {isVip
-              ? "عضوية دائمة مميزة، بلا أي تاريخ انتهاء 👑"
+              ? t("subscription.vipSub")
               : active
-              ? `اشتراك ${subscription.subscriptionType === "yearly" ? "سنوي" : "شهري"} فعّال`
-              : "افتح كل إمكانيات مسار بأقل تكلفة"}
+              ? t("subscription.activeSub", { plan: t(subscription.subscriptionType === "yearly" ? "subscription.planYearly" : "subscription.planMonthly") })
+              : t("subscription.inactiveSub")}
           </div>
         </div>
       </div>
 
       {active && !isVip && endLabel && (
         <div style={SUB.statusRow}>
-          <span style={SUB.statusLabel}>ينتهي في</span>
+          <span style={SUB.statusLabel}>{t("subscription.endsOn")}</span>
           <span style={SUB.statusValue}>{endLabel}</span>
         </div>
       )}
@@ -4737,16 +4786,16 @@ function SubscriptionCard({ subscription }) {
         <>
           <div style={SUB.plansRow}>
             <div style={SUB.planCard}>
-              <div style={SUB.planLabel}>شهري</div>
-              <div style={SUB.planPrice}>3 د.ك</div>
+              <div style={SUB.planLabel}>{t("subscription.monthly")}</div>
+              <div style={SUB.planPrice}>{i18n.language === "en" ? "3 KWD" : "3 د.ك"}</div>
             </div>
             <div style={SUB.planCard}>
-              <div style={SUB.planLabel}>سنوي</div>
-              <div style={SUB.planPrice}>25 د.ك</div>
+              <div style={SUB.planLabel}>{t("subscription.yearly")}</div>
+              <div style={SUB.planPrice}>{i18n.language === "en" ? "25 KWD" : "25 د.ك"}</div>
             </div>
           </div>
           <a href={SUBSCRIBE_INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" style={SUB.subscribeBtn}>
-            <Send size={15} /> اشترك الآن عبر إنستقرام
+            <Send size={15} /> {t("common.buttons.subscribeInstagram")}
           </a>
         </>
       )}
@@ -4754,7 +4803,22 @@ function SubscriptionCard({ subscription }) {
   );
 }
 
+// HEALTH_CONDITIONS/NO_CONDITION وbmiCategory() في lib/health.js يعيدون
+// نصوصاً عربية خامًا مباشرة (لا حقل .key منفصل لكل شرط صحي أو فئة BMI،
+// خلافاً لـACTIVITY_LEVELS التي تملك .key فعلاً) - هاتان الخريطتان تربطان
+// كل نص عربي خام بمفتاح you.healthConditions.*/you.bmiCategories.* في ملفات
+// الترجمة، دون أي تعديل على lib/health.js نفسه.
+const CONDITION_KEY_MAP = {
+  "سكري": "diabetes", "ضغط الدم": "blood_pressure", "أمراض الكلى": "kidney",
+  "أمراض الكبد": "liver", "أمراض القلب": "heart", "ارتفاع الكولسترول": "cholesterol",
+};
+const BMI_CATEGORY_KEY_MAP = {
+  "نقص وزن": "underweight", "وزن طبيعي": "normal", "زيادة وزن": "overweight", "سمنة": "obese",
+};
+
 function YouView({ healthProfile, setHealthProfile, showToast }) {
+  const { t, i18n } = useTranslation();
+  const language = i18n.language;
   const hasData = !!(healthProfile.heightCm && healthProfile.weightKg && healthProfile.age && healthProfile.gender && healthProfile.activityLevel);
   const [editing, setEditing] = useState(!hasData);
   const [draft, setDraft] = useState(() => ({
@@ -4795,7 +4859,8 @@ function YouView({ healthProfile, setHealthProfile, showToast }) {
     const weightKg = Number(draft.weightKg);
     const age = Number(draft.age);
     if (!heightCm || !weightKg || !age || !draft.gender || !draft.activityLevel) {
-      showToast("أكمل الطول والوزن والعمر والجنس ومستوى النشاط");
+      // "missing locale key": you.missingFieldsError
+      showToast(language === "en" ? "Complete your height, weight, age, gender, and activity level" : "أكمل الطول والوزن والعمر والجنس ومستوى النشاط");
       return;
     }
     const metrics = computeHealthMetrics({ heightCm, weightKg, age, gender: draft.gender, activityLevel: draft.activityLevel });
@@ -4807,9 +4872,9 @@ function YouView({ healthProfile, setHealthProfile, showToast }) {
     const prevHealthProfile = healthProfile;
     setHealthProfile(next);
     const res = await store.saveHealthProfile(next);
-    if (!res.ok) { setHealthProfile(prevHealthProfile); showToast("تعذّر حفظ بياناتك، حاول مرة أخرى"); return; }
+    if (!res.ok) { setHealthProfile(prevHealthProfile); showToast(t("common.errors.saveFailed")); return; }
     setEditing(false);
-    showToast("تم حفظ بياناتك بنجاح");
+    showToast(t("todayView.savedSuccess"));
   }
 
   const showDisclaimer = (healthProfile.conditions || []).some((c) => c !== NO_CONDITION);
@@ -4820,144 +4885,165 @@ function YouView({ healthProfile, setHealthProfile, showToast }) {
         <div style={YS.hero}>
           <div style={YS.heroIcon}><User size={22} color="var(--on-accent)" /></div>
           <div>
-            <div style={YS.heroTitle}>أنت</div>
-            <div style={YS.heroSub}>بياناتك الأساسية — أساس تُبنى عليه أقسام التغذية والرياضة لاحقاً.</div>
+            <div style={YS.heroTitle}>{t("nav.you")}</div>
+            {/* "missing locale key": you.heroSubEdit */}
+            <div style={YS.heroSub}>{language === "en" ? "Your basic data — the foundation the nutrition and fitness sections build on later." : "بياناتك الأساسية — أساس تُبنى عليه أقسام التغذية والرياضة لاحقاً."}</div>
           </div>
         </div>
         <div style={YS.formCard}>
           <div style={YS.row2}>
             <div style={YS.col}>
-              <label style={S.label}>الطول (سم)</label>
-              <input type="number" inputMode="decimal" value={draft.heightCm} onChange={(e) => change("heightCm", e.target.value)} placeholder="مثال: 170" style={S.input} />
+              <label style={S.label}>{language === "en" ? "Height (cm)" : "الطول (سم)"}</label>
+              <input type="number" inputMode="decimal" value={draft.heightCm} onChange={(e) => change("heightCm", e.target.value)} placeholder={language === "en" ? "e.g. 170" : "مثال: 170"} style={S.input} />
             </div>
             <div style={YS.col}>
-              <label style={S.label}>الوزن (كغم)</label>
-              <input type="number" inputMode="decimal" value={draft.weightKg} onChange={(e) => change("weightKg", e.target.value)} placeholder="مثال: 70" style={S.input} />
+              <label style={S.label}>{language === "en" ? "Weight (kg)" : "الوزن (كغم)"}</label>
+              <input type="number" inputMode="decimal" value={draft.weightKg} onChange={(e) => change("weightKg", e.target.value)} placeholder={language === "en" ? "e.g. 70" : "مثال: 70"} style={S.input} />
             </div>
           </div>
           <div style={YS.row2}>
             <div style={YS.col}>
-              <label style={S.label}>العمر (سنة)</label>
-              <input type="number" inputMode="numeric" value={draft.age} onChange={(e) => change("age", e.target.value)} placeholder="مثال: 25" style={S.input} />
+              <label style={S.label}>{language === "en" ? "Age (years)" : "العمر (سنة)"}</label>
+              <input type="number" inputMode="numeric" value={draft.age} onChange={(e) => change("age", e.target.value)} placeholder={language === "en" ? "e.g. 25" : "مثال: 25"} style={S.input} />
             </div>
             <div style={YS.col}>
-              <label style={S.label}>الجنس</label>
+              <label style={S.label}>{language === "en" ? "Gender" : "الجنس"}</label>
               <div style={PS.modeToggleRow}>
-                <button onClick={() => change("gender", "male")} style={{ ...PS.modeToggleBtn, ...(draft.gender === "male" ? PS.modeToggleBtnActive : {}) }}>ذكر</button>
-                <button onClick={() => change("gender", "female")} style={{ ...PS.modeToggleBtn, ...(draft.gender === "female" ? PS.modeToggleBtnActive : {}) }}>أنثى</button>
+                <button onClick={() => change("gender", "male")} style={{ ...PS.modeToggleBtn, ...(draft.gender === "male" ? PS.modeToggleBtnActive : {}) }}>{language === "en" ? "Male" : "ذكر"}</button>
+                <button onClick={() => change("gender", "female")} style={{ ...PS.modeToggleBtn, ...(draft.gender === "female" ? PS.modeToggleBtnActive : {}) }}>{language === "en" ? "Female" : "أنثى"}</button>
               </div>
             </div>
           </div>
-          <label style={S.label}>مستوى النشاط البدني</label>
+          <label style={S.label}>{language === "en" ? "Physical activity level" : "مستوى النشاط البدني"}</label>
           <select value={draft.activityLevel} onChange={(e) => change("activityLevel", e.target.value)} style={S.input}>
-            <option value="" disabled>اختر مستوى نشاطك</option>
-            {ACTIVITY_LEVELS.map((a) => <option key={a.key} value={a.key}>{a.label}</option>)}
+            <option value="" disabled>{language === "en" ? "Choose your activity level" : "اختر مستوى نشاطك"}</option>
+            {ACTIVITY_LEVELS.map((a) => <option key={a.key} value={a.key}>{t(`you.activityLevels.${a.key}`, a.label)}</option>)}
           </select>
-          <label style={S.label}>الحالات الصحية (اختياري)</label>
+          <label style={S.label}>{language === "en" ? "Health conditions (optional)" : "الحالات الصحية (اختياري)"}</label>
           <div style={YS.chipRow}>
             {HEALTH_CONDITIONS.map((c) => (
-              <button key={c} onClick={() => toggleCondition(c)} style={{ ...YS.chip, ...(draft.conditions.includes(c) ? YS.chipActive : {}) }}>{c}</button>
+              <button key={c} onClick={() => toggleCondition(c)} style={{ ...YS.chip, ...(draft.conditions.includes(c) ? YS.chipActive : {}) }}>{t(`you.healthConditions.${CONDITION_KEY_MAP[c] || ""}`, c)}</button>
             ))}
-            <button onClick={() => toggleCondition(NO_CONDITION)} style={{ ...YS.chip, ...(draft.conditions.includes(NO_CONDITION) ? YS.chipActive : {}) }}>{NO_CONDITION}</button>
+            <button onClick={() => toggleCondition(NO_CONDITION)} style={{ ...YS.chip, ...(draft.conditions.includes(NO_CONDITION) ? YS.chipActive : {}) }}>{t("you.healthConditions.none", NO_CONDITION)}</button>
           </div>
-          <button onClick={save} style={S.saveBtn}>احفظ واحسب</button>
+          {/* "missing locale key": you.saveAndCalculate */}
+          <button onClick={save} style={S.saveBtn}>{language === "en" ? "Save and calculate" : "احفظ واحسب"}</button>
         </div>
       </div>
     );
   }
 
-  const genderLabel = healthProfile.gender === "male" ? "ذكر" : "أنثى";
-  const activityLabel = ACTIVITY_LEVELS.find((a) => a.key === healthProfile.activityLevel)?.label || "—";
+  const genderLabel = healthProfile.gender === "male" ? (language === "en" ? "Male" : "ذكر") : (language === "en" ? "Female" : "أنثى");
+  const activityLabel = healthProfile.activityLevel ? t(`you.activityLevels.${healthProfile.activityLevel}`, ACTIVITY_LEVELS.find((a) => a.key === healthProfile.activityLevel)?.label) : "—";
+  const bmiCategoryLabel = healthProfile.bmiCategory ? t(`you.bmiCategories.${BMI_CATEGORY_KEY_MAP[healthProfile.bmiCategory] || ""}`, healthProfile.bmiCategory) : null;
 
   return (
     <div style={S.view}>
       <div style={YS.hero}>
         <div style={YS.heroIcon}><User size={22} color="var(--on-accent)" /></div>
         <div>
-          <div style={YS.heroTitle}>أنت</div>
-          <div style={YS.heroSub}>بياناتك ونتائجك الصحية المحسوبة.</div>
+          <div style={YS.heroTitle}>{t("nav.you")}</div>
+          {/* "missing locale key": you.heroSubResults */}
+          <div style={YS.heroSub}>{language === "en" ? "Your data and calculated health results." : "بياناتك ونتائجك الصحية المحسوبة."}</div>
         </div>
       </div>
 
       {showDisclaimer && (
         <div style={YS.warningCard}>
           <AlertTriangle size={20} color="#D17B5F" style={{ flexShrink: 0, marginTop: 2 }} />
-          <p style={YS.warningText}>{MEDICAL_DISCLAIMER}</p>
+          <p style={YS.warningText}>{t("you.medicalDisclaimer")}</p>
         </div>
       )}
 
       <div style={YS.summaryCard}>
         <div>
-          <div style={YS.summaryLabel}>بياناتك</div>
-          <div style={YS.summaryValue}>{healthProfile.heightCm} سم · {healthProfile.weightKg} كغم · {healthProfile.age} سنة · {genderLabel}</div>
+          {/* "missing locale key": you.yourData */}
+          <div style={YS.summaryLabel}>{language === "en" ? "Your data" : "بياناتك"}</div>
+          <div style={YS.summaryValue}>{healthProfile.heightCm} {language === "en" ? "cm" : "سم"} · {healthProfile.weightKg} {language === "en" ? "kg" : "كغم"} · {healthProfile.age} {language === "en" ? "yrs" : "سنة"} · {genderLabel}</div>
           <div style={{ ...YS.summaryLabel, marginTop: 4 }}>{activityLabel}</div>
         </div>
-        <button onClick={() => setEditing(true)} style={{ ...S.exportBtn, width: "auto", padding: "9px 14px", marginBottom: 0 }}><Edit3 size={14} /> تحديث بياناتي</button>
+        {/* "missing locale key": you.updateMyData */}
+        <button onClick={() => setEditing(true)} style={{ ...S.exportBtn, width: "auto", padding: "9px 14px", marginBottom: 0 }}><Edit3 size={14} /> {language === "en" ? "Update my data" : "تحديث بياناتي"}</button>
       </div>
 
       <div style={YS.resultsGrid}>
         <div style={YS.resultCard}>
-          <div style={YS.resultLabel}>BMI · مؤشر كتلة الجسم</div>
+          <div style={YS.resultLabel}>{language === "en" ? "BMI · Body Mass Index" : "BMI · مؤشر كتلة الجسم"}</div>
           <div style={YS.resultValue}>{healthProfile.bmi ?? "—"}</div>
-          {healthProfile.bmiCategory && <div style={YS.resultCategory}>{healthProfile.bmiCategory}</div>}
-          <div style={YS.resultHint}>نسبة وزنك إلى طولك — مؤشر عام لا يفرّق بين الدهون والعضلات.</div>
+          {bmiCategoryLabel && <div style={YS.resultCategory}>{bmiCategoryLabel}</div>}
+          <div style={YS.resultHint}>{language === "en" ? "Your weight-to-height ratio — a general indicator that doesn't distinguish fat from muscle." : "نسبة وزنك إلى طولك — مؤشر عام لا يفرّق بين الدهون والعضلات."}</div>
         </div>
         <div style={YS.resultCard}>
-          <div style={YS.resultLabel}>IBW · الوزن المثالي</div>
-          <div style={YS.resultValue}>{healthProfile.ibw ?? "—"}<span style={YS.resultUnit}>كغم</span></div>
-          <div style={YS.resultHint}>وزن تقديري مرجعي بحسب طولك وجنسك.</div>
+          <div style={YS.resultLabel}>{language === "en" ? "IBW · Ideal Body Weight" : "IBW · الوزن المثالي"}</div>
+          <div style={YS.resultValue}>{healthProfile.ibw ?? "—"}<span style={YS.resultUnit}>{language === "en" ? "kg" : "كغم"}</span></div>
+          <div style={YS.resultHint}>{language === "en" ? "An estimated reference weight based on your height and gender." : "وزن تقديري مرجعي بحسب طولك وجنسك."}</div>
         </div>
         <div style={YS.resultCard}>
-          <div style={YS.resultLabel}>REE · الأيض الأساسي</div>
-          <div style={YS.resultValue}>{healthProfile.ree ?? "—"}<span style={YS.resultUnit}>سعرة</span></div>
-          <div style={YS.resultHint}>الطاقة التي يحرقها جسمك وأنت في راحة تامة خلال اليوم.</div>
+          <div style={YS.resultLabel}>{language === "en" ? "REE · Basal Metabolic Rate" : "REE · الأيض الأساسي"}</div>
+          <div style={YS.resultValue}>{healthProfile.ree ?? "—"}<span style={YS.resultUnit}>{t("common.units.kcal")}</span></div>
+          <div style={YS.resultHint}>{language === "en" ? "The energy your body burns at complete rest during the day." : "الطاقة التي يحرقها جسمك وأنت في راحة تامة خلال اليوم."}</div>
         </div>
         <div style={YS.resultCard}>
-          <div style={YS.resultLabel}>TEE · إجمالي الطاقة اليومي</div>
-          <div style={YS.resultValue}>{healthProfile.tee ?? "—"}<span style={YS.resultUnit}>سعرة</span></div>
-          <div style={YS.resultHint}>تقدير سعراتك المستهلكة يومياً مع مستوى نشاطك الحالي.</div>
+          <div style={YS.resultLabel}>{language === "en" ? "TEE · Total Daily Energy" : "TEE · إجمالي الطاقة اليومي"}</div>
+          <div style={YS.resultValue}>{healthProfile.tee ?? "—"}<span style={YS.resultUnit}>{t("common.units.kcal")}</span></div>
+          <div style={YS.resultHint}>{language === "en" ? "An estimate of your daily calories burned at your current activity level." : "تقدير سعراتك المستهلكة يومياً مع مستوى نشاطك الحالي."}</div>
         </div>
       </div>
     </div>
   );
 }
 
+// "missing locale key"s لهذا المكوّن كاملاً (لا مساحة أسماء مخصّصة له بعد
+// في ملفات الترجمة): settings.identity.title/subtitle/nameLabel/
+// namePlaceholder/aboutLabel/aboutPlaceholder/hobbiesLabel/
+// hobbiesPlaceholder/fieldLabel/fieldPlaceholder/saveButton - استُخدم نص
+// إنجليزي/عربي حرفي بديل مؤقتاً بدلاً منها.
 function ProfileCard({ profile, setProfile, showToast }) {
+  const { t, i18n } = useTranslation();
+  const isEn = i18n.language === "en";
   const [local, setLocal] = useState(profile);
   const [dirty, setDirty] = useState(false);
   useEffect(() => { setLocal(profile); }, [profile]);
 
   function change(field, val) { setLocal((p) => ({ ...p, [field]: val })); setDirty(true); }
   async function save() {
-    setProfile(local); await store.saveProfile(local); setDirty(false); showToast("تم حفظ بياناتك بنجاح");
+    setProfile(local); await store.saveProfile(local); setDirty(false); showToast(t("todayView.savedSuccess"));
   }
 
   return (
     <div style={S.profileCard}>
-      <div style={S.catEditorHeader}><User size={15} color="#C9A24B" /><span>هويتي</span></div>
-      <p style={S.profileHint}>هذه البيانات تجعل اقتراحات أنجز والتحليل مرتبطة بك شخصياً.</p>
-      <label style={S.label}>اسمك</label>
-      <input value={local.name || ""} onChange={(e) => change("name", e.target.value)} placeholder="مثال: أحمد" style={S.input} />
-      <label style={S.label}>من أنا</label>
-      <input value={local.about} onChange={(e) => change("about", e.target.value)} placeholder="مثال: مصور ومصمم محتوى بصري وطالب جامعي" style={S.input} />
-      <label style={S.label}>هواياتي</label>
-      <input value={local.hobbies} onChange={(e) => change("hobbies", e.target.value)} placeholder="مثال: التصوير، تمارين الجسم، التصميم" style={S.input} />
-      <label style={S.label}>تخصصي</label>
-      <input value={local.field} onChange={(e) => change("field", e.target.value)} placeholder="مثال: التغذية والتطبيق الغذائي" style={S.input} />
-      {dirty && <button onClick={save} style={{ ...S.saveBtn, marginTop: 12 }}>حفظ هويتي</button>}
+      <div style={S.catEditorHeader}><User size={15} color="#C9A24B" /><span>{isEn ? "My Identity" : "هويتي"}</span></div>
+      <p style={S.profileHint}>{isEn ? "This data makes Achieve's suggestions and analysis personal to you." : "هذه البيانات تجعل اقتراحات أنجز والتحليل مرتبطة بك شخصياً."}</p>
+      <label style={S.label}>{isEn ? "Your name" : "اسمك"}</label>
+      <input value={local.name || ""} onChange={(e) => change("name", e.target.value)} placeholder={isEn ? "e.g. Ahmed" : "مثال: أحمد"} style={S.input} />
+      <label style={S.label}>{isEn ? "About me" : "من أنا"}</label>
+      <input value={local.about} onChange={(e) => change("about", e.target.value)} placeholder={isEn ? "e.g. Photographer, visual content designer, and university student" : "مثال: مصور ومصمم محتوى بصري وطالب جامعي"} style={S.input} />
+      <label style={S.label}>{isEn ? "My hobbies" : "هواياتي"}</label>
+      <input value={local.hobbies} onChange={(e) => change("hobbies", e.target.value)} placeholder={isEn ? "e.g. Photography, bodyweight exercise, design" : "مثال: التصوير، تمارين الجسم، التصميم"} style={S.input} />
+      <label style={S.label}>{isEn ? "My field" : "تخصصي"}</label>
+      <input value={local.field} onChange={(e) => change("field", e.target.value)} placeholder={isEn ? "e.g. Nutrition and food tech" : "مثال: التغذية والتطبيق الغذائي"} style={S.input} />
+      {dirty && <button onClick={save} style={{ ...S.saveBtn, marginTop: 12 }}>{isEn ? "Save my identity" : "حفظ هويتي"}</button>}
     </div>
   );
 }
 
+// "missing locale key"s لهذا المكوّن أيضاً (settings.roadmap.*) - محتوى
+// تسويقي/رؤية مستقبلية بحت، استُخدم نص إنجليزي حرفي بديل مؤقتاً.
 function RoadmapCard() {
-  const phases = [
+  const { i18n } = useTranslation();
+  const isEn = i18n.language === "en";
+  const phases = isEn ? [
+    { phase: "Current version", title: "Your daily tool", items: ["Time tracking with the interactive day wheel", "Task management", "AI analysis and daily progress", "Cloud storage with a local copy"] },
+    { phase: "Next", title: "Deeper memory", items: ["Measurable weekly goals", "Smart reminders based on your pattern", "Comparing weeks against each other"] },
+    { phase: "Later", title: "Connecting your life", items: ["Calendar import", "A voice summary of daily progress", "Exporting your PDF reports"] },
+  ] : [
     { phase: "النسخة الحالية", title: "أداتك اليومية", items: ["تتبع الوقت بعجلة اليوم التفاعلية", "إدارة المهام", "تحليل AI وتطور يومي", "تخزين سحابي مع نسخة محلية"] },
     { phase: "التالي", title: "ذاكرة أعمق", items: ["أهداف أسبوعية قابلة للقياس", "تذكيرات ذكية حسب نمطك", "مقارنة الأسابيع ببعضها"] },
     { phase: "لاحقاً", title: "ربط حياتك", items: ["استيراد من التقويم", "ملخص صوتي للتطور اليومي", "تصدير تقاريرك PDF"] },
   ];
   return (
     <div style={S.roadmapCard}>
-      <div style={S.chartTitle}>كيف يتطوّر مسار معك</div>
+      <div style={S.chartTitle}>{isEn ? "How Masar evolves with you" : "كيف يتطوّر مسار معك"}</div>
       {phases.map((p, i) => (
         <div key={i} style={S.roadmapPhaseRow}>
           <div style={S.roadmapPhaseHead}><span style={S.roadmapPhaseTag}>{p.phase}</span><span style={S.roadmapPhaseTitle}>{p.title}</span></div>

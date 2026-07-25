@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { fivePrayers, nextPrayer, to12h } from "../lib/prayer";
 import { ADHKAR_CATEGORIES, ADHKAR } from "../lib/adhkar";
-import { store, setOwner, getOwner } from "../lib/store";
+import { store, setOwner, getOwner, DEFAULT_CATEGORIES } from "../lib/store";
 import { pickDailyTip, TIP_CATEGORY_LABELS, localDayKey, TIPS, FALLBACK_TIP } from "../lib/tips";
 import { pickDailyMoneyTip, MONEY_TIP_CATEGORY_LABELS } from "../lib/money-tips";
 import { isActiveSubscriber } from "../lib/subscription";
@@ -1045,6 +1045,16 @@ function mandatoryTaskLabel(task, t) {
   return t(`todayView.mandatoryTasks.${task.key}`, task.label);
 }
 
+// كل فئة تُترجم فقط إن كانت لا تزال مطابقة تماماً لأحد الأسماء الافتراضية
+// (id + name معاً) - أي فئة أعاد المستخدم تسميتها تحتفظ بنصّه الحرفي في كل
+// لغة، فلا نستبدل تخصيصه الشخصي باسم إنجليزي لم يطلبه.
+function catDisplayName(cat, language) {
+  if (!cat) return cat;
+  if (language !== "en") return cat.name;
+  const def = DEFAULT_CATEGORIES.find((d) => d.id === cat.id && d.name === cat.name);
+  return def ? def.nameEn : cat.name;
+}
+
 function TodayView({ date, setDate, entries, setEntries, categories, tasks, setTasks, reports, setReports, aiHistory, mandatoryLog, setMandatoryLog, focus, addPoints, showToast, subscription }) {
   const { t, i18n } = useTranslation();
   const language = i18n.language;
@@ -1202,7 +1212,7 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
 
       <div style={S.legendRow}>
         {byCategory.map((c) => (
-          <div key={c.catId} style={S.legendChip}><span style={{ ...S.legendDot, background: c.color }} /><span>{c.name}</span><span style={S.legendMins}>{fmtHM(c.mins, language)}</span></div>
+          <div key={c.catId} style={S.legendChip}><span style={{ ...S.legendDot, background: c.color }} /><span>{catDisplayName(c, language)}</span><span style={S.legendMins}>{fmtHM(c.mins, language)}</span></div>
         ))}
         {byCategory.length === 0 && <div style={S.emptyHint}>{t("todayView.noActivitiesToday")}</div>}
       </div>
@@ -1240,7 +1250,7 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
           return (
             <div key={e.id} style={S.entryRow} onClick={() => { setEditingEntry(e); setModalOpen(true); }}>
               <span style={{ ...S.entryBar, background: cat.color }} />
-              <div style={S.entryInfo}><div style={S.entryName}>{cat.name}</div>{e.note && <div style={S.entryNote}>{e.note}</div>}</div>
+              <div style={S.entryInfo}><div style={S.entryName}>{catDisplayName(cat, language)}</div>{e.note && <div style={S.entryNote}>{e.note}</div>}</div>
               <div style={S.entryTime}><div style={S.entryDuration}>{fmtHM(diffMinutes(e.start, e.end), language)}</div></div>
               <div style={{ display: "flex", gap: 3, alignItems: "center" }} onClick={(ev) => ev.stopPropagation()}>
                 <button onClick={() => adjustMins(-2)} style={{ ...S.deleteBtn, fontSize: 12, color: "var(--muted2)" }}>-2</button>
@@ -1445,7 +1455,7 @@ function TasksView({ tasks, setTasks, categories, addPoints, showToast, subscrip
         <div style={S.catScroll}>
           {categories.map((c) => (
             <button key={c.id} onClick={() => setCatId(c.id)} style={{ ...S.catMini, borderColor: catId === c.id ? c.color : "var(--border2)", background: catId === c.id ? `${c.color}22` : "transparent" }}>
-              <span style={{ ...S.legendDot, background: c.color }} />{c.name}
+              <span style={{ ...S.legendDot, background: c.color }} />{catDisplayName(c, language)}
             </button>
           ))}
         </div>
@@ -1464,7 +1474,7 @@ function TasksView({ tasks, setTasks, categories, addPoints, showToast, subscrip
               <span onClick={() => toggle(task)} style={{ ...S.checkbox, ...(task.done ? S.checkboxDone : {}) }}>{task.done && <Check size={12} />}</span>
               <div style={S.taskInfo}>
                 <div style={{ ...S.taskTitle, ...(task.done ? S.taskTitleDone : {}) }}>{task.title}</div>
-                {cat && <div style={S.taskTags}><span style={S.taskTag}><span style={{ ...S.legendDot, background: cat.color, width: 6, height: 6 }} />{cat.name}</span></div>}
+                {cat && <div style={S.taskTags}><span style={S.taskTag}><span style={{ ...S.legendDot, background: cat.color, width: 6, height: 6 }} />{catDisplayName(cat, language)}</span></div>}
               </div>
               <button onClick={() => remove(task.id)} style={S.deleteBtn}><Trash2 size={14} /></button>
             </div>
@@ -1550,7 +1560,7 @@ function ReportsView({ entries, categories, focus, profile, healthProfile, sleep
   const catTotals = useMemo(() => {
     const m = {};
     entries.filter((e) => days.includes(e.date)).forEach((e) => { m[e.catId] = (m[e.catId] || 0) + diffMinutes(e.start, e.end); });
-    return Object.entries(m).map(([catId, mins]) => ({ name: catMap[catId]?.name || t("reportsView.unspecified"), value: mins, color: catMap[catId]?.color || "#9A968F" })).sort((a, b) => b.value - a.value);
+    return Object.entries(m).map(([catId, mins]) => ({ name: catMap[catId] ? catDisplayName(catMap[catId], language) : t("reportsView.unspecified"), value: mins, color: catMap[catId]?.color || "#9A968F" })).sort((a, b) => b.value - a.value);
   }, [entries, days, catMap, language]);
 
   // تبويب "الدراسة": يقتصر على الجلسات المعلَّمة isStudy (نفس تمييز
@@ -4687,7 +4697,7 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
               ) : (
                 <>
                   <span style={{ ...S.legendDot, background: c.color, width: 12, height: 12 }} />
-                  <span style={S.catEditName}>{c.name}</span>
+                  <span style={S.catEditName}>{isEn ? (DEFAULT_CATEGORIES.find((d) => d.id === c.id && d.name === c.name)?.nameEn || c.name) : c.name}</span>
                   <button onClick={() => startEditing(c)} style={S.catIconBtn}><Edit3 size={13} /></button>
                   <button onClick={() => removeCategory(c.id)} style={S.catIconBtn}><Trash2 size={13} /></button>
                 </>
@@ -5115,7 +5125,7 @@ function EntryModal({ entry, date, categories, onSave, onClose }) {
           <div style={S.catGrid}>
             {categories.map((c) => (
               <button key={c.id} onClick={() => selectCat(c.id)} style={{ ...S.catChip, borderColor: catId === c.id ? c.color : "var(--border2)", background: catId === c.id ? `${c.color}22` : "transparent" }}>
-                <span style={{ ...S.legendDot, background: c.color }} />{c.name}
+                <span style={{ ...S.legendDot, background: c.color }} />{catDisplayName(c, i18n.language)}
               </button>
             ))}
           </div>

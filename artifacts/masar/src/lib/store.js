@@ -64,11 +64,11 @@ function isoDateDaysAgo(n) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-const DEFAULT_CATEGORIES = [
-  { id: "prayer", name: "الصلاة", color: "#5FA8A0" },
-  { id: "study", name: "الدراسة", color: "#8A7BD1" },
-  { id: "reading", name: "القراءة", color: "#C9A24B" },
-  { id: "learning", name: "التعلم", color: "#6FA8DC" },
+export const DEFAULT_CATEGORIES = [
+  { id: "prayer", name: "الصلاة", nameEn: "Prayer", color: "#5FA8A0" },
+  { id: "study", name: "الدراسة", nameEn: "Study", color: "#8A7BD1" },
+  { id: "reading", name: "القراءة", nameEn: "Reading", color: "#C9A24B" },
+  { id: "learning", name: "التعلم", nameEn: "Learning", color: "#6FA8DC" },
 ];
 
 const fromDbEntry = (r) => ({ id: r.id, date: r.date, catId: r.cat_id, start: r.start_time, end: r.end_time, note: r.note || "" });

@@ -50,15 +50,16 @@ const FS = {
 };
 
 function ExerciseRow({ exercise }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const Icon = ICONS[exercise.icon] || Dumbbell;
+  const isEn = i18n.language === "en";
   return (
     <div style={FS.exerciseRow}>
       <div style={FS.exerciseIcon}><Icon size={16} /></div>
       <div style={{ flex: 1 }}>
-        <div style={FS.exerciseName}>{exercise.name}</div>
+        <div style={FS.exerciseName}>{isEn ? (exercise.nameEn || exercise.name) : exercise.name}</div>
         <div style={FS.exerciseMeta}>{t("fitness.setsReps", { sets: exercise.sets, reps: exercise.reps })}</div>
-        <div style={FS.exerciseDesc}>{exercise.description}</div>
+        <div style={FS.exerciseDesc}>{isEn ? (exercise.descriptionEn || exercise.description) : exercise.description}</div>
       </div>
       <a href={youtubeSearchUrl(exercise)} target="_blank" rel="noopener noreferrer" style={FS.watchBtn}>
         <ExternalLink size={12} /> {t("fitness.watchTutorial")}

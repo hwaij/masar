@@ -529,8 +529,8 @@ export default function MasarApp() {
       store.saveGamify(next).then((res) => {
         if (!res.ok) { setGamify(prevGamify); showToast(t("common.errors.saveFailed")); }
       });
-      // "missing locale key" لهذا السطر: settings.badgeEarnedToast ("New badge: {{name}}" / "شارة جديدة: {{name}}")
-      showToast((i18n.language === "en" ? "New badge: " : "شارة جديدة: ") + BADGES.find((b) => b.id === newOnes[0]).name);
+      const earnedBadge = BADGES.find((b) => b.id === newOnes[0]);
+      showToast((i18n.language === "en" ? "New badge: " : "شارة جديدة: ") + (i18n.language === "en" ? (earnedBadge.nameEn || earnedBadge.name) : earnedBadge.name));
     }
   }, [stats, loaded]);
 
@@ -3056,7 +3056,7 @@ function TipsView({ tipsLog, setTipsLog, showToast, subscription }) {
               <div style={TS.ornament}>
                 <span style={TS.ornamentLine} /><span style={TS.ornamentDot}>◆</span><span style={TS.ornamentLineRev} />
               </div>
-              <p style={TS.quoteText}>{todayTip.text}</p>
+              <p style={TS.quoteText}>{language === "en" ? (todayTip.textEn || todayTip.text) : todayTip.text}</p>
               <div style={TS.footerRow}>
                 <span style={TS.categoryPill}>{t(`tips.categories.${todayTip.category}`, TIP_CATEGORY_LABELS[todayTip.category] || t("tips.categoryFallback"))}</span>
               </div>
@@ -3082,7 +3082,7 @@ function TipsView({ tipsLog, setTipsLog, showToast, subscription }) {
                       <span style={TS.categoryPill}>{t(`tips.categories.${tip.category}`, TIP_CATEGORY_LABELS[tip.category] || t("tips.categoryFallback"))}</span>
                       <span style={TS.archiveDate}>{arabicDate(new Date(y, m - 1, d), { weekday: "long", day: "numeric", month: "long" }, language === "en" ? "en-US" : undefined)}</span>
                     </div>
-                    <p style={TS.archiveText}>{tip.text}</p>
+                    <p style={TS.archiveText}>{language === "en" ? (tip.textEn || tip.text) : tip.text}</p>
                   </div>
                 );
               })}
@@ -3095,7 +3095,7 @@ function TipsView({ tipsLog, setTipsLog, showToast, subscription }) {
 }
 
 function DailyTipModal({ tip, onClose }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   return (
     <div style={S.modalOverlay} className="overlay-in" onClick={onClose}>
       <div style={{ ...S.modal, borderRadius: 20, maxWidth: 420 }} className="sheet-in" onClick={(e) => e.stopPropagation()}>
@@ -3104,7 +3104,7 @@ function DailyTipModal({ tip, onClose }) {
           <div style={TS.ornament}>
             <span style={TS.ornamentLine} /><span style={TS.ornamentDot}>◆</span><span style={TS.ornamentLineRev} />
           </div>
-          <p style={TS.quoteText}>{tip.text}</p>
+          <p style={TS.quoteText}>{i18n.language === "en" ? (tip.textEn || tip.text) : tip.text}</p>
           <div style={TS.footerRow}>
             <span style={TS.categoryPill}>{t(`tips.categories.${tip.category}`, TIP_CATEGORY_LABELS[tip.category] || t("tips.categoryFallback"))}</span>
           </div>
@@ -3530,9 +3530,9 @@ function VaultView({ vault, setVault, vaultTx, setVaultTx, showToast }) {
           <div style={TS.ornament}>
             <span style={TS.ornamentLine} /><span style={TS.ornamentDot}>◆</span><span style={TS.ornamentLineRev} />
           </div>
-          <p style={TS.quoteText}>{todayMoneyTip.text}</p>
+          <p style={TS.quoteText}>{language === "en" ? (todayMoneyTip.textEn || todayMoneyTip.text) : todayMoneyTip.text}</p>
           <div style={TS.footerRow}>
-            <span style={TS.categoryPill}>{MONEY_TIP_CATEGORY_LABELS[todayMoneyTip.category] || t("vault.financialTipFallback")}</span>
+            <span style={TS.categoryPill}>{t(`tips.categories.${todayMoneyTip.category}`, MONEY_TIP_CATEGORY_LABELS[todayMoneyTip.category] || t("vault.financialTipFallback"))}</span>
           </div>
         </div>
 
@@ -4468,7 +4468,8 @@ function AchieveCard({ item, kindLabel, onToggle, onRemove }) {
 const FREE_CATEGORY_LIMIT = 5;
 
 function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, profile, setProfile, pointsLog, onStartTour, subscription, theme, toggleTheme, fontSize, changeFontSize, highContrast, toggleHighContrast, spacious, toggleSpacious }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isEn = i18n.language === "en";
   const isSub = isActiveSubscriber(subscription);
   const [editing, setEditing] = useState(null);
   // While a category is being renamed, edits live here only — nothing is
@@ -4659,8 +4660,8 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
             return (
               <div key={b.id} style={{ ...S.badge, ...(earned ? S.badgeEarned : {}) }}>
                 <div style={{ ...S.badgeIcon, ...(earned ? S.badgeIconEarned : {}) }}>{b.icon}</div>
-                <div style={S.badgeName}>{b.name}</div>
-                <div style={S.badgeDesc}>{earned ? b.desc : t("settings.locked")}</div>
+                <div style={S.badgeName}>{isEn ? (b.nameEn || b.name) : b.name}</div>
+                <div style={S.badgeDesc}>{earned ? (isEn ? (b.descEn || b.desc) : b.desc) : t("settings.locked")}</div>
               </div>
             );
           })}

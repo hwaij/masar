@@ -1151,11 +1151,11 @@ function AIPhotoPanel({ onSave, onManual }) {
         <div style={NS.chooserGrid}>
           <button onClick={() => cameraInputRef.current?.click()} style={NS.chooserBtn}>
             <span style={NS.chooserIcon}><Camera size={19} /></span>
-            التقط صورة
+            {t("nutrition.takePhoto")}
           </button>
           <button onClick={() => galleryInputRef.current?.click()} style={NS.chooserBtn}>
             <span style={NS.chooserIcon}><ImagePlus size={19} /></span>
-            اختر من المعرض
+            {t("nutrition.chooseFromGallery")}
           </button>
         </div>
       )}
@@ -1164,14 +1164,14 @@ function AIPhotoPanel({ onSave, onManual }) {
       {analyzing && (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "16px 0", gap: 10 }}>
           <Loader2 size={22} className="spin" color="var(--gold)" />
-          <span style={{ fontSize: 13, color: "var(--muted2)" }}>نحلّل الصورة...</span>
+          <span style={{ fontSize: 13, color: "var(--muted2)" }}>{t("nutrition.analyzingPhoto")}</span>
         </div>
       )}
 
       {error && (
         <>
           <div style={NS.errorText}>{error}</div>
-          <button onClick={() => { setPreview(null); setError(null); }} style={{ ...S.exportBtn, marginBottom: 8 }}>إعادة المحاولة بصورة أخرى</button>
+          <button onClick={() => { setPreview(null); setError(null); }} style={{ ...S.exportBtn, marginBottom: 8 }}>{t("nutrition.retryWithAnotherPhoto")}</button>
         </>
       )}
 
@@ -1184,9 +1184,9 @@ function AIPhotoPanel({ onSave, onManual }) {
           )}
           <div style={NS.disclaimerBox}>
             <Sparkles size={15} color="#C9A24B" style={{ flexShrink: 0, marginTop: 1 }} />
-            <span>هذه القيم تقديرية اعتماداً على تحليل الصورة، وقد تختلف عن القيم الفعلية. يمكنك تعديل الكميات يدوياً قبل الحفظ.</span>
+            <span>{t("nutrition.aiEstimateNote")}</span>
           </div>
-          <label style={S.label}>عدد الحصص (الصورة تمثّل حصة واحدة)</label>
+          <label style={S.label}>{t("nutrition.servingsCountPhotoRepresents")}</label>
           <div style={NS.multiplierRow}>
             {[1, 2, 3, 4, 5].map((n) => (
               <button key={n} onClick={() => applyMultiplier(n)} style={{ ...NS.multiplierBtn, ...(multiplier === n ? NS.multiplierBtnActive : {}) }}>×{n}</button>
@@ -1199,39 +1199,39 @@ function AIPhotoPanel({ onSave, onManual }) {
           </div>
           <div style={NS.editableGrid}>
             <div>
-              <label style={S.label}>السعرات</label>
+              <label style={S.label}>{t("nutrition.calories")}</label>
               <input type="number" inputMode="decimal" value={result.calories} onChange={(e) => change("calories", Number(e.target.value))} style={S.input} />
             </div>
             <div>
-              <label style={S.label}>بروتين (غ)</label>
+              <label style={S.label}>{t("common.units.protein")} ({t("common.units.g")})</label>
               <input type="number" inputMode="decimal" value={result.protein} onChange={(e) => change("protein", Number(e.target.value))} style={S.input} />
             </div>
             <div>
-              <label style={S.label}>كارب (غ)</label>
+              <label style={S.label}>{t("common.units.carbs")} ({t("common.units.g")})</label>
               <input type="number" inputMode="decimal" value={result.carbs} onChange={(e) => change("carbs", Number(e.target.value))} style={S.input} />
             </div>
             <div>
-              <label style={S.label}>دهون (غ)</label>
+              <label style={S.label}>{t("common.units.fat")} ({t("common.units.g")})</label>
               <input type="number" inputMode="decimal" value={result.fat} onChange={(e) => change("fat", Number(e.target.value))} style={S.input} />
             </div>
           </div>
           <button
             onClick={() => onSave({
               id: uid(),
-              foodName: result.items?.length > 0 ? result.items.join("، ") : "وجبة (تصوير ذكي)",
+              foodName: result.items?.length > 0 ? result.items.join(i18n.language === "en" ? ", " : "، ") : t("nutrition.mealFallbackName"),
               calories: Number(result.calories) || 0, protein: Number(result.protein) || 0,
               carbs: Number(result.carbs) || 0, fat: Number(result.fat) || 0,
               fiber: 0, sugar: 0, sodium: 0,
-              servingInfo: multiplier !== 1 ? `تقدير بالذكاء الاصطناعي (×${fmtQty(multiplier)})` : "تقدير بالذكاء الاصطناعي", source: "ai_photo",
+              servingInfo: multiplier !== 1 ? t("nutrition.aiEstimateTimes", { n: fmtQty(multiplier) }) : t("nutrition.aiEstimate"), source: "ai_photo",
             })}
             style={S.saveBtn}
           >
-            إضافة إلى سجل اليوم
+            {t("nutrition.addToTodayLog")}
           </button>
         </>
       )}
 
-      <button onClick={onManual} style={{ ...S.exportBtn, marginTop: 8 }}>إضافة يدوية بدلاً من ذلك</button>
+      <button onClick={onManual} style={{ ...S.exportBtn, marginTop: 8 }}>{t("nutrition.manualAddInstead")}</button>
     </>
   );
 }
@@ -1244,6 +1244,7 @@ function AIPhotoPanel({ onSave, onManual }) {
 // ConfirmQuantityCard، فتُعاد الاستفادة من نفس دوال الحصص/الوحدات الموحّدة
 // (unitServingSize/unitToGrams/scaleNutrients) بلا أي منطق حساب جديد.
 function LabelPhotoPanel({ onSave, onManual }) {
+  const { t } = useTranslation();
   const [preview, setPreview] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState(null);
@@ -1308,11 +1309,11 @@ function LabelPhotoPanel({ onSave, onManual }) {
           <div style={NS.chooserGrid}>
             <button onClick={() => cameraInputRef.current?.click()} style={NS.chooserBtn}>
               <span style={NS.chooserIcon}><Camera size={19} /></span>
-              التقط صورة
+              {t("nutrition.takePhoto")}
             </button>
             <button onClick={() => galleryInputRef.current?.click()} style={NS.chooserBtn}>
               <span style={NS.chooserIcon}><ImagePlus size={19} /></span>
-              اختر من المعرض
+              {t("nutrition.chooseFromGallery")}
             </button>
           </div>
         )}
@@ -1320,27 +1321,27 @@ function LabelPhotoPanel({ onSave, onManual }) {
         {analyzing && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "16px 0", gap: 10 }}>
             <Loader2 size={22} className="spin" color="var(--gold)" />
-            <span style={{ fontSize: 13, color: "var(--muted2)" }}>نقرأ الملصق...</span>
+            <span style={{ fontSize: 13, color: "var(--muted2)" }}>{t("nutrition.readingLabel")}</span>
           </div>
         )}
         {error && (
           <>
             <div style={NS.errorText}>{error}</div>
-            <button onClick={() => { setPreview(null); setError(null); }} style={{ ...S.exportBtn, marginBottom: 8 }}>إعادة المحاولة بصورة أخرى</button>
-            <button onClick={onManual} style={{ ...S.exportBtn, marginBottom: 0 }}>إضافة يدوية بدلاً من ذلك</button>
+            <button onClick={() => { setPreview(null); setError(null); }} style={{ ...S.exportBtn, marginBottom: 8 }}>{t("nutrition.retryWithAnotherPhoto")}</button>
+            <button onClick={onManual} style={{ ...S.exportBtn, marginBottom: 0 }}>{t("nutrition.manualAddInstead")}</button>
           </>
         )}
         {!preview && !error && (
-          <button onClick={onManual} style={{ ...S.exportBtn, marginTop: 8 }}>إضافة يدوية بدلاً من ذلك</button>
+          <button onClick={onManual} style={{ ...S.exportBtn, marginTop: 8 }}>{t("nutrition.manualAddInstead")}</button>
         )}
       </>
     );
   }
 
   const hasServing = label.basis === "serving";
-  const basisSentence = label.basis === "100g" ? "هذه القيم لكل 100 غرام حسب الملصق."
-    : label.basis === "100ml" ? "هذه القيم لكل 100 مليلتر حسب الملصق."
-    : `هذه القيم لكل حصة واحدة (${Math.round(label.servingGrams || 100)} غرام) حسب الملصق.`;
+  const basisSentence = label.basis === "100g" ? t("nutrition.per100gLabel")
+    : label.basis === "100ml" ? t("nutrition.per100mlLabel")
+    : t("nutrition.perServingLabel", { g: Math.round(label.servingGrams || 100) });
 
   const per100 = labelToPer100Product({ ...basisValues, basis: label.basis, servingGrams: label.servingGrams, micronutrients: label.micronutrients });
   const unitMeta = unitById(unit);
@@ -1353,52 +1354,52 @@ function LabelPhotoPanel({ onSave, onManual }) {
       <img src={preview} alt="" style={NS.photoPreview} />
       <div style={NS.disclaimerBox}>
         <Sparkles size={15} color="#C9A24B" style={{ flexShrink: 0, marginTop: 1 }} />
-        <span>القيم مقروءة تلقائياً من صورة الملصق وقد تحتاج لمراجعة. تأكد من الأرقام قبل الحفظ.</span>
+        <span>{t("nutrition.labelReviewNote")}</span>
       </div>
       <p style={{ ...S.label, marginBottom: 4 }}>{basisSentence}</p>
       <div style={NS.editableGrid}>
         <div>
-          <label style={S.label}>السعرات</label>
+          <label style={S.label}>{t("nutrition.calories")}</label>
           <input type="number" inputMode="decimal" value={basisValues.calories} onChange={(e) => changeBasis("calories", e.target.value)} style={S.input} />
         </div>
         <div>
-          <label style={S.label}>بروتين (غ)</label>
+          <label style={S.label}>{t("common.units.protein")} ({t("common.units.g")})</label>
           <input type="number" inputMode="decimal" value={basisValues.protein} onChange={(e) => changeBasis("protein", e.target.value)} style={S.input} />
         </div>
         <div>
-          <label style={S.label}>كارب (غ)</label>
+          <label style={S.label}>{t("common.units.carbs")} ({t("common.units.g")})</label>
           <input type="number" inputMode="decimal" value={basisValues.carbs} onChange={(e) => changeBasis("carbs", e.target.value)} style={S.input} />
         </div>
         <div>
-          <label style={S.label}>دهون (غ)</label>
+          <label style={S.label}>{t("common.units.fat")} ({t("common.units.g")})</label>
           <input type="number" inputMode="decimal" value={basisValues.fat} onChange={(e) => changeBasis("fat", e.target.value)} style={S.input} />
         </div>
         <div>
-          <label style={S.label}>ألياف (غ)</label>
+          <label style={S.label}>{t("common.units.fiber")} ({t("common.units.g")})</label>
           <input type="number" inputMode="decimal" value={basisValues.fiber} onChange={(e) => changeBasis("fiber", e.target.value)} style={S.input} />
         </div>
         <div>
-          <label style={S.label}>سكر (غ)</label>
+          <label style={S.label}>{t("common.units.sugar")} ({t("common.units.g")})</label>
           <input type="number" inputMode="decimal" value={basisValues.sugar} onChange={(e) => changeBasis("sugar", e.target.value)} style={S.input} />
         </div>
         <div>
-          <label style={S.label}>صوديوم (مغم)</label>
+          <label style={S.label}>{t("common.units.sodium")} ({t("common.units.mg")})</label>
           <input type="number" inputMode="decimal" value={basisValues.sodium} onChange={(e) => changeBasis("sodium", e.target.value)} style={S.input} />
         </div>
       </div>
 
-      <p style={{ ...S.label, marginTop: 16, marginBottom: 4 }}>كم تناولت فعلياً؟</p>
-      <label style={S.label}>وحدة القياس</label>
+      <p style={{ ...S.label, marginTop: 16, marginBottom: 4 }}>{t("nutrition.howMuchDidYouEat")}</p>
+      <label style={S.label}>{t("nutrition.unitOfMeasure")}</label>
       <div style={NS.unitRow}>
         <select value={unit} onChange={(e) => setUnit(e.target.value)} style={NS.unitSelect}>
-          {UNIT_OPTIONS.map((u) => <option key={u.id} value={u.id}>{u.label}</option>)}
+          {UNIT_OPTIONS.map((u) => <option key={u.id} value={u.id}>{t(`nutrition.unitOptions.${u.id}`)}</option>)}
         </select>
       </div>
       {unit === "g" ? (
         <>
           {hasServing && (
             <>
-              <label style={S.label}>عدد الحصص (كل حصة {Math.round(per100.servingGrams)} غم)</label>
+              <label style={S.label}>{t("nutrition.servingsCountEach", { g: Math.round(per100.servingGrams) })}</label>
               <div style={NS.multiplierRow}>
                 {[1, 2, 3, 4, 5].map((n) => (
                   <button key={n} onClick={() => setMultiplier(n)} style={{ ...NS.multiplierBtn, ...(multiplier === n ? NS.multiplierBtnActive : {}) }}>×{n}</button>
@@ -1407,56 +1408,57 @@ function LabelPhotoPanel({ onSave, onManual }) {
               </div>
             </>
           )}
-          <label style={S.label}>{hasServing ? "أو عدّل الكمية بالغرام مباشرة" : "الكمية (غم)"}</label>
+          <label style={S.label}>{hasServing ? t("nutrition.orEditQuantityGrams") : t("nutrition.quantityGrams")}</label>
           <input type="number" inputMode="decimal" value={grams} onChange={(e) => setGrams(Number(e.target.value))} style={S.input} />
         </>
       ) : (
         <>
-          <label style={S.label}>عدد الحصص (كل حصة {fmtQty(unitBaseQty)} {unitMeta.label})</label>
+          <label style={S.label}>{t("nutrition.servingsCountEachUnit", { qty: fmtQty(unitBaseQty), unit: t(`nutrition.unitOptions.${unit}`) })}</label>
           <div style={NS.multiplierRow}>
             {[1, 2, 3, 4, 5].map((n) => (
               <button key={n} onClick={() => setMultiplier(n)} style={{ ...NS.multiplierBtn, ...(multiplier === n ? NS.multiplierBtnActive : {}) }}>×{n}</button>
             ))}
             <input type="number" inputMode="decimal" value={multiplier} onChange={(e) => setMultiplier(Math.max(0.25, Number(e.target.value) || 0))} style={NS.multiplierInput} />
           </div>
-          <label style={S.label}>أو عدّل الكمية بـ{unitMeta.label} مباشرة</label>
+          <label style={S.label}>{t("nutrition.orEditQuantityUnit", { unit: t(`nutrition.unitOptions.${unit}`) })}</label>
           <input type="number" inputMode="decimal" value={unitQty} onChange={(e) => setUnitQty(Number(e.target.value) || 0)} style={S.input} />
-          {unitMeta.approx && <p style={NS.unitApproxNote}>تحويل تقريبي إلى غرام لحساب القيم الغذائية (وحدة غير وزنية).</p>}
+          {unitMeta.approx && <p style={NS.unitApproxNote}>{t("nutrition.approxConversionNote")}</p>}
         </>
       )}
 
       <div style={NS.previewGrid}>
-        <div style={NS.previewChip}><div style={NS.macroValue}>{preview2.calories}</div><div style={NS.macroLabel}>سعرة</div></div>
-        <div style={NS.previewChip}><div style={NS.macroValue}>{preview2.protein}غ</div><div style={NS.macroLabel}>بروتين</div></div>
-        <div style={NS.previewChip}><div style={NS.macroValue}>{preview2.carbs}غ</div><div style={NS.macroLabel}>كارب</div></div>
-        <div style={NS.previewChip}><div style={NS.macroValue}>{preview2.fat}غ</div><div style={NS.macroLabel}>دهون</div></div>
+        <div style={NS.previewChip}><div style={NS.macroValue}>{preview2.calories}</div><div style={NS.macroLabel}>{t("common.units.kcal")}</div></div>
+        <div style={NS.previewChip}><div style={NS.macroValue}>{preview2.protein}{t("common.units.g")}</div><div style={NS.macroLabel}>{t("common.units.protein")}</div></div>
+        <div style={NS.previewChip}><div style={NS.macroValue}>{preview2.carbs}{t("common.units.g")}</div><div style={NS.macroLabel}>{t("common.units.carbs")}</div></div>
+        <div style={NS.previewChip}><div style={NS.macroValue}>{preview2.fat}{t("common.units.g")}</div><div style={NS.macroLabel}>{t("common.units.fat")}</div></div>
       </div>
       <div style={NS.previewGrid}>
-        <div style={NS.previewChip}><div style={NS.macroValue}>{preview2.fiber}غ</div><div style={NS.macroLabel}>ألياف</div></div>
-        <div style={NS.previewChip}><div style={NS.macroValue}>{preview2.sugar}غ</div><div style={NS.macroLabel}>سكر</div></div>
-        <div style={NS.previewChip}><div style={NS.macroValue}>{preview2.sodium}مغ</div><div style={NS.macroLabel}>صوديوم</div></div>
+        <div style={NS.previewChip}><div style={NS.macroValue}>{preview2.fiber}{t("common.units.g")}</div><div style={NS.macroLabel}>{t("common.units.fiber")}</div></div>
+        <div style={NS.previewChip}><div style={NS.macroValue}>{preview2.sugar}{t("common.units.g")}</div><div style={NS.macroLabel}>{t("common.units.sugar")}</div></div>
+        <div style={NS.previewChip}><div style={NS.macroValue}>{preview2.sodium}{t("common.units.mg")}</div><div style={NS.macroLabel}>{t("common.units.sodium")}</div></div>
       </div>
       <button
         onClick={() => onSave({
-          id: uid(), foodName: "طعام (ملصق غذائي)", ...preview2,
+          id: uid(), foodName: t("nutrition.labelFoodFallback"), ...preview2,
           unit,
           servingInfo: unit === "g"
-            ? (hasServing ? `${multiplier} × ${Math.round(per100.servingGrams)}غم` : `${grams} غم`)
-            : `${fmtQty(unitQty)} ${unitMeta.label}`,
+            ? (hasServing ? `${multiplier} × ${Math.round(per100.servingGrams)}${t("common.units.g")}` : `${grams} ${t("common.units.g")}`)
+            : `${fmtQty(unitQty)} ${t(`nutrition.unitOptions.${unit}`)}`,
           source: "label",
           micronutrients: scaleMicronutrients(per100.micronutrientsPer100g, gramsEquivalent || 0),
         })}
         style={S.saveBtn}
         disabled={!gramsEquivalent || gramsEquivalent <= 0}
       >
-        إضافة إلى سجل اليوم
+        {t("nutrition.addToTodayLog")}
       </button>
-      <button onClick={onManual} style={{ ...S.exportBtn, marginTop: 8, marginBottom: 0 }}>إضافة يدوية بدلاً من ذلك</button>
+      <button onClick={onManual} style={{ ...S.exportBtn, marginTop: 8, marginBottom: 0 }}>{t("nutrition.manualAddInstead")}</button>
     </>
   );
 }
 
 export default function NutritionView({ healthProfile, showToast, profile, setProfile, subscription }) {
+  const { t, i18n } = useTranslation();
   const [loaded, setLoaded] = useState(false);
   const [nutritionLog, setNutritionLog] = useState([]);
   const [waterLog, setWaterLog] = useState({});
@@ -1497,7 +1499,7 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
     const meta = MICRONUTRIENT_META[key];
     const value = Math.round((totals.micronutrients?.[key] || 0) * 100) / 100;
     const rdi = personalizedRDI(key, healthProfile?.age, healthProfile?.gender) ?? meta.rdi;
-    return { key, label: meta.label, unit: meta.unit, rdi, value, pct: Math.min(100, Math.round((value / rdi) * 100)) };
+    return { key, label: t(`nutrition.micronutrients.${key}`), unit: meta.unit, rdi, value, pct: Math.min(100, Math.round((value / rdi) * 100)) };
   });
   const tee = healthProfile?.tee || null;
   const teePercent = tee ? Math.min(100, Math.round((totals.calories / tee) * 100)) : 0;
@@ -1535,16 +1537,16 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
     setNutritionLog((prev) => [full, ...prev]);
     const result = await store.addNutritionEntry(full);
     if (result.ok) {
-      showToast("أُضيف إلى سجل اليوم");
+      showToast(t("nutrition.addedToLog"));
       closeSheet();
     } else {
       setNutritionLog((prev) => prev.filter((e) => e.id !== full.id));
       // التفاصيل الكاملة (message/code/details/hint) إلى console المطوّر
       // فقط - المستخدم يرى رسالة عامة ودّية دائماً، لا أي نص خام من Supabase.
       console.error("[NutritionView] addNutritionEntry failed:", result);
-      const friendly = "تعذّر حفظ الإدخال الآن، حاول مرة أخرى.";
+      const friendly = t("nutrition.entrySaveFailed");
       setSaveError(friendly);
-      showToast(`فشل الحفظ - ${friendly}`);
+      showToast(t("nutrition.entrySaveFailedDetail", { detail: friendly }));
     }
   }
 
@@ -1558,7 +1560,7 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
     const next = todayCups + 1;
     setWaterLog((prev) => ({ ...prev, [today]: next }));
     const res = await store.saveWaterCups(today, next);
-    if (!res.ok) { setWaterLog((prev) => ({ ...prev, [today]: prevCups })); showToast("تعذّر حفظ كوب الماء، حاول مرة أخرى"); }
+    if (!res.ok) { setWaterLog((prev) => ({ ...prev, [today]: prevCups })); showToast(t("nutrition.waterGlassSaveFailed")); }
   }
 
   async function enableNotifications() {
@@ -1566,7 +1568,7 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
     const enabled = !!(result.granted && result.subscribed);
     setProfile?.((p) => ({ ...p, notificationsEnabled: enabled, notificationsAsked: true }));
     await store.saveNotificationsPreference(enabled, true);
-    showToast(enabled ? "تم تفعيل الإشعارات" : (result.error || "لم تُفعَّل الإشعارات"));
+    showToast(enabled ? t("nutrition.notifEnabled") : (result.error || t("nutrition.notifNotEnabled")));
   }
   async function dismissNotificationBanner() {
     setProfile?.((p) => ({ ...p, notificationsAsked: true }));
@@ -1629,26 +1631,38 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
       // فشل هذا الحفظ لا يفقد إدخال المستخدم فعلياً (يُحفظ منفصلاً أدناه عبر
       // addEntry) - فقط يعني عدم تذكّر هذا الباركود لعملية مسح لاحقة، لذا
       // toast تنبيهي غير حاجب بدل رسالة خطأ ملحّة.
-      if (!cacheRes.ok) showToast("سُجِّلت الوجبة، لكن تعذّر حفظ بيانات المنتج للمرة القادمة");
+      if (!cacheRes.ok) showToast(t("nutrition.mealLoggedProductSaveFailed"));
     }
     const { productPer100, brand, country, servingSizeLabel, servingGrams, imageUrl, logToday, ...logEntry } = entry;
     // logToday=false (مخصّصة لمعالج "منتج جديد" فقط - النموذج اليدوي القديم
     // لا يُرسلها أبداً فتبقى undefined، أي "سجّل دائماً" كسلوكها الأصلي بلا
     // أي تغيير): المستخدم اختار حفظ المنتج في custom_foods فقط دون تسجيله
     // في سجل اليوم (مثلاً يعرّف منتجاً لم يأكله الآن).
-    if (logToday === false) { showToast("أُضيف المنتج بنجاح"); closeSheet(); return; }
+    if (logToday === false) { showToast(t("nutrition.productAdded")); closeSheet(); return; }
     await addEntry(logEntry);
   }
 
   // يستخدم نفس آلية "التقرير الذكي" المبنية مسبقاً (analyze + parseJsonLoose،
   // انظر DailyEvolution في MasarApp.jsx) - يبني الطلب من بيانات اليوم الفعلية
   // فقط (الأطعمة المسجَّلة والمجاميع الحقيقية)، ولا يفترض شيئاً لم يُسجَّل.
+  // الطلب نفسه يُفرَّع كاملاً حسب لغة الواجهة (i18n.language) بدل افتراض
+  // العربية دائماً - نفس المبدأ العلمي في كلتا النسختين: لا تخترع نمطاً غير
+  // موجود فعلياً في الأرقام المُمرَّرة.
   async function generateDailyAnalysis() {
-    if (todayLog.length === 0) { setDailyAnalysis({ error: "سجّل بعض الأطعمة اليوم أولاً حتى أقدر أحلّل نمط تغذيتك." }); return; }
+    if (todayLog.length === 0) { setDailyAnalysis({ error: t("nutrition.logFoodFirst") }); return; }
     setAnalysisLoading(true);
     try {
-      const foodsList = todayLog.map((e) => `${e.foodName} (${Math.round(e.calories)} سعرة)`).join("، ");
-      const prompt = `أنت مدرّب تغذية يكتب بالعربية الفصحى البسيطة بدون أي شرطات طويلة. هذه بيانات تغذية المستخدم الفعلية لهذا اليوم فقط:
+      const isEn = i18n.language === "en";
+      const foodsList = todayLog
+        .map((e) => `${e.foodName} (${Math.round(e.calories)} ${isEn ? "kcal" : "سعرة"})`)
+        .join(isEn ? ", " : "، ");
+      const prompt = isEn
+        ? `You are a nutrition coach writing in clear, natural English with no long dashes. Here is the user's actual nutrition data for today only:
+Logged foods: ${foodsList}
+Totals: ${Math.round(totals.calories)} kcal${tee ? ` out of a ${Math.round(tee)} kcal goal` : ""}, protein ${Math.round(totals.protein)}g, carbs ${Math.round(totals.carbs)}g, fat ${Math.round(totals.fat)}g, fiber ${Math.round(totals.fiber)}g, sugar ${Math.round(totals.sugar)}g, sodium ${Math.round(totals.sodium)}mg.
+Write a short paragraph (two to three sentences) analyzing today's eating pattern based only on these specific real numbers (don't invent anything not mentioned) — for example, good protein but low fiber today. Return only JSON with no other text or markdown:
+{"analysis":"paragraph here"}`
+        : `أنت مدرّب تغذية يكتب بالعربية الفصحى البسيطة بدون أي شرطات طويلة. هذه بيانات تغذية المستخدم الفعلية لهذا اليوم فقط:
 الأطعمة المسجَّلة: ${foodsList}
 الإجمالي: ${Math.round(totals.calories)} سعرة${tee ? ` من أصل هدف ${Math.round(tee)} سعرة` : ""}، بروتين ${Math.round(totals.protein)}غ، كارب ${Math.round(totals.carbs)}غ، دهون ${Math.round(totals.fat)}غ، ألياف ${Math.round(totals.fiber)}غ، سكر ${Math.round(totals.sugar)}غ، صوديوم ${Math.round(totals.sodium)}مغم.
 اكتب فقرة قصيرة (جملتان إلى ثلاث) تحلّل نمط تغذية اليوم بناءً على هذه الأرقام الفعلية فقط تحديداً (مثال: بروتين جيد لكن ألياف منخفضة اليوم) - لا تخترع نمطاً غير موجود في الأرقام أعلاه. أعد فقط JSON بدون أي نص أو markdown:
@@ -1658,7 +1672,7 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
       setDailyAnalysis({ text: parsed.analysis });
     } catch (err) {
       console.error("[NutritionView] generateDailyAnalysis failed:", err);
-      setDailyAnalysis({ error: "تعذّر تحليل تغذية اليوم الآن، جرّب مرة أخرى بعد قليل." });
+      setDailyAnalysis({ error: t("nutrition.analysisFailed") });
     } finally { setAnalysisLoading(false); }
   }
 
@@ -1667,8 +1681,8 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
       <div style={NS.hero}>
         <div style={NS.heroIcon}><Flame size={22} color="var(--on-accent)" /></div>
         <div>
-          <div style={NS.heroTitle}>التغذية</div>
-          <div style={NS.heroSub}>سجّل ما تأكله وتشربه اليوم وقارنه باحتياجك.</div>
+          <div style={NS.heroTitle}>{t("nutrition.heroTitle")}</div>
+          <div style={NS.heroSub}>{t("nutrition.heroSub")}</div>
         </div>
       </div>
 
@@ -1676,10 +1690,10 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
         <div style={NS.notifBanner}>
           <Bell size={18} color="#C9A24B" style={{ flexShrink: 0, marginTop: 2 }} />
           <div style={{ flex: 1 }}>
-            <p style={NS.notifText}>فعّل الإشعارات ليذكّرك مسار بشرب الماء وتسجيل وجباتك.</p>
+            <p style={NS.notifText}>{t("nutrition.notifNote")}</p>
             <div style={NS.notifRow}>
-              <button onClick={enableNotifications} style={NS.notifBtn}>تفعيل</button>
-              <button onClick={dismissNotificationBanner} style={NS.notifDismissBtn}>لاحقاً</button>
+              <button onClick={enableNotifications} style={NS.notifBtn}>{t("common.buttons.enable")}</button>
+              <button onClick={dismissNotificationBanner} style={NS.notifDismissBtn}>{t("common.buttons.later")}</button>
             </div>
           </div>
         </div>
@@ -1687,30 +1701,30 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
 
       <div style={NS.summaryCard}>
         <div style={NS.summaryTop}>
-          <span style={NS.summaryCalories}>{Math.round(totals.calories)} <span style={{ fontSize: 13, color: "var(--muted2)" }}>سعرة</span></span>
-          {tee ? <span style={NS.summaryTee}>الهدف اليومي: {tee} سعرة</span> : <span style={NS.summaryTee}>أكمل بياناتك في "أنت" لمعرفة هدفك اليومي</span>}
+          <span style={NS.summaryCalories}>{Math.round(totals.calories)} <span style={{ fontSize: 13, color: "var(--muted2)" }}>{t("common.units.kcal")}</span></span>
+          {tee ? <span style={NS.summaryTee}>{t("nutrition.dailyGoal", { tee })}</span> : <span style={NS.summaryTee}>{t("nutrition.completeYourProfile")}</span>}
         </div>
         {tee && (
           <>
             <div style={NS.barTrack}><div style={{ ...NS.barFill, width: `${teePercent}%` }} /></div>
             <div style={{ ...NS.summaryTee, marginBottom: 12 }}>
-              {totals.calories <= tee ? `تبقّى لك ${Math.round(tee - totals.calories)} سعرة اليوم` : `تجاوزت هدفك بـ ${Math.round(totals.calories - tee)} سعرة`}
+              {totals.calories <= tee ? t("nutrition.remainingToday", { n: Math.round(tee - totals.calories) }) : t("nutrition.exceededGoal", { n: Math.round(totals.calories - tee) })}
             </div>
           </>
         )}
         <div style={NS.macrosRow}>
-          <div style={NS.macroChip}><div style={NS.macroValue}>{Math.round(totals.protein * 10) / 10}غ</div><div style={NS.macroLabel}>بروتين</div></div>
-          <div style={NS.macroChip}><div style={NS.macroValue}>{Math.round(totals.carbs * 10) / 10}غ</div><div style={NS.macroLabel}>كارب</div></div>
-          <div style={NS.macroChip}><div style={NS.macroValue}>{Math.round(totals.fat * 10) / 10}غ</div><div style={NS.macroLabel}>دهون</div></div>
+          <div style={NS.macroChip}><div style={NS.macroValue}>{Math.round(totals.protein * 10) / 10}{t("common.units.g")}</div><div style={NS.macroLabel}>{t("common.units.protein")}</div></div>
+          <div style={NS.macroChip}><div style={NS.macroValue}>{Math.round(totals.carbs * 10) / 10}{t("common.units.g")}</div><div style={NS.macroLabel}>{t("common.units.carbs")}</div></div>
+          <div style={NS.macroChip}><div style={NS.macroValue}>{Math.round(totals.fat * 10) / 10}{t("common.units.g")}</div><div style={NS.macroLabel}>{t("common.units.fat")}</div></div>
         </div>
 
         <MacroRings totals={totals} macroTargets={macroTargets} />
 
         <div style={{ marginTop: 16 }}>
           {[
-            { key: "fiber", label: "الألياف", value: totals.fiber, goal: DAILY_GUIDELINES.fiberMaxG, goalLabel: `${DAILY_GUIDELINES.fiberMinG}-${DAILY_GUIDELINES.fiberMaxG}غ (تقديري)`, unit: "غ", color: "#5FA8A0" },
-            { key: "sugar", label: "السكر", value: totals.sugar, goal: DAILY_GUIDELINES.sugarMaxG, goalLabel: `أقل من ${DAILY_GUIDELINES.sugarMaxG}غ (تقديري)`, unit: "غ", color: "#C9A24B" },
-            { key: "sodium", label: "الصوديوم", value: totals.sodium, goal: DAILY_GUIDELINES.sodiumMaxMg, goalLabel: `أقل من ${DAILY_GUIDELINES.sodiumMaxMg}مغ (تقديري)`, unit: "مغ", color: "#D17B5F" },
+            { key: "fiber", label: t("common.units.fiber"), value: totals.fiber, goal: DAILY_GUIDELINES.fiberMaxG, goalLabel: t("nutrition.fiberGoal", { min: DAILY_GUIDELINES.fiberMinG, max: DAILY_GUIDELINES.fiberMaxG }), unit: t("common.units.g"), color: "#5FA8A0" },
+            { key: "sugar", label: t("common.units.sugar"), value: totals.sugar, goal: DAILY_GUIDELINES.sugarMaxG, goalLabel: t("nutrition.sugarGoal", { max: DAILY_GUIDELINES.sugarMaxG }), unit: t("common.units.g"), color: "#C9A24B" },
+            { key: "sodium", label: t("common.units.sodium"), value: totals.sodium, goal: DAILY_GUIDELINES.sodiumMaxMg, goalLabel: t("nutrition.sodiumGoal", { max: DAILY_GUIDELINES.sodiumMaxMg }), unit: t("common.units.mg"), color: "#D17B5F" },
           ].map((g) => {
             const pct = Math.min(100, Math.round((g.value / g.goal) * 100));
             return (
@@ -1726,19 +1740,19 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
         </div>
 
         <div>
-          <div style={NS.microHead}>الفيتامينات والمعادن اليوم</div>
+          <div style={NS.microHead}>{t("nutrition.microToday")}</div>
           <div style={NS.disclaimerBox}>
             <Sparkles size={15} color="#C9A24B" style={{ flexShrink: 0, marginTop: 1 }} />
             <span>
-              هذه القيم تقديرية عامة (بناءً على مرجعية يومية شائعة)، وقد تختلف حسب عمرك وجنسك وحالتك الصحية. استشر مختصاً للاحتياج الدقيق.
-              {!hasAgeGender && " أكمل بياناتك في قسم \"أنت\" لاحتياج أدق."}
+              {t("nutrition.microDisclaimer")}
+              {!hasAgeGender && ` ${t("nutrition.microDisclaimerProfile")}`}
             </span>
           </div>
           {microRows.map((m) => (
             <div key={m.key} style={NS.guidelineRow}>
               <div style={NS.guidelineHead}>
                 <span><span style={NS.guidelineName}>{m.label}</span> — {m.value}{m.unit}</span>
-                <span>{m.pct}% من {m.rdi}{m.unit} (تقديري)</span>
+                <span>{t("nutrition.microPercent", { pct: m.pct, rdi: m.rdi, unit: m.unit })}</span>
               </div>
               <div style={NS.barTrack}><div style={{ ...NS.barFill, width: `${m.pct}%` }} /></div>
             </div>
@@ -1748,20 +1762,20 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
 
       <div style={NS.waterCard}>
         <div style={NS.waterHead}>
-          <span style={NS.waterTitle}><Droplet size={15} color="#5FA8A0" /> الماء</span>
-          <span style={NS.waterCount}>{todayCups}{cupsGoal ? ` / ${cupsGoal}` : ""} كوب</span>
+          <span style={NS.waterTitle}><Droplet size={15} color="#5FA8A0" /> {t("nutrition.water")}</span>
+          <span style={NS.waterCount}>{cupsGoal ? t("nutrition.waterCups", { cups: todayCups, goal: cupsGoal }) : `${todayCups} ${t("nutrition.unitOptions.cup")}`}</span>
         </div>
         {cupsGoal && <div style={{ ...NS.barTrack, marginBottom: 10 }}><div style={{ ...NS.barFill, width: `${waterPercent}%`, background: "linear-gradient(90deg, #3E7E78, #5FA8A0)" }} /></div>}
-        <button onClick={addWaterCup} style={NS.waterAddBtn}><Plus size={15} /> كوب ماء</button>
+        <button onClick={addWaterCup} style={NS.waterAddBtn}><Plus size={15} /> {t("nutrition.waterGlass")}</button>
       </div>
 
       <div style={NS.aiAnalysisCard}>
         <div style={NS.aiAnalysisHead}>
-          <span style={NS.aiAnalysisTitle}><Sparkles size={15} color="#C9A24B" /> تحليل تغذية اليوم</span>
+          <span style={NS.aiAnalysisTitle}><Sparkles size={15} color="#C9A24B" /> {t("nutrition.dailyAnalysis")}</span>
           {isSub && (
             <button onClick={generateDailyAnalysis} disabled={analysisLoading} style={NS.aiAnalysisBtn}>
               {analysisLoading ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} />}
-              {analysisLoading ? "..." : "تحليل"}
+              {analysisLoading ? "..." : t("nutrition.analyze")}
             </button>
           )}
         </div>

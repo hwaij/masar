@@ -120,7 +120,10 @@
       "saveFailed": "Couldn't save, please try again",
       "deleteFailed": "Couldn't delete, please try again",
       "genericRetry": "Something went wrong, please try again",
-      "copyFailed": "Couldn't copy, copy it manually"
+      "copyFailed": "Couldn't copy, copy it manually",
+      "PUSH_NOT_SUPPORTED": "Notifications aren't supported in this browser.",
+      "PUSH_REQUEST_FAILED": "Couldn't request notification permission right now.",
+      "PUSH_PARTIAL_FAILURE": "Permission was granted but notifications couldn't be fully enabled. Try again later."
     },
     "states": {
       "noDataYet": "Not enough data yet",

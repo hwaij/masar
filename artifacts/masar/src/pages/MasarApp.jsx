@@ -642,70 +642,29 @@ export default function MasarApp() {
   );
 }
 
-const TOUR_STEPS = [
-  {
-    icon: "◐",
-    title: "أهلاً بك في مسار",
-    body: "مساحتك الشخصية للإنتاجية والعبادة. جولة قصيرة لتتعرف على أهم أقسام التطبيق.",
-  },
-  {
-    Icon: User,
-    title: "ابدأ بالتخصيص أولاً",
-    body: "اكتب هواياتك ونبذتك في \"التخصيص\"، فهذه الخطوة مهمة جداً. بدونها لن يعمل المساعد الذكي في \"أنجز\" و\"مساعد\" بشكل مخصّص لك، وستبدو اقتراحاته عامة وغير مرتبطة بك.",
-    emphasize: true,
-  },
-  {
-    Icon: Clock,
-    title: "اليوم",
-    body: "سجّل أنشطتك اليومية وشاهدها في دائرة الوقت التفاعلية، إلى جانب مهامك الأساسية اليومية.",
-  },
-  {
-    Icon: Moon,
-    title: "عباداتك اليومية",
-    body: "تابع صلواتك ومهامك الدينية اليومية كالاستغفار وقراءة القرآن في \"الصلاة\"، وأذكارك في \"أذكار\".",
-  },
-  {
-    Icon: Eye,
-    title: "بصيرة",
-    body: "نصيحة جديدة تنتظرك كل يوم في \"بصيرة\"، تجمع بين حكمة دينية ودنيوية، ولا تتكرر لفترة طويلة. تقدر أيضاً تتصفح أرشيف كل النصائح السابقة في نفس الصفحة.",
-  },
-  {
-    Icon: Timer,
-    title: "أدوات إنتاجيتك",
-    body: "شغّل جلسات تركيز ودراسة في \"تركيز\"، ونظّم مهامك اليومية في \"المهام\".",
-  },
-  {
-    Icon: Target,
-    title: "أهداف",
-    body: "اكتب أهدافك الأسبوعية أو الشهرية أو السنوية في \"أهداف\"، وتابعها على تقويم بصري يذكّرك بمواعيد المراجعة، مع محاسبة بالنقاط عند التحقيق أو التقصير.",
-  },
-  {
-    Icon: Wallet,
-    title: "خزنة",
-    body: "تتبّع رصيدك المالي بعملتك في \"خزنة\"، وسجّل كل مصروف أو إضافة مع سببه لتعرف أين تذهب أموالك بالضبط، مع نصيحة مالية جديدة كل يوم.",
-  },
-  {
-    Icon: TrendingUp,
-    title: "التقارير",
-    body: "شاهد تقدّمك الأسبوعي بأرقام وتحليلات واضحة في \"التقارير\"، لتعرف أين تتحسّن وأين تحتاج مجهوداً أكبر.",
-  },
-  {
-    Icon: Sparkles,
-    title: "الذكاء الاصطناعي",
-    body: "\"أنجز\" يقترح لك تحديات ومشاريع تناسبك، و\"مساعد\" مدرّبك الشخصي للمحادثة. كلاهما يعتمد على هواياتك ونبذتك في التخصيص لتكون النصائح مخصّصة فعلاً.",
-  },
-  {
-    Icon: Heart,
-    title: "جاهز؟",
-    body: "ابدأ رحلتك الآن 🤍",
-    isLast: true,
-  },
+// أيقونات/بيانات كل خطوة فقط - النصوص (title/body) تُقرأ من onboarding.steps
+// في ملفات الترجمة عبر returnObjects، حتى تبقى الأيقونة/التمييز/كونها
+// الخطوة الأخيرة ثابتة بغض النظر عن اللغة.
+const TOUR_META = [
+  { icon: "◐" },
+  { Icon: User, emphasize: true },
+  { Icon: Clock },
+  { Icon: Moon },
+  { Icon: Eye },
+  { Icon: Timer },
+  { Icon: Target },
+  { Icon: Wallet },
+  { Icon: TrendingUp },
+  { Icon: Sparkles },
+  { Icon: Heart, isLast: true },
 ];
 
 function OnboardingTour({ onClose }) {
+  const { t } = useTranslation();
+  const tourSteps = t("onboarding.steps", { returnObjects: true });
   const [step, setStep] = useState(0);
-  const s = TOUR_STEPS[step];
-  const isLast = step === TOUR_STEPS.length - 1;
+  const s = { ...TOUR_META[step], ...(tourSteps[step] || {}) };
+  const isLast = step === TOUR_META.length - 1;
   const Icon = s.Icon;
 
   return (
@@ -725,17 +684,17 @@ function OnboardingTour({ onClose }) {
         <div style={OT.title}>{s.title}</div>
         <p style={{ ...OT.body, ...(s.emphasize ? OT.bodyEmphasize : {}) }}>{s.body}</p>
         <div style={OT.dots}>
-          {TOUR_STEPS.map((_, i) => (
+          {TOUR_META.map((_, i) => (
             <span key={i} style={{ ...OT.dot, ...(i === step ? OT.dotActive : {}) }} />
           ))}
         </div>
         <div style={OT.actions}>
-          {!isLast && <button onClick={onClose} style={OT.skipBtn}>تخطّي</button>}
+          {!isLast && <button onClick={onClose} style={OT.skipBtn}>{t("onboarding.skip")}</button>}
           <button
             onClick={() => (isLast ? onClose() : setStep((n) => n + 1))}
             style={{ ...OT.nextBtn, ...(isLast ? OT.nextBtnLast : {}) }}
           >
-            {isLast ? "ابدأ رحلتك الآن 🤍" : "التالي"}
+            {isLast ? t("onboarding.start") : t("onboarding.next")}
           </button>
         </div>
       </motion.div>
@@ -761,27 +720,11 @@ const OT = {
   nextBtnLast: { flex: "1 0 auto" },
 };
 
-// رسائل تحفيزية قصيرة تظهر عشوائياً بشاشة البداية - مزيج مقصود بين
-// الدنيوي (إنتاجية/عادات) والروحي (نية/ذكر)، بما يناسب هوية مسار (نفس
-// روح شعار "بصيرة": بين الدنيا والدين). تُختار عشوائياً مرة واحدة عند كل
-// ظهور فعلي للشاشة (والتي تظهر أصلاً مرة واحدة فقط لكل جلسة)، فلا حاجة
-// لمنطق "عدم تكرار" إضافي - عدم التكرار محقَّق أصلاً ببساطة عبر ذلك.
-const SPLASH_MESSAGES = [
-  "كل خطوة صغيرة اليوم تصنع مستقبلاً أفضل",
-  "ابدأ يومك... ودع مسار يهتم بالباقي",
-  "المداومة على القليل خير من الانقطاع عن الكثير",
-  "نيتك الصالحة اليوم بداية بركة الغد",
-  "وقتك أمانة، واستثماره اليوم عبادة وإنتاج",
-  "لا تؤجل مسارك، فالطريق يبدأ بخطوة",
-  "التوازن بين الدنيا والآخرة هو النجاح الحقيقي",
-  "كل ذكر تقوله اليوم نور يصحبك خلاله",
-  "رتّب يومك، وسيرتّب مسار الباقي",
-  "تتبّع وقتك · ارتقِ بيومك",
-];
-
 function SplashScreen({ onDone }) {
+  const { t, i18n } = useTranslation();
+  const splashMessages = t("splash.messages", { returnObjects: true });
   const [hiding, setHiding] = useState(false);
-  const [message] = useState(() => SPLASH_MESSAGES[Math.floor(Math.random() * SPLASH_MESSAGES.length)]);
+  const [message] = useState(() => splashMessages[Math.floor(Math.random() * splashMessages.length)]);
   // من يفعّل "تقليل الحركة" في جهازه يرى المحتوى النهائي مباشرة بلا أي
   // حركة (initial === animate بكل عنصر)، مع الإبقاء على نفس مدة الظهور
   // الإجمالية - فقط الحركة نفسها تُزال، لا الشاشة كاملة.
@@ -810,7 +753,7 @@ function SplashScreen({ onDone }) {
       animate={{ opacity: hiding ? 0 : 1 }}
       transition={{ duration: reduceMotion ? 0.15 : 0.45, ease: "easeInOut" }}
       onAnimationComplete={() => { if (hiding) onDone?.(); }}
-      style={{ minHeight: "100vh", background: "var(--bg)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 0, overflow: "hidden", direction: "rtl" }}
+      style={{ minHeight: "100vh", background: "var(--bg)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 0, overflow: "hidden", direction: i18n.language === "en" ? "ltr" : "rtl" }}
     >
       <motion.img
         src="/logo-mark.png"
@@ -826,7 +769,7 @@ function SplashScreen({ onDone }) {
         <motion.div
           {...wordmarkAnim}
           style={{ fontFamily: "'Amiri', serif", fontSize: 42, fontWeight: 700, color: "var(--ink)", letterSpacing: 2 }}
-        >مسار</motion.div>
+        >{t("splash.wordmark")}</motion.div>
       </div>
       <motion.div
         {...messageAnim}
@@ -840,27 +783,23 @@ function SplashScreen({ onDone }) {
   );
 }
 
-const FEATURES = [
-  { icon: "🕌", title: "تتبّع الصلوات", desc: "سجّل الصلوات الخمس يومياً وابنِ عادة ثابتة" },
-  { icon: "⏱️", title: "مؤقت التركيز", desc: "جلسات تركيز مع إحصاءات ومنافسة الروبوتات" },
-  { icon: "📿", title: "الأذكار والقرآن", desc: "تتبّع أذكارك وتقدّمك في حفظ وقراءة القرآن" },
-  { icon: "✅", title: "المهام اليومية", desc: "نظّم مهامك واحتفل بكل إنجاز صغير" },
-  { icon: "📊", title: "تقارير وتحليل", desc: "شاهد تقدّمك الأسبوعي بأرقام واضحة" },
-  { icon: "🤖", title: "مساعد ذكي", desc: "مستشار شخصي يعرف عاداتك ويقترح تحسينات" },
-];
+// الأيقونات فقط - النصوص (title/desc) تُقرأ من landing.features في ملفات
+// الترجمة عبر returnObjects.
+const FEATURE_ICONS = ["🕌", "⏱️", "📿", "✅", "📊", "🤖"];
 
-function translateAuthError(err) {
+function translateAuthError(err, t) {
   const msg = String(err?.message || err || "");
-  if (msg.includes("Invalid login credentials")) return "البريد الإلكتروني أو كلمة المرور غير صحيحة";
-  if (msg.includes("User already registered")) return "هذا البريد مسجّل بالفعل، جرّب تسجيل الدخول";
-  if (msg.includes("Password should be at least")) return "كلمة المرور لازم تكون 6 أحرف على الأقل";
-  if (msg.includes("Unable to validate email address") || msg.includes("invalid")) return "البريد الإلكتروني غير صحيح";
-  if (msg.includes("Email not confirmed")) return "لازم تأكّد بريدك الإلكتروني أولاً، راجع رسالة التأكيد";
-  if (msg.includes("no-supabase")) return "الحساب غير مفعّل بهذا الموقع حالياً";
-  return "تعذّر تسجيل الدخول الآن، حاول مرة أخرى";
+  if (msg.includes("Invalid login credentials")) return t("auth.errors.invalidCredentials");
+  if (msg.includes("User already registered")) return t("auth.errors.alreadyRegistered");
+  if (msg.includes("Password should be at least")) return t("auth.errors.passwordTooShort");
+  if (msg.includes("Unable to validate email address") || msg.includes("invalid")) return t("auth.errors.invalidEmail");
+  if (msg.includes("Email not confirmed")) return t("auth.errors.emailNotConfirmed");
+  if (msg.includes("no-supabase")) return t("auth.errors.notConfigured");
+  return t("auth.errors.generic");
 }
 
 function EmailAuthForm({ onEmailSignIn, onEmailSignUp }) {
+  const { t } = useTranslation();
   const [mode, setMode] = useState("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -880,11 +819,11 @@ function EmailAuthForm({ onEmailSignIn, onEmailSignUp }) {
       } else {
         const { needsEmailConfirmation } = await onEmailSignUp(email.trim(), password);
         if (needsEmailConfirmation) {
-          setNotice("أنشأنا حسابك! افتح بريدك الإلكتروني وأكّد الحساب حتى تقدر تسجّل دخولك.");
+          setNotice(t("auth.signupNotice"));
         }
       }
     } catch (err) {
-      setError(translateAuthError(err));
+      setError(translateAuthError(err, t));
     } finally {
       setSubmitting(false);
     }
@@ -895,14 +834,14 @@ function EmailAuthForm({ onEmailSignIn, onEmailSignUp }) {
       <input
         type="email" required autoComplete="email" dir="ltr"
         value={email} onChange={(e) => setEmail(e.target.value)}
-        placeholder="بريدك الإلكتروني"
-        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, padding: "12px 14px", color: "#E8E6E1", fontSize: 14, fontFamily: "inherit", outline: "none", textAlign: "right" }}
+        placeholder={t("auth.emailPlaceholder")}
+        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, padding: "12px 14px", color: "#E8E6E1", fontSize: 14, fontFamily: "inherit", outline: "none", textAlign: "end" }}
       />
       <input
         type="password" required autoComplete={mode === "signin" ? "current-password" : "new-password"} dir="ltr"
         value={password} onChange={(e) => setPassword(e.target.value)}
-        placeholder="كلمة المرور"
-        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, padding: "12px 14px", color: "#E8E6E1", fontSize: 14, fontFamily: "inherit", outline: "none", textAlign: "right" }}
+        placeholder={t("auth.passwordPlaceholder")}
+        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, padding: "12px 14px", color: "#E8E6E1", fontSize: 14, fontFamily: "inherit", outline: "none", textAlign: "end" }}
       />
       {error && <div style={{ color: "#E07A6B", fontSize: 12.5, textAlign: "center" }}>{error}</div>}
       {notice && <div style={{ color: "#5FA8A0", fontSize: 12.5, textAlign: "center", lineHeight: 1.6 }}>{notice}</div>}
@@ -912,20 +851,22 @@ function EmailAuthForm({ onEmailSignIn, onEmailSignUp }) {
         style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "rgba(201,162,75,0.14)", border: "1px solid rgba(201,162,75,0.4)", color: "#C9A24B", borderRadius: 12, padding: "12px 0", fontSize: 14, fontWeight: 700, cursor: submitting ? "wait" : "pointer", fontFamily: "inherit" }}
       >
         {submitting ? <Loader2 size={16} className="spin" /> : null}
-        {mode === "signin" ? "تسجيل الدخول بالبريد" : "إنشاء حساب جديد"}
+        {mode === "signin" ? t("auth.signInWithEmail") : t("auth.createAccount")}
       </motion.button>
       <button
         type="button"
         onClick={() => { setMode((m) => (m === "signin" ? "signup" : "signin")); setError(""); setNotice(""); }}
         style={{ background: "none", border: "none", color: "var(--muted2)", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", padding: "4px 0" }}
       >
-        {mode === "signin" ? "ما عندك حساب؟ أنشئ واحد" : "عندك حساب؟ سجّل دخولك"}
+        {mode === "signin" ? t("auth.noAccount") : t("auth.haveAccount")}
       </button>
     </form>
   );
 }
 
 function LandingPage({ onSignIn, onEmailSignIn, onEmailSignUp }) {
+  const { t, i18n } = useTranslation();
+  const features = t("landing.features", { returnObjects: true });
   const [signing, setSigning] = useState(false);
   async function handleClick() {
     setSigning(true);

@@ -25,22 +25,67 @@ const COACH_SYSTEM = `أنت "أنجز"، مدرب الحياة الشامل ا�
 - خاطب المستخدم مباشرة وبدفء، واربط نصيحتك بهواياته ونبذته الشخصية عندما يكون ذلك مناسباً وطبيعياً، لا بالإقحام.
 - إذا توفّر اسم المستخدم ضمن بياناته المرفقة، خاطبه باسمه بشكل طبيعي بين الحين والآخر (خصوصاً في بداية الرد أو عند تحية) - لا في كل جملة أو كل رد. إذا لم يتوفر اسم، تابع بأسلوبك المعتاد دون أي إشارة لغيابه.`;
 
+const COACH_SYSTEM_EN = `You are "Anjaz", the comprehensive smart life coach inside the "Masar" app. You are simultaneously: a health, nutrition, and fitness coach, a study and productivity coach, a gentle mental-health supporter, and a life organizer who connects all these areas together.
+
+Your personality:
+- You speak in simple, friendly, motivating, and concise English, never using long em-dashes.
+- An honest, realistic coach — you encourage without exaggeration, and gently point out patterns that need improvement.
+
+Your mission:
+- Help the user improve their day, habits, productivity, physical and mental health, and spiritual commitment, in ways that fit their hobbies and personal interests.
+- The user's actual data attached below covers several Masar sections (You, Nutrition, Fitness, Mental Health, Goals, Focus/Study, Prayer, Activities and Tasks). Rely on it and cite specific numbers from it when advising.
+- **Connecting sections**: If there's a clear, real, logical connection between data from two or more sections (e.g., low mood combined with no exercise this week), mention it and suggest a practical step genuinely tied to existing Masar sections. Never invent a connection that isn't actually present in the attached data, and never assume anything about a section with no attached data (meaning the user hasn't used it yet) — ignore it entirely instead of guessing.
+- Suggest small, practical, immediately actionable steps, not generic repeated advice. If the user has genuinely achieved something according to their data (a fitness streak, a completed goal), acknowledge it specifically, not with generic praise.
+
+Mandatory constraints:
+- Never provide any medical or psychological diagnosis, no matter what is asked. Your observations about physical or mental health are supportive and practical only, based on patterns actually visible in the logged data — never a diagnosis or a substitute for a professional.
+- **Top priority**: If the attached user data shows their latest "Mental Health" entry flagged as a risk, your entire response style must change regardless of the question's topic: handle it with the utmost gentleness and sensitivity, never ignore the signal no matter how unrelated the question seems, and gently guide the user (without abruptly inserting it or scaring them) toward talking to a professional or a mental health support line if that seems appropriate for the context. Do not try to "treat" the situation yourself.
+
+Response length (very important):
+- Match your response length to what the user actually asked: a simple question or greeting deserves a brief reply of one to three sentences only. Even a broad question like "How can I improve my day?" deserves one or two connected paragraphs, not a long lecture.
+- A request for a plan, schedule, or detailed analysis deserves a longer, clearly structured response with steps.
+- Regardless of length, always finish your thought completely. Never start a sentence or point and cut it off midway; if the topic needs more detail than the space allows, summarize briefly instead of truncating the idea.
+
+Response style:
+- Logical, connected reasoning that flows smoothly from one idea to the next, not random scattered sentences.
+- Speak naturally like a human — don't write JSON or bullet lists unless the user's request genuinely calls for numbered steps.
+- Address the user directly and warmly, and connect your advice to their hobbies and personal bio when it's relevant and natural, not forced.
+- If the user's name is available in their attached data, address them by name naturally now and then (especially at the start of a reply or when greeting them) — not in every sentence or every reply. If no name is available, continue in your usual style without any mention of its absence.`;
+
+// Selector for the AI persona system prompt, used by geminiCoachChat.
+// Keep the Arabic prompt as the default/fallback for any unrecognized
+// language value.
+export function coachSystem(lang) {
+  return lang === "en" ? COACH_SYSTEM_EN : COACH_SYSTEM;
+}
+
 import { supabase, hasSupabase } from "./supabase";
 
 const GEMINI_FUNCTION_URL = "/.netlify/functions/gemini";
+
+// callGemini throws an Error whose `.message` (and `.code`) is one of a
+// fixed set of error codes, never a language-specific string — this file
+// has no access to `t()`/i18n, so translation of the message shown to the
+// user happens at the React call site via t(`common.errors.${code}`).
+// Codes: NOT_CONFIGURED | NOT_SIGNED_IN | NETWORK | RATE_LIMIT | UNKNOWN
+function geminiError(code) {
+  const err = new Error(code);
+  err.code = code;
+  return err;
+}
 
 async function callGemini(body) {
   // The Netlify function verifies this token server-side and checks the
   // caller's subscription before ever touching Gemini — so a subscriber
   // check here is only a fast, friendly UX shortcut, never the actual
   // security boundary (that lives entirely in the function itself).
-  if (!hasSupabase) throw new Error("هذه الميزة متاحة لمشتركي مسار الكامل. اشترك الآن لتفعيلها.");
+  if (!hasSupabase) throw geminiError("NOT_CONFIGURED");
   let accessToken = null;
   try {
     const { data } = await supabase.auth.getSession();
     accessToken = data?.session?.access_token || null;
   } catch { /* handled by the missing-token check right below */ }
-  if (!accessToken) throw new Error("سجّل الدخول أولاً لاستخدام هذه الميزة.");
+  if (!accessToken) throw geminiError("NOT_SIGNED_IN");
 
   let res;
   try {
@@ -50,7 +95,7 @@ async function callGemini(body) {
       body: JSON.stringify(body),
     });
   } catch {
-    throw new Error("تعذّر الاتصال بالإنترنت. تأكد من اتصالك وحاول مرة أخرى.");
+    throw geminiError("NETWORK");
   }
 
   let data;
@@ -65,14 +110,9 @@ async function callGemini(body) {
     // ودّية دائماً، لا أي نص خام من الخادم (يطابق ما تفعله دالة gemini.js
     // في Netlify نفسها: التفاصيل للسجلّات، لا لجسم الرد).
     console.error("[gemini] request failed:", res.status, data);
-    const err = new Error(
-      (res.status === 429 && "الطلبات كثيرة الآن، جرّب بعد قليل.") ||
-      ((res.status === 401 || res.status === 403) && "هذه الميزة متاحة لمشتركي مسار الكامل. اشترك الآن لتفعيلها.") ||
-      (res.status === 500 && "المساعد الذكي غير مفعّل على هذا الموقع حالياً.") ||
-      data.error ||
-      "تعذّر الاتصال بالمساعد الذكي الآن.",
-    );
-    throw err;
+    if (res.status === 429) throw geminiError("RATE_LIMIT");
+    if (res.status === 401 || res.status === 403) throw geminiError("NOT_CONFIGURED");
+    throw geminiError("UNKNOWN");
   }
   return data.text || "";
 }
@@ -112,9 +152,10 @@ export async function geminiAnalyzeImage(prompt, base64Data, mimeType, maxTokens
   });
 }
 
-export async function geminiCoachChat(messages, context) {
+export async function geminiCoachChat(messages, context, lang = "ar") {
+  const contextLabel = lang === "en" ? "Current user data:" : "بيانات المستخدم الحالية:";
   const systemText =
-    COACH_SYSTEM + (context ? `\n\nبيانات المستخدم الحالية:\n${context}` : "");
+    coachSystem(lang) + (context ? `\n\n${contextLabel}\n${context}` : "");
 
   const contents = messages
     .filter((m) => m && typeof m.content === "string" && m.content.trim())

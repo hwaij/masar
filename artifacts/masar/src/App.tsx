@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import MasarApp from "./pages/MasarApp";
+import i18n from "./i18n";
 import "./masar.css";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
@@ -15,13 +16,14 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
   }
   render() {
     if (this.state.hasError) {
+      const isEn = i18n.language === "en";
       return (
         <div
           style={{
             minHeight: "100vh",
             background: "#0A0A0B",
             color: "#E8E6E1",
-            direction: "rtl",
+            direction: isEn ? "ltr" : "rtl",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
@@ -33,9 +35,13 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
           }}
         >
           <div style={{ fontSize: 40 }}>◐</div>
-          <div style={{ fontSize: 16, fontWeight: 700 }}>حدث خطأ غير متوقع</div>
+          <div style={{ fontSize: 16, fontWeight: 700 }}>
+            {isEn ? "Something went wrong" : "حدث خطأ غير متوقع"}
+          </div>
           <div style={{ fontSize: 13, color: "#8A8782", maxWidth: 320, lineHeight: 1.7 }}>
-            تعذّر تحميل مسار الآن. جرّب تحديث الصفحة، وإذا استمرت المشكلة تواصل معنا.
+            {isEn
+              ? "Couldn't load Masar right now. Try refreshing the page, and if the problem continues, contact us."
+              : "تعذّر تحميل مسار الآن. جرّب تحديث الصفحة، وإذا استمرت المشكلة تواصل معنا."}
           </div>
           <button
             onClick={() => window.location.reload()}
@@ -51,7 +57,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
               fontFamily: "inherit",
             }}
           >
-            إعادة تحميل الصفحة
+            {isEn ? "Reload page" : "إعادة تحميل الصفحة"}
           </button>
         </div>
       );

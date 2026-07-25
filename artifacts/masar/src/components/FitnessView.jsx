@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Dumbbell, PersonStanding, Footprints, HeartPulse, Bike, Wind, Flame,
   AlertTriangle, Edit3, Check, ExternalLink,
@@ -49,23 +50,25 @@ const FS = {
 };
 
 function ExerciseRow({ exercise }) {
+  const { t } = useTranslation();
   const Icon = ICONS[exercise.icon] || Dumbbell;
   return (
     <div style={FS.exerciseRow}>
       <div style={FS.exerciseIcon}><Icon size={16} /></div>
       <div style={{ flex: 1 }}>
         <div style={FS.exerciseName}>{exercise.name}</div>
-        <div style={FS.exerciseMeta}>{exercise.sets} مجموعات × {exercise.reps}</div>
+        <div style={FS.exerciseMeta}>{t("fitness.setsReps", { sets: exercise.sets, reps: exercise.reps })}</div>
         <div style={FS.exerciseDesc}>{exercise.description}</div>
       </div>
       <a href={youtubeSearchUrl(exercise)} target="_blank" rel="noopener noreferrer" style={FS.watchBtn}>
-        <ExternalLink size={12} /> شاهد الشرح
+        <ExternalLink size={12} /> {t("fitness.watchTutorial")}
       </a>
     </div>
   );
 }
 
 export default function FitnessView({ healthProfile, showToast }) {
+  const { t } = useTranslation();
   const [loaded, setLoaded] = useState(false);
   const [fitnessProfile, setFitnessProfile] = useState({ goal: null, equipment: null, daysPerWeek: null });
   const [fitnessLog, setFitnessLog] = useState({});
@@ -108,23 +111,23 @@ export default function FitnessView({ healthProfile, showToast }) {
 
   async function saveProfile() {
     if (!draft.goal || !draft.equipment || !draft.daysPerWeek) {
-      showToast("أكمل الهدف والمعدات وعدد الأيام");
+      showToast(t("fitness.completeGoalFirst"));
       return;
     }
     const prevProfile = fitnessProfile;
     setFitnessProfile(draft);
     const res = await store.saveFitnessProfile(draft);
-    if (!res.ok) { setFitnessProfile(prevProfile); showToast("تعذّر حفظ برنامجك، حاول مرة أخرى"); return; }
+    if (!res.ok) { setFitnessProfile(prevProfile); showToast(t("fitness.planSaveFailed")); return; }
     setEditing(false);
-    showToast("تم حفظ برنامجك");
+    showToast(t("fitness.planSaved"));
   }
 
   async function toggleTodayDone() {
     const next = !todayDone;
     setFitnessLog((prev) => ({ ...prev, [today]: next }));
     const res = await store.saveFitnessDayCompleted(today, next);
-    if (!res.ok) { setFitnessLog((prev) => ({ ...prev, [today]: !next })); showToast("تعذّر حفظ التمرين، حاول مرة أخرى"); return; }
-    if (next) showToast("أحسنت! تم تسجيل تمرين اليوم");
+    if (!res.ok) { setFitnessLog((prev) => ({ ...prev, [today]: !next })); showToast(t("fitness.logSaveFailed")); return; }
+    if (next) showToast(t("fitness.workoutLogged"));
   }
 
   if (editing || !hasProfile) {

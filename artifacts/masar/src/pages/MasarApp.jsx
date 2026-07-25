@@ -227,6 +227,7 @@ const YS = {
 };
 
 export default function MasarApp() {
+  const { t, i18n } = useTranslation();
   const [loaded, setLoaded] = useState(false);
   const [showSplash, setShowSplash] = useState(() => !sessionStorage.getItem("masar_splash_done"));
   // يدعم اختصارات الشاشة الرئيسية (manifest.json → shortcuts) التي تفتح
@@ -309,19 +310,23 @@ export default function MasarApp() {
         const reasons = [];
         for (const task of MANDATORY_TASKS) {
           if (task.fridayOnly && !yIsFriday) continue;
-          if (!yLog[task.key]) { deduction += task.penalty; reasons.push(task.label); }
+          if (!yLog[task.key]) { deduction += task.penalty; reasons.push(mandatoryTaskLabel(task, t)); }
         }
         const PRAYER_IDS = ["fajr", "dhuhr", "asr", "maghrib", "isha"];
         const yPrayers = (pl || []).filter((p) => p.date === yesterday);
         const missedPrayers = PRAYER_IDS.filter((pid) => !yPrayers.some((p) => p.prayerId === pid)).length;
-        if (missedPrayers > 0) { deduction += missedPrayers * 5; reasons.push(`${missedPrayers} صلوات فائتة`); }
+        // "missing locale key" لهذا السطر: prayer.missedPrayersReason
+        // ({{count}} missed prayers / {{count}} صلوات فائتة) - استُخدم بديل حرفي مؤقتاً.
+        if (missedPrayers > 0) { deduction += missedPrayers * 5; reasons.push(i18n.language === "en" ? `${missedPrayers} missed prayers` : `${missedPrayers} صلوات فائتة`); }
         if (deduction > 0) {
           const prevGamify = g;
           const next = { ...g, points: Math.max(0, g.points - deduction) };
           setGamify(next);
           const gRes = await store.saveGamify(next);
-          if (!gRes.ok) { setGamify(prevGamify); showToast("تعذّر تسجيل خصم النقاط، حاول لاحقاً"); }
-          const logEntry = { id: uid(), date: today, amount: -deduction, reason: `خصم فائتات (${yesterday}): ${[...new Set(reasons)].join("، ")}` };
+          if (!gRes.ok) { setGamify(prevGamify); showToast(t("common.errors.saveFailed")); }
+          // "missing locale key" لهذا السطر: prayer.missedTasksLogReason
+          // ("Missed items ({{date}}): {{list}}" / "خصم فائتات ({{date}}): {{list}}") - بديل حرفي مؤقتاً.
+          const logEntry = { id: uid(), date: today, amount: -deduction, reason: i18n.language === "en" ? `Missed items (${yesterday}): ${[...new Set(reasons)].join(", ")}` : `خصم فائتات (${yesterday}): ${[...new Set(reasons)].join("، ")}` };
           setPointsLog((prev) => [logEntry, ...prev]);
           const pRes = await store.addPointsLog(logEntry);
           if (!pRes.ok) setPointsLog((prev) => prev.filter((p) => p.id !== logEntry.id));
@@ -435,7 +440,7 @@ export default function MasarApp() {
   const changeFontSize = useCallback(async (next) => {
     setFontSize((prev) => {
       store.saveFontSize(next).then((res) => {
-        if (!res.ok) { setFontSize(prev); showToast("تعذّر حفظ حجم الخط، حاول مرة أخرى"); }
+        if (!res.ok) { setFontSize(prev); showToast(t("common.errors.saveFailed")); }
       });
       return next;
     });
@@ -444,7 +449,7 @@ export default function MasarApp() {
     setHighContrast((v) => {
       const next = !v;
       store.saveHighContrast(next).then((res) => {
-        if (!res.ok) { setHighContrast(v); showToast("تعذّر حفظ وضع التباين العالي، حاول مرة أخرى"); }
+        if (!res.ok) { setHighContrast(v); showToast(t("common.errors.saveFailed")); }
       });
       return next;
     });
@@ -453,7 +458,7 @@ export default function MasarApp() {
     setSpacious((v) => {
       const next = !v;
       store.saveSpacious(next).then((res) => {
-        if (!res.ok) { setSpacious(v); showToast("تعذّر حفظ التباعد الأكبر، حاول مرة أخرى"); }
+        if (!res.ok) { setSpacious(v); showToast(t("common.errors.saveFailed")); }
       });
       return next;
     });
@@ -488,7 +493,7 @@ export default function MasarApp() {
     store.setDailyTipShownDate(today);
     setTipsLog((prev) => ({ ...prev, [today]: tip.id }));
     store.saveTipsLog(today, tip.id).then((res) => {
-      if (!res.ok) { setTipsLog((prev) => { const next = { ...prev }; delete next[today]; return next; }); showToast("تعذّر حفظ نصيحة اليوم، حاول لاحقاً"); }
+      if (!res.ok) { setTipsLog((prev) => { const next = { ...prev }; delete next[today]; return next; }); showToast(t("tips.saveFailed")); }
     });
   }, [showSplash, loaded, tourOpen, profile.tourSeen, isSub]);
 
@@ -522,28 +527,30 @@ export default function MasarApp() {
       const next = { ...gamify, badges: [...gamify.badges, ...newOnes] };
       setGamify(next);
       store.saveGamify(next).then((res) => {
-        if (!res.ok) { setGamify(prevGamify); showToast("تعذّر حفظ الشارة الجديدة، حاول لاحقاً"); }
+        if (!res.ok) { setGamify(prevGamify); showToast(t("common.errors.saveFailed")); }
       });
-      showToast(`شارة جديدة: ${BADGES.find((b) => b.id === newOnes[0]).name}`);
+      // "missing locale key" لهذا السطر: settings.badgeEarnedToast ("New badge: {{name}}" / "شارة جديدة: {{name}}")
+      showToast((i18n.language === "en" ? "New badge: " : "شارة جديدة: ") + BADGES.find((b) => b.id === newOnes[0]).name);
     }
   }, [stats, loaded]);
 
   const addPoints = useCallback((n, reason = "") => {
     let prevGamify;
     setGamify((g) => { prevGamify = g; return { ...g, points: Math.max(0, g.points + n) }; });
-    const logReason = reason || (n >= 0 ? "نقاط مكتسبة" : "خصم نقاط");
+    // "missing locale key" لهذا السطر: common.pointsEarnedReason / common.pointsDeductedReason
+    const logReason = reason || (n >= 0 ? (i18n.language === "en" ? "Points earned" : "نقاط مكتسبة") : (i18n.language === "en" ? "Points deducted" : "خصم نقاط"));
     const logEntry = { id: uid(), date: todayKey(), amount: n, reason: logReason };
     setPointsLog((prev) => [logEntry, ...prev].slice(0, 200));
     (async () => {
       const gRes = await store.saveGamify({ ...prevGamify, points: Math.max(0, prevGamify.points + n) });
-      if (!gRes.ok) { setGamify(prevGamify); showToast("تعذّر حفظ النقاط، حاول مرة أخرى"); }
+      if (!gRes.ok) { setGamify(prevGamify); showToast(t("common.errors.saveFailed")); }
       const pRes = await store.addPointsLog(logEntry);
       if (!pRes.ok) setPointsLog((prev) => prev.filter((p) => p.id !== logEntry.id));
     })();
   }, [showToast]);
 
   const handleSignIn = useCallback(async () => {
-    try { await signInWithGoogle(); } catch { showToast("تعذّر تسجيل الدخول الآن"); }
+    try { await signInWithGoogle(); } catch { showToast(t("auth.errors.generic")); }
   }, [showToast]);
   const handleEmailSignIn = useCallback(async (email, password) => {
     await signInWithEmail(email, password);
@@ -558,7 +565,8 @@ export default function MasarApp() {
     setUser(null);
     setLoaded(false);
     await loadAll();
-    showToast("تم تسجيل الخروج");
+    // "missing locale key" لهذا السطر: header.signedOutToast ("Signed out" / "تم تسجيل الخروج")
+    showToast(i18n.language === "en" ? "Signed out" : "تم تسجيل الخروج");
   }, [loadAll, showToast]);
 
   const dismissSplash = useCallback(() => {
@@ -603,22 +611,24 @@ export default function MasarApp() {
         )}
         {view === "adhkar" && <AdhkarView showToast={showToast} />}
         {view === "tips" && <TipsView tipsLog={tipsLog} setTipsLog={setTipsLog} showToast={showToast} subscription={subscription} />}
+        {/* "missing locale key" لكل بطاقات الترقية أدناه (goals/vault/achieve/reportsView/assistant.upsellTitle
+            و upsellMessage) - لا مفتاح مخصص لها بعد في ملفات الترجمة، استُخدم نص إنجليزي/عربي حرفي بديل مؤقتاً. */}
         {view === "goals" && (isSub ? <GoalsView goals={goals} setGoals={setGoals} addPoints={addPoints} showToast={showToast} /> : (
-          <div style={S.view}><UpsellCard icon={Target} title="خطّط لأهدافك مع مسار الكامل" message="حدّد أهدافك الأسبوعية والشهرية والسنوية، وتابع إنجازك على تقويم بصري مع مراجعات دورية ومحاسبة بالنقاط." /></div>
+          <div style={S.view}><UpsellCard icon={Target} title={i18n.language === "en" ? "Plan your goals with Masar Premium" : "خطّط لأهدافك مع مسار الكامل"} message={i18n.language === "en" ? "Set your weekly, monthly, and yearly goals, and track your progress on a visual calendar with periodic reviews and points accountability." : "حدّد أهدافك الأسبوعية والشهرية والسنوية، وتابع إنجازك على تقويم بصري مع مراجعات دورية ومحاسبة بالنقاط."} /></div>
         ))}
         {view === "vault" && (isSub ? <VaultView vault={vault} setVault={setVault} vaultTx={vaultTx} setVaultTx={setVaultTx} showToast={showToast} /> : (
-          <div style={S.view}><UpsellCard icon={Wallet} title="تتبّع أموالك مع مسار الكامل" message="سجّل رصيدك ومصروفاتك بعملتك، واعرف أين تذهب أموالك بالضبط، مع نصيحة مالية جديدة كل يوم." /></div>
+          <div style={S.view}><UpsellCard icon={Wallet} title={i18n.language === "en" ? "Track your money with Masar Premium" : "تتبّع أموالك مع مسار الكامل"} message={i18n.language === "en" ? "Log your balance and expenses in your currency, and know exactly where your money goes, with a new financial tip every day." : "سجّل رصيدك ومصروفاتك بعملتك، واعرف أين تذهب أموالك بالضبط، مع نصيحة مالية جديدة كل يوم."} /></div>
         ))}
         {view === "tasks" && <TasksView tasks={tasks} setTasks={setTasks} categories={categories} addPoints={addPoints} showToast={showToast} subscription={subscription} />}
         {view === "focus" && <FocusView focus={focus} setFocus={setFocus} commitments={commitments} setCommitments={setCommitments} categories={categories} entries={entries} addPoints={addPoints} showToast={showToast} subscription={subscription} />}
         {view === "achieve" && (isSub ? <AchieveView achieve={achieve} setAchieve={setAchieve} profile={profile} focus={focus} tasks={tasks} prayerLog={prayerLog} religious={religious} addPoints={addPoints} showToast={showToast} setView={setView} /> : (
-          <div style={S.view}><UpsellCard icon={Rocket} title="أنجز ينتظرك في مسار الكامل" message="أنجز يعرف هواياتك ويقترح لك تحديات ومشاريع ومسارات تعلّم تناسبك أنت تحديداً." /></div>
+          <div style={S.view}><UpsellCard icon={Rocket} title={i18n.language === "en" ? "Achieve is waiting for you in Masar Premium" : "أنجز ينتظرك في مسار الكامل"} message={i18n.language === "en" ? "Achieve knows your hobbies and suggests challenges, projects, and learning paths made specifically for you." : "أنجز يعرف هواياتك ويقترح لك تحديات ومشاريع ومسارات تعلّم تناسبك أنت تحديداً."} /></div>
         ))}
         {view === "reports" && (isSub ? <ReportsView entries={entries} categories={categories} focus={focus} profile={profile} healthProfile={healthProfile} sleepLog={sleepLog} setSleepLog={setSleepLog} showToast={showToast} /> : (
-          <div style={S.view}><UpsellCard icon={TrendingUp} title="تقاريرك التفصيلية في مسار الكامل" message="شاهد تقدّمك بأرقام وتحليلات واضحة، وتتبّع نومك ونمط راحتك عبر الأيام." /></div>
+          <div style={S.view}><UpsellCard icon={TrendingUp} title={i18n.language === "en" ? "Your detailed reports in Masar Premium" : "تقاريرك التفصيلية في مسار الكامل"} message={i18n.language === "en" ? "See your progress with clear numbers and analysis, and track your sleep and rest pattern across days." : "شاهد تقدّمك بأرقام وتحليلات واضحة، وتتبّع نومك ونمط راحتك عبر الأيام."} /></div>
         ))}
         {view === "assistant" && (isSub ? <AssistantView entries={entries} tasks={tasks} categories={categories} focus={focus} prayerLog={prayerLog} religious={religious} profile={profile} stats={stats} setView={setView} healthProfile={healthProfile} goals={goals} showToast={showToast} /> : (
-          <div style={S.view}><UpsellCard icon={MessageCircle} title="مساعدك الذكي في مسار الكامل" message="مدرّب شخصي يحلّل يومك وعاداتك ويقترح خطوات عملية بناءً على بياناتك الفعلية." /></div>
+          <div style={S.view}><UpsellCard icon={MessageCircle} title={i18n.language === "en" ? "Your AI assistant in Masar Premium" : "مساعدك الذكي في مسار الكامل"} message={i18n.language === "en" ? "A personal coach who analyzes your day and habits and suggests practical steps based on your actual data." : "مدرّب شخصي يحلّل يومك وعاداتك ويقترح خطوات عملية بناءً على بياناتك الفعلية."} /></div>
         ))}
         {view === "you" && <YouView healthProfile={healthProfile} setHealthProfile={setHealthProfile} showToast={showToast} />}
         {(view === "nutrition" || view === "fitness" || view === "mental" || (view === "groups" && isSub)) && (
@@ -630,7 +640,7 @@ export default function MasarApp() {
           </Suspense>
         )}
         {view === "groups" && !isSub && (
-          <div style={S.view}><UpsellCard icon={Users} title="تحديات الأصدقاء في مسار الكامل" message="أنشئ جروب دراسة مع أصدقائك وتنافسوا بساعات الدراسة وإنجاز الرياضة، بتحديث لحظي بينكم." /></div>
+          <div style={S.view}><UpsellCard icon={Users} title={i18n.language === "en" ? "Friend Challenges in Masar Premium" : "تحديات الأصدقاء في مسار الكامل"} message={i18n.language === "en" ? "Create a study group with your friends and compete on study hours and workout completion, with live updates between you." : "أنشئ جروب دراسة مع أصدقائك وتنافسوا بساعات الدراسة وإنجاز الرياضة، بتحديث لحظي بينكم."} /></div>
         )}
         {view === "settings" && <SettingsView categories={categories} setCategories={setCategories} gamify={gamify} hasCloud={store.hasCloud} showToast={showToast} profile={profile} setProfile={setProfile} pointsLog={pointsLog} onStartTour={startTour} subscription={subscription} theme={theme} toggleTheme={toggleTheme} fontSize={fontSize} changeFontSize={changeFontSize} highContrast={highContrast} toggleHighContrast={toggleHighContrast} spacious={spacious} toggleSpacious={toggleSpacious} />}
       </div>
@@ -873,14 +883,14 @@ function LandingPage({ onSignIn, onEmailSignIn, onEmailSignUp }) {
     try { await onSignIn(); } finally { setSigning(false); }
   }
   return (
-    <div style={{ minHeight: "100vh", background: "#0A0A0B", color: "#E8E6E1", direction: "rtl", fontFamily: "inherit", overflowX: "hidden" }}>
+    <div style={{ minHeight: "100vh", background: "#0A0A0B", color: "#E8E6E1", direction: i18n.language === "en" ? "ltr" : "rtl", fontFamily: "inherit", overflowX: "hidden" }}>
       <div style={{ maxWidth: 480, margin: "0 auto", padding: "0 20px 60px" }}>
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}
           style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 64, paddingBottom: 40, textAlign: "center" }}>
           <div style={{ fontSize: 64, color: "#C9A24B", marginBottom: 16, filter: "drop-shadow(0 0 24px rgba(201,162,75,0.4))" }}>◐</div>
-          <h1 style={{ fontFamily: "'Amiri', serif", fontSize: 42, fontWeight: 700, margin: 0, letterSpacing: 2 }}>مسار</h1>
+          <h1 style={{ fontFamily: "'Amiri', serif", fontSize: 42, fontWeight: 700, margin: 0, letterSpacing: 2 }}>{t("landing.wordmark")}</h1>
           <p style={{ fontSize: 16, color: "var(--muted2)", marginTop: 12, lineHeight: 1.8, maxWidth: 300 }}>
-            رفيقك اليومي لتنظيم وقتك وتعزيز عاداتك الإسلامية
+            {t("landing.tagline")}
           </p>
           <motion.button
             whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
@@ -890,25 +900,25 @@ function LandingPage({ onSignIn, onEmailSignIn, onEmailSignUp }) {
             {signing ? <Loader2 size={18} className="spin" /> : (
               <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#4285F4" d="M44.5 20H24v8.5h11.8C34.7 33.9 30 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-22 0-1.3-.2-2.7-.5-4z"/><path fill="#34A853" d="M6.3 14.7l7 5.1C15 16.1 19.1 13 24 13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2c-7.7 0-14.4 4.3-17.7 10.7z"/><path fill="#FBBC05" d="M24 46c5.8 0 10.7-1.9 14.3-5.2l-6.6-5.4C29.7 37 27 38 24 38c-5.9 0-10.9-3.8-12.7-9.1l-7 5.4C7.9 41.7 15.4 46 24 46z"/><path fill="#EA4335" d="M44.5 20H24v8.5h11.8c-1 2.9-2.9 5.2-5.3 6.9l6.6 5.4C41.3 37.4 45 31.2 45 24c0-1.3-.2-2.7-.5-4z"/></svg>
             )}
-            {signing ? "جارٍ التحميل..." : "ابدأ مع Google"}
+            {signing ? t("landing.loading") : t("landing.continueWithGoogle")}
           </motion.button>
           <div style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", marginTop: 22 }}>
             <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.08)" }} />
-            <span style={{ fontSize: 12, color: "var(--muted)" }}>أو</span>
+            <span style={{ fontSize: 12, color: "var(--muted)" }}>{t("landing.or")}</span>
             <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.08)" }} />
           </div>
           <EmailAuthForm onEmailSignIn={onEmailSignIn} onEmailSignUp={onEmailSignUp} />
-          <p style={{ marginTop: 14, fontSize: 12, color: "#4A4845" }}>بياناتك محفوظة لديك فقط · لا إعلانات</p>
+          <p style={{ marginTop: 14, fontSize: 12, color: "#4A4845" }}>{t("landing.privacyNote")}</p>
         </motion.div>
 
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3, duration: 0.6 }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            {FEATURES.map((f, i) => (
+            {features.map((f, i) => (
               <motion.div key={f.title}
                 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 + i * 0.08, duration: 0.5 }}
                 style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: "16px 14px", textAlign: "center" }}>
-                <div style={{ fontSize: 30, marginBottom: 8 }}>{f.icon}</div>
+                <div style={{ fontSize: 30, marginBottom: 8 }}>{FEATURE_ICONS[i]}</div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#E8E6E1", marginBottom: 5 }}>{f.title}</div>
                 <div style={{ fontSize: 11.5, color: "var(--muted)", lineHeight: 1.6 }}>{f.desc}</div>
               </motion.div>
@@ -920,16 +930,16 @@ function LandingPage({ onSignIn, onEmailSignIn, onEmailSignUp }) {
           style={{ marginTop: 40, textAlign: "center", display: "flex", flexDirection: "column", gap: 20, alignItems: "center" }}>
           <div style={{ width: "100%", height: 1, background: "rgba(255,255,255,0.06)" }} />
           <div style={{ display: "flex", gap: 24, justifyContent: "center", fontSize: 13, color: "var(--muted)" }}>
-            <span>🔒 بدون إعلانات</span>
-            <span>☁️ مزامنة سحابية</span>
-            <span>📱 يشتغل أوفلاين</span>
+            <span>{t("landing.badgeNoAds")}</span>
+            <span>{t("landing.badgeCloudSync")}</span>
+            <span>{t("landing.badgeOffline")}</span>
           </div>
           <motion.button
             whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
             onClick={handleClick} disabled={signing}
             style={{ display: "flex", alignItems: "center", gap: 10, background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.35)", color: "#C9A24B", borderRadius: 14, padding: "13px 32px", fontSize: 15, fontWeight: 700, cursor: signing ? "wait" : "pointer", fontFamily: "inherit" }}>
             <LogIn size={18} />
-            سجّل دخولك الآن
+            {t("landing.signInNow")}
           </motion.button>
         </motion.div>
       </div>
@@ -960,7 +970,7 @@ function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSign
             </button>
             <div style={S.brand}>
               <img src="/logo-mark.png" alt="" style={S.brandLogo} />
-              <span style={S.brandText}>مسار</span>
+              <span style={S.brandText}>{t("splash.wordmark")}</span>
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1087,7 +1097,7 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
     const newLog = { ...(mandatoryLog || {}), [today]: { ...todayMandatory, [task.key]: done } };
     if (setMandatoryLog) setMandatoryLog(newLog);
     const res = await store.saveMandatoryItem(today, task.key, done);
-    if (!res.ok) { if (setMandatoryLog) setMandatoryLog(prevLog); showToast("تعذّر حفظ المهمة، حاول مرة أخرى"); return; }
+    if (!res.ok) { if (setMandatoryLog) setMandatoryLog(prevLog); showToast(t("common.errors.saveFailed")); return; }
     const label = mandatoryTaskLabel(task, t);
     if (done) { addPoints(task.points, label); showToast(`+${task.points} ${t("todayView.pointsSuffix")}`); }
     else addPoints(-task.points, t("todayView.revertedTask", { label }));
@@ -1099,7 +1109,7 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
     const res = await store.saveEntry(entry);
     if (!res.ok) {
       setEntries((prev) => isNew ? prev.filter((e) => e.id !== entry.id) : prev);
-      showToast("تعذّر حفظ النشاط، حاول مرة أخرى");
+      showToast(t("common.errors.saveFailed"));
       return;
     }
     if (isNew) addPoints(15);
@@ -1109,7 +1119,7 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
     const removed = entries.find((e) => e.id === id);
     setEntries((prev) => prev.filter((e) => e.id !== id));
     const res = await store.deleteEntry(id);
-    if (!res.ok) { if (removed) setEntries((prev) => [...prev, removed]); showToast("تعذّر حذف النشاط، حاول مرة أخرى"); return; }
+    if (!res.ok) { if (removed) setEntries((prev) => [...prev, removed]); showToast(t("common.errors.deleteFailed")); return; }
     addPoints(-15, t("todayView.deletedActivity"));
     showToast(t("todayView.deletedSuccess"));
   }
@@ -1117,7 +1127,7 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
     const updated = { ...taskItem, done: !taskItem.done };
     setTasks((prev) => prev.map((x) => x.id === taskItem.id ? updated : x));
     const res = await store.saveTask(updated);
-    if (!res.ok) { setTasks((prev) => prev.map((x) => x.id === taskItem.id ? taskItem : x)); showToast("تعذّر حفظ المهمة، حاول مرة أخرى"); return; }
+    if (!res.ok) { setTasks((prev) => prev.map((x) => x.id === taskItem.id ? taskItem : x)); showToast(t("common.errors.saveFailed")); return; }
     if (!taskItem.done) addPoints(10);
     else addPoints(-10, t("todayView.revertedTaskGeneric"));
   }
@@ -1206,7 +1216,7 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
           const rep = { id: uid(), kind: "daily", date, payload, gist };
           setReports((prev) => [rep, ...prev.filter((r) => !(r.kind === "daily" && r.date === date))]);
           const res = await store.saveReport(rep);
-          if (!res.ok) { setReports(prevReports); showToast("تعذّر حفظ التقرير، حاول مرة أخرى"); }
+          if (!res.ok) { setReports(prevReports); showToast(t("common.errors.saveFailed")); }
         }}
       />
 
@@ -1225,7 +1235,7 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
             const updated = { ...e, end: newEnd };
             setEntries((prev) => prev.map((x) => x.id === e.id ? updated : x));
             const res = await store.saveEntry(updated);
-            if (!res.ok) { setEntries((prev) => prev.map((x) => x.id === e.id ? e : x)); showToast("تعذّر حفظ التعديل، حاول مرة أخرى"); }
+            if (!res.ok) { setEntries((prev) => prev.map((x) => x.id === e.id ? e : x)); showToast(t("common.errors.saveFailed")); }
           }
           return (
             <div key={e.id} style={S.entryRow} onClick={() => { setEditingEntry(e); setModalOpen(true); }}>
@@ -1316,7 +1326,10 @@ function DailyEvolution({ date, dayEntries, catMap, report, aiHistory, onSave, s
 
 // Sunday first so the week reads naturally right-to-left in RTL: Sunday
 // renders rightmost (start of week), Saturday renders leftmost (end).
-const WEEKDAY_SHORT = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+const WEEKDAY_SHORT = {
+  ar: ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"],
+  en: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+};
 
 function startOfWeekKey(dateKey) {
   const d = new Date(dateKey);
@@ -1333,6 +1346,9 @@ function addDaysKey(dateKey, delta) {
 const FREE_TASK_LIMIT = 3;
 
 function TasksView({ tasks, setTasks, categories, addPoints, showToast, subscription }) {
+  const { t, i18n } = useTranslation();
+  const language = i18n.language;
+  const weekdayShort = WEEKDAY_SHORT[language] || WEEKDAY_SHORT.ar;
   const isSub = isActiveSubscriber(subscription);
   const [title, setTitle] = useState("");
   const [catId, setCatId] = useState(categories[0]?.id);
@@ -1361,35 +1377,35 @@ function TasksView({ tasks, setTasks, categories, addPoints, showToast, subscrip
   async function addTask() {
     if (!title.trim()) return;
     if (!isSub && tasks.length >= FREE_TASK_LIMIT) {
-      showToast("أنشئ مهامك بلا حدود مع مسار الكامل");
+      showToast(t("tasksView.upsellCategoriesTitle"));
       return;
     }
-    const t = { id: uid(), title: title.trim(), catId, due: selectedDay, done: false, created: todayKey() };
-    setTasks((prev) => [...prev, t]);
-    const res = await store.saveTask(t);
-    if (!res.ok) { setTasks((prev) => prev.filter((x) => x.id !== t.id)); showToast("تعذّر حفظ المهمة، حاول مرة أخرى"); return; }
-    setTitle(""); showToast("تمت إضافة المهمة");
+    const newTask = { id: uid(), title: title.trim(), catId, due: selectedDay, done: false, created: todayKey() };
+    setTasks((prev) => [...prev, newTask]);
+    const res = await store.saveTask(newTask);
+    if (!res.ok) { setTasks((prev) => prev.filter((x) => x.id !== newTask.id)); showToast(t("common.errors.saveFailed")); return; }
+    setTitle(""); showToast(t("tasksView.taskAdded"));
   }
-  async function toggle(t) {
-    const updated = { ...t, done: !t.done };
-    setTasks((prev) => prev.map((x) => x.id === t.id ? updated : x));
+  async function toggle(taskItem) {
+    const updated = { ...taskItem, done: !taskItem.done };
+    setTasks((prev) => prev.map((x) => x.id === taskItem.id ? updated : x));
     const res = await store.saveTask(updated);
-    if (!res.ok) { setTasks((prev) => prev.map((x) => x.id === t.id ? t : x)); showToast("تعذّر حفظ المهمة، حاول مرة أخرى"); return; }
-    if (!t.done) {
+    if (!res.ok) { setTasks((prev) => prev.map((x) => x.id === taskItem.id ? taskItem : x)); showToast(t("common.errors.saveFailed")); return; }
+    if (!taskItem.done) {
       addPoints(10);
-      const after = tasksForDay(t.due).map((x) => (x.id === t.id ? updated : x));
-      if (after.length > 0 && after.every((x) => x.done)) showToast("🎉 أكملت كل مهام هذا اليوم!");
+      const after = tasksForDay(taskItem.due).map((x) => (x.id === taskItem.id ? updated : x));
+      if (after.length > 0 && after.every((x) => x.done)) showToast(t("tasksView.allDoneToast"));
     } else {
-      addPoints(-10, "التراجع عن مهمة");
+      addPoints(-10, t("tasksView.undidTask"));
     }
   }
   async function remove(id) {
-    const removed = tasks.find((t) => t.id === id);
-    setTasks((prev) => prev.filter((t) => t.id !== id));
+    const removed = tasks.find((x) => x.id === id);
+    setTasks((prev) => prev.filter((x) => x.id !== id));
     const res = await store.deleteTask(id);
-    if (!res.ok) { if (removed) setTasks((prev) => [...prev, removed]); showToast("تعذّر حذف المهمة، حاول مرة أخرى"); return; }
-    if (removed?.done) addPoints(-10, "حذف مهمة منجزة");
-    showToast("تم الحذف");
+    if (!res.ok) { if (removed) setTasks((prev) => [...prev, removed]); showToast(t("common.errors.deleteFailed")); return; }
+    if (removed?.done) addPoints(-10, t("tasksView.deletedCompletedTask"));
+    showToast(t("common.states.deleted"));
   }
 
   const selectedList = tasksForDay(selectedDay);
@@ -1398,12 +1414,12 @@ function TasksView({ tasks, setTasks, categories, addPoints, showToast, subscrip
 
   return (
     <div style={S.view}>
-      <div style={S.sectionTitle}>دفترك الذكي</div>
+      <div style={S.sectionTitle}>{t("tasksView.notebookTitle")}</div>
 
       <div style={S.dateRow}>
-        <button onClick={() => shiftWeek(-1)} style={S.iconBtn}><ChevronRight size={18} /></button>
-        <div style={S.dateLabel}>{arabicDate(weekDays[0], { day: "numeric", month: "short" })} – {arabicDate(weekDays[6], { day: "numeric", month: "short" })}</div>
-        <button onClick={() => shiftWeek(1)} style={S.iconBtn}><ChevronLeft size={18} /></button>
+        <button onClick={() => shiftWeek(-1)} style={S.iconBtn}>{language === "en" ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}</button>
+        <div style={S.dateLabel}>{arabicDate(weekDays[0], { day: "numeric", month: "short" }, language === "en" ? "en-US" : undefined)} – {arabicDate(weekDays[6], { day: "numeric", month: "short" }, language === "en" ? "en-US" : undefined)}</div>
+        <button onClick={() => shiftWeek(1)} style={S.iconBtn}>{language === "en" ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}</button>
       </div>
 
       <div style={S.weekStrip}>
@@ -1413,7 +1429,7 @@ function TasksView({ tasks, setTasks, categories, addPoints, showToast, subscrip
           const isToday = d === today;
           return (
             <button key={d} onClick={() => setSelectedDay(d)} style={{ ...S.dayChip, ...(isSelected ? S.dayChipActive : {}) }}>
-              <span style={S.dayChipWeekday}>{WEEKDAY_SHORT[i]}</span>
+              <span style={S.dayChipWeekday}>{weekdayShort[i]}</span>
               <span style={S.dayChipNum}>{new Date(d).getDate()}</span>
               {stats.complete ? <Check size={11} color="#5FA8A0" /> : isToday ? <span style={S.dayChipTodayDot} /> : <span style={{ height: 11 }} />}
             </button>
@@ -1422,7 +1438,7 @@ function TasksView({ tasks, setTasks, categories, addPoints, showToast, subscrip
       </div>
 
       <div style={S.taskComposer}>
-        <input value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addTask()} placeholder={`أضف مهمة ليوم ${WEEKDAY_SHORT[selectedIdx]}...`} style={S.taskInput} />
+        <input value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addTask()} placeholder={t("tasksView.addTaskPlaceholder", { day: weekdayShort[selectedIdx] })} style={S.taskInput} />
         <button onClick={addTask} style={S.taskAddBtn}><Plus size={18} /></button>
       </div>
       <div style={S.taskMeta}>
@@ -1436,25 +1452,25 @@ function TasksView({ tasks, setTasks, categories, addPoints, showToast, subscrip
       </div>
 
       {!isSub && tasks.length >= FREE_TASK_LIMIT && (
-        <UpsellCard icon={ListChecks} title="مهام بلا حدود مع مسار الكامل" message="نظّم كل مهامك بلا سقف، واحصل على تذكيرات ومتابعة كاملة لكل يوم." compact />
+        <UpsellCard icon={ListChecks} title={t("tasksView.upsellUnlimitedTitle")} message={t("tasksView.upsellUnlimitedMessage")} compact />
       )}
 
       <div style={S.taskList} className="stagger-in responsive-card-list">
-        {selectedList.length === 0 && <div style={S.emptyState}><div style={S.emptyStateTitle}>لا مهام هذا اليوم</div><div style={S.emptyStateSub}>أضف مهمة لتبدأ التخطيط</div></div>}
-        {selectedList.map((t) => {
-          const cat = catMap[t.catId];
+        {selectedList.length === 0 && <div style={S.emptyState}><div style={S.emptyStateTitle}>{t("tasksView.emptyTitle")}</div><div style={S.emptyStateSub}>{t("tasksView.emptySub")}</div></div>}
+        {selectedList.map((task) => {
+          const cat = catMap[task.catId];
           return (
-            <div key={t.id} style={S.taskRow}>
-              <span onClick={() => toggle(t)} style={{ ...S.checkbox, ...(t.done ? S.checkboxDone : {}) }}>{t.done && <Check size={12} />}</span>
+            <div key={task.id} style={S.taskRow}>
+              <span onClick={() => toggle(task)} style={{ ...S.checkbox, ...(task.done ? S.checkboxDone : {}) }}>{task.done && <Check size={12} />}</span>
               <div style={S.taskInfo}>
-                <div style={{ ...S.taskTitle, ...(t.done ? S.taskTitleDone : {}) }}>{t.title}</div>
+                <div style={{ ...S.taskTitle, ...(task.done ? S.taskTitleDone : {}) }}>{task.title}</div>
                 {cat && <div style={S.taskTags}><span style={S.taskTag}><span style={{ ...S.legendDot, background: cat.color, width: 6, height: 6 }} />{cat.name}</span></div>}
               </div>
-              <button onClick={() => remove(t.id)} style={S.deleteBtn}><Trash2 size={14} /></button>
+              <button onClick={() => remove(task.id)} style={S.deleteBtn}><Trash2 size={14} /></button>
             </div>
           );
         })}
-        {selectedStats.complete && <div style={S.dayCompleteBanner}>🎉 أكملت كل مهام هذا اليوم! أحسنت.</div>}
+        {selectedStats.complete && <div style={S.dayCompleteBanner}>{t("tasksView.allDoneBanner")}</div>}
       </div>
     </div>
   );
@@ -1493,13 +1509,15 @@ function buildReportBarSvg(data, { width = 620, height = 190, colorStart = "#E0B
 }
 
 const REPORT_SUB_TABS = [
-  { id: "overview", label: "نظرة عامة", icon: TrendingUp },
-  { id: "study", label: "الدراسة", icon: BookOpen },
-  { id: "health", label: "الصحة", icon: Heart },
-  { id: "nutrition", label: "التغذية", icon: Utensils },
+  { id: "overview", labelKey: "reportsView.tabs.overview", icon: TrendingUp },
+  { id: "study", labelKey: "reportsView.tabs.study", icon: BookOpen },
+  { id: "health", labelKey: "reportsView.tabs.health", icon: Heart },
+  { id: "nutrition", labelKey: "reportsView.tabs.nutrition", icon: Utensils },
 ];
 
 function ReportsView({ entries, categories, focus, profile, healthProfile, sleepLog, setSleepLog, showToast }) {
+  const { t, i18n } = useTranslation();
+  const language = i18n.language;
   const [range, setRange] = useState("week");
   const [subTab, setSubTab] = useState("overview");
   const [exporting, setExporting] = useState(false);
@@ -1523,7 +1541,7 @@ function ReportsView({ entries, categories, focus, profile, healthProfile, sleep
     return arr;
   }, [span]);
   const barData = days.map((day) => ({
-    day, label: range === "week" ? arabicDate(day, { weekday: "short" }) : arabicDate(day, { day: "numeric" }),
+    day, label: range === "week" ? arabicDate(day, { weekday: "short" }, language === "en" ? "en-US" : undefined) : arabicDate(day, { day: "numeric" }, language === "en" ? "en-US" : undefined),
     hours: +(entries.filter((e) => e.date === day).reduce((s, e) => s + diffMinutes(e.start, e.end), 0) / 60).toFixed(1),
   }));
   const totalMin = entries.filter((e) => days.includes(e.date)).reduce((s, e) => s + diffMinutes(e.start, e.end), 0);
@@ -1532,13 +1550,13 @@ function ReportsView({ entries, categories, focus, profile, healthProfile, sleep
   const catTotals = useMemo(() => {
     const m = {};
     entries.filter((e) => days.includes(e.date)).forEach((e) => { m[e.catId] = (m[e.catId] || 0) + diffMinutes(e.start, e.end); });
-    return Object.entries(m).map(([catId, mins]) => ({ name: catMap[catId]?.name || "غير محدد", value: mins, color: catMap[catId]?.color || "#9A968F" })).sort((a, b) => b.value - a.value);
-  }, [entries, days, catMap]);
+    return Object.entries(m).map(([catId, mins]) => ({ name: catMap[catId]?.name || t("reportsView.unspecified"), value: mins, color: catMap[catId]?.color || "#9A968F" })).sort((a, b) => b.value - a.value);
+  }, [entries, days, catMap, language]);
 
   // تبويب "الدراسة": يقتصر على الجلسات المعلَّمة isStudy (نفس تمييز
   // الدراسة/العام المستخدم أصلاً في تقرير مؤقت التركيز).
   const studyBarData = days.map((day) => ({
-    day, label: range === "week" ? arabicDate(day, { weekday: "short" }) : arabicDate(day, { day: "numeric" }),
+    day, label: range === "week" ? arabicDate(day, { weekday: "short" }, language === "en" ? "en-US" : undefined) : arabicDate(day, { day: "numeric" }, language === "en" ? "en-US" : undefined),
     minutes: (focus || []).filter((f) => f.date === day && f.isStudy).reduce((s, f) => s + f.minutes, 0),
   }));
   const studyInRange = (focus || []).filter((f) => days.includes(f.date) && f.isStudy);
@@ -1551,7 +1569,7 @@ function ReportsView({ entries, categories, focus, profile, healthProfile, sleep
   // نفسه مُقيَّد فعلياً بـ90 يوماً من جهة الخادم (راجع loadNutritionLog في
   // store.js)، وهو أوسع من أطول مدى معروض هنا (شهر) فلا فقدان بيانات.
   const nutritionByDay = days.map((day) => ({
-    day, label: range === "week" ? arabicDate(day, { weekday: "short" }) : arabicDate(day, { day: "numeric" }),
+    day, label: range === "week" ? arabicDate(day, { weekday: "short" }, language === "en" ? "en-US" : undefined) : arabicDate(day, { day: "numeric" }, language === "en" ? "en-US" : undefined),
     calories: Math.round(sumNutritionEntries(nutritionLog.filter((e) => e.date === day)).calories),
   }));
   const nutritionInRange = nutritionLog.filter((e) => days.includes(e.date));
@@ -1559,9 +1577,9 @@ function ReportsView({ entries, categories, focus, profile, healthProfile, sleep
   const nutritionActiveDays = new Set(nutritionInRange.map((e) => e.date)).size;
   const nutritionAvgCalories = nutritionActiveDays ? Math.round(nutritionTotals.calories / nutritionActiveDays) : 0;
   const macroData = [
-    { name: "بروتين", value: Math.round(nutritionTotals.protein), color: "#5FA8A0" },
-    { name: "كربوهيدرات", value: Math.round(nutritionTotals.carbs), color: "#C9A24B" },
-    { name: "دهون", value: Math.round(nutritionTotals.fat), color: "#8A7BD1" },
+    { name: t("reportsView.protein"), value: Math.round(nutritionTotals.protein), color: "#5FA8A0" },
+    { name: t("reportsView.carbs"), value: Math.round(nutritionTotals.carbs), color: "#C9A24B" },
+    { name: t("reportsView.fat"), value: Math.round(nutritionTotals.fat), color: "#8A7BD1" },
   ].filter((m) => m.value > 0);
 
   const rangeEntries = useMemo(() => sleepLog.filter((s) => days.includes(s.date)), [sleepLog, days]);

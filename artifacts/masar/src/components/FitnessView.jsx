@@ -136,81 +136,81 @@ export default function FitnessView({ healthProfile, showToast }) {
         <div style={FS.hero}>
           <div style={FS.heroIcon}><Dumbbell size={22} color="var(--on-accent)" /></div>
           <div>
-            <div style={FS.heroTitle}>الرياضة</div>
-            <div style={FS.heroSub}>برنامج أسبوعي عام حسب هدفك ومعداتك — ليس برنامجاً طبياً مخصصاً.</div>
+            <div style={FS.heroTitle}>{t("fitness.heroTitleSetup")}</div>
+            <div style={FS.heroSub}>{t("fitness.heroSubSetup")}</div>
           </div>
         </div>
         <div style={FS.formCard}>
-          <label style={S.label}>الهدف</label>
+          <label style={S.label}>{t("fitness.goal")}</label>
           <div style={FS.chipRow}>
             {FITNESS_GOALS.map((g) => (
-              <button key={g.key} onClick={() => setDraft((d) => ({ ...d, goal: g.key }))} style={{ ...FS.chip, ...(draft.goal === g.key ? FS.chipActive : {}) }}>{g.label}</button>
+              <button key={g.key} onClick={() => setDraft((d) => ({ ...d, goal: g.key }))} style={{ ...FS.chip, ...(draft.goal === g.key ? FS.chipActive : {}) }}>{t(`fitness.goals.${g.key}`)}</button>
             ))}
           </div>
-          <label style={S.label}>المعدات المتاحة</label>
+          <label style={S.label}>{t("fitness.availableEquipment")}</label>
           <div style={FS.chipRow}>
             {EQUIPMENT_LEVELS.map((eq) => (
-              <button key={eq.key} onClick={() => setDraft((d) => ({ ...d, equipment: eq.key }))} style={{ ...FS.chip, ...(draft.equipment === eq.key ? FS.chipActive : {}) }}>{eq.label}</button>
+              <button key={eq.key} onClick={() => setDraft((d) => ({ ...d, equipment: eq.key }))} style={{ ...FS.chip, ...(draft.equipment === eq.key ? FS.chipActive : {}) }}>{t(`fitness.equipmentLevels.${eq.key}`)}</button>
             ))}
           </div>
-          <label style={S.label}>أيام التمرين بالأسبوع</label>
+          <label style={S.label}>{t("fitness.daysPerWeek")}</label>
           <div style={FS.daysRow}>
             {[2, 3, 4, 5, 6].map((n) => (
               <button key={n} onClick={() => setDraft((d) => ({ ...d, daysPerWeek: n }))} style={{ ...FS.dayChip, ...(draft.daysPerWeek === n ? FS.dayChipActive : {}) }}>{n}</button>
             ))}
           </div>
-          <button onClick={saveProfile} style={S.saveBtn}>احفظ وأنشئ برنامجي</button>
+          <button onClick={saveProfile} style={S.saveBtn}>{t("fitness.saveAndCreate")}</button>
           {hasProfile && (
-            <button onClick={() => setEditing(false)} style={{ ...S.exportBtn, marginTop: 8, marginBottom: 0 }}>رجوع</button>
+            <button onClick={() => setEditing(false)} style={{ ...S.exportBtn, marginTop: 8, marginBottom: 0 }}>{t("common.buttons.back")}</button>
           )}
         </div>
       </div>
     );
   }
 
-  const goalLabel = FITNESS_GOALS.find((g) => g.key === fitnessProfile.goal)?.label || "—";
-  const equipmentLabel = EQUIPMENT_LEVELS.find((e) => e.key === fitnessProfile.equipment)?.label || "—";
+  const goalLabel = fitnessProfile.goal ? t(`fitness.goals.${fitnessProfile.goal}`) : "—";
+  const equipmentLabel = fitnessProfile.equipment ? t(`fitness.equipmentLevels.${fitnessProfile.equipment}`) : "—";
 
   return (
     <div style={S.view}>
       <div style={FS.hero}>
         <div style={FS.heroIcon}><Dumbbell size={22} color="var(--on-accent)" /></div>
         <div>
-          <div style={FS.heroTitle}>الرياضة</div>
-          <div style={FS.heroSub}>برنامجك الأسبوعي.</div>
+          <div style={FS.heroTitle}>{t("fitness.heroTitle")}</div>
+          <div style={FS.heroSub}>{t("fitness.heroSub")}</div>
         </div>
       </div>
 
       {showDisclaimer && (
         <div style={FS.warningCard}>
           <AlertTriangle size={20} color="#D17B5F" style={{ flexShrink: 0, marginTop: 2 }} />
-          <p style={FS.warningText}>لديك حالة صحية مسجّلة. يُرجى استشارة طبيبك قبل البدء ببرنامج رياضي، خاصة إذا كانت الحالة تتعلق بالقلب أو المفاصل أو الضغط.</p>
+          <p style={FS.warningText}>{t("fitness.conditionWarning")}</p>
         </div>
       )}
 
       <div style={FS.summaryCard}>
         <div>
-          <div style={FS.summaryLabel}>برنامجك</div>
-          <div style={FS.summaryValue}>{goalLabel} · {equipmentLabel} · {fitnessProfile.daysPerWeek} أيام/أسبوع</div>
+          <div style={FS.summaryLabel}>{t("fitness.yourProgram")}</div>
+          <div style={FS.summaryValue}>{t("fitness.programSummary", { goal: goalLabel, equipment: equipmentLabel, days: fitnessProfile.daysPerWeek })}</div>
         </div>
-        <button onClick={() => setEditing(true)} style={{ ...S.exportBtn, width: "auto", padding: "9px 14px", marginBottom: 0 }}><Edit3 size={14} /> تعديل برنامجي</button>
+        <button onClick={() => setEditing(true)} style={{ ...S.exportBtn, width: "auto", padding: "9px 14px", marginBottom: 0 }}><Edit3 size={14} /> {t("fitness.editProgram")}</button>
       </div>
 
       <div style={FS.weekProgressCard}>
         <div style={FS.weekProgressHead}>
-          <span style={FS.weekProgressTitle}>أيام مكتملة هذا الأسبوع</span>
+          <span style={FS.weekProgressTitle}>{t("fitness.daysCompletedThisWeek")}</span>
           <span style={FS.weekProgressValue}>{`${weekCompletedCount} / ${fitnessProfile.daysPerWeek}`}</span>
         </div>
         <div style={FS.barTrack}><div style={{ ...FS.barFill, width: `${Math.min(100, Math.round((weekCompletedCount / fitnessProfile.daysPerWeek) * 100))}%` }} /></div>
         <button onClick={toggleTodayDone} style={{ ...FS.todayDoneBtn, ...(todayDone ? FS.todayDoneBtnOn : FS.todayDoneBtnOff) }}>
-          {todayDone ? <><Check size={16} /> أكملت تمريناً اليوم</> : "✓ تم تمرين اليوم"}
+          {todayDone ? <><Check size={16} /> {t("fitness.completedTodayCheck")}</> : t("fitness.markDoneToday")}
         </button>
       </div>
 
       <div className="stagger-in responsive-card-list">
         {plan.map((day) => (
           <div key={day.dayIndex} style={FS.dayCard}>
-            <div style={FS.dayCardHead}>اليوم {day.dayIndex + 1} · {day.dayLabel}</div>
+            <div style={FS.dayCardHead}>{t("fitness.dayLabel", { n: day.dayIndex + 1, dayLabel: t(`fitness.dayTypes.${day.dayType}`) })}</div>
             {day.exercises.map((ex) => <ExerciseRow key={ex.id} exercise={ex} />)}
           </div>
         ))}

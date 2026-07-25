@@ -204,7 +204,11 @@ export async function fetchProductByBarcode(barcode) {
     return { found: true, product };
   } catch (e) {
     console.error("[nutrition] fetchProductByBarcode failed:", e);
-    return { found: false, error: "تعذّر الاتصال بقاعدة بيانات الأطعمة. تأكد من اتصالك بالإنترنت أو أضف الطعام يدوياً." };
+    return {
+      found: false,
+      error: "تعذّر الاتصال بقاعدة بيانات الأطعمة. تأكد من اتصالك بالإنترنت أو أضف الطعام يدوياً.",
+      errorEn: "Couldn't connect to the food database. Check your internet connection or add the food manually.",
+    };
   }
 }
 
@@ -218,7 +222,12 @@ export async function searchProductsByName(query) {
     return { ok: true, products };
   } catch (e) {
     console.error("[nutrition] searchProductsByName failed:", e);
-    return { ok: false, products: [], error: "تعذّر البحث الآن. تأكد من اتصالك بالإنترنت أو أضف الطعام يدوياً." };
+    return {
+      ok: false,
+      products: [],
+      error: "تعذّر البحث الآن. تأكد من اتصالك بالإنترنت أو أضف الطعام يدوياً.",
+      errorEn: "Couldn't search right now. Check your internet connection or add the food manually.",
+    };
   }
 }
 
@@ -345,27 +354,49 @@ export function isSecureContextForCamera() {
 // رسالة مختلفة حسب سبب فشل getUserMedia الفعلي (اسم الخطأ القياسي الذي
 // يرجعه المتصفح)، بدل رسالة عامة واحدة لكل الحالات — تشمل إرشاداً مختلفاً
 // لـiOS مقابل Android عند رفض الإذن، وهي الحالة الأشيع في سياق PWA.
-export function describeCameraError(err) {
+//
+// lang معامل اختياري (افتراضياً 'ar'، بنفس نمط fmtHM/arabicDate/getLevel في
+// helpers.js) لا يغيّر سلوك أي نداء قائم لا يمرّره. أُضيف بدل إرجاع كائن
+// {error, errorEn} لأن هذه الدالة تُرجع نصاً مباشراً يُمرَّر إلى setError()
+// في NutritionView.jsx (سلسلة نصية بسيطة، لا كائناً) — تحويلها لكائن كان
+// سيكسر ذلك الاستدعاء القائم؛ معامل لغة اختياري يبقيه يعمل بلا أي تغيير.
+export function describeCameraError(err, lang = "ar") {
   const name = err?.name || "";
   const isIOS = typeof navigator !== "undefined" && /iPhone|iPad|iPod/.test(navigator.userAgent);
+  const en = lang === "en";
   if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+    if (en) {
+      return isIOS
+        ? "It looks like camera access is disabled. On your iPhone: Settings → Masar (or Safari if the app isn't installed on your home screen) → enable camera access, then try again."
+        : "It looks like camera access is disabled. On your device: Settings → Apps → Masar (or your browser) → Permissions → enable camera access, then try again.";
+    }
     return isIOS
       ? "يبدو أن إذن الكاميرا معطّل. من إعدادات آيفون: الإعدادات ← مسار (أو Safari إن لم يكن التطبيق مثبّتاً على شاشتك الرئيسية) ← فعّل إذن الكاميرا، ثم أعد المحاولة."
       : "يبدو أن إذن الكاميرا معطّل. من إعدادات جهازك: الإعدادات ← التطبيقات ← مسار (أو المتصفح) ← الأذونات ← فعّل إذن الكاميرا، ثم أعد المحاولة.";
   }
   if (name === "NotFoundError" || name === "DevicesNotFoundError") {
-    return "لم يُعثر على كاميرا في هذا الجهاز. استخدم البحث بالاسم أو الإدخال اليدوي بدلاً من ذلك.";
+    return en
+      ? "No camera was found on this device. Use search by name or manual entry instead."
+      : "لم يُعثر على كاميرا في هذا الجهاز. استخدم البحث بالاسم أو الإدخال اليدوي بدلاً من ذلك.";
   }
   if (name === "NotReadableError" || name === "TrackStartError") {
-    return "الكاميرا مستخدَمة من تطبيق آخر حالياً. أغلق أي تطبيق آخر يستخدم الكاميرا وحاول مرة أخرى.";
+    return en
+      ? "The camera is currently in use by another app. Close any other app using the camera and try again."
+      : "الكاميرا مستخدَمة من تطبيق آخر حالياً. أغلق أي تطبيق آخر يستخدم الكاميرا وحاول مرة أخرى.";
   }
   if (name === "OverconstrainedError") {
-    return "تعذّر ضبط الكاميرا الخلفية على هذا الجهاز. جرّب مرة أخرى أو استخدم البحث بالاسم/الإدخال اليدوي.";
+    return en
+      ? "Couldn't set up the rear camera on this device. Try again or use search by name/manual entry."
+      : "تعذّر ضبط الكاميرا الخلفية على هذا الجهاز. جرّب مرة أخرى أو استخدم البحث بالاسم/الإدخال اليدوي.";
   }
   if (name === "SecurityError") {
-    return "تعذّر الوصول للكاميرا بسبب اتصال غير آمن. تأكد من فتح الموقع عبر رابط https.";
+    return en
+      ? "Couldn't access the camera because the connection isn't secure. Make sure you're opening the site over an https link."
+      : "تعذّر الوصول للكاميرا بسبب اتصال غير آمن. تأكد من فتح الموقع عبر رابط https.";
   }
-  return "تعذّر الوصول إلى كاميرا الجهاز. تأكد من السماح للمتصفح باستخدام الكاميرا، أو استخدم البحث بالاسم/الإدخال اليدوي.";
+  return en
+    ? "Couldn't access the device camera. Make sure the browser is allowed to use the camera, or use search by name/manual entry."
+    : "تعذّر الوصول إلى كاميرا الجهاز. تأكد من السماح للمتصفح باستخدام الكاميرا، أو استخدم البحث بالاسم/الإدخال اليدوي.";
 }
 
 const ML_PER_KG = 33;
@@ -444,16 +475,27 @@ function isChunkLoadError(e) {
   return /MIME type|dynamically imported module|module script failed|Failed to fetch/i.test(msg);
 }
 const CHUNK_LOAD_ERROR_MESSAGE = "التطبيق تحديث نسخته الآن، يرجى تحديث الصفحة (Refresh) والمحاولة مرة أخرى.";
+const CHUNK_LOAD_ERROR_MESSAGE_EN = "The app just updated to a new version — please refresh the page and try again.";
 
 // نقطة التكامل الوحيدة مع "التعرّف على الطعام بالذكاء الاصطناعي". اليوم
 // تستدعي Gemini داخلياً، لكنها معزولة عمداً هنا بواجهة ثابتة (صورة تدخل،
 // تقدير غذائي منظّم يخرج) - استبدال Gemini مستقبلاً بخدمة تعرّف متخصصة
 // على الطعام يعني تعديل جسم هذه الدالة فقط، دون أي تغيير في NutritionView
 // أو أي مكان آخر يستدعيها.
-export async function recognizeMealFromImage(imageFile) {
+//
+// lang معامل اختياري (افتراضياً 'ar') يتحكم فقط بلغة تعليمة الـprompt
+// المُرسلة لـGemini (وبالتالي لغة أسماء الأطعمة في items المُرجعة) — لا
+// علاقة له بحقول الخطأ (error/errorEn) أدناه التي تُرجَع دائماً بكلتا
+// اللغتين بغض النظر عن lang، بنفس نمط errorEn الإضافي في بقية هذا الملف.
+// المستدعي في NutritionView.jsx يمرر i18n.language: recognizeMealFromImage(file, i18n.language).
+export async function recognizeMealFromImage(imageFile, lang = "ar") {
   try {
     const { base64, mimeType } = await compressImageToBase64(imageFile);
-    const prompt = `حلّل صورة الوجبة هذه. أرجع فقط JSON صالحاً بدون أي نص أو markdown إضافي، بهذا الشكل بالضبط:
+    const prompt = lang === "en"
+      ? `Analyze this meal photo. Return only valid JSON with no extra text or markdown, in exactly this shape:
+{"items":["first food item name","second food item name"],"calories":number,"protein":number,"carbs":number,"fat":number}
+Where items is a list of the food types visible in the photo in English, and the other values are an approximate total estimate for the entire meal as it appears in the photo (calories, protein, carbs, and fat in grams). Estimate as best you can based on the apparent portion size, and don't return default zeros if food is clearly visible in the image.`
+      : `حلّل صورة الوجبة هذه. أرجع فقط JSON صالحاً بدون أي نص أو markdown إضافي، بهذا الشكل بالضبط:
 {"items":["اسم نوع الطعام الأول","اسم نوع الطعام الثاني"],"calories":رقم,"protein":رقم,"carbs":رقم,"fat":رقم}
 حيث items قائمة بأنواع الطعام الظاهرة في الصورة بالعربية، والقيم الأخرى تقدير إجمالي تقريبي للوجبة كاملة كما تبدو في الصورة (سعرات حرارية، بروتين وكارب ودهون بالغرام). قدّر بأفضل ما تستطيع بناءً على الحجم الظاهر، ولا تُرجع أصفاراً افتراضية إن كان هناك طعام واضح في الصورة.`;
     const { geminiAnalyzeImage } = await import("./gemini.js");
@@ -469,8 +511,10 @@ export async function recognizeMealFromImage(imageFile) {
     };
   } catch (e) {
     console.error("[nutrition] recognizeMealFromImage failed:", e);
-    const error = isChunkLoadError(e) ? CHUNK_LOAD_ERROR_MESSAGE : "تعذّر تحليل صورة الوجبة الآن. جرّب مرة أخرى أو أضف الطعام يدوياً.";
-    return { ok: false, error };
+    const chunkError = isChunkLoadError(e);
+    const error = chunkError ? CHUNK_LOAD_ERROR_MESSAGE : "تعذّر تحليل صورة الوجبة الآن. جرّب مرة أخرى أو أضف الطعام يدوياً.";
+    const errorEn = chunkError ? CHUNK_LOAD_ERROR_MESSAGE_EN : "Couldn't analyze the meal photo right now. Try again or add the food manually.";
+    return { ok: false, error, errorEn };
   }
 }
 
@@ -483,10 +527,28 @@ export async function recognizeMealFromImage(imageFile) {
 // أبداً، بل نطلب من Gemini قراءته كما هو (بعض الملصقات لكل 100g، بعضها لكل
 // حصة فقط، بعضها الاثنان معاً - عندها نُفضّل 100g/100ml كأساس أدق، لكن هذا
 // اختيار Gemini نفسه بحسب التعليمة أدناه، لا افتراض من هذا الكود).
-export async function readNutritionLabel(imageFile) {
+//
+// lang معامل اختياري (افتراضياً 'ar') يتحكم فقط بلغة تعليمة الـprompt —
+// نفس مخطط JSON بالضبط (basis/servingGrams/calories/...) بكلتا اللغتين، لا
+// فرق سوى صياغة التعليمات. المستدعي في NutritionView.jsx يمرر
+// i18n.language: readNutritionLabel(file, i18n.language).
+export async function readNutritionLabel(imageFile, lang = "ar") {
   try {
     const { base64, mimeType } = await compressImageToBase64(imageFile);
-    const prompt = `حلّل صورة "جدول القيم الغذائية" (Nutrition Facts label) المطبوع هذا. اقرأ الأرقام المطبوعة فعلياً على الملصق فقط، ولا تخترع أو تقدّر أي رقم غير مكتوب. أرجع فقط JSON صالحاً بدون أي نص أو markdown إضافي، بهذا الشكل بالضبط:
+    const prompt = lang === "en"
+      ? `Analyze this printed "Nutrition Facts" label photo. Read only the numbers actually printed on the label — don't invent or estimate any number that isn't written. Return only valid JSON with no extra text or markdown, in exactly this shape:
+{"basis":"100g or 100ml or serving","servingGrams":number or null,"calories":number,"protein":number,"carbs":number,"fat":number,"fiber":number,"sugar":number,"sodium":number,"micronutrients":{},"productName":string or null}
+
+Where:
+- "basis": the actual reference basis printed on the label for these specific values — "100g" if per 100 grams, "100ml" if per 100 milliliters, or "serving" if per single serving only with no other 100g/100ml column. If both are shown, choose "100g" or "100ml" (always more precise) rather than "serving".
+- "servingGrams": only if basis="serving", the serving size in grams as written or computed (e.g. Serving Size 30g → 30, or 240ml → 240). Null if basis is "100g" or "100ml".
+- calories/protein/carbs/fat/fiber/sugar: numbers exactly as printed relative to the basis. Set to 0 only if not mentioned at all — never invent a missing number.
+- "sodium": in milligrams (mg) as printed, or converted from grams if needed.
+- "micronutrients": a JSON object containing only vitamins/minerals actually mentioned on the label from this list (exact keys): vitamin_d (mcg), vitamin_c (mg), vitamin_a (mcg), vitamin_b12 (mcg), iron (mg), calcium (mg), potassium (mg), zinc (mg), magnesium (mg). Convert units as needed. Return {} if none mentioned.
+- "productName": only if clearly written and legible in the same photo; null if no clear name appears, don't guess.
+
+If the label can't be read clearly enough, return exactly: {"error":"unreadable"}`
+      : `حلّل صورة "جدول القيم الغذائية" (Nutrition Facts label) المطبوع هذا. اقرأ الأرقام المطبوعة فعلياً على الملصق فقط، ولا تخترع أو تقدّر أي رقم غير مكتوب. أرجع فقط JSON صالحاً بدون أي نص أو markdown إضافي، بهذا الشكل بالضبط:
 {"basis":"100g أو 100ml أو serving","servingGrams":رقم أو null,"calories":رقم,"protein":رقم,"carbs":رقم,"fat":رقم,"fiber":رقم,"sugar":رقم,"sodium":رقم,"micronutrients":{},"productName":نص أو null}
 
 حيث:
@@ -502,7 +564,11 @@ export async function readNutritionLabel(imageFile) {
     const text = await geminiAnalyzeImage(prompt, base64, mimeType, 700);
     const parsed = parseJsonLoose(text);
     if (parsed.error || !parsed.basis) {
-      return { ok: false, error: "تعذّر قراءة الملصق بوضوح. جرّب صورة أوضح (إضاءة أفضل، الجدول كاملاً) أو أضف الطعام يدوياً." };
+      return {
+        ok: false,
+        error: "تعذّر قراءة الملصق بوضوح. جرّب صورة أوضح (إضاءة أفضل، الجدول كاملاً) أو أضف الطعام يدوياً.",
+        errorEn: "Couldn't read the label clearly. Try a clearer photo (better lighting, the whole table visible) or add the food manually.",
+      };
     }
     const basis = ["100g", "100ml", "serving"].includes(parsed.basis) ? parsed.basis : "100g";
     const rawMicros = parsed.micronutrients && typeof parsed.micronutrients === "object" ? parsed.micronutrients : {};
@@ -528,8 +594,10 @@ export async function readNutritionLabel(imageFile) {
     };
   } catch (e) {
     console.error("[nutrition] readNutritionLabel failed:", e);
-    const error = isChunkLoadError(e) ? CHUNK_LOAD_ERROR_MESSAGE : "تعذّر قراءة الملصق الآن. جرّب مرة أخرى أو أضف الطعام يدوياً.";
-    return { ok: false, error };
+    const chunkError = isChunkLoadError(e);
+    const error = chunkError ? CHUNK_LOAD_ERROR_MESSAGE : "تعذّر قراءة الملصق الآن. جرّب مرة أخرى أو أضف الطعام يدوياً.";
+    const errorEn = chunkError ? CHUNK_LOAD_ERROR_MESSAGE_EN : "Couldn't read the label right now. Try again or add the food manually.";
+    return { ok: false, error, errorEn };
   }
 }
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Users, Copy, UserPlus, LogOut, Trash2, Edit3, Check, X,
   Timer, Dumbbell, Crown, Loader2, Plus, RefreshCw, Clock, Hash, Settings2,
@@ -82,19 +83,20 @@ function RankIcon({ rank }) {
   return <span style={GS.leaderRank}>{rank}</span>;
 }
 
-function joinErrorMessage(err) {
+function joinErrorMessage(err, t) {
   return {
-    GROUP_NOT_FOUND: "الكود المدخل غير صحيح، تأكد من كتابته بشكل صحيح",
-    RPC_ERROR: "تعذّر التحقق الآن، حاول مرة أخرى بعد قليل",
-    ALREADY_MEMBER: "أنت عضو في هذا الجروب مسبقاً",
-    GROUP_FULL: "هذا الجروب وصل للحد الأقصى (10 أعضاء)",
-    NEEDS_ACCOUNT: "سجّل الدخول أولاً",
-    INVITE_EXPIRED: "انتهت صلاحية هذا الكود، اطلب من صاحب الجروب كوداً جديداً",
-    INVITE_EXHAUSTED: "وصل هذا الكود لحد الاستخدام الأقصى، اطلب من صاحب الجروب كوداً جديداً",
-  }[err.message] || "تعذّر الانضمام الآن";
+    GROUP_NOT_FOUND: t("groups.errors.invalidCode"),
+    RPC_ERROR: t("groups.errors.verifyFailed"),
+    ALREADY_MEMBER: t("groups.errors.alreadyMember"),
+    GROUP_FULL: t("groups.errors.groupFull"),
+    NEEDS_ACCOUNT: t("groups.errors.signInFirst"),
+    INVITE_EXPIRED: t("groups.errors.codeExpired"),
+    INVITE_EXHAUSTED: t("groups.errors.codeLimitReached"),
+  }[err.message] || t("groups.errors.joinFailed");
 }
 
 export default function GroupsView({ showToast }) {
+  const { t, i18n } = useTranslation();
   const hasCloud = store.hasCloud;
   const [myGroups, setMyGroups] = useState([]);
   const [loadingGroups, setLoadingGroups] = useState(true);
@@ -141,8 +143,8 @@ export default function GroupsView({ showToast }) {
     const detail = await store.loadGroupDetail(groupId, today);
     setGroupDetail(detail);
     memberOwnersRef.current = new Set(detail.map((m) => m.owner));
-    memberNamesRef.current = Object.fromEntries(detail.map((m) => [m.owner, m.name || "عضو"]));
-  }, [today]);
+    memberNamesRef.current = Object.fromEntries(detail.map((m) => [m.owner, m.name || t("groups.memberFallback")]));
+  }, [today, t]);
 
   useEffect(() => { loadDetail(selectedGroupId); }, [selectedGroupId, loadDetail]);
 
@@ -168,7 +170,7 @@ export default function GroupsView({ showToast }) {
     if (!hasCloud || !selectedGroupId) return;
     const unsubscribe = store.subscribeGroupActivity(selectedGroupId, (row) => {
       if (row.owner === (groupDetail || []).find((m) => m.isMe)?.owner) return;
-      const name = memberNamesRef.current[row.owner] || "عضو";
+      const name = memberNamesRef.current[row.owner] || t("groups.memberFallback");
       setActivityPing({ name, kind: row.kind, minutes: row.minutes });
       clearTimeout(pingTimerRef.current);
       pingTimerRef.current = setTimeout(() => setActivityPing(null), 60000);
@@ -179,7 +181,7 @@ export default function GroupsView({ showToast }) {
   async function handleReact(memberOwner, emoji) {
     const result = await store.sendGroupReaction(selectedGroupId, memberOwner, today, emoji);
     if (result.ok) loadDetail(selectedGroupId);
-    else if (!result.alreadySent) showToast("تعذّر إرسال التفاعل الآن");
+    else if (!result.alreadySent) showToast(t("groups.actionFailed"));
   }
 
   async function handleSaveInviteSettings(groupId) {
@@ -189,19 +191,19 @@ export default function GroupsView({ showToast }) {
       const expiresInDays = expiresDaysInput.trim() ? Math.max(1, parseInt(expiresDaysInput, 10) || 1) : null;
       await store.updateGroupInviteSettings(groupId, { maxUses, expiresInDays });
       await refreshGroups();
-      showToast("تم حفظ إعدادات كود الدعوة");
-    } catch { showToast("تعذّر الحفظ الآن"); }
+      showToast(t("groups.inviteSettingsSaved"));
+    } catch { showToast(t("groups.saveFailedNow")); }
     finally { setSavingInviteSettings(false); }
   }
 
   async function handleRegenerateCode(groupId) {
-    if (!window.confirm("سيتوقف الكود الحالي عن العمل فوراً لكل من لم ينضم بعد. إنشاء كود جديد؟")) return;
+    if (!window.confirm(t("groups.confirmNewCode"))) return;
     setRegeneratingCode(true);
     try {
       await store.regenerateInviteCode(groupId);
       await refreshGroups();
-      showToast("تم إنشاء كود جديد");
-    } catch { showToast("تعذّر إنشاء كود جديد الآن"); }
+      showToast(t("groups.newCodeCreated"));
+    } catch { showToast(t("groups.newCodeFailed")); }
     finally { setRegeneratingCode(false); }
   }
 
@@ -214,10 +216,10 @@ export default function GroupsView({ showToast }) {
       setNewGroupName("");
       const groups = await refreshGroups();
       setSelectedGroupId(group.id);
-      showToast("تم إنشاء الجروب");
+      showToast(t("groups.groupCreated"));
     } catch (err) {
       console.error("[GroupsView] createGroup failed:", err);
-      showToast("تعذّر إنشاء الجروب الآن");
+      showToast(t("groups.groupCreateFailed"));
     } finally { setCreating(false); }
   }
 
@@ -236,11 +238,11 @@ export default function GroupsView({ showToast }) {
         setShowJoinByCode(false);
         setManualCode("");
       } else {
-        showToast(joinErrorMessage({ message: "GROUP_NOT_FOUND" }));
+        showToast(joinErrorMessage({ message: "GROUP_NOT_FOUND" }, t));
       }
     } catch (err) {
       console.error("[GroupsView] getGroupByInviteCode failed:", err);
-      showToast(joinErrorMessage(err));
+      showToast(joinErrorMessage(err, t));
     } finally { setCheckingCode(false); }
   }
 
@@ -251,39 +253,39 @@ export default function GroupsView({ showToast }) {
       await store.joinGroupById(pendingInvite.id);
       await refreshGroups();
       setSelectedGroupId(pendingInvite.id);
-      showToast(`انضممت إلى ${pendingInvite.name}`);
+      showToast(t("groups.joined", { name: pendingInvite.name }));
     } catch (err) {
       console.error("[GroupsView] joinGroupById failed:", err);
-      showToast(joinErrorMessage(err));
+      showToast(joinErrorMessage(err, t));
     } finally { setJoining(false); setPendingInvite(null); }
   }
 
   async function handleLeave(groupId) {
-    if (!window.confirm("مغادرة الجروب؟")) return;
+    if (!window.confirm(t("groups.confirmLeave"))) return;
     try {
       await store.leaveGroup(groupId);
       const groups = await refreshGroups();
       setSelectedGroupId(groups[0]?.id || null);
-      showToast("غادرت الجروب");
-    } catch { showToast("تعذّر تنفيذ العملية الآن"); }
+      showToast(t("groups.left"));
+    } catch { showToast(t("groups.actionFailed")); }
   }
 
   async function handleRemoveMember(groupId, memberOwner) {
     try {
       await store.removeGroupMember(groupId, memberOwner);
       loadDetail(groupId);
-      showToast("تمت إزالة العضو");
-    } catch { showToast("تعذّر تنفيذ العملية الآن"); }
+      showToast(t("groups.memberRemoved"));
+    } catch { showToast(t("groups.actionFailed")); }
   }
 
   async function handleDeleteGroup(groupId) {
-    if (!window.confirm("حذف الجروب نهائياً لكل الأعضاء؟")) return;
+    if (!window.confirm(t("groups.confirmDelete"))) return;
     try {
       await store.deleteGroup(groupId);
       const groups = await refreshGroups();
       setSelectedGroupId(groups[0]?.id || null);
-      showToast("تم حذف الجروب");
-    } catch { showToast("تعذّر تنفيذ العملية الآن"); }
+      showToast(t("groups.groupDeleted"));
+    } catch { showToast(t("groups.actionFailed")); }
   }
 
   async function handleRename(groupId) {
@@ -293,14 +295,14 @@ export default function GroupsView({ showToast }) {
       await store.renameGroup(groupId, name);
       setMyGroups((prev) => prev.map((g) => (g.id === groupId ? { ...g, name } : g)));
       setRenaming(false);
-      showToast("تم تحديث اسم الجروب");
-    } catch { showToast("تعذّر تنفيذ العملية الآن"); }
+      showToast(t("groups.nameUpdated"));
+    } catch { showToast(t("groups.actionFailed")); }
   }
 
   function copyInviteCode(code) {
     navigator.clipboard?.writeText(code).then(
-      () => showToast("تم نسخ الكود"),
-      () => showToast("تعذّر النسخ، انسخه يدوياً"),
+      () => showToast(t("groups.codeCopied")),
+      () => showToast(t("groups.copyFailed")),
     );
   }
 
@@ -310,13 +312,13 @@ export default function GroupsView({ showToast }) {
         <div style={GS.hero}>
           <div style={GS.heroIcon}><Users size={22} color="#fff" /></div>
           <div>
-            <div style={GS.heroTitle}>تحديات الأصدقاء</div>
-            <div style={GS.heroSub}>تحدَّ أصدقاءك بساعات الدراسة وإنجاز الرياضة</div>
+            <div style={GS.heroTitle}>{t("groups.heroTitle")}</div>
+            <div style={GS.heroSub}>{t("groups.heroSub")}</div>
           </div>
         </div>
         <div style={S.setupCard}>
           <Users size={16} color="#5FA8A0" style={{ flexShrink: 0, marginTop: 2 }} />
-          <div style={S.setupText}>سجّل الدخول بحساب حقيقي أولاً لاستخدام تحديات الأصدقاء، فهذه ميزة تشارك بيانات بينك وبين أصدقائك.</div>
+          <div style={S.setupText}>{t("groups.signInRequired")}</div>
         </div>
       </div>
     );
@@ -331,27 +333,27 @@ export default function GroupsView({ showToast }) {
       <div style={GS.hero}>
         <div style={GS.heroIcon}><Users size={22} color="#fff" /></div>
         <div>
-          <div style={GS.heroTitle}>تحديات الأصدقاء</div>
-          <div style={GS.heroSub}>تحدَّ أصدقاءك بساعات الدراسة وإنجاز الرياضة</div>
+          <div style={GS.heroTitle}>{t("groups.heroTitle")}</div>
+          <div style={GS.heroSub}>{t("groups.heroSub")}</div>
         </div>
       </div>
 
       {activityPing && (
         <div style={GS.activityBanner} className="overlay-in">
           {activityPing.kind === "started"
-            ? `🟢 ${activityPing.name} بدأ جلسة دراسة${activityPing.minutes ? ` (${activityPing.minutes} دقيقة)` : ""}`
-            : `🎉 ${activityPing.name} أنهى جلسة دراسة لمدة ${activityPing.minutes || 0} دقيقة`}
+            ? t("groups.startedSession", { name: activityPing.name, minutes: activityPing.minutes ? ` (${activityPing.minutes} ${t("common.units.minutes")})` : "" })
+            : t("groups.finishedSession", { name: activityPing.name, minutes: activityPing.minutes || 0 })}
         </div>
       )}
 
       {pendingInvite && (
         <div style={GS.pendingOverlay} className="overlay-in">
           <div style={GS.pendingCard} className="modal-card-in">
-            <div style={GS.pendingTitle}>انضمام لجروب "{pendingInvite.name}"؟</div>
+            <div style={GS.pendingTitle}>{t("groups.joinGroupQuestion", { name: pendingInvite.name })}</div>
             <div style={GS.pendingBtnRow}>
-              <button onClick={() => setPendingInvite(null)} style={{ ...GS.dangerBtn, color: "var(--muted2)", background: "var(--surface-sunken)", borderColor: "var(--line)" }}>إلغاء</button>
+              <button onClick={() => setPendingInvite(null)} style={{ ...GS.dangerBtn, color: "var(--muted2)", background: "var(--surface-sunken)", borderColor: "var(--line)" }}>{t("common.buttons.cancel")}</button>
               <button onClick={confirmPendingInvite} disabled={joining} style={{ ...GS.createBtn, flex: 1, justifyContent: "center", padding: "10px 0" }}>
-                {joining ? <Loader2 size={14} className="spin" /> : "انضمام"}
+                {joining ? <Loader2 size={14} className="spin" /> : t("groups.join")}
               </button>
             </div>
           </div>
@@ -362,24 +364,24 @@ export default function GroupsView({ showToast }) {
         <div style={{ display: "flex", justifyContent: "center", padding: 30 }}><Loader2 size={22} className="spin" color="#8A7BD1" /></div>
       ) : myGroups.length === 0 ? (
         <div style={GS.card}>
-          <div style={GS.cardTitle}>أنشئ جروبك الأول</div>
+          <div style={GS.cardTitle}>{t("groups.createFirstGroup")}</div>
           <div style={GS.createRow}>
-            <input value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleCreate()} placeholder="اسم الجروب، مثال: شلة الجامعة" style={GS.createInput} />
+            <input value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleCreate()} placeholder={t("groups.groupNamePlaceholder")} style={GS.createInput} />
             <button onClick={handleCreate} disabled={creating || !newGroupName.trim()} style={GS.createBtn}>
-              {creating ? <Loader2 size={14} className="spin" /> : <Plus size={14} />} إنشاء
+              {creating ? <Loader2 size={14} className="spin" /> : <Plus size={14} />} {t("groups.create")}
             </button>
           </div>
-          <div style={GS.divider}>— أو —</div>
+          <div style={GS.divider}>{t("groups.orDivider")}</div>
           {showJoinByCode ? (
             <div style={GS.createRow}>
-              <input value={manualCode} onChange={(e) => setManualCode(e.target.value.toLowerCase().replace(/\s/g, "").slice(0, 8))} onKeyDown={(e) => e.key === "Enter" && handleCheckCode()} placeholder="اكتب الكود هنا" style={{ ...GS.createInput, direction: "ltr", textAlign: "center", letterSpacing: 2, fontFamily: "monospace" }} autoFocus />
+              <input value={manualCode} onChange={(e) => setManualCode(e.target.value.toLowerCase().replace(/\s/g, "").slice(0, 8))} onKeyDown={(e) => e.key === "Enter" && handleCheckCode()} placeholder={t("groups.codePlaceholder")} style={{ ...GS.createInput, direction: "ltr", textAlign: "center", letterSpacing: 2, fontFamily: "monospace" }} autoFocus />
               <button onClick={handleCheckCode} disabled={checkingCode || !manualCode.trim()} style={GS.createBtn}>
-                {checkingCode ? <Loader2 size={14} className="spin" /> : <UserPlus size={14} />} تحقق وانضم
+                {checkingCode ? <Loader2 size={14} className="spin" /> : <UserPlus size={14} />} {t("groups.verifyAndJoin")}
               </button>
             </div>
           ) : (
             <button onClick={() => setShowJoinByCode(true)} style={GS.joinByCodeBtn}>
-              <UserPlus size={14} /> الانضمام لجروب بكود
+              <UserPlus size={14} /> {t("groups.joinWithCode")}
             </button>
           )}
         </div>
@@ -410,44 +412,44 @@ export default function GroupsView({ showToast }) {
                     )}
                   </div>
                 )}
-                <span style={GS.memberCount}>{(groupDetail || []).length}/10 أعضاء</span>
+                <span style={GS.memberCount}>{t("groups.membersCount", { count: (groupDetail || []).length })}</span>
               </div>
 
               <div style={GS.codeBox}>
-                <span style={GS.codeBoxLabel}>كود الجروب</span>
+                <span style={GS.codeBoxLabel}>{t("groups.groupCode")}</span>
                 <span style={GS.codeBoxValue}>{selectedGroup.inviteCode}</span>
-                <button onClick={() => copyInviteCode(selectedGroup.inviteCode)} style={GS.copyBtn}><Copy size={12} /> نسخ الكود</button>
+                <button onClick={() => copyInviteCode(selectedGroup.inviteCode)} style={GS.copyBtn}><Copy size={12} /> {t("groups.copyCode")}</button>
               </div>
-              <div style={GS.codeBoxHint}>شارك هذا الكود مع أصدقائك ليدخلوه من قسم تحديات الأصدقاء</div>
+              <div style={GS.codeBoxHint}>{t("groups.shareCodeNote")}</div>
 
               {isOwner && (
                 <>
                   <button onClick={() => setShowInviteSettings((v) => !v)} style={GS.inviteSettingsToggle}>
-                    <Settings2 size={13} /> {showInviteSettings ? "إخفاء إعدادات الكود" : "إعدادات كود الدعوة"}
+                    <Settings2 size={13} /> {showInviteSettings ? t("groups.hideInviteSettings") : t("groups.inviteSettings")}
                   </button>
                   {showInviteSettings && (
                     <div style={GS.inviteSettingsCard}>
                       <div style={GS.inviteSettingsRow}>
-                        <span><Hash size={12} style={{ verticalAlign: "-1px" }} /> الاستخدام</span>
-                        <span>{selectedGroup.inviteMaxUses ? `${selectedGroup.inviteUsesCount || 0} من ${selectedGroup.inviteMaxUses}` : `${selectedGroup.inviteUsesCount || 0} (بلا حد)`}</span>
+                        <span><Hash size={12} style={{ verticalAlign: "-1px" }} /> {t("groups.usage")}</span>
+                        <span>{selectedGroup.inviteMaxUses ? t("groups.usageOf", { used: selectedGroup.inviteUsesCount || 0, max: selectedGroup.inviteMaxUses }) : t("groups.usageUnlimited", { used: selectedGroup.inviteUsesCount || 0 })}</span>
                       </div>
                       <div style={GS.inviteSettingsRow}>
-                        <span><Clock size={12} style={{ verticalAlign: "-1px" }} /> الصلاحية</span>
-                        <span>{selectedGroup.inviteExpiresAt ? new Date(selectedGroup.inviteExpiresAt).toLocaleDateString("ar") : "بلا انتهاء"}</span>
+                        <span><Clock size={12} style={{ verticalAlign: "-1px" }} /> {t("groups.expiry")}</span>
+                        <span>{selectedGroup.inviteExpiresAt ? new Date(selectedGroup.inviteExpiresAt).toLocaleDateString(i18n.language === "en" ? "en-US" : "ar") : t("groups.noExpiry")}</span>
                       </div>
                       <div style={GS.inviteSettingsInputRow}>
-                        <span style={GS.inviteSettingsLabel}>حد الاستخدام</span>
-                        <input type="number" min="1" value={maxUsesInput} onChange={(e) => setMaxUsesInput(e.target.value)} placeholder="بلا حد" style={GS.inviteSettingsInput} />
+                        <span style={GS.inviteSettingsLabel}>{t("groups.usageLimit")}</span>
+                        <input type="number" min="1" value={maxUsesInput} onChange={(e) => setMaxUsesInput(e.target.value)} placeholder={t("groups.noLimitPlaceholder")} style={GS.inviteSettingsInput} />
                       </div>
                       <div style={GS.inviteSettingsInputRow}>
-                        <span style={GS.inviteSettingsLabel}>ينتهي خلال (أيام)</span>
-                        <input type="number" min="1" value={expiresDaysInput} onChange={(e) => setExpiresDaysInput(e.target.value)} placeholder="بلا انتهاء" style={GS.inviteSettingsInput} />
+                        <span style={GS.inviteSettingsLabel}>{t("groups.expiresInDays")}</span>
+                        <input type="number" min="1" value={expiresDaysInput} onChange={(e) => setExpiresDaysInput(e.target.value)} placeholder={t("groups.neverExpiresPlaceholder")} style={GS.inviteSettingsInput} />
                       </div>
                       <button onClick={() => handleSaveInviteSettings(selectedGroup.id)} disabled={savingInviteSettings} style={{ ...GS.createBtn, width: "100%", justifyContent: "center" }}>
-                        {savingInviteSettings ? <Loader2 size={14} className="spin" /> : "حفظ الإعدادات"}
+                        {savingInviteSettings ? <Loader2 size={14} className="spin" /> : t("groups.saveSettings")}
                       </button>
                       <button onClick={() => handleRegenerateCode(selectedGroup.id)} disabled={regeneratingCode} style={GS.regenerateBtn}>
-                        {regeneratingCode ? <Loader2 size={13} className="spin" /> : <RefreshCw size={13} />} إنشاء كود جديد (يُبطل الحالي)
+                        {regeneratingCode ? <Loader2 size={13} className="spin" /> : <RefreshCw size={13} />} {t("groups.generateNewCode")}
                       </button>
                     </div>
                   )}
@@ -462,10 +464,10 @@ export default function GroupsView({ showToast }) {
                     <div key={m.owner} style={{ ...GS.leaderRow, ...(m.isMe ? GS.leaderRowMe : {}) }}>
                       <RankIcon rank={i + 1} />
                       <div style={GS.leaderInfo}>
-                        <span style={GS.leaderName}>{m.name || "عضو"}{m.isMe && <span style={GS.meTag}>أنت</span>}</span>
+                        <span style={GS.leaderName}>{m.name || t("groups.memberFallback")}{m.isMe && <span style={GS.meTag}>{t("groups.you")}</span>}</span>
                         <div style={GS.leaderStats}>
                           <span style={GS.leaderStat}><Timer size={12} /> {fmtHM(m.studyMinutes)}</span>
-                          <span style={{ ...GS.leaderStat, ...(m.workoutDone ? GS.leaderStatDone : {}) }}><Dumbbell size={12} /> {m.workoutDone ? "أنجز تمرين اليوم" : "لم يُنجز بعد"}</span>
+                          <span style={{ ...GS.leaderStat, ...(m.workoutDone ? GS.leaderStatDone : {}) }}><Dumbbell size={12} /> {m.workoutDone ? t("groups.workoutDoneToday") : t("groups.workoutNotDoneYet")}</span>
                         </div>
                         {!m.isMe && (
                           <div style={GS.reactionsRow}>
@@ -473,7 +475,7 @@ export default function GroupsView({ showToast }) {
                               const sent = (m.reactions?.sentByMe || []).includes(emoji);
                               const count = m.reactions?.counts?.[emoji] || 0;
                               return (
-                                <button key={emoji} onClick={() => handleReact(m.owner, emoji)} disabled={sent} style={{ ...GS.reactionBtn, ...(sent ? GS.reactionBtnSent : {}) }} title={sent ? "أرسلته اليوم" : "أرسل تفاعلاً"}>
+                                <button key={emoji} onClick={() => handleReact(m.owner, emoji)} disabled={sent} style={{ ...GS.reactionBtn, ...(sent ? GS.reactionBtnSent : {}) }} title={sent ? t("groups.sentToday") : t("groups.sendReaction")}>
                                   {emoji}{count > 0 && <span style={GS.reactionCount}>{count}</span>}
                                 </button>
                               );
@@ -482,7 +484,7 @@ export default function GroupsView({ showToast }) {
                         )}
                       </div>
                       {!m.isMe && isOwner && (
-                        <button onClick={() => handleRemoveMember(selectedGroup.id, m.owner)} style={GS.removeBtn} title="إزالة من الجروب"><X size={15} /></button>
+                        <button onClick={() => handleRemoveMember(selectedGroup.id, m.owner)} style={GS.removeBtn} title={t("groups.removeFromGroup")}><X size={15} /></button>
                       )}
                     </div>
                   ))}
@@ -491,34 +493,34 @@ export default function GroupsView({ showToast }) {
 
               <div style={GS.actionsRow}>
                 <button onClick={() => handleLeave(selectedGroup.id)} style={{ ...GS.dangerBtn, color: "var(--muted2)", background: "var(--surface-sunken)", borderColor: "var(--line)" }}>
-                  <LogOut size={13} /> مغادرة الجروب
+                  <LogOut size={13} /> {t("groups.leaveGroup")}
                 </button>
                 {isOwner && (
-                  <button onClick={() => handleDeleteGroup(selectedGroup.id)} style={GS.dangerBtn}><Trash2 size={13} /> حذف الجروب</button>
+                  <button onClick={() => handleDeleteGroup(selectedGroup.id)} style={GS.dangerBtn}><Trash2 size={13} /> {t("groups.deleteGroup")}</button>
                 )}
               </div>
             </div>
           )}
 
           <div style={GS.card}>
-            <div style={GS.cardTitle}>إنشاء جروب جديد</div>
+            <div style={GS.cardTitle}>{t("groups.createNewGroup")}</div>
             <div style={GS.createRow}>
-              <input value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleCreate()} placeholder="اسم الجروب" style={GS.createInput} />
+              <input value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleCreate()} placeholder={t("groups.groupNameShort")} style={GS.createInput} />
               <button onClick={handleCreate} disabled={creating || !newGroupName.trim()} style={GS.createBtn}>
-                {creating ? <Loader2 size={14} className="spin" /> : <Plus size={14} />} إنشاء
+                {creating ? <Loader2 size={14} className="spin" /> : <Plus size={14} />} {t("groups.create")}
               </button>
             </div>
-            <div style={GS.divider}>— أو —</div>
+            <div style={GS.divider}>{t("groups.orDivider")}</div>
             {showJoinByCode ? (
               <div style={GS.createRow}>
-                <input value={manualCode} onChange={(e) => setManualCode(e.target.value.toLowerCase().replace(/\s/g, "").slice(0, 8))} onKeyDown={(e) => e.key === "Enter" && handleCheckCode()} placeholder="اكتب الكود هنا" style={{ ...GS.createInput, direction: "ltr", textAlign: "center", letterSpacing: 2, fontFamily: "monospace" }} autoFocus />
+                <input value={manualCode} onChange={(e) => setManualCode(e.target.value.toLowerCase().replace(/\s/g, "").slice(0, 8))} onKeyDown={(e) => e.key === "Enter" && handleCheckCode()} placeholder={t("groups.codePlaceholder")} style={{ ...GS.createInput, direction: "ltr", textAlign: "center", letterSpacing: 2, fontFamily: "monospace" }} autoFocus />
                 <button onClick={handleCheckCode} disabled={checkingCode || !manualCode.trim()} style={GS.createBtn}>
-                  {checkingCode ? <Loader2 size={14} className="spin" /> : <UserPlus size={14} />} تحقق وانضم
+                  {checkingCode ? <Loader2 size={14} className="spin" /> : <UserPlus size={14} />} {t("groups.verifyAndJoin")}
                 </button>
               </div>
             ) : (
               <button onClick={() => setShowJoinByCode(true)} style={GS.joinByCodeBtn}>
-                <UserPlus size={14} /> الانضمام لجروب بكود
+                <UserPlus size={14} /> {t("groups.joinWithCode")}
               </button>
             )}
           </div>

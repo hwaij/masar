@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Plus, X, Trash2, Camera, Search, Loader2, Droplet, Flame, Check, Bell,
   Hash, Sparkles, ImagePlus, ClipboardList, Edit3, ChevronLeft, ChevronRight, SkipForward,
@@ -62,7 +63,7 @@ const NS = {
   searchRow: { display: "flex", gap: 8, marginBottom: 12 },
   searchInput: { flex: 1, background: "var(--surface-sunken)", border: "1px solid var(--border2)", borderRadius: 10, padding: "10px 12px", color: "var(--ink)", fontSize: 14, fontFamily: "inherit" },
   searchBtn: { background: "var(--gold)", color: "var(--bg)", border: "none", borderRadius: 10, width: 44, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 },
-  resultRow: { display: "flex", alignItems: "center", gap: 10, width: "100%", background: "var(--surface-sunken)", border: "1px solid var(--border2)", borderRadius: 12, padding: "10px 12px", marginBottom: 8, cursor: "pointer", fontFamily: "inherit", textAlign: "right", color: "inherit" },
+  resultRow: { display: "flex", alignItems: "center", gap: 10, width: "100%", background: "var(--surface-sunken)", border: "1px solid var(--border2)", borderRadius: 12, padding: "10px 12px", marginBottom: 8, cursor: "pointer", fontFamily: "inherit", textAlign: "start", color: "inherit" },
   resultImg: { width: 36, height: 36, borderRadius: 8, objectFit: "cover", flexShrink: 0, background: "var(--surface-raised)" },
   resultName: { fontSize: 13, fontWeight: 700, color: "var(--ink)" },
   resultMeta: { fontSize: 11, color: "var(--muted2)", marginTop: 2 },
@@ -136,6 +137,7 @@ const SUBSCRIBE_URL = "https://www.instagram.com/hjmasar";
 const BARCODE_FORMATS_SUPPORT_ID = "masar-barcode-scanner-region";
 
 function BarcodeScannerModal({ onDetected, onClose }) {
+  const { t } = useTranslation();
   const [error, setError] = useState(null);
   const scannerRef = useRef(null);
   // html5-qrcode's success callback keeps firing every scanned frame while
@@ -149,7 +151,7 @@ function BarcodeScannerModal({ onDetected, onClose }) {
     let instance = null;
     (async () => {
       if (!isSecureContextForCamera()) {
-        setError("الكاميرا تحتاج اتصالاً آمناً (HTTPS) لتعمل. تأكد من فتح الموقع عبر رابط https:// وأعد المحاولة.");
+        setError(t("nutrition.cameraHttpsRequired"));
         return;
       }
       // نطلب الإذن صراحةً هنا أولاً (بدل ترك html5-qrcode يطلبه ضمنياً)
@@ -210,13 +212,13 @@ function BarcodeScannerModal({ onDetected, onClose }) {
     <div style={NS.overlay} className="overlay-in" onClick={onClose}>
       <div style={NS.sheet} className="sheet-in" onClick={(e) => e.stopPropagation()}>
         <div style={NS.sheetHead}>
-          <span style={NS.sheetTitle}>مسح الباركود</span>
+          <span style={NS.sheetTitle}>{t("nutrition.scanBarcode")}</span>
           <button onClick={onClose} style={NS.closeBtn}><X size={16} /></button>
         </div>
         {error ? (
           <div style={NS.errorText}>{error}</div>
         ) : (
-          <p style={NS.scanHint}>وجّه الكاميرا نحو باركود المنتج</p>
+          <p style={NS.scanHint}>{t("nutrition.pointCameraAtBarcode")}</p>
         )}
         <div id={BARCODE_FORMATS_SUPPORT_ID} style={NS.scannerBox} />
       </div>
@@ -227,12 +229,13 @@ function BarcodeScannerModal({ onDetected, onClose }) {
 // بطاقة ترقية مصغّرة داخل قسم التغذية نفسه (لا يوجد UpsellCard مُصدَّرة
 // من مكان مشترك بعد - هذا المكوّن يعيش هنا فقط ولا يُستخدم في أي قسم آخر).
 function MiniUpsell({ title, message }) {
+  const { t } = useTranslation();
   return (
     <div style={NS.compactUpsell}>
       <Sparkles size={22} color="var(--gold)" />
       <div style={NS.compactUpsellTitle}>{title}</div>
       <p style={NS.compactUpsellMsg}>{message}</p>
-      <a href={SUBSCRIBE_URL} target="_blank" rel="noopener noreferrer" style={{ ...NS.notifBtn, flex: "none", padding: "9px 18px", textDecoration: "none" }}>اشترك الآن</a>
+      <a href={SUBSCRIBE_URL} target="_blank" rel="noopener noreferrer" style={{ ...NS.notifBtn, flex: "none", padding: "9px 18px", textDecoration: "none" }}>{t("nutrition.subscribeNow")}</a>
     </div>
   );
 }
@@ -241,16 +244,17 @@ function MiniUpsell({ title, message }) {
 // البحث بالباركود الموجود (onSubmit هو نفس handleBarcodeDetected) دون أي
 // تكرار للكود.
 function ManualBarcodeEntry({ onSubmit }) {
+  const { t } = useTranslation();
   const [value, setValue] = useState("");
   return (
     <>
-      <p style={NS.scanHint}>اكتب رقم الباركود المطبوع على المنتج</p>
+      <p style={NS.scanHint}>{t("nutrition.enterBarcode")}</p>
       <div style={NS.searchRow}>
         <input
           value={value}
           onChange={(e) => setValue(e.target.value.replace(/\D/g, ""))}
           onKeyDown={(e) => { if (e.key === "Enter" && value) onSubmit(value); }}
-          placeholder="مثال: 6291041500213"
+          placeholder={t("nutrition.barcodePlaceholder")}
           inputMode="numeric"
           style={NS.searchInput}
           autoFocus
@@ -301,11 +305,12 @@ function ProgressRing({ percent, color, label, valueText, size = 64, strokeWidth
 // الموجودة. ألوان مميّزة لكل ماكرو (الصوديوم بنفس لون شريطه الخطي أعلاه
 // حتى يبقى "الصوديوم = أحمر" متسقاً في كل الواجهة).
 function MacroRings({ totals, macroTargets }) {
+  const { t } = useTranslation();
   const rings = [
-    { key: "protein", label: "بروتين", color: "#C9A24B", value: totals.protein, target: macroTargets?.protein, unit: "غ" },
-    { key: "carbs", label: "كارب", color: "#4C8BF5", value: totals.carbs, target: macroTargets?.carbs, unit: "غ" },
-    { key: "fat", label: "دهون", color: "#E8B93E", value: totals.fat, target: macroTargets?.fat, unit: "غ" },
-    { key: "sodium", label: "صوديوم", color: "#D17B5F", value: totals.sodium, target: DAILY_GUIDELINES.sodiumMaxMg, unit: "مغ" },
+    { key: "protein", label: t("common.units.protein"), color: "#C9A24B", value: totals.protein, target: macroTargets?.protein, unit: t("common.units.g") },
+    { key: "carbs", label: t("common.units.carbs"), color: "#4C8BF5", value: totals.carbs, target: macroTargets?.carbs, unit: t("common.units.g") },
+    { key: "fat", label: t("common.units.fat"), color: "#E8B93E", value: totals.fat, target: macroTargets?.fat, unit: t("common.units.g") },
+    { key: "sodium", label: t("common.units.sodium"), color: "#D17B5F", value: totals.sodium, target: DAILY_GUIDELINES.sodiumMaxMg, unit: t("common.units.mg") },
   ];
   return (
     <div style={NS.ringsRow} className="masar-hero-graphic">
@@ -333,6 +338,7 @@ function fmtQty(n) {
 // صف مستخدم آخر مهما كان - إما يُحدّث صف المستخدم الحالي إن كان يملك واحداً
 // لهذا الباركود، أو يُنشئ صفاً جديداً منفصلاً باسمه (تصحيح لا استبدال).
 function ProductEditForm({ product, onSaved, onCancel, showToast }) {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState({
     foodName: product.name || "",
     calories: product.caloriesPer100g || 0, protein: product.proteinPer100g || 0,
@@ -362,8 +368,8 @@ function ProductEditForm({ product, onSaved, onCancel, showToast }) {
       micronutrients: cleanMicro,
     });
     setSaving(false);
-    if (!res.ok) { showToast("تعذّر حفظ التصحيح، حاول مرة أخرى"); return; }
-    showToast("حُفظ التصحيح بنجاح");
+    if (!res.ok) { showToast(t("nutrition.correctionSaveFailed")); return; }
+    showToast(t("nutrition.correctionSaved"));
     onSaved({
       name: draft.foodName.trim(),
       caloriesPer100g: Number(draft.calories) || 0, proteinPer100g: Number(draft.protein) || 0,
@@ -375,44 +381,44 @@ function ProductEditForm({ product, onSaved, onCancel, showToast }) {
 
   return (
     <>
-      <p style={{ ...S.label, marginBottom: 8 }}>تصحيح بيانات المنتج (لكل 100غم)</p>
-      <label style={S.label}>اسم الطعام</label>
+      <p style={{ ...S.label, marginBottom: 8 }}>{t("nutrition.correctProductData")}</p>
+      <label style={S.label}>{t("nutrition.foodName")}</label>
       <input value={draft.foodName} onChange={(e) => change("foodName", e.target.value)} style={S.input} />
       <div style={NS.editableGrid}>
         <div>
-          <label style={S.label}>السعرات</label>
+          <label style={S.label}>{t("nutrition.calories")}</label>
           <input type="number" inputMode="decimal" value={draft.calories} onChange={(e) => change("calories", e.target.value)} style={S.input} />
         </div>
         <div>
-          <label style={S.label}>بروتين (غ)</label>
+          <label style={S.label}>{t("common.units.protein")} ({t("common.units.g")})</label>
           <input type="number" inputMode="decimal" value={draft.protein} onChange={(e) => change("protein", e.target.value)} style={S.input} />
         </div>
         <div>
-          <label style={S.label}>كارب (غ)</label>
+          <label style={S.label}>{t("common.units.carbs")} ({t("common.units.g")})</label>
           <input type="number" inputMode="decimal" value={draft.carbs} onChange={(e) => change("carbs", e.target.value)} style={S.input} />
         </div>
         <div>
-          <label style={S.label}>دهون (غ)</label>
+          <label style={S.label}>{t("common.units.fat")} ({t("common.units.g")})</label>
           <input type="number" inputMode="decimal" value={draft.fat} onChange={(e) => change("fat", e.target.value)} style={S.input} />
         </div>
         <div>
-          <label style={S.label}>ألياف (غ)</label>
+          <label style={S.label}>{t("common.units.fiber")} ({t("common.units.g")})</label>
           <input type="number" inputMode="decimal" value={draft.fiber} onChange={(e) => change("fiber", e.target.value)} style={S.input} />
         </div>
         <div>
-          <label style={S.label}>سكر (غ)</label>
+          <label style={S.label}>{t("common.units.sugar")} ({t("common.units.g")})</label>
           <input type="number" inputMode="decimal" value={draft.sugar} onChange={(e) => change("sugar", e.target.value)} style={S.input} />
         </div>
         <div>
-          <label style={S.label}>صوديوم (مغم)</label>
+          <label style={S.label}>{t("common.units.sodium")} ({t("common.units.mg")})</label>
           <input type="number" inputMode="decimal" value={draft.sodium} onChange={(e) => change("sodium", e.target.value)} style={S.input} />
         </div>
       </div>
-      <p style={{ ...S.label, marginTop: 14, marginBottom: 4 }}>الفيتامينات والمعادن (لكل 100غم، اختياري)</p>
+      <p style={{ ...S.label, marginTop: 14, marginBottom: 4 }}>{t("nutrition.vitaminsMineralsOptional")}</p>
       <div style={NS.editableGrid}>
         {Object.entries(MICRONUTRIENT_META).map(([key, meta]) => (
           <div key={key}>
-            <label style={S.label}>{meta.label} ({meta.unit})</label>
+            <label style={S.label}>{t(`nutrition.micronutrients.${key}`)} ({meta.unit})</label>
             <input
               type="number" inputMode="decimal" value={micro[key] ?? ""}
               onChange={(e) => changeMicro(key, e.target.value)}
@@ -422,14 +428,15 @@ function ProductEditForm({ product, onSaved, onCancel, showToast }) {
         ))}
       </div>
       <button onClick={save} style={S.saveBtn} disabled={!valid || saving}>
-        {saving ? <Loader2 size={16} className="spin" /> : "حفظ التصحيح"}
+        {saving ? <Loader2 size={16} className="spin" /> : t("nutrition.saveCorrection")}
       </button>
-      <button onClick={onCancel} style={{ ...S.exportBtn, marginTop: 8, marginBottom: 0 }}>إلغاء</button>
+      <button onClick={onCancel} style={{ ...S.exportBtn, marginTop: 8, marginBottom: 0 }}>{t("common.buttons.cancel")}</button>
     </>
   );
 }
 
 function ConfirmQuantityCard({ product: initialProduct, source, onAdd, onCancel, showToast }) {
+  const { t } = useTranslation();
   const [product, setProduct] = useState(initialProduct);
   const [editing, setEditing] = useState(false);
   const hasServing = !!product.servingGrams;
@@ -451,6 +458,11 @@ function ConfirmQuantityCard({ product: initialProduct, source, onAdd, onCancel,
     }
   }, [multiplier, hasServing, product.servingGrams, unit]);
   const presets = servingPresets(product.servingGrams);
+  // servingPresets() is positional (no .id field) — mirror its exact order
+  // here without touching lib/nutrition.js: [100g] always first, then
+  // [one serving] only when the product has a known serving size, then
+  // [cup ~240g] last.
+  const presetIds = product.servingGrams ? ["grams100", "oneServing", "cupApprox"] : ["grams100", "cupApprox"];
   // أي وحدة غير الغرام تُحوَّل داخلياً لغرام/مليلتر مكافئ (تقدير تقريبي
   // لغير الأوزان المباشرة) قبل حساب القيم الغذائية، حتى يبقى scaleNutrients
   // بمعامل غرام/100 وحيد بغض النظر عن الوحدة التي اختارها المستخدم.
@@ -476,23 +488,23 @@ function ConfirmQuantityCard({ product: initialProduct, source, onAdd, onCancel,
         {product.imageUrl && <img src={product.imageUrl} alt="" style={NS.productImg} />}
         <div style={{ flex: 1 }}>
           <div style={NS.productName}>{product.name}</div>
-          <div style={NS.productMeta}>{product.caloriesPer100g} سعرة / 100غم</div>
+          <div style={NS.productMeta}>{t("nutrition.calPer100g", { cal: product.caloriesPer100g })}</div>
         </div>
         {product.origin === "custom_foods" && (
-          <button onClick={() => setEditing(true)} style={NS.editDataBtn}><Edit3 size={13} /> تعديل البيانات</button>
+          <button onClick={() => setEditing(true)} style={NS.editDataBtn}><Edit3 size={13} /> {t("nutrition.editData")}</button>
         )}
       </div>
-      <label style={S.label}>وحدة القياس</label>
+      <label style={S.label}>{t("nutrition.unitOfMeasure")}</label>
       <div style={NS.unitRow}>
         <select value={unit} onChange={(e) => setUnit(e.target.value)} style={NS.unitSelect}>
-          {UNIT_OPTIONS.map((u) => <option key={u.id} value={u.id}>{u.label}</option>)}
+          {UNIT_OPTIONS.map((u) => <option key={u.id} value={u.id}>{t(`nutrition.unitOptions.${u.id}`)}</option>)}
         </select>
       </div>
       {unit === "g" ? (
         <>
           {hasServing && (
             <>
-              <label style={S.label}>عدد الحصص (كل حصة {Math.round(product.servingGrams)} غم)</label>
+              <label style={S.label}>{t("nutrition.servingsCountEach", { g: Math.round(product.servingGrams) })}</label>
               <div style={NS.multiplierRow}>
                 {[1, 2, 3, 4, 5].map((n) => (
                   <button key={n} onClick={() => setMultiplier(n)} style={{ ...NS.multiplierBtn, ...(multiplier === n ? NS.multiplierBtnActive : {}) }}>×{n}</button>
@@ -505,19 +517,19 @@ function ConfirmQuantityCard({ product: initialProduct, source, onAdd, onCancel,
               </div>
             </>
           )}
-          <label style={S.label}>{hasServing ? "أو عدّل الكمية بالغرام مباشرة" : "الكمية (غم)"}</label>
+          <label style={S.label}>{hasServing ? t("nutrition.orEditQuantityGrams") : t("nutrition.quantityGrams")}</label>
           <input type="number" inputMode="decimal" value={grams} onChange={(e) => setGrams(Number(e.target.value))} style={S.input} />
           {!hasServing && (
             <div style={NS.presetRow}>
-              {presets.map((p) => (
-                <button key={p.label} onClick={() => setGrams(p.grams)} style={{ ...NS.presetChip, ...(grams === p.grams ? NS.presetChipActive : {}) }}>{p.label}</button>
+              {presets.map((p, i) => (
+                <button key={p.label} onClick={() => setGrams(p.grams)} style={{ ...NS.presetChip, ...(grams === p.grams ? NS.presetChipActive : {}) }}>{t(`nutrition.servingPresets.${presetIds[i]}`)}</button>
               ))}
             </div>
           )}
         </>
       ) : (
         <>
-          <label style={S.label}>عدد الحصص (كل حصة {fmtQty(unitBaseQty)} {unitMeta.label})</label>
+          <label style={S.label}>{t("nutrition.servingsCountEachUnit", { qty: fmtQty(unitBaseQty), unit: t(`nutrition.unitOptions.${unit}`) })}</label>
           <div style={NS.multiplierRow}>
             {[1, 2, 3, 4, 5].map((n) => (
               <button key={n} onClick={() => setMultiplier(n)} style={{ ...NS.multiplierBtn, ...(multiplier === n ? NS.multiplierBtnActive : {}) }}>×{n}</button>
@@ -528,43 +540,44 @@ function ConfirmQuantityCard({ product: initialProduct, source, onAdd, onCancel,
               style={NS.multiplierInput}
             />
           </div>
-          <label style={S.label}>أو عدّل الكمية بـ{unitMeta.label} مباشرة</label>
+          <label style={S.label}>{t("nutrition.orEditQuantityUnit", { unit: t(`nutrition.unitOptions.${unit}`) })}</label>
           <input type="number" inputMode="decimal" value={unitQty} onChange={(e) => setUnitQty(Number(e.target.value) || 0)} style={S.input} />
-          {unitMeta.approx && <p style={NS.unitApproxNote}>تحويل تقريبي إلى غرام لحساب القيم الغذائية (وحدة غير وزنية).</p>}
+          {unitMeta.approx && <p style={NS.unitApproxNote}>{t("nutrition.approxConversionNote")}</p>}
         </>
       )}
       <div style={NS.previewGrid}>
-        <div style={NS.previewChip}><div style={NS.macroValue}>{preview.calories}</div><div style={NS.macroLabel}>سعرة</div></div>
-        <div style={NS.previewChip}><div style={NS.macroValue}>{preview.protein}غ</div><div style={NS.macroLabel}>بروتين</div></div>
-        <div style={NS.previewChip}><div style={NS.macroValue}>{preview.carbs}غ</div><div style={NS.macroLabel}>كارب</div></div>
-        <div style={NS.previewChip}><div style={NS.macroValue}>{preview.fat}غ</div><div style={NS.macroLabel}>دهون</div></div>
+        <div style={NS.previewChip}><div style={NS.macroValue}>{preview.calories}</div><div style={NS.macroLabel}>{t("common.units.kcal")}</div></div>
+        <div style={NS.previewChip}><div style={NS.macroValue}>{preview.protein}{t("common.units.g")}</div><div style={NS.macroLabel}>{t("common.units.protein")}</div></div>
+        <div style={NS.previewChip}><div style={NS.macroValue}>{preview.carbs}{t("common.units.g")}</div><div style={NS.macroLabel}>{t("common.units.carbs")}</div></div>
+        <div style={NS.previewChip}><div style={NS.macroValue}>{preview.fat}{t("common.units.g")}</div><div style={NS.macroLabel}>{t("common.units.fat")}</div></div>
       </div>
       <div style={NS.previewGrid}>
-        <div style={NS.previewChip}><div style={NS.macroValue}>{preview.fiber}غ</div><div style={NS.macroLabel}>ألياف</div></div>
-        <div style={NS.previewChip}><div style={NS.macroValue}>{preview.sugar}غ</div><div style={NS.macroLabel}>سكر</div></div>
-        <div style={NS.previewChip}><div style={NS.macroValue}>{preview.sodium}مغ</div><div style={NS.macroLabel}>صوديوم</div></div>
+        <div style={NS.previewChip}><div style={NS.macroValue}>{preview.fiber}{t("common.units.g")}</div><div style={NS.macroLabel}>{t("common.units.fiber")}</div></div>
+        <div style={NS.previewChip}><div style={NS.macroValue}>{preview.sugar}{t("common.units.g")}</div><div style={NS.macroLabel}>{t("common.units.sugar")}</div></div>
+        <div style={NS.previewChip}><div style={NS.macroValue}>{preview.sodium}{t("common.units.mg")}</div><div style={NS.macroLabel}>{t("common.units.sodium")}</div></div>
       </div>
       <button
         onClick={() => onAdd({
           id: uid(), foodName: product.name, ...preview,
           unit,
           servingInfo: unit === "g"
-            ? (hasServing ? `${multiplier} × ${Math.round(product.servingGrams)}غم` : `${grams} غم`)
-            : `${fmtQty(unitQty)} ${unitMeta.label}`,
+            ? (hasServing ? `${multiplier} × ${Math.round(product.servingGrams)}${t("common.units.g")}` : `${grams} ${t("common.units.g")}`)
+            : `${fmtQty(unitQty)} ${t(`nutrition.unitOptions.${unit}`)}`,
           source,
           micronutrients: scaleMicronutrients(product.micronutrientsPer100g, gramsEquivalent || 0),
         })}
         style={S.saveBtn}
         disabled={!gramsEquivalent || gramsEquivalent <= 0}
       >
-        إضافة إلى سجل اليوم
+        {t("nutrition.addToTodayLog")}
       </button>
-      <button onClick={onCancel} style={{ ...S.exportBtn, marginTop: 8, marginBottom: 0 }}>رجوع</button>
+      <button onClick={onCancel} style={{ ...S.exportBtn, marginTop: 8, marginBottom: 0 }}>{t("common.buttons.back")}</button>
     </>
   );
 }
 
 function ManualEntryForm({ barcode, onSave, onCancel }) {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState({
     foodName: "", brand: "", country: "", servingSizeLabel: "", unit: "g", qty: "",
     calories: "", protein: "", carbs: "", fat: "", fiber: "", sugar: "", sodium: "", imageUrl: "",
@@ -585,34 +598,35 @@ function ManualEntryForm({ barcode, onSave, onCancel }) {
 
   return (
     <>
-      {barcode && <p style={NS.notFoundNote}>لم يُعثر على هذا المنتج ({barcode}) في قاعدة بيانات الأطعمة. أضِفه يدوياً وسيتوفّر تلقائياً لأي مستخدم آخر يبحث بنفس الباركود لاحقاً.</p>}
-      <label style={S.label}>اسم الطعام</label>
+      {barcode && <p style={NS.notFoundNote}>{t("nutrition.productNotFound", { barcode })}</p>}
+      <label style={S.label}>{t("nutrition.foodName")}</label>
+      {/* nutrition.foodNamePlaceholder doesn't exist in locales yet — literal Arabic fallback, see report */}
       <input value={draft.foodName} onChange={(e) => change("foodName", e.target.value)} placeholder="مثال: تمر سكري" style={S.input} />
       <div style={{ display: "flex", gap: 10 }}>
         <div style={{ flex: 1 }}>
-          <label style={S.label}>العلامة التجارية</label>
-          <input value={draft.brand} onChange={(e) => change("brand", e.target.value)} placeholder="اختياري" style={S.input} />
+          <label style={S.label}>{t("nutrition.brand")}</label>
+          <input value={draft.brand} onChange={(e) => change("brand", e.target.value)} placeholder={t("nutrition.optional")} style={S.input} />
         </div>
         <div style={{ flex: 1 }}>
-          <label style={S.label}>الدولة</label>
-          <input value={draft.country} onChange={(e) => change("country", e.target.value)} placeholder="اختياري" style={S.input} />
+          <label style={S.label}>{t("nutrition.country")}</label>
+          <input value={draft.country} onChange={(e) => change("country", e.target.value)} placeholder={t("nutrition.optional")} style={S.input} />
         </div>
       </div>
-      <label style={S.label}>وصف حجم الحصة (اختياري)</label>
-      <input value={draft.servingSizeLabel} onChange={(e) => change("servingSizeLabel", e.target.value)} placeholder="مثال: علبة 35غم" style={S.input} />
+      <label style={S.label}>{t("nutrition.servingDesc")}</label>
+      <input value={draft.servingSizeLabel} onChange={(e) => change("servingSizeLabel", e.target.value)} placeholder={t("nutrition.servingDescPlaceholder")} style={S.input} />
       <div style={{ display: "flex", gap: 10 }}>
         <div style={{ flex: 1 }}>
-          <label style={S.label}>وحدة القياس</label>
+          <label style={S.label}>{t("nutrition.unitOfMeasure")}</label>
           <select value={draft.unit} onChange={(e) => change("unit", e.target.value)} style={NS.unitSelect}>
-            {UNIT_OPTIONS.map((u) => <option key={u.id} value={u.id}>{u.label}</option>)}
+            {UNIT_OPTIONS.map((u) => <option key={u.id} value={u.id}>{t(`nutrition.unitOptions.${u.id}`)}</option>)}
           </select>
         </div>
         <div style={{ flex: 1 }}>
-          <label style={S.label}>الكمية المُستهلكة الآن ({unitMeta.label})</label>
+          <label style={S.label}>{t("nutrition.quantityNow", { unit: t(`nutrition.unitOptions.${draft.unit}`) })}</label>
           <input type="number" inputMode="decimal" value={draft.qty} onChange={(e) => change("qty", e.target.value)} placeholder="35" style={S.input} />
         </div>
       </div>
-      <label style={S.label}>عدد الحصص (كل حصة 1 {unitMeta.label})</label>
+      <label style={S.label}>{t("nutrition.servingsCountOneUnit", { unit: t(`nutrition.unitOptions.${draft.unit}`) })}</label>
       <div style={NS.multiplierRow}>
         {[1, 2, 3, 4, 5].map((n) => (
           <button key={n} onClick={() => applyMultiplier(n)} style={{ ...NS.multiplierBtn, ...(multiplier === n ? NS.multiplierBtnActive : {}) }}>×{n}</button>
@@ -623,39 +637,40 @@ function ManualEntryForm({ barcode, onSave, onCancel }) {
           style={NS.multiplierInput}
         />
       </div>
-      {unitMeta.approx && <p style={NS.unitApproxNote}>تحويل تقريبي إلى غرام (وحدة غير وزنية).</p>}
-      <p style={{ ...S.label, marginTop: 16, marginBottom: 4 }}>القيم الغذائية (لكل 100غم)</p>
-      <label style={S.label}>السعرات الحرارية</label>
+      {unitMeta.approx && <p style={NS.unitApproxNote}>{t("nutrition.approxConversionNoUnit")}</p>}
+      <p style={{ ...S.label, marginTop: 16, marginBottom: 4 }}>{t("nutrition.nutritionValuesPer100g")}</p>
+      <label style={S.label}>{t("nutrition.calories")}</label>
+      {/* nutrition.caloriesPlaceholder doesn't exist in locales yet — literal fallback, see report */}
       <input type="number" inputMode="decimal" value={draft.calories} onChange={(e) => change("calories", e.target.value)} placeholder="مثال: 250" style={S.input} />
       <div style={{ display: "flex", gap: 10 }}>
         <div style={{ flex: 1 }}>
-          <label style={S.label}>بروتين (غ)</label>
+          <label style={S.label}>{t("common.units.protein")} ({t("common.units.g")})</label>
           <input type="number" inputMode="decimal" value={draft.protein} onChange={(e) => change("protein", e.target.value)} placeholder="0" style={S.input} />
         </div>
         <div style={{ flex: 1 }}>
-          <label style={S.label}>كارب (غ)</label>
+          <label style={S.label}>{t("common.units.carbs")} ({t("common.units.g")})</label>
           <input type="number" inputMode="decimal" value={draft.carbs} onChange={(e) => change("carbs", e.target.value)} placeholder="0" style={S.input} />
         </div>
         <div style={{ flex: 1 }}>
-          <label style={S.label}>دهون (غ)</label>
+          <label style={S.label}>{t("common.units.fat")} ({t("common.units.g")})</label>
           <input type="number" inputMode="decimal" value={draft.fat} onChange={(e) => change("fat", e.target.value)} placeholder="0" style={S.input} />
         </div>
       </div>
       <div style={{ display: "flex", gap: 10 }}>
         <div style={{ flex: 1 }}>
-          <label style={S.label}>ألياف (غ)</label>
+          <label style={S.label}>{t("common.units.fiber")} ({t("common.units.g")})</label>
           <input type="number" inputMode="decimal" value={draft.fiber} onChange={(e) => change("fiber", e.target.value)} placeholder="0" style={S.input} />
         </div>
         <div style={{ flex: 1 }}>
-          <label style={S.label}>سكر (غ)</label>
+          <label style={S.label}>{t("common.units.sugar")} ({t("common.units.g")})</label>
           <input type="number" inputMode="decimal" value={draft.sugar} onChange={(e) => change("sugar", e.target.value)} placeholder="0" style={S.input} />
         </div>
         <div style={{ flex: 1 }}>
-          <label style={S.label}>صوديوم (مغم)</label>
+          <label style={S.label}>{t("common.units.sodium")} ({t("common.units.mg")})</label>
           <input type="number" inputMode="decimal" value={draft.sodium} onChange={(e) => change("sodium", e.target.value)} placeholder="0" style={S.input} />
         </div>
       </div>
-      <label style={S.label}>رابط صورة المنتج (اختياري)</label>
+      <label style={S.label}>{t("nutrition.productImageUrlOptional")}</label>
       <input value={draft.imageUrl} onChange={(e) => change("imageUrl", e.target.value)} placeholder="https://..." style={S.input} />
       <button
         onClick={() => {
@@ -677,7 +692,7 @@ function ManualEntryForm({ barcode, onSave, onCancel }) {
             fiber: Math.round(per100.fiber * factor * 10) / 10, sugar: Math.round(per100.sugar * factor * 10) / 10,
             sodium: Math.round(per100.sodium * factor),
             unit: draft.unit,
-            servingInfo: draft.servingSizeLabel.trim() || `${draft.qty || grams} ${unitMeta.label}`, source: "manual", barcode,
+            servingInfo: draft.servingSizeLabel.trim() || `${draft.qty || grams} ${t(`nutrition.unitOptions.${draft.unit}`)}`, source: "manual", barcode,
             // بيانات المنتج الكاملة (لكل 100غم) - تُحفظ في custom_foods إن
             // كان هناك باركود، حتى تُستخدم صحيحة لأي كمية لاحقة، لا فقط
             // بنفس كمية هذه المرة. servingGrams يُحفظ دائماً بالغرام الحقيقي
@@ -691,9 +706,9 @@ function ManualEntryForm({ barcode, onSave, onCancel }) {
         style={S.saveBtn}
         disabled={!valid}
       >
-        حفظ وإضافة إلى سجل اليوم
+        {t("nutrition.saveAndAddToLog")}
       </button>
-      <button onClick={onCancel} style={{ ...S.exportBtn, marginTop: 8, marginBottom: 0 }}>رجوع</button>
+      <button onClick={onCancel} style={{ ...S.exportBtn, marginTop: 8, marginBottom: 0 }}>{t("common.buttons.back")}</button>
     </>
   );
 }
@@ -703,6 +718,7 @@ function ManualEntryForm({ barcode, onSave, onCancel }) {
 // كل خطوة لمن يفضّل النموذج الكامل). كل خطوة تبني على حالة مشتركة واحدة في
 // هذا المكوّن، فلا تُفقد أي بيانات عند الرجوع/التالي بين الخطوات.
 function AddProductWizard({ initialBarcode, onSave, onManual, showToast }) {
+  const { t, i18n } = useTranslation();
   const [step, setStep] = useState(1);
 
   // الخطوة 1: الملصق الغذائي
@@ -772,7 +788,6 @@ function AddProductWizard({ initialBarcode, onSave, onManual, showToast }) {
   const per100 = (basisValues && label)
     ? labelToPer100Product({ ...basisValues, basis: label.basis, servingGrams: label.servingGrams, micronutrients: microValues })
     : null;
-  const unitMeta = unitById(qtyUnit);
   const gramsEquivalent = qtyUnit === "g" ? qtyGrams : unitToGrams(qtyUnit, qtyUnitQty, per100?.servingGrams);
   const qtyPreview = per100 ? scaleNutrients(per100, gramsEquivalent || 0) : null;
 
@@ -787,9 +802,9 @@ function AddProductWizard({ initialBarcode, onSave, onManual, showToast }) {
         const blob = await compressImageToBlob(photoFile);
         const upRes = await store.uploadProductPhoto(blob, barcode.trim());
         if (upRes.ok) imageUrl = upRes.url;
-        else showToast("تعذّر رفع صورة المنتج، سيُحفظ المنتج بلا صورة");
+        else showToast(t("nutrition.uploadPhotoFailed"));
       } catch {
-        showToast("تعذّر معالجة صورة المنتج، سيُحفظ المنتج بلا صورة");
+        showToast(t("nutrition.processPhotoFailed"));
       }
     }
     const cleanMicro = {};
@@ -800,7 +815,7 @@ function AddProductWizard({ initialBarcode, onSave, onManual, showToast }) {
     await onSave({
       id: uid(), foodName: name.trim(), ...qtyPreview,
       unit: qtyUnit,
-      servingInfo: qtyUnit === "g" ? `${qtyGrams} غم` : `${fmtQty(qtyUnitQty)} ${unitMeta.label}`,
+      servingInfo: qtyUnit === "g" ? `${qtyGrams} ${t("common.units.g")}` : `${fmtQty(qtyUnitQty)} ${t(`nutrition.unitOptions.${qtyUnit}`)}`,
       source: "manual", barcode: barcode.trim(),
       productPer100: {
         calories: per100.caloriesPer100g, protein: per100.proteinPer100g, carbs: per100.carbsPer100g,
@@ -817,22 +832,22 @@ function AddProductWizard({ initialBarcode, onSave, onManual, showToast }) {
   return (
     <>
       <div style={NS.wizardProgress}>
-        <div style={NS.wizardProgressLabel}>الخطوة {step} من 3</div>
+        <div style={NS.wizardProgressLabel}>{t("nutrition.stepOf3", { step })}</div>
         <div style={NS.barTrack}><div style={{ ...NS.barFill, width: `${(step / 3) * 100}%` }} /></div>
       </div>
 
       {step === 1 && (
         <>
-          <p style={{ ...S.label, marginBottom: 8 }}>صوّر الملصق الغذائي المطبوع على المنتج</p>
+          <p style={{ ...S.label, marginBottom: 8 }}>{t("nutrition.photographLabel")}</p>
           <input ref={labelCameraRef} type="file" accept="image/*" capture="environment" onChange={handleLabelFile} style={{ display: "none" }} />
           <input ref={labelGalleryRef} type="file" accept="image/*" onChange={handleLabelFile} style={{ display: "none" }} />
           {!labelPreview && (
             <div style={NS.chooserGrid}>
               <button onClick={() => labelCameraRef.current?.click()} style={NS.chooserBtn}>
-                <span style={NS.chooserIcon}><Camera size={19} /></span> التقط صورة
+                <span style={NS.chooserIcon}><Camera size={19} /></span> {t("nutrition.takePhoto")}
               </button>
               <button onClick={() => labelGalleryRef.current?.click()} style={NS.chooserBtn}>
-                <span style={NS.chooserIcon}><ImagePlus size={19} /></span> اختر من المعرض
+                <span style={NS.chooserIcon}><ImagePlus size={19} /></span> {t("nutrition.chooseFromGallery")}
               </button>
             </div>
           )}
@@ -840,42 +855,42 @@ function AddProductWizard({ initialBarcode, onSave, onManual, showToast }) {
           {labelAnalyzing && (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "16px 0", gap: 10 }}>
               <Loader2 size={22} className="spin" color="var(--gold)" />
-              <span style={{ fontSize: 13, color: "var(--muted2)" }}>نقرأ الملصق...</span>
+              <span style={{ fontSize: 13, color: "var(--muted2)" }}>{t("nutrition.readingLabel")}</span>
             </div>
           )}
           {labelError && (
             <>
               <div style={NS.errorText}>{labelError}</div>
-              <button onClick={() => { setLabelPreview(null); setLabelError(null); }} style={{ ...S.exportBtn, marginBottom: 8 }}>إعادة المحاولة بصورة أخرى</button>
-              <button onClick={enterValuesManually} style={{ ...S.exportBtn, marginBottom: 8 }}>أدخل القيم يدوياً بدلاً من ذلك</button>
+              <button onClick={() => { setLabelPreview(null); setLabelError(null); }} style={{ ...S.exportBtn, marginBottom: 8 }}>{t("nutrition.retryWithAnotherPhoto")}</button>
+              <button onClick={enterValuesManually} style={{ ...S.exportBtn, marginBottom: 8 }}>{t("nutrition.enterManuallyInstead")}</button>
             </>
           )}
           {!labelPreview && !labelError && (
-            <button onClick={enterValuesManually} style={{ ...S.exportBtn, marginTop: 8 }}>لا أملك صورة - أدخل القيم يدوياً</button>
+            <button onClick={enterValuesManually} style={{ ...S.exportBtn, marginTop: 8 }}>{t("nutrition.noPhotoManualEntry")}</button>
           )}
           {basisValues && (
             <>
               <div style={NS.disclaimerBox}>
                 <Sparkles size={15} color="#C9A24B" style={{ flexShrink: 0, marginTop: 1 }} />
-                <span>راجع القيم أدناه قبل المتابعة - كل رقم قابل للتعديل.</span>
+                <span>{t("nutrition.reviewValuesNote")}</span>
               </div>
               <p style={{ ...S.label, marginBottom: 4 }}>
-                {label.basis === "100g" ? "لكل 100 غرام" : label.basis === "100ml" ? "لكل 100 مليلتر" : `لكل حصة (${Math.round(label.servingGrams || 100)} غرام)`}
+                {label.basis === "100g" ? t("nutrition.per100g") : label.basis === "100ml" ? t("nutrition.per100ml") : t("nutrition.perServingG", { g: Math.round(label.servingGrams || 100) })}
               </p>
               <div style={NS.editableGrid}>
-                <div><label style={S.label}>السعرات</label><input type="number" inputMode="decimal" value={basisValues.calories} onChange={(e) => changeBasis("calories", e.target.value)} style={S.input} /></div>
-                <div><label style={S.label}>بروتين (غ)</label><input type="number" inputMode="decimal" value={basisValues.protein} onChange={(e) => changeBasis("protein", e.target.value)} style={S.input} /></div>
-                <div><label style={S.label}>كارب (غ)</label><input type="number" inputMode="decimal" value={basisValues.carbs} onChange={(e) => changeBasis("carbs", e.target.value)} style={S.input} /></div>
-                <div><label style={S.label}>دهون (غ)</label><input type="number" inputMode="decimal" value={basisValues.fat} onChange={(e) => changeBasis("fat", e.target.value)} style={S.input} /></div>
-                <div><label style={S.label}>ألياف (غ)</label><input type="number" inputMode="decimal" value={basisValues.fiber} onChange={(e) => changeBasis("fiber", e.target.value)} style={S.input} /></div>
-                <div><label style={S.label}>سكر (غ)</label><input type="number" inputMode="decimal" value={basisValues.sugar} onChange={(e) => changeBasis("sugar", e.target.value)} style={S.input} /></div>
-                <div><label style={S.label}>صوديوم (مغم)</label><input type="number" inputMode="decimal" value={basisValues.sodium} onChange={(e) => changeBasis("sodium", e.target.value)} style={S.input} /></div>
+                <div><label style={S.label}>{t("nutrition.calories")}</label><input type="number" inputMode="decimal" value={basisValues.calories} onChange={(e) => changeBasis("calories", e.target.value)} style={S.input} /></div>
+                <div><label style={S.label}>{t("common.units.protein")} ({t("common.units.g")})</label><input type="number" inputMode="decimal" value={basisValues.protein} onChange={(e) => changeBasis("protein", e.target.value)} style={S.input} /></div>
+                <div><label style={S.label}>{t("common.units.carbs")} ({t("common.units.g")})</label><input type="number" inputMode="decimal" value={basisValues.carbs} onChange={(e) => changeBasis("carbs", e.target.value)} style={S.input} /></div>
+                <div><label style={S.label}>{t("common.units.fat")} ({t("common.units.g")})</label><input type="number" inputMode="decimal" value={basisValues.fat} onChange={(e) => changeBasis("fat", e.target.value)} style={S.input} /></div>
+                <div><label style={S.label}>{t("common.units.fiber")} ({t("common.units.g")})</label><input type="number" inputMode="decimal" value={basisValues.fiber} onChange={(e) => changeBasis("fiber", e.target.value)} style={S.input} /></div>
+                <div><label style={S.label}>{t("common.units.sugar")} ({t("common.units.g")})</label><input type="number" inputMode="decimal" value={basisValues.sugar} onChange={(e) => changeBasis("sugar", e.target.value)} style={S.input} /></div>
+                <div><label style={S.label}>{t("common.units.sodium")} ({t("common.units.mg")})</label><input type="number" inputMode="decimal" value={basisValues.sodium} onChange={(e) => changeBasis("sodium", e.target.value)} style={S.input} /></div>
               </div>
-              <p style={{ ...S.label, marginTop: 14, marginBottom: 4 }}>الفيتامينات والمعادن (اختياري)</p>
+              <p style={{ ...S.label, marginTop: 14, marginBottom: 4 }}>{t("nutrition.vitaminsMineralsOptionalShort")}</p>
               <div style={NS.editableGrid}>
                 {Object.entries(MICRONUTRIENT_META).map(([key, meta]) => (
                   <div key={key}>
-                    <label style={S.label}>{meta.label} ({meta.unit})</label>
+                    <label style={S.label}>{t(`nutrition.micronutrients.${key}`)} ({meta.unit})</label>
                     <input type="number" inputMode="decimal" value={microValues[key] ?? ""} onChange={(e) => changeMicro(key, e.target.value)} placeholder="0" style={S.input} />
                   </div>
                 ))}
@@ -883,38 +898,39 @@ function AddProductWizard({ initialBarcode, onSave, onManual, showToast }) {
             </>
           )}
           <div style={NS.wizardNavRow}>
-            <button onClick={onManual} style={NS.wizardBackBtn}>إضافة يدوية بدلاً من ذلك</button>
-            <button onClick={() => setStep(2)} disabled={!step1Valid} style={NS.wizardNextBtn}>التالي <ChevronLeft size={16} /></button>
+            <button onClick={onManual} style={NS.wizardBackBtn}>{t("nutrition.manualAddInstead")}</button>
+            <button onClick={() => setStep(2)} disabled={!step1Valid} style={NS.wizardNextBtn}>{t("common.buttons.next")} {i18n.language === "en" ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}</button>
           </div>
         </>
       )}
 
       {step === 2 && (
         <>
-          <p style={{ ...S.label, marginBottom: 8 }}>باركود المنتج واسمه</p>
+          <p style={{ ...S.label, marginBottom: 8 }}>{t("nutrition.barcodeAndName")}</p>
           <div style={NS.multiplierRow}>
-            <button onClick={() => setBarcodeMode("manual")} style={{ ...NS.multiplierBtn, width: "auto", padding: "0 14px", ...(barcodeMode === "manual" ? NS.multiplierBtnActive : {}) }}>كتابة يدوية</button>
-            <button onClick={() => setBarcodeMode("scan")} style={{ ...NS.multiplierBtn, width: "auto", padding: "0 14px", ...(barcodeMode === "scan" ? NS.multiplierBtnActive : {}) }}>مسح بالكاميرا</button>
+            <button onClick={() => setBarcodeMode("manual")} style={{ ...NS.multiplierBtn, width: "auto", padding: "0 14px", ...(barcodeMode === "manual" ? NS.multiplierBtnActive : {}) }}>{t("nutrition.manualTyping")}</button>
+            <button onClick={() => setBarcodeMode("scan")} style={{ ...NS.multiplierBtn, width: "auto", padding: "0 14px", ...(barcodeMode === "scan" ? NS.multiplierBtnActive : {}) }}>{t("nutrition.scanWithCamera")}</button>
           </div>
           {barcodeMode === "manual" ? (
             <input
               value={barcode} onChange={(e) => setBarcode(e.target.value.replace(/\D/g, ""))}
-              placeholder="مثال: 6291041500213" inputMode="numeric" style={S.input}
+              placeholder={t("nutrition.barcodePlaceholder")} inputMode="numeric" style={S.input}
             />
           ) : (
             <button onClick={() => setShowScanner(true)} style={{ ...S.exportBtn, marginBottom: 12 }}>
               <Camera size={16} style={{ display: "inline", verticalAlign: "-3px", marginInlineEnd: 6 }} />
-              {barcode ? `الباركود: ${barcode} (امسح مجدداً)` : "افتح الكاميرا للمسح"}
+              {barcode ? t("nutrition.barcodeScanAgain", { barcode }) : t("nutrition.openCameraToScan")}
             </button>
           )}
-          <label style={S.label}>اسم المنتج</label>
+          <label style={S.label}>{t("nutrition.productName")}</label>
+          {/* nutrition.foodNamePlaceholder doesn't exist in locales yet — literal Arabic fallback, see report */}
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="مثال: تمر سكري" style={S.input} />
           {label?.productName && name === label.productName && (
-            <p style={NS.unitApproxNote}>الاسم مقترح تلقائياً من صورة الملصق - عدّله إن لزم.</p>
+            <p style={NS.unitApproxNote}>{t("nutrition.autoSuggestedNote")}</p>
           )}
           <div style={NS.wizardNavRow}>
-            <button onClick={() => setStep(1)} style={NS.wizardBackBtn}><ChevronRight size={16} /> رجوع</button>
-            <button onClick={() => setStep(3)} disabled={!step2Valid} style={NS.wizardNextBtn}>التالي <ChevronLeft size={16} /></button>
+            <button onClick={() => setStep(1)} style={NS.wizardBackBtn}>{i18n.language === "en" ? <ChevronLeft size={16} /> : <ChevronRight size={16} />} {t("common.buttons.back")}</button>
+            <button onClick={() => setStep(3)} disabled={!step2Valid} style={NS.wizardNextBtn}>{t("common.buttons.next")} {i18n.language === "en" ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}</button>
           </div>
           {showScanner && (
             <BarcodeScannerModal onDetected={(code) => { setBarcode(code); setShowScanner(false); }} onClose={() => setShowScanner(false)} />
@@ -924,77 +940,77 @@ function AddProductWizard({ initialBarcode, onSave, onManual, showToast }) {
 
       {step === 3 && (
         <>
-          <p style={{ ...S.label, marginBottom: 8 }}>صورة المنتج (اختياري)</p>
+          <p style={{ ...S.label, marginBottom: 8 }}>{t("nutrition.productPhotoOptional")}</p>
           <input ref={photoCameraRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoFile} style={{ display: "none" }} />
           <input ref={photoGalleryRef} type="file" accept="image/*" onChange={handlePhotoFile} style={{ display: "none" }} />
           {!photoPreview ? (
             <div style={NS.chooserGrid}>
               <button onClick={() => photoCameraRef.current?.click()} style={NS.chooserBtn}>
-                <span style={NS.chooserIcon}><Camera size={19} /></span> التقط صورة
+                <span style={NS.chooserIcon}><Camera size={19} /></span> {t("nutrition.takePhoto")}
               </button>
               <button onClick={() => photoGalleryRef.current?.click()} style={NS.chooserBtn}>
-                <span style={NS.chooserIcon}><ImagePlus size={19} /></span> اختر من المعرض
+                <span style={NS.chooserIcon}><ImagePlus size={19} /></span> {t("nutrition.chooseFromGallery")}
               </button>
             </div>
           ) : (
             <>
               <img src={photoPreview} alt="" style={NS.photoPreview} />
-              <button onClick={() => { setPhotoFile(null); setPhotoPreview(null); }} style={{ ...S.exportBtn, marginTop: 4 }}>إزالة الصورة</button>
+              <button onClick={() => { setPhotoFile(null); setPhotoPreview(null); }} style={{ ...S.exportBtn, marginTop: 4 }}>{t("nutrition.removePhoto")}</button>
             </>
           )}
           {!photoPreview && (
-            <p style={{ ...NS.unitApproxNote, textAlign: "center" }}>هذه الخطوة اختيارية - يمكنك المتابعة بلا صورة (تخطّي).</p>
+            <p style={{ ...NS.unitApproxNote, textAlign: "center" }}>{t("nutrition.optionalStepNote")}</p>
           )}
 
           <label style={NS.checkboxRow}>
             <input type="checkbox" checked={logToday} onChange={(e) => setLogToday(e.target.checked)} style={{ width: 18, height: 18 }} />
-            أضِف كمية إلى سجل اليوم أيضاً
+            {t("nutrition.alsoAddQuantity")}
           </label>
 
           {logToday && (
             <>
-              <label style={S.label}>وحدة القياس</label>
+              <label style={S.label}>{t("nutrition.unitOfMeasure")}</label>
               <div style={NS.unitRow}>
                 <select value={qtyUnit} onChange={(e) => setQtyUnit(e.target.value)} style={NS.unitSelect}>
-                  {UNIT_OPTIONS.map((u) => <option key={u.id} value={u.id}>{u.label}</option>)}
+                  {UNIT_OPTIONS.map((u) => <option key={u.id} value={u.id}>{t(`nutrition.unitOptions.${u.id}`)}</option>)}
                 </select>
               </div>
               {qtyUnit === "g" ? (
                 <>
-                  <label style={S.label}>الكمية (غم)</label>
+                  <label style={S.label}>{t("nutrition.quantityG")}</label>
                   <input type="number" inputMode="decimal" value={qtyGrams} onChange={(e) => setQtyGrams(Number(e.target.value))} style={S.input} />
                 </>
               ) : (
                 <>
-                  <label style={S.label}>عدد الحصص</label>
+                  <label style={S.label}>{t("nutrition.servingsCount")}</label>
                   <div style={NS.multiplierRow}>
                     {[1, 2, 3, 4, 5].map((n) => (
                       <button key={n} onClick={() => { setQtyMultiplier(n); setQtyUnitQty(n); }} style={{ ...NS.multiplierBtn, ...(qtyMultiplier === n ? NS.multiplierBtnActive : {}) }}>×{n}</button>
                     ))}
                   </div>
-                  <label style={S.label}>أو الكمية بـ{unitMeta.label} مباشرة</label>
+                  <label style={S.label}>{t("nutrition.orQuantityUnit", { unit: t(`nutrition.unitOptions.${qtyUnit}`) })}</label>
                   <input type="number" inputMode="decimal" value={qtyUnitQty} onChange={(e) => setQtyUnitQty(Number(e.target.value) || 0)} style={S.input} />
                 </>
               )}
               {qtyPreview && (
                 <div style={NS.previewGrid}>
-                  <div style={NS.previewChip}><div style={NS.macroValue}>{qtyPreview.calories}</div><div style={NS.macroLabel}>سعرة</div></div>
-                  <div style={NS.previewChip}><div style={NS.macroValue}>{qtyPreview.protein}غ</div><div style={NS.macroLabel}>بروتين</div></div>
-                  <div style={NS.previewChip}><div style={NS.macroValue}>{qtyPreview.carbs}غ</div><div style={NS.macroLabel}>كارب</div></div>
-                  <div style={NS.previewChip}><div style={NS.macroValue}>{qtyPreview.fat}غ</div><div style={NS.macroLabel}>دهون</div></div>
+                  <div style={NS.previewChip}><div style={NS.macroValue}>{qtyPreview.calories}</div><div style={NS.macroLabel}>{t("common.units.kcal")}</div></div>
+                  <div style={NS.previewChip}><div style={NS.macroValue}>{qtyPreview.protein}{t("common.units.g")}</div><div style={NS.macroLabel}>{t("common.units.protein")}</div></div>
+                  <div style={NS.previewChip}><div style={NS.macroValue}>{qtyPreview.carbs}{t("common.units.g")}</div><div style={NS.macroLabel}>{t("common.units.carbs")}</div></div>
+                  <div style={NS.previewChip}><div style={NS.macroValue}>{qtyPreview.fat}{t("common.units.g")}</div><div style={NS.macroLabel}>{t("common.units.fat")}</div></div>
                 </div>
               )}
             </>
           )}
 
           <div style={NS.wizardNavRow}>
-            <button onClick={() => setStep(2)} style={NS.wizardBackBtn}><ChevronRight size={16} /> رجوع</button>
+            <button onClick={() => setStep(2)} style={NS.wizardBackBtn}>{i18n.language === "en" ? <ChevronLeft size={16} /> : <ChevronRight size={16} />} {t("common.buttons.back")}</button>
             <button
               onClick={finalSave}
               disabled={saving || (logToday && (!gramsEquivalent || gramsEquivalent <= 0))}
               style={NS.wizardNextBtn}
             >
-              {saving ? <Loader2 size={16} className="spin" /> : "حفظ"}
+              {saving ? <Loader2 size={16} className="spin" /> : t("common.buttons.save")}
             </button>
           </div>
         </>
@@ -1004,6 +1020,7 @@ function AddProductWizard({ initialBarcode, onSave, onManual, showToast }) {
 }
 
 function SearchPanel({ onPick, onManual }) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -1049,25 +1066,25 @@ function SearchPanel({ onPick, onManual }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") runSearch(); }}
-          placeholder="اكتب اسم الطعام..."
+          placeholder={t("nutrition.searchPlaceholder")}
           style={NS.searchInput}
         />
         <button onClick={runSearch} style={NS.searchBtn}>{loading ? <Loader2 size={16} className="spin" /> : <Search size={16} />}</button>
       </div>
       {error && <div style={NS.errorText}>{error}</div>}
       {!loading && searched && !error && results.length === 0 && (
-        <p style={NS.notFoundNote}>لم يُعثر على نتائج. جرّب اسماً آخر أو أضف الطعام يدوياً.</p>
+        <p style={NS.notFoundNote}>{t("nutrition.noSearchResults")}</p>
       )}
       {results.map((p) => (
         <button key={p.barcode + p.name} onClick={() => onPick(p)} style={NS.resultRow}>
           {p.imageUrl ? <img src={p.imageUrl} alt="" style={NS.resultImg} /> : <div style={NS.resultImg} />}
           <div>
             <div style={NS.resultName}>{p.name}</div>
-            <div style={NS.resultMeta}>{p.caloriesPer100g} سعرة / 100غم</div>
+            <div style={NS.resultMeta}>{t("nutrition.calPer100g", { cal: p.caloriesPer100g })}</div>
           </div>
         </button>
       ))}
-      <button onClick={onManual} style={{ ...S.exportBtn, marginTop: 4 }}>إضافة يدوية بدلاً من ذلك</button>
+      <button onClick={onManual} style={{ ...S.exportBtn, marginTop: 4 }}>{t("nutrition.manualAddInstead")}</button>
     </>
   );
 }
@@ -1077,6 +1094,7 @@ function SearchPanel({ onPick, onManual }) {
 // عدمه. كل قيمة في النتيجة قابلة للتعديل يدوياً قبل الحفظ، والتنبيه أسفل
 // الحقول ثابت لا يمكن إغلاقه.
 function AIPhotoPanel({ onSave, onManual }) {
+  const { t, i18n } = useTranslation();
   const [preview, setPreview] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState(null);

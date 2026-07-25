@@ -31,16 +31,25 @@ async function subscribeToPush() {
 // يطلب إذن الإشعارات من المستخدم، ثم يسجّل اشتراك push فعلياً عند الموافقة.
 // يُرجع { granted, subscribed, error } — أبداً لا يرمي استثناءً، حتى يبقى
 // الاستخدام في الواجهة بسيطاً (استدعاء واحد + تحقّق من الحقول).
+//
+// `error`، إن وُجد، هو الآن رمز ثابت (code) لا نص عربي جاهز — يماثل نمط
+// gemini.js (انظر geminiError هناك) لكن بدون رمي استثناء، حفاظاً على
+// العقد الموثّق أعلاه. المستدعي في React يترجم الرمز عبر
+// t(`common.errors.${error}`) (أو مساحة اسم push.* إن فُضِّلت). الرموز
+// الثلاثة المستخدَمة هنا خاصة بهذا الملف (لا تتقاطع مع رموز gemini.js):
+//   - PUSH_NOT_SUPPORTED: المتصفح لا يدعم Web Push إطلاقاً.
+//   - PUSH_REQUEST_FAILED: فشل طلب إذن الإشعارات نفسه (قبل الموافقة/الرفض).
+//   - PUSH_PARTIAL_FAILURE: مُنح الإذن لكن فشل إنشاء اشتراك الـpush.
 export async function requestNotificationPermission() {
   if (!pushSupported()) {
-    return { granted: false, subscribed: false, error: "الإشعارات غير مدعومة على هذا المتصفح." };
+    return { granted: false, subscribed: false, error: "PUSH_NOT_SUPPORTED" };
   }
   let permission;
   try {
     permission = await Notification.requestPermission();
   } catch (e) {
     console.error("[push] permission request failed:", e);
-    return { granted: false, subscribed: false, error: "تعذّر طلب إذن الإشعارات الآن." };
+    return { granted: false, subscribed: false, error: "PUSH_REQUEST_FAILED" };
   }
   if (permission !== "granted") {
     return { granted: false, subscribed: false };
@@ -50,7 +59,7 @@ export async function requestNotificationPermission() {
     return { granted: true, subscribed: true };
   } catch (e) {
     console.error("[push] subscribe failed:", e);
-    return { granted: true, subscribed: false, error: "فُعِّل الإذن لكن تعذّر تفعيل الإشعارات بالكامل الآن. حاول مرة أخرى لاحقاً." };
+    return { granted: true, subscribed: false, error: "PUSH_PARTIAL_FAILURE" };
   }
 }
 

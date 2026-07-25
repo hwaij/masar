@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
@@ -15,6 +16,65 @@ import {
 import { S } from "./styles";
 
 const MOOD_ICONS = { Angry, Frown, Meh, Smile, Laugh };
+
+// MOOD_LEVELS/STRESS_LEVELS/ENERGY_LEVELS in lib/mentalHealth.js only carry a
+// numeric `value` (1-5) plus a hardcoded Arabic `label` — there's no stable
+// string key to look up in the locale files directly, so we map value -> the
+// semantic key used under mentalHealth.moodLevels/stressLevels/energyLevels.
+const MOOD_KEY_BY_VALUE = ["very_bad", "bad", "okay", "good", "excellent"];
+const SCALE_KEY_BY_VALUE = ["low", "mild", "moderate", "high", "very_high"];
+
+// BREATHING_DURATIONS only carries a numeric `minutes` field; map it to the
+// "{n}min" keys under mentalHealth.breathingDurations.
+function breathingDurationKey(minutes) {
+  return `${minutes}min`;
+}
+
+// computeSuggestions() (lib/mentalHealth.js) returns Arabic-only `text`/
+// `actionLabel` strings picked (via a seeded index) from small variation
+// arrays, keyed only by a stable `type` field ("fitness" | "focus" | "goals").
+// Since lib/mentalHealth.js can't be edited here and locale JSON has no
+// suggestion keys yet, we mirror the same variation arrays/seed logic in
+// English locally and swap to them when the UI language is English, while
+// leaving the original Arabic text/actionLabel untouched for Arabic.
+const SUGGESTION_TEXTS_EN = {
+  fitness: [
+    "Try logging a simple workout today, even something light — it helps a lot.",
+    "A little physical activity now might lift your mood and energy a bit. Try the Fitness section.",
+    "A small step in the Fitness section today could make a real difference in how you feel.",
+  ],
+  focus: [
+    "Try the breathing exercise above to calm your nerves for a few minutes.",
+    "A short focus session might help clear your mind of stress.",
+    "Take a deep breath — try the breathing exercise, or start a short focus session.",
+  ],
+  goals: [
+    "We noticed your mood has been low several days in a row. It might be time to review your goals.",
+    "Your mood pattern these past few days deserves a pause. Try reviewing your goals — they may need adjusting.",
+  ],
+};
+const SUGGESTION_ACTION_LABELS_EN = {
+  fitness: "Go to Fitness",
+  focus: "Short focus session",
+  goals: "Review my goals",
+};
+
+// MENTAL_HEALTH_DISCLAIMER and CRISIS_SUPPORT_MESSAGE are safety-critical
+// fixed paragraphs imported directly from lib/mentalHealth.js (not covered by
+// locale JSON). English translations written here, same careful/accurate,
+// non-alarming register as the Arabic source — see the final report for the
+// exact source/translation pairing.
+// computeMoodFitnessInsight() (lib/mentalHealth.js) also returns a fixed
+// Arabic-only string (or null) with no stable key and no locale JSON entry —
+// same situation as the disclaimer/crisis text below, so it gets the same
+// local ternary treatment.
+const MOOD_FITNESS_INSIGHT_EN =
+  "We noticed your mood is higher on days you completed a workout in the Fitness section — keep it up!";
+
+const MENTAL_HEALTH_DISCLAIMER_EN =
+  "Masar is a simple daily support tool, not a substitute for professional care. If you're going through a real mental health crisis, please reach out to a specialist or a support helpline.";
+const CRISIS_SUPPORT_MESSAGE_EN =
+  "We care about you, what you're feeling matters, and you are not alone. Trained professionals are ready to help you right now. Please contact emergency services (112) immediately, or the nearest hospital, or the closest mental health support line available in your country.";
 
 // لوحة ألوان أهدأ خصيصاً لهذا القسم: تيل/أزرق ناعم بدل الذهبي المعتاد في
 // باقي مسار، مع الاحتفاظ بنفس رموز/بطاقات/زوايا الهوية البصرية.
@@ -69,19 +129,22 @@ const MHS = {
 };
 
 function CrisisModal({ onConfirm }) {
+  const { t, i18n } = useTranslation();
+  const crisisMessage = i18n.language === "en" ? CRISIS_SUPPORT_MESSAGE_EN : CRISIS_SUPPORT_MESSAGE;
   return (
     <div style={MHS.crisisOverlay} className="overlay-in">
       <div style={MHS.crisisCard} className="modal-card-in">
         <AlertTriangle size={30} color="#D17B5F" />
-        <div style={MHS.crisisTitle}>نحن هنا من أجلك</div>
-        <div style={MHS.crisisText}>{CRISIS_SUPPORT_MESSAGE}</div>
-        <button onClick={onConfirm} style={MHS.crisisConfirmBtn}>فهمت، أؤكد أنني قرأت هذا</button>
+        <div style={MHS.crisisTitle}>{t("mentalHealth.crisisTitle")}</div>
+        <div style={MHS.crisisText}>{crisisMessage}</div>
+        <button onClick={onConfirm} style={MHS.crisisConfirmBtn}>{t("mentalHealth.confirmRead")}</button>
       </div>
     </div>
   );
 }
 
 function BreathingExercise() {
+  const { t } = useTranslation();
   const [running, setRunning] = useState(false);
   const [phaseIdx, setPhaseIdx] = useState(0);
   const [totalLeft, setTotalLeft] = useState(0);
@@ -120,11 +183,11 @@ function BreathingExercise() {
 
   return (
     <div style={MHS.breathCard}>
-      <div style={MHS.breathTitle}><Wind size={16} color="#7FAEEE" /> تمرين تنفس هادئ (4-7-8)</div>
+      <div style={MHS.breathTitle}><Wind size={16} color="#7FAEEE" /> {t("mentalHealth.breathingExercise")}</div>
       {!running ? (
         <div style={MHS.breathDurationRow}>
           {BREATHING_DURATIONS.map((d) => (
-            <button key={d.minutes} onClick={() => start(d.minutes)} style={MHS.breathDurationBtn}>{d.label}</button>
+            <button key={d.minutes} onClick={() => start(d.minutes)} style={MHS.breathDurationBtn}>{t(`mentalHealth.breathingDurations.${breathingDurationKey(d.minutes)}`)}</button>
           ))}
         </div>
       ) : (
@@ -132,9 +195,9 @@ function BreathingExercise() {
           <div style={MHS.breathCircleWrap}>
             <div style={{ ...MHS.breathCircle, transform: `scale(${scale})`, transitionDuration: `${transitionSeconds}s` }} />
           </div>
-          <div style={MHS.breathPhaseLabel}>{phase.label}</div>
+          <div style={MHS.breathPhaseLabel}>{t(`mentalHealth.breathingPhases.${phase.key}`)}</div>
           <div style={MHS.breathTimeLeft}>{Math.floor(totalLeft / 60)}:{String(totalLeft % 60).padStart(2, "0")}</div>
-          <button onClick={stop} style={MHS.breathStopBtn}>إيقاف</button>
+          <button onClick={stop} style={MHS.breathStopBtn}>{t("mentalHealth.stop")}</button>
         </div>
       )}
     </div>
@@ -142,6 +205,7 @@ function BreathingExercise() {
 }
 
 export default function MentalHealthView({ setView, showToast }) {
+  const { t, i18n } = useTranslation();
   const [loaded, setLoaded] = useState(false);
   const [log, setLog] = useState({});
   const [fitnessLog, setFitnessLog] = useState({});
@@ -177,7 +241,7 @@ export default function MentalHealthView({ setView, showToast }) {
   const existing = log[today];
 
   async function saveEntry() {
-    if (!mood || !stress || !energy) { showToast("اختر المزاج والتوتر والطاقة"); return; }
+    if (!mood || !stress || !energy) { showToast(t("mentalHealth.selectMoodStressEnergy")); return; }
     const flaggedRisk = detectRisk(note);
     if (flaggedRisk && !crisisAcknowledged) { setShowCrisis(true); return; }
     const entry = { mood, stress, energy, note, flaggedRisk };
@@ -186,10 +250,10 @@ export default function MentalHealthView({ setView, showToast }) {
     const res = await store.saveMentalHealthEntry(today, entry);
     if (!res.ok) {
       setLog((prev) => { const next = { ...prev }; if (prevEntry) next[today] = prevEntry; else delete next[today]; return next; });
-      showToast("تعذّر حفظ التسجيل، حاول مرة أخرى");
+      showToast(t("mentalHealth.saveFailed"));
       return;
     }
-    showToast("تم حفظ تسجيل اليوم");
+    showToast(t("mentalHealth.saved"));
   }
 
   function confirmCrisis() {
@@ -229,6 +293,19 @@ export default function MentalHealthView({ setView, showToast }) {
 
   const insight = useMemo(() => computeMoodFitnessInsight(recentEntries, fitnessLog), [recentEntries, fitnessLog]);
 
+  // computeSuggestions() returns Arabic-only text/actionLabel; for English we
+  // swap in the mirrored English variation arrays above, picked with the same
+  // seed so the variety matches what the Arabic side would have shown.
+  function localizeSuggestion(s) {
+    if (i18n.language !== "en") return s;
+    const texts = SUGGESTION_TEXTS_EN[s.type];
+    const text = texts && texts.length ? texts[Math.abs(seed) % texts.length] : s.text;
+    const actionLabel = SUGGESTION_ACTION_LABELS_EN[s.type] || s.actionLabel;
+    return { ...s, text, actionLabel };
+  }
+
+  const disclaimerText = i18n.language === "en" ? MENTAL_HEALTH_DISCLAIMER_EN : MENTAL_HEALTH_DISCLAIMER;
+
   if (!loaded) return null;
 
   return (
@@ -236,13 +313,13 @@ export default function MentalHealthView({ setView, showToast }) {
       <div style={MHS.hero}>
         <div style={MHS.heroIcon}><HeartHandshake size={22} color="#0E1613" /></div>
         <div>
-          <div style={MHS.heroTitle}>الصحة النفسية</div>
-          <div style={MHS.heroSub}>لحظة يومية بسيطة للاطمئنان على نفسك</div>
+          <div style={MHS.heroTitle}>{t("mentalHealth.heroTitle")}</div>
+          <div style={MHS.heroSub}>{t("mentalHealth.heroSub")}</div>
         </div>
       </div>
 
       <div style={MHS.trackCard}>
-        <div style={MHS.trackLabel}>كيف مزاجك اليوم؟</div>
+        <div style={MHS.trackLabel}>{t("mentalHealth.howsMoodToday")}</div>
         <div style={MHS.moodRow}>
           {MOOD_LEVELS.map((m) => {
             const Icon = MOOD_ICONS[m.icon];
@@ -250,80 +327,83 @@ export default function MentalHealthView({ setView, showToast }) {
             return (
               <button key={m.value} onClick={() => setMood(m.value)} style={{ ...MHS.moodBtn, ...(active ? MHS.moodBtnActive : {}) }}>
                 <Icon size={20} />
-                <span style={MHS.moodLabel}>{m.label}</span>
+                <span style={MHS.moodLabel}>{t(`mentalHealth.moodLevels.${MOOD_KEY_BY_VALUE[m.value - 1]}`)}</span>
               </button>
             );
           })}
         </div>
 
-        <div style={MHS.trackLabel}>مستوى التوتر؟</div>
+        <div style={MHS.trackLabel}>{t("mentalHealth.stressLevel")}</div>
         <div style={MHS.scaleRow}>
           {STRESS_LEVELS.map((s) => (
             <button key={s.value} onClick={() => setStress(s.value)} style={{ ...MHS.scaleBtn, ...(stress === s.value ? MHS.scaleBtnActive : {}) }}>
-              {s.value}<span style={MHS.scaleLabel}>{s.label}</span>
+              {s.value}<span style={MHS.scaleLabel}>{t(`mentalHealth.stressLevels.${SCALE_KEY_BY_VALUE[s.value - 1]}`)}</span>
             </button>
           ))}
         </div>
 
-        <div style={MHS.trackLabel}>مستوى الطاقة؟</div>
+        <div style={MHS.trackLabel}>{t("mentalHealth.energyLevel")}</div>
         <div style={MHS.scaleRow}>
           {ENERGY_LEVELS.map((s) => (
             <button key={s.value} onClick={() => setEnergy(s.value)} style={{ ...MHS.scaleBtn, ...(energy === s.value ? MHS.scaleBtnActive : {}) }}>
-              {s.value}<span style={MHS.scaleLabel}>{s.label}</span>
+              {s.value}<span style={MHS.scaleLabel}>{t(`mentalHealth.energyLevels.${SCALE_KEY_BY_VALUE[s.value - 1]}`)}</span>
             </button>
           ))}
         </div>
 
-        <div style={MHS.trackLabel}>إيش اللي أثّر عليك اليوم؟ (اختياري)</div>
+        <div style={MHS.trackLabel}>{t("mentalHealth.whatAffectedYou")}</div>
         <textarea
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          placeholder="اكتب هنا إذا حاب..."
+          placeholder={t("mentalHealth.notePlaceholder")}
           rows={2}
           style={MHS.noteInput}
         />
-        <button onClick={saveEntry} style={MHS.saveBtn}>{existing ? "تحديث تسجيل اليوم" : "حفظ تسجيل اليوم"}</button>
+        <button onClick={saveEntry} style={MHS.saveBtn}>{existing ? t("mentalHealth.updateEntry") : t("mentalHealth.saveEntry")}</button>
       </div>
 
       <div className="stagger-in responsive-card-list">
-        {suggestions.map((s, i) => (
-          <div key={i} style={MHS.suggestionCard}>
-            <div style={MHS.suggestionText}>{s.text}</div>
-            <button onClick={() => setView(s.targetView)} style={MHS.suggestionBtn}>{s.actionLabel}</button>
-          </div>
-        ))}
+        {suggestions.map((s, i) => {
+          const localized = localizeSuggestion(s);
+          return (
+            <div key={i} style={MHS.suggestionCard}>
+              <div style={MHS.suggestionText}>{localized.text}</div>
+              <button onClick={() => setView(s.targetView)} style={MHS.suggestionBtn}>{localized.actionLabel}</button>
+            </div>
+          );
+        })}
       </div>
 
       <BreathingExercise />
 
       <div style={MHS.chartCard}>
-        <div style={MHS.chartTitle}>نمطك خلال آخر 7 أيام</div>
+        <div style={MHS.chartTitle}>{t("mentalHealth.patternTitle")}</div>
         <ResponsiveContainer width="100%" height={170}>
           <LineChart data={chartData} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
             <CartesianGrid strokeDasharray="2 4" stroke="var(--surface-raised)" vertical={false} />
             <XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: 10, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} />
             <YAxis domain={[1, 5]} ticks={[1, 2, 3, 4, 5]} tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
             <Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} />
-            <Line type="monotone" dataKey="mood" name="المزاج" stroke="#5FA8A0" strokeWidth={2} dot={{ fill: "#5FA8A0", r: 3 }} connectNulls />
-            <Line type="monotone" dataKey="stress" name="التوتر" stroke="#D17B5F" strokeWidth={2} dot={{ fill: "#D17B5F", r: 3 }} connectNulls />
-            <Line type="monotone" dataKey="energy" name="الطاقة" stroke="#7FAEEE" strokeWidth={2} dot={{ fill: "#7FAEEE", r: 3 }} connectNulls />
+            <Line type="monotone" dataKey="mood" name={t("mentalHealth.legendMood")} stroke="#5FA8A0" strokeWidth={2} dot={{ fill: "#5FA8A0", r: 3 }} connectNulls />
+            <Line type="monotone" dataKey="stress" name={t("mentalHealth.legendStress")} stroke="#D17B5F" strokeWidth={2} dot={{ fill: "#D17B5F", r: 3 }} connectNulls />
+            <Line type="monotone" dataKey="energy" name={t("mentalHealth.legendEnergy")} stroke="#7FAEEE" strokeWidth={2} dot={{ fill: "#7FAEEE", r: 3 }} connectNulls />
           </LineChart>
         </ResponsiveContainer>
         <div style={MHS.chartLegendRow}>
-          <span style={MHS.legendItem}><span style={{ ...MHS.legendDot, background: "#5FA8A0" }} /> المزاج</span>
-          <span style={MHS.legendItem}><span style={{ ...MHS.legendDot, background: "#D17B5F" }} /> التوتر</span>
-          <span style={MHS.legendItem}><span style={{ ...MHS.legendDot, background: "#7FAEEE" }} /> الطاقة</span>
+          <span style={MHS.legendItem}><span style={{ ...MHS.legendDot, background: "#5FA8A0" }} /> {t("mentalHealth.legendMood")}</span>
+          <span style={MHS.legendItem}><span style={{ ...MHS.legendDot, background: "#D17B5F" }} /> {t("mentalHealth.legendStress")}</span>
+          <span style={MHS.legendItem}><span style={{ ...MHS.legendDot, background: "#7FAEEE" }} /> {t("mentalHealth.legendEnergy")}</span>
         </div>
         {insight ? (
-          <div style={MHS.insightBox}>{insight}</div>
+          <div style={MHS.insightBox}>{i18n.language === "en" ? MOOD_FITNESS_INSIGHT_EN : insight}</div>
         ) : recentEntries.length < 4 ? (
-          <div style={S.emptyHint}>سجّل بضعة أيام أخرى لتظهر لك ملاحظات حول نمطك</div>
+          <div style={S.emptyHint}>{t("mentalHealth.logMoreDays")}</div>
         ) : null}
       </div>
 
       <div style={MHS.disclaimerCard}>
         <AlertTriangle size={14} color="var(--muted2)" style={{ flexShrink: 0, marginTop: 2 }} />
-        <span>{MENTAL_HEALTH_DISCLAIMER}</span>
+        <span>{disclaimerText}</span>
       </div>
 
       {showCrisis && <CrisisModal onConfirm={confirmCrisis} />}

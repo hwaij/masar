@@ -38,7 +38,7 @@ import {
   todayKey, fmtHM, uid, diffMinutes, arabicDate, computeStreak, escapeHtml,
   COLOR_CHOICES, BADGES, analyze, parseJsonLoose,
   localAchieveSuggestions, localCoachReply,
-  getLevel, addMinutesToTime, nowHHMM, autoClassify,
+  getLevel, addMinutesToTime, nowHHMM, autoClassify, withTimeout,
   MANDATORY_TASKS, AZKAR_MORNING, AZKAR_EVENING, coachChat,
 } from "../lib/helpers";
 import { S } from "../components/styles";
@@ -51,6 +51,32 @@ const NutritionView = lazy(() => import("../components/NutritionView"));
 const FitnessView = lazy(() => import("../components/FitnessView"));
 const MentalHealthView = lazy(() => import("../components/MentalHealthView"));
 const GroupsView = lazy(() => import("../components/GroupsView"));
+
+// حاجز أخطاء محلي حول كل قسم مُقسَّم بالكسل (React.lazy): إن فشل تحميل
+// جزء (chunk) هذا القسم تحديداً - مثلاً بعد نشر جديد يجعل اسم الملف القديم
+// غير موجود - يظهر هنا خطأ صغير محصور بهذا القسم فقط مع زر إعادة تحميل،
+// بدل أن ينهار التطبيق كاملاً إلى شاشة الخطأ العامة في App.tsx.
+class LazySectionErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { hasError: false }; }
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(error) { console.error("[LazySectionErrorBoundary]", error); }
+  render() {
+    if (this.state.hasError) {
+      const isEn = this.props.isEn;
+      return (
+        <div style={{ ...S.view, textAlign: "center", padding: "40px 20px" }}>
+          <p style={{ color: "var(--muted2)", marginBottom: 14 }}>
+            {isEn ? "Couldn't load this section. Please reload the page." : "تعذّر تحميل هذا القسم. يرجى إعادة تحميل الصفحة."}
+          </p>
+          <button onClick={() => window.location.reload()} style={S.saveBtn}>
+            {isEn ? "Reload" : "إعادة التحميل"}
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 import SideMenu, { MENU_SECTIONS, SECTION_COLOR_PALETTE } from "../components/SideMenu";
 import Sidebar from "../components/Sidebar";
 import TasbihIcon from "../components/TasbihIcon";
@@ -282,14 +308,42 @@ export default function MasarApp() {
 
   const loadAll = useCallback(async () => {
       const myVersion = ++loadVersionRef.current;
+      // سبب حقيقي مؤكَّد لعلوق شاشة التحميل: أي نداء واحد من هذه الـ24 قد
+      // يعلَق للأبد (شبكة متذبذبة، أو خلل معروف في supabase-js) دون timeout
+      // - و Promise.all لا يستقر أبداً إن لم يستقر عنصر واحد فيه، فتبقى
+      // شاشة التحميل معلّقة للمستخدم للأبد. withTimeout يضمن أن كل نداء
+      // "يستقر" خلال 8 ثوانٍ كحد أقصى بقيمة احتياطية مطابقة للحالة
+      // الافتراضية الأولية لكل متغيّر - لا يُلغي النداء الحقيقي (قد يكتمل
+      // لاحقاً في الخلفية بلا أثر)، فقط يمنع تعليق الواجهة كلها بسببه.
+      const T = 8000;
       const [c, e, t, r, g, p, a, f, cm, pl, rel, ml, plog, tl, gl, vlt, vtx, sl, sub, azl, azi, qp, ist, hp] = await Promise.all([
-        store.loadCategories(), store.loadEntries(), store.loadTasks(),
-        store.loadReports(), store.loadGamify(), store.loadProfile(), store.loadAchieve(),
-        store.loadFocus(), store.loadCommitments(), store.loadPrayerLog(), store.loadReligious(),
-        store.loadMandatoryLog(), store.loadPointsLog(), store.loadTipsLog(), store.loadGoals(),
-        store.loadVault(), store.loadVaultTransactions(), store.loadSleepLog(), store.loadSubscription(),
-        store.loadAzkarLog(), store.loadAzkarItems(), store.loadQuranProgress(), store.loadIstighfar(),
-        store.loadHealthProfile(),
+        withTimeout(store.loadCategories(), T, DEFAULT_CATEGORIES),
+        withTimeout(store.loadEntries(), T, []),
+        withTimeout(store.loadTasks(), T, []),
+        withTimeout(store.loadReports(), T, []),
+        withTimeout(store.loadGamify(), T, { points: 0, badges: [] }),
+        withTimeout(store.loadProfile(), T, { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", language: "ar" }),
+        withTimeout(store.loadAchieve(), T, []),
+        withTimeout(store.loadFocus(), T, []),
+        withTimeout(store.loadCommitments(), T, []),
+        withTimeout(store.loadPrayerLog(), T, []),
+        withTimeout(store.loadReligious(), T, []),
+        withTimeout(store.loadMandatoryLog(), T, {}),
+        withTimeout(store.loadPointsLog(), T, []),
+        withTimeout(store.loadTipsLog(), T, {}),
+        withTimeout(store.loadGoals(), T, []),
+        withTimeout(store.loadVault(), T, null),
+        withTimeout(store.loadVaultTransactions(), T, []),
+        withTimeout(store.loadSleepLog(), T, []),
+        withTimeout(store.loadSubscription(), T, { isSubscriber: false, subscriptionEnd: null, isVip: false, subscriptionType: null }),
+        withTimeout(store.loadAzkarLog(), T, {}),
+        withTimeout(store.loadAzkarItems(), T, {}),
+        withTimeout(store.loadQuranProgress(), T, {}),
+        withTimeout(store.loadIstighfar(), T, { daily: {}, total: 0 }),
+        withTimeout(store.loadHealthProfile(), T, {
+          heightCm: null, weightKg: null, age: null, gender: null, activityLevel: null, conditions: [],
+          bmi: null, bmiCategory: null, ibw: null, ree: null, tee: null,
+        }),
       ]);
       if (loadVersionRef.current !== myVersion) return;
       setCategories(c); setEntries(e); setTasks(t); setReports(r); setGamify(g);
@@ -339,6 +393,20 @@ export default function MasarApp() {
       if (window.location.search.includes("view=")) {
         window.history.replaceState(null, "", window.location.pathname);
       }
+  }, []);
+
+  // شبكة أمان أخيرة (defense-in-depth) فوق مهلتَي getSession()/loadAll():
+  // إن بقيت شاشة التحميل معلّقة لأي سبب لم نتوقّعه (أياً كان)، تُفتح
+  // الواجهة قسرياً خلال 10 ثوانٍ كحد أقصى مطلق بدل تعليقها للأبد - مع
+  // تنبيه لطيف يوضّح أن بعض البيانات قد لا تكون محمّلة بعد.
+  useEffect(() => {
+    const watchdog = setTimeout(() => {
+      setLoaded((already) => {
+        if (!already) showToast(t("common.errors.NETWORK"));
+        return true;
+      });
+    }, 10000);
+    return () => clearTimeout(watchdog);
   }, []);
 
   useEffect(() => {
@@ -632,12 +700,14 @@ export default function MasarApp() {
         ))}
         {view === "you" && <YouView healthProfile={healthProfile} setHealthProfile={setHealthProfile} showToast={showToast} />}
         {(view === "nutrition" || view === "fitness" || view === "mental" || (view === "groups" && isSub)) && (
-          <Suspense fallback={<div style={{ ...S.view, display: "flex", justifyContent: "center", padding: 40 }}><Loader2 size={24} color="#C9A24B" className="spin" /></div>}>
-            {view === "nutrition" && <NutritionView healthProfile={healthProfile} showToast={showToast} profile={profile} setProfile={setProfile} subscription={subscription} />}
-            {view === "fitness" && <FitnessView healthProfile={healthProfile} showToast={showToast} />}
-            {view === "mental" && <MentalHealthView setView={setView} showToast={showToast} />}
-            {view === "groups" && isSub && <GroupsView showToast={showToast} />}
-          </Suspense>
+          <LazySectionErrorBoundary key={view} isEn={i18n.language === "en"}>
+            <Suspense fallback={<div style={{ ...S.view, display: "flex", justifyContent: "center", padding: 40 }}><Loader2 size={24} color="#C9A24B" className="spin" /></div>}>
+              {view === "nutrition" && <NutritionView healthProfile={healthProfile} showToast={showToast} profile={profile} setProfile={setProfile} subscription={subscription} />}
+              {view === "fitness" && <FitnessView healthProfile={healthProfile} showToast={showToast} />}
+              {view === "mental" && <MentalHealthView setView={setView} showToast={showToast} />}
+              {view === "groups" && isSub && <GroupsView showToast={showToast} />}
+            </Suspense>
+          </LazySectionErrorBoundary>
         )}
         {view === "groups" && !isSub && (
           <div style={S.view}><UpsellCard icon={Users} title={i18n.language === "en" ? "Friend Challenges in Masar Premium" : "تحديات الأصدقاء في مسار الكامل"} message={i18n.language === "en" ? "Create a study group with your friends and compete on study hours and workout completion, with live updates between you." : "أنشئ جروب دراسة مع أصدقائك وتنافسوا بساعات الدراسة وإنجاز الرياضة، بتحديث لحظي بينكم."} /></div>

@@ -2,6 +2,20 @@ export function todayKey(d = new Date()) {
   return d.toISOString().slice(0, 10);
 }
 
+// سبب جذري حقيقي لعلوق شاشة التحميل: أي وعد (Promise) - خاصة
+// supabase.auth.getSession() أو أي استعلام شبكة - قد لا يُحل ولا يُرفض
+// أبداً في ظروف معيّنة (قفل navigator.locks عالق بين تبويبات، أو شبكة
+// متذبذبة على الجوال)، مما يجعل Promise.all المنتظِر له معلّقاً للأبد.
+// withTimeout يضمن أن أي وعد "يستقر" خلال مهلة محددة دائماً، عبر
+// Promise.race مع مؤقّت يُرجع قيمة احتياطية - لا يُلغي الوعد الأصلي (قد
+// يكتمل لاحقاً في الخلفية دون تأثير)، لكنه يمنع تعليق واجهة المستخدم.
+export function withTimeout(promise, ms, fallbackValue) {
+  return Promise.race([
+    promise,
+    new Promise((resolve) => setTimeout(() => resolve(fallbackValue), ms)),
+  ]);
+}
+
 // lang هو معامل اختياري (افتراضياً 'ar') لا يغيّر سلوك أي نداء قائم لا
 // يمرّره — أُضيف فقط ليدعم صفحة "اليوم" ثنائية اللغة دون المساس بباقي
 // الصفحات التي ما زالت تستدعي fmtHM بدون هذا المعامل.

@@ -1,11 +1,19 @@
 import { supabase, hasSupabase } from "./supabase";
+import { withTimeout } from "./helpers";
 
 export const hasAuth = hasSupabase;
 
+// خلل حقيقي معروف في supabase-js: getSession() قد يعلَق للأبد (لا يُحل
+// ولا يُرفض) في حالات نادرة - غالباً قفل مزامنة بين تبويبات (navigator.locks)
+// لم يُحرَّر بعد إغلاق تبويب سابق، أو بعد إعادة تنشيط تبويب كان في الخلفية
+// طويلاً على الجوال. هذا هو السبب الجذري الفعلي لعلوق شاشة التحميل أحياناً:
+// شاشة الإقلاع تنتظر هذا النداء قبل أي شيء آخر. المهلة هنا لا تُلغي النداء
+// الحقيقي (قد يكتمل لاحقاً في الخلفية)، لكنها تمنع تعليق الإقلاع بالكامل -
+// onAuthChange أدناه سيُحدّث حالة المستخدم فعلياً بمجرد وصول أي جلسة حقيقية.
 export async function getSession() {
   if (!hasSupabase) return null;
   try {
-    const { data } = await supabase.auth.getSession();
+    const { data } = await withTimeout(supabase.auth.getSession(), 6000, { data: null });
     return data?.session || null;
   } catch {
     return null;

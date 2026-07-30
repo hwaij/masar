@@ -308,34 +308,40 @@ export default function MasarApp() {
 
   const loadAll = useCallback(async () => {
       const myVersion = ++loadVersionRef.current;
-      // سبب حقيقي مؤكَّد لعلوق شاشة التحميل: أي نداء واحد من هذه الـ24 قد
-      // يعلَق للأبد (شبكة متذبذبة، أو خلل معروف في supabase-js) دون timeout
-      // - و Promise.all لا يستقر أبداً إن لم يستقر عنصر واحد فيه، فتبقى
-      // شاشة التحميل معلّقة للمستخدم للأبد. withTimeout يضمن أن كل نداء
-      // "يستقر" خلال 8 ثوانٍ كحد أقصى بقيمة احتياطية مطابقة للحالة
-      // الافتراضية الأولية لكل متغيّر - لا يُلغي النداء الحقيقي (قد يكتمل
-      // لاحقاً في الخلفية بلا أثر)، فقط يمنع تعليق الواجهة كلها بسببه.
+      // سبب البطء الحقيقي بعد إصلاح التعليق السابق: Promise.all واحد لكل
+      // الـ24 استعلاماً معاً كان يعني أن الواجهة تنتظر أبطأ واحد منها دائماً
+      // حتى في الإقلاع الطبيعي السليم (المهلة كانت تمنع التعليق الأبدي، لكنها
+      // لم تمنع الانتظار الفعلي لكل الاستعلامات). الإصلاح: قسمان متوازيان -
+      // "أساسي" (فقط ما تحتاجه شاشة "اليوم" والشريط العلوي أول ظهور) يُنتظر
+      // فقط، فتُفتح الواجهة بمجرده مباشرة؛ و"خلفية" (بقية الأقسام) يبدأ
+      // بالتوازي تماماً معه لكن دون انتظاره - يكمل ذاتياً بعد ظهور الواجهة
+      // ويحدّث حالته عندها. كل استعلام لا يزال محمياً بنفس مهلة الـ8 ثوانٍ
+      // ضد التعليق الحقيقي، لكن هذا لم يعد يؤخّر فتح التطبيق نفسه أبداً.
       const T = 8000;
-      const [c, e, t, r, g, p, a, f, cm, pl, rel, ml, plog, tl, gl, vlt, vtx, sl, sub, azl, azi, qp, ist, hp] = await Promise.all([
+
+      const essential = Promise.all([
         withTimeout(store.loadCategories(), T, DEFAULT_CATEGORIES),
         withTimeout(store.loadEntries(), T, []),
         withTimeout(store.loadTasks(), T, []),
         withTimeout(store.loadReports(), T, []),
         withTimeout(store.loadGamify(), T, { points: 0, badges: [] }),
         withTimeout(store.loadProfile(), T, { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", language: "ar" }),
-        withTimeout(store.loadAchieve(), T, []),
+        withTimeout(store.loadMandatoryLog(), T, {}),
         withTimeout(store.loadFocus(), T, []),
+        withTimeout(store.loadSubscription(), T, { isSubscriber: false, subscriptionEnd: null, isVip: false, subscriptionType: null }),
+      ]);
+
+      const background = Promise.all([
+        withTimeout(store.loadAchieve(), T, []),
         withTimeout(store.loadCommitments(), T, []),
         withTimeout(store.loadPrayerLog(), T, []),
         withTimeout(store.loadReligious(), T, []),
-        withTimeout(store.loadMandatoryLog(), T, {}),
         withTimeout(store.loadPointsLog(), T, []),
         withTimeout(store.loadTipsLog(), T, {}),
         withTimeout(store.loadGoals(), T, []),
         withTimeout(store.loadVault(), T, null),
         withTimeout(store.loadVaultTransactions(), T, []),
         withTimeout(store.loadSleepLog(), T, []),
-        withTimeout(store.loadSubscription(), T, { isSubscriber: false, subscriptionEnd: null, isVip: false, subscriptionType: null }),
         withTimeout(store.loadAzkarLog(), T, {}),
         withTimeout(store.loadAzkarItems(), T, {}),
         withTimeout(store.loadQuranProgress(), T, {}),
@@ -345,15 +351,28 @@ export default function MasarApp() {
           bmi: null, bmiCategory: null, ibw: null, ree: null, tee: null,
         }),
       ]);
+
+      const [c, e, t, r, g, p, ml, f, sub] = await essential;
       if (loadVersionRef.current !== myVersion) return;
       setCategories(c); setEntries(e); setTasks(t); setReports(r); setGamify(g);
-      setProfile(p); setAchieve(a); setFocus(f); setCommitments(cm);
-      setPrayerLog(pl); setReligious(rel);
-      setMandatoryLog(ml); setPointsLog(plog); setTipsLog(tl); setGoals(gl);
-      setVault(vlt); setVaultTx(vtx); setSleepLog(sl); setSubscription(sub);
-      setAzkarLog(azl); setAzkarItems(azi); setQuranProgress(qp); setIstighfar(ist);
-      setHealthProfile(hp);
+      setProfile(p); setMandatoryLog(ml); setFocus(f); setSubscription(sub);
+      setLoaded(true);
+      // نظّف "?view=" من شريط العنوان بعد استعمالها لمرة واحدة، حتى لا يبقى
+      // رابط اختصار قديم في السجل/الإشارات المرجعية يفتح نفس الشاشة دائماً.
+      if (window.location.search.includes("view=")) {
+        window.history.replaceState(null, "", window.location.pathname);
+      }
 
+      const [a, cm, pl, rel, plog, tl, gl, vlt, vtx, sl, azl, azi, qp, ist, hp] = await background;
+      if (loadVersionRef.current !== myVersion) return;
+      setAchieve(a); setCommitments(cm); setPrayerLog(pl); setReligious(rel);
+      setPointsLog(plog); setTipsLog(tl); setGoals(gl); setVault(vlt); setVaultTx(vtx);
+      setSleepLog(sl); setAzkarLog(azl); setAzkarItems(azi); setQuranProgress(qp);
+      setIstighfar(ist); setHealthProfile(hp);
+
+      // منطق خصم نقاط الفائتات يعتمد على prayerLog (يُحمَّل في دفعة الخلفية)
+      // - يعمل هنا بعد اكتمالها بلا تأخير لفتح الواجهة؛ فحص لمرة واحدة يومياً
+      // فقط، فتأخره ببضع ثوانٍ خلف ظهور التطبيق لا يُلاحَظ ولا يغيّر نتيجته.
       const today = todayKey();
       const lastOpen = localStorage.getItem("masar_last_open");
       if (lastOpen && lastOpen !== today) {
@@ -387,12 +406,6 @@ export default function MasarApp() {
         }
       }
       localStorage.setItem("masar_last_open", today);
-      setLoaded(true);
-      // نظّف "?view=" من شريط العنوان بعد استعمالها لمرة واحدة، حتى لا يبقى
-      // رابط اختصار قديم في السجل/الإشارات المرجعية يفتح نفس الشاشة دائماً.
-      if (window.location.search.includes("view=")) {
-        window.history.replaceState(null, "", window.location.pathname);
-      }
   }, []);
 
   // شبكة أمان أخيرة (defense-in-depth) فوق مهلتَي getSession()/loadAll():

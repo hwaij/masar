@@ -3,9 +3,10 @@ import { useTranslation } from "react-i18next";
 import {
   Plus, X, Trash2, Camera, Search, Loader2, Droplet, Flame, Check, Bell,
   Hash, Sparkles, ImagePlus, ClipboardList, Edit3, ChevronLeft, ChevronRight, SkipForward,
+  Utensils,
 } from "lucide-react";
 import { store } from "../lib/store";
-import { todayKey, uid, analyze, parseJsonLoose } from "../lib/helpers";
+import { todayKey, uid, analyze, parseJsonLoose, arabicDate } from "../lib/helpers";
 import { isActiveSubscriber } from "../lib/subscription";
 import {
   fetchProductByBarcode, searchProductsByName, scaleNutrients,
@@ -17,6 +18,7 @@ import {
   scaleMicronutrients, MICRONUTRIENT_META, personalizedRDI, compressImageToBlob,
 } from "../lib/nutrition";
 import { requestNotificationPermission } from "../lib/push";
+import { COMMON_FOODS, COMMON_FOOD_CATEGORIES, commonFoodToProduct } from "../lib/common-foods";
 import { S } from "./styles";
 
 const NS = {
@@ -83,6 +85,9 @@ const NS = {
   notifRow: { display: "flex", gap: 8 },
   notifBtn: { flex: 1, background: "var(--gold)", color: "var(--bg)", border: "none", borderRadius: 10, padding: "8px 0", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
   notifDismissBtn: { flex: 1, background: "transparent", border: "1px solid var(--border2)", color: "var(--muted2)", borderRadius: 10, padding: "8px 0", fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" },
+
+  commonFoodCategoryHead: { fontSize: 12, fontWeight: 700, color: "var(--gold)", margin: "14px 0 8px" },
+  pastDayBanner: { display: "flex", alignItems: "center", gap: 8, background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.3)", borderRadius: 12, padding: "9px 12px", marginBottom: 14, fontSize: 12.5, color: "var(--ink-soft)", lineHeight: 1.6 },
 
   servingLabel: { fontSize: 12.5, color: "var(--muted2)", marginBottom: 8 },
   multiplierRow: { display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" },
@@ -1086,6 +1091,53 @@ function SearchPanel({ onPick, onManual }) {
   );
 }
 
+// قائمة "أطعمة شائعة" - اختيار سريع بضغطة واحدة بلا باركود/بحث، من بيانات
+// ثابتة محلية (common-foods.js، لا اتصال API). صندوق البحث هنا فلتر محلي
+// فوري على القائمة الثابتة (لا يستدعي searchProductsByName إطلاقاً)، يطابق
+// نص البحث مقابل searchTerms (عربي/إنجليزي) عبر normalizeSearchTerm - نفس
+// دالة التطبيع المستخدمة في SearchPanel لثبات نفس سلوك البحث بلا تشكيل.
+function CommonFoodsPanel({ onPick }) {
+  const { t, i18n } = useTranslation();
+  const isEn = i18n.language === "en";
+  const [query, setQuery] = useState("");
+  const q = normalizeSearchTerm(query);
+  const filtered = q
+    ? COMMON_FOODS.filter((f) => f.searchTerms.some((s) => normalizeSearchTerm(s).includes(q)) || normalizeSearchTerm(f.name).includes(q) || normalizeSearchTerm(f.nameEn).includes(q))
+    : COMMON_FOODS;
+
+  return (
+    <>
+      <div style={NS.searchRow}>
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={t("nutrition.commonFoodSearchPlaceholder")}
+          style={NS.searchInput}
+        />
+      </div>
+      {filtered.length === 0 && <p style={NS.notFoundNote}>{t("nutrition.noCommonFoodResults")}</p>}
+      {COMMON_FOOD_CATEGORIES.map((cat) => {
+        const items = filtered.filter((f) => f.category === cat);
+        if (items.length === 0) return null;
+        return (
+          <div key={cat}>
+            <div style={NS.commonFoodCategoryHead}>{t(`nutrition.commonFoodCategories.${cat}`)}</div>
+            {items.map((f) => (
+              <button key={f.id} onClick={() => onPick(commonFoodToProduct(f, isEn))} style={NS.resultRow}>
+                <div style={NS.resultImg} />
+                <div>
+                  <div style={NS.resultName}>{isEn ? f.nameEn : f.name}</div>
+                  <div style={NS.resultMeta}>{t("nutrition.calPer100g", { cal: f.caloriesPer100g })}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
 // تصوير الوجبة بالذكاء الاصطناعي - يستدعي recognizeMealFromImage المعزولة
 // (lib/nutrition.js) فقط، ولا يعرف شيئاً عن كون المزوّد الفعلي Gemini من
 // عدمه. كل قيمة في النتيجة قابلة للتعديل يدوياً قبل الحفظ، والتنبيه أسفل
@@ -1473,6 +1525,12 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
 
   const isSub = isActiveSubscriber(subscription);
   const today = todayKey();
+  // اليوم المعروض حالياً (قد يكون سابقاً لليوم الحقيقي عبر التنقّل أدناه) -
+  // كل قسم "سجل/مجاميع/ماء/فيتامينات" يُشتق منه، بينما "تحليل تغذية اليوم"
+  // الذكي أدناه يبقى مرتبطاً بـ"اليوم" الحقيقي دائماً (متعمَّد، انظر تعليق
+  // generateDailyAnalysis) حتى لا يتغيّر سلوكه القائم أثناء تصفّح يوم سابق.
+  const [selectedDate, setSelectedDate] = useState(today);
+  const isViewingToday = selectedDate === today;
 
   useEffect(() => {
     let active = true;
@@ -1485,11 +1543,25 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
     return () => { active = false; };
   }, []);
 
+  // لا تنقّل لأيام مستقبلية (لا سجل لها بعد) - يُقيَّد هنا لا فقط بتعطيل
+  // الزر، حتى لا يتغيّر التاريخ حتى لو استُدعيت الدالة من مصدر آخر لاحقاً.
+  function shiftDay(delta) {
+    const d = new Date(selectedDate);
+    d.setDate(d.getDate() + delta);
+    const next = todayKey(d);
+    if (next > today) return;
+    setSelectedDate(next);
+  }
+
+  const selectedLog = nutritionLog.filter((e) => e.date === selectedDate);
+  const totals = sumNutritionEntries(selectedLog);
+  // تُستخدَم لتحليل تغذية اليوم الذكي فقط (نفس نطاقها الأصلي دائماً: اليوم
+  // الحقيقي)، بمعزل تام عن selectedDate/totals أعلاه المشتقّين من اليوم
+  // المعروض حالياً في التنقّل - انظر تعليق generateDailyAnalysis.
   const todayLog = nutritionLog.filter((e) => e.date === today);
-  const totals = sumNutritionEntries(todayLog);
-  // تُعرض العناصر التسعة كلها دائماً (حتى غير المُستهلَك اليوم يظهر بصفر
-  // و0%) حتى يرى المستخدم ما ينقصه فعلياً، لا فقط ما أكله. الاحتياج (rdi)
-  // يُخصَّص حسب العمر والجنس من health_profile عبر personalizedRDI إن
+  // تُعرض العناصر التسعة كلها دائماً (حتى غير المُستهلَك في اليوم المعروض
+  // يظهر بصفر و0%) حتى يرى المستخدم ما ينقصه فعلياً، لا فقط ما أكله. الاحتياج
+  // (rdi) يُخصَّص حسب العمر والجنس من health_profile عبر personalizedRDI إن
   // توفّرا (جداول RDA/AI معتمدة علمياً)، وإلا يُستخدم rdi العام الافتراضي.
   const hasAgeGender = !!(healthProfile?.age && healthProfile?.gender);
   const microRows = Object.keys(MICRONUTRIENT_META).map((key) => {
@@ -1509,7 +1581,7 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
     carbs: Math.round((tee * 0.4) / 4),
     fat: Math.round((tee * 0.3) / 9),
   } : null;
-  const todayCups = waterLog[today] || 0;
+  const todayCups = waterLog[selectedDate] || 0;
   const cupsGoal = waterGoalCups(healthProfile?.weightKg);
   const waterPercent = cupsGoal ? Math.min(100, Math.round((todayCups / cupsGoal) * 100)) : 0;
 
@@ -1530,7 +1602,11 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
   // وتتراجع عن التحديث المتفائل + تُظهر خطأً حقيقياً للمستخدم عند أي فشل.
   async function addEntry(entry) {
     setSaveError(null);
-    const full = { ...entry, date: today };
+    // يُسجَّل بتاريخ اليوم المعروض حالياً في التنقّل (قد يكون يوماً سابقاً) -
+    // نفس مبدأ TodayView القائم أصلاً (EntryModal يسجّل بتاريخ اليوم المختار
+    // هناك)، مع تنبيه واضح أعلى الشاشة (pastDayBanner) حتى لا يظن المستخدم
+    // أنه يسجّل في اليوم الحقيقي أثناء تصفّح يوم سابق.
+    const full = { ...entry, date: selectedDate };
     setNutritionLog((prev) => [full, ...prev]);
     const result = await store.addNutritionEntry(full);
     if (result.ok) {
@@ -1555,9 +1631,9 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
   async function addWaterCup() {
     const prevCups = todayCups;
     const next = todayCups + 1;
-    setWaterLog((prev) => ({ ...prev, [today]: next }));
-    const res = await store.saveWaterCups(today, next);
-    if (!res.ok) { setWaterLog((prev) => ({ ...prev, [today]: prevCups })); showToast(t("nutrition.waterGlassSaveFailed")); }
+    setWaterLog((prev) => ({ ...prev, [selectedDate]: next }));
+    const res = await store.saveWaterCups(selectedDate, next);
+    if (!res.ok) { setWaterLog((prev) => ({ ...prev, [selectedDate]: prevCups })); showToast(t("nutrition.waterGlassSaveFailed")); }
   }
 
   async function enableNotifications() {
@@ -1650,18 +1726,22 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
     setAnalysisLoading(true);
     try {
       const isEn = i18n.language === "en";
+      // مجاميع اليوم الحقيقي حصراً (بمعزل عن totals المشتقّة من selectedDate
+      // أعلاه) - هذا التحليل يبقى "تحليل تغذية اليوم" بمعناه الحرفي دائماً،
+      // حتى لو كان المستخدم يتصفّح يوماً سابقاً حالياً عبر شريط التنقّل.
+      const todayTotals = sumNutritionEntries(todayLog);
       const foodsList = todayLog
         .map((e) => `${e.foodName} (${Math.round(e.calories)} ${isEn ? "kcal" : "سعرة"})`)
         .join(isEn ? ", " : "، ");
       const prompt = isEn
         ? `You are a nutrition coach writing in clear, natural English with no long dashes. Here is the user's actual nutrition data for today only:
 Logged foods: ${foodsList}
-Totals: ${Math.round(totals.calories)} kcal${tee ? ` out of a ${Math.round(tee)} kcal goal` : ""}, protein ${Math.round(totals.protein)}g, carbs ${Math.round(totals.carbs)}g, fat ${Math.round(totals.fat)}g, fiber ${Math.round(totals.fiber)}g, sugar ${Math.round(totals.sugar)}g, sodium ${Math.round(totals.sodium)}mg.
+Totals: ${Math.round(todayTotals.calories)} kcal${tee ? ` out of a ${Math.round(tee)} kcal goal` : ""}, protein ${Math.round(todayTotals.protein)}g, carbs ${Math.round(todayTotals.carbs)}g, fat ${Math.round(todayTotals.fat)}g, fiber ${Math.round(todayTotals.fiber)}g, sugar ${Math.round(todayTotals.sugar)}g, sodium ${Math.round(todayTotals.sodium)}mg.
 Write a short paragraph (two to three sentences) analyzing today's eating pattern based only on these specific real numbers (don't invent anything not mentioned) — for example, good protein but low fiber today. Return only JSON with no other text or markdown:
 {"analysis":"paragraph here"}`
         : `أنت مدرّب تغذية يكتب بالعربية الفصحى البسيطة بدون أي شرطات طويلة. هذه بيانات تغذية المستخدم الفعلية لهذا اليوم فقط:
 الأطعمة المسجَّلة: ${foodsList}
-الإجمالي: ${Math.round(totals.calories)} سعرة${tee ? ` من أصل هدف ${Math.round(tee)} سعرة` : ""}، بروتين ${Math.round(totals.protein)}غ، كارب ${Math.round(totals.carbs)}غ، دهون ${Math.round(totals.fat)}غ، ألياف ${Math.round(totals.fiber)}غ، سكر ${Math.round(totals.sugar)}غ، صوديوم ${Math.round(totals.sodium)}مغم.
+الإجمالي: ${Math.round(todayTotals.calories)} سعرة${tee ? ` من أصل هدف ${Math.round(tee)} سعرة` : ""}، بروتين ${Math.round(todayTotals.protein)}غ، كارب ${Math.round(todayTotals.carbs)}غ، دهون ${Math.round(todayTotals.fat)}غ، ألياف ${Math.round(todayTotals.fiber)}غ، سكر ${Math.round(todayTotals.sugar)}غ، صوديوم ${Math.round(todayTotals.sodium)}مغم.
 اكتب فقرة قصيرة (جملتان إلى ثلاث) تحلّل نمط تغذية اليوم بناءً على هذه الأرقام الفعلية فقط تحديداً (مثال: بروتين جيد لكن ألياف منخفضة اليوم) - لا تخترع نمطاً غير موجود في الأرقام أعلاه. أعد فقط JSON بدون أي نص أو markdown:
 {"analysis":"الفقرة هنا"}`;
       const text = await analyze(prompt, 500);
@@ -1682,6 +1762,37 @@ Write a short paragraph (two to three sentences) analyzing today's eating patter
           <div style={NS.heroSub}>{t("nutrition.heroSub")}</div>
         </div>
       </div>
+
+      {/* الأيقونتان تتبادلان حسب اللغة: كل زر يمثّل "سابق"/"تالي" منطقياً،
+          لكن اتجاه السهم يجب أن يشير دائماً نحو حافة الصف الخارجية التي
+          يقع عليها الزر فعلياً بعد انعكاس RTL/LTR - نفس نمط شريط التاريخ في
+          صفحة "اليوم" (MasarApp.jsx). زر "التالي" مُعطَّل عند اليوم الحقيقي
+          لأن لا سجل لأي يوم مستقبلي بعد. */}
+      <div style={S.dateRow}>
+        <button onClick={() => shiftDay(-1)} style={S.iconBtn} aria-label={t("nutrition.previousDay")}>
+          {i18n.language === "en" ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
+        </button>
+        <div style={S.dateLabel}>
+          {arabicDate(selectedDate, { weekday: "long", day: "numeric", month: "long" }, i18n.language === "en" ? "en-US" : undefined)}
+          {isViewingToday && <span style={S.todayPill}>{t("nav.today")}</span>}
+        </div>
+        <button
+          onClick={() => shiftDay(1)}
+          disabled={isViewingToday}
+          style={{ ...S.iconBtn, ...(isViewingToday ? { opacity: 0.4, cursor: "not-allowed" } : {}) }}
+          aria-label={t("nutrition.nextDay")}
+        >
+          {i18n.language === "en" ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+        </button>
+      </div>
+
+      {/* قرار تصميم: يُسمح بإضافة طعام/ماء على يوم سابق (بدل تعطيل الإضافة
+          كلياً) لتطابق سلوك "اليوم" (TodayView) القائم فعلاً مع EntryModal -
+          لكن مع تنبيه واضح لا يمكن تفويته حتى لا يظن المستخدم أنه يسجّل في
+          اليوم الحقيقي. */}
+      {!isViewingToday && (
+        <div style={NS.pastDayBanner}>{t("nutrition.viewingPastDay")}</div>
+      )}
 
       {profile && !profile.notificationsAsked && (
         <div style={NS.notifBanner}>
@@ -1789,10 +1900,10 @@ Write a short paragraph (two to three sentences) analyzing today's eating patter
 
       <button onClick={() => setSheet("choose")} style={NS.addFoodBtn}><Plus size={16} /> {t("nutrition.addFood")}</button>
 
-      <div style={NS.logHead}>{t("nutrition.todayLog")}</div>
-      {loaded && todayLog.length === 0 && <div style={NS.emptyHint}>{t("nutrition.noFoodToday")}</div>}
+      <div style={NS.logHead}>{isViewingToday ? t("nutrition.todayLog") : t("nutrition.selectedDayLog")}</div>
+      {loaded && selectedLog.length === 0 && <div style={NS.emptyHint}>{isViewingToday ? t("nutrition.noFoodToday") : t("nutrition.noFoodThisDay")}</div>}
       <div className="stagger-in responsive-card-list">
-      {todayLog.map((e) => (
+      {selectedLog.map((e) => (
         <div key={e.id} style={NS.logItem}>
           <div style={{ flex: 1 }}>
             <div style={NS.logItemName}>{e.foodName}</div>
@@ -1811,6 +1922,7 @@ Write a short paragraph (two to three sentences) analyzing today's eating patter
               <div style={NS.sheetHead}>
                 <span style={NS.sheetTitle}>
                   {sheet === "choose" && t("nutrition.sheetTitles.addFood")}
+                  {sheet === "commonFoods" && t("nutrition.sheetTitles.commonFoods")}
                   {sheet === "barcodeManual" && t("nutrition.sheetTitles.barcodeEntry")}
                   {sheet === "search" && t("nutrition.sheetTitles.searchByName")}
                   {sheet === "aiPhoto" && t("nutrition.sheetTitles.photographMeal")}
@@ -1835,6 +1947,9 @@ Write a short paragraph (two to three sentences) analyzing today's eating patter
 
             {sheet === "choose" && (
               <div style={NS.chooserGrid}>
+                <button onClick={() => setSheet("commonFoods")} style={NS.chooserBtn}>
+                  <span style={NS.chooserIcon}><Utensils size={19} /></span> {t("nutrition.commonFoodsOption")}
+                </button>
                 <button onClick={() => setSheet("scan")} style={NS.chooserBtn}>
                   <span style={NS.chooserIcon}><Camera size={19} /></span> {t("nutrition.scanWithCameraOption")}
                 </button>
@@ -1869,6 +1984,12 @@ Write a short paragraph (two to three sentences) analyzing today's eating patter
                   {!isSub && <span style={NS.chooserBadge}>{t("nutrition.premiumBadge")}</span>}
                 </button>
               </div>
+            )}
+
+            {sheet === "commonFoods" && (
+              <CommonFoodsPanel
+                onPick={(product) => { setPendingProduct({ product, source: "common" }); setSheet("confirm"); }}
+              />
             )}
 
             {sheet === "barcodeManual" && (

@@ -157,8 +157,10 @@ alter table nutrition_log add column if not exists sodium numeric not null defau
 -- source كان يمنع القيمة الجديدة 'ai_photo' (تصوير الوجبة بالذكاء الاصطناعي)
 -- عبر check constraint قديم لا يعرفها؛ يُعاد إنشاؤه هنا ليشملها أيضاً.
 -- أُضيفت لاحقاً 'label' (تصوير الملصق الغذائي وقراءته بالذكاء الاصطناعي) لنفس السبب.
+-- أُضيفت لاحقاً 'common' (اختيار سريع من قائمة "أطعمة شائعة" الثابتة في
+-- common-foods.js - بيض/أرز/تفاح... بلا باركود أو بحث) لنفس السبب.
 alter table nutrition_log drop constraint if exists nutrition_log_source_check;
-alter table nutrition_log add constraint nutrition_log_source_check check (source in ('barcode', 'manual', 'search', 'ai_photo', 'label'));
+alter table nutrition_log add constraint nutrition_log_source_check check (source in ('barcode', 'manual', 'search', 'ai_photo', 'label', 'common'));
 -- وحدة القياس التي اختارها المستخدم فعلياً عند التسجيل (غرام افتراضياً)،
 -- تُحفظ منفصلة حتى يظهر السجل لاحقاً بنفس الوحدة، حتى لو كانت القيم
 -- الغذائية نفسها محسوبة مسبقاً بمكافئها بالغرام.

@@ -38,6 +38,12 @@ export function formatVaultAmount(amount, code) {
 // store.js. إضافة تصنيف افتراضي جديد لاحقاً = سطر واحد هنا فقط. icon اسم
 // أيقونة Lucide حقيقي (يُستورَد ديناميكياً حيث تُعرض)، color لون hex من
 // هوية مسار البصرية (ذهبي/كحلي ومتدرجاتهما + ألوان دلالية إضافية).
+// لا تصنيف "أخرى" هنا عمداً بعد الآن - كان ملاذاً إجبارياً للمعاملات عند حذف
+// تصنيف آخر، لكن المستخدم صار يختار تصنيفاً بديلاً فعلياً بنفسه عند الحذف
+// (انظر منطق الحذف في VaultView.jsx)، فلا حاجة لتصنيف "ملاذ" ثابت غير قابل
+// للحذف بعد الآن. معاملات قديمة قد تحمل category_id='other' من استخدام
+// سابق لهذا الملاذ - انظر resolveCategory أدناه لكيفية عرضها بأمان دون
+// إعادتها كخيار نشط قابل للاختيار من جديد.
 export const DEFAULT_BUDGET_CATEGORIES = [
   { id: "restaurants", name: "مطاعم", nameEn: "Restaurants", icon: "UtensilsCrossed", color: "#D17B5F" },
   { id: "coffee", name: "قهوة", nameEn: "Coffee", icon: "Coffee", color: "#9A7529" },
@@ -49,19 +55,30 @@ export const DEFAULT_BUDGET_CATEGORIES = [
   { id: "groceries", name: "بقالة", nameEn: "Groceries", icon: "ShoppingCart", color: "#7FB069" },
   { id: "education", name: "تعليم", nameEn: "Education", icon: "GraduationCap", color: "#6B8FD1" },
   { id: "rent", name: "إيجار/سكن", nameEn: "Rent/Housing", icon: "Home", color: "#1B3A3A" },
-  { id: "other", name: "أخرى", nameEn: "Other", icon: "MoreHorizontal", color: "#8C8578" },
 ];
 
-// يبحث عن تصنيف بمعرّفه - أولاً في الافتراضية الثابتة، ثم في المخصَّصة
-// التي أنشأها المستخدم بنفسه (custom) - عمود category_id واحد في
-// vault_transactions يخدم كلا النوعين دون تفرّع. يُرجع null إن لم يوجد
-// (تصنيف مخصَّص حُذف لاحقاً مثلاً) بدل اختراع تصنيف وهمي.
+// دلو "غير مصنّف" - يغطي حالتين بنفس العرض المحايد: (أ) معاملة لم يختر لها
+// المستخدم أي تصنيف أصلاً (categoryId فارغ)، و(ب) معاملة قديمة تحمل
+// category_id='other' فعلياً من نظام سابق (قبل إزالة تصنيف "أخرى" الثابت
+// نهائياً). كلاهما يعني عملياً "بلا تصنيف نشط محدَّد" من منظور المستخدم، فلا
+// داعٍ لتمييزهما بلافتة "قديم" مربكة - عرض محايد واحد أبسط وأوضح. تُعرَض
+// بأمان بتاريخها الكامل في السجل والرسم الدائري (بلا فقدان بيانات)، لكنها
+// لا تظهر إطلاقاً في allCategories بـVaultView.jsx (لا يمكن اختيارها
+// كتصنيف جديد لمعاملة أو ميزانية جديدة - هذا الدلو عرضي فقط، ليس تصنيفاً).
+const UNCATEGORIZED = { id: "other", name: "غير مصنّف", nameEn: "Uncategorized", icon: "MoreHorizontal", color: "#8C8578" };
+
+// يبحث عن تصنيف بمعرّفه - أولاً في الافتراضية الثابتة، ثم في المخصَّصة التي
+// أنشأها المستخدم بنفسه (custom)، ثم دلو "غير مصنّف" (انظر UNCATEGORIZED
+// أعلاه) - عمود category_id واحد في vault_transactions يخدم كل الحالات دون
+// تفرّع. يُرجع null إن لم يوجد فعلاً (تصنيف مخصَّص حُذف لاحقاً مثلاً) بدل
+// اختراع تصنيف وهمي.
 export function resolveCategory(categoryId, customCategories = []) {
   if (!categoryId) return null;
   const builtIn = DEFAULT_BUDGET_CATEGORIES.find((c) => c.id === categoryId);
   if (builtIn) return builtIn;
   const custom = customCategories.find((c) => c.id === categoryId);
   if (custom) return { id: custom.id, name: custom.name, nameEn: custom.name, icon: custom.icon || "Tag", color: custom.color || "#C9A24B" };
+  if (categoryId === "other") return UNCATEGORIZED;
   return null;
 }
 

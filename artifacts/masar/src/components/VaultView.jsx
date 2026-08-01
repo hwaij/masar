@@ -180,6 +180,8 @@ export default function VaultView({ showToast }) {
   const [addingCategory, setAddingCategory] = useState(false);
   const [newCatName, setNewCatName] = useState("");
   const [newCatColor, setNewCatColor] = useState(COLOR_CHOICES[0]);
+  const [deletingCategory, setDeletingCategory] = useState(null); // تصنيف بانتظار اختيار بديل قبل حذفه (له معاملات سابقة)
+  const [reassignTarget, setReassignTarget] = useState("");
 
   const [addingGoal, setAddingGoal] = useState(false);
   const [newGoalName, setNewGoalName] = useState("");
@@ -484,60 +486,68 @@ export default function VaultView({ showToast }) {
     else { setCustomCategories((prev) => prev.filter((c) => c.id !== cat.id)); showToast(t("common.errors.saveFailed")); }
   }
 
-  // حذف أي تصنيف (جاهز أو مخصَّص) - عدا "أخرى" نفسها التي تبقى دائماً
-  // الملاذ الأخير لأي معاملات يُحذَف تصنيفها لاحقاً، فلا معنى لحذفها. عند
-  // حذف تصنيف له معاملات سابقة، تُنقَل هذه المعاملات فعلياً لتصنيف "أخرى"
-  // أولاً (بلا فقدان بيانات) قبل حذف ميزانيته ثم حذف/إخفاء التصنيف نفسه -
-  // بهذا الترتيب تحديداً حتى لا يبقى أي تعارض إن فشلت إحدى الخطوات.
-  async function removeCategory(id) {
-    if (id === "other") { showToast(t("vault.cannotDeleteOther")); return; }
-    const isCustom = customCategories.some((c) => c.id === id);
-    const hasTransactions = transactions.some((tx) => tx.categoryId === id);
-    const confirmMsg = hasTransactions ? t("vault.confirmDeleteCategoryWithTx") : t("vault.confirmDeleteCategory");
-    if (!window.confirm(confirmMsg)) return;
-
-    const prevTransactions = transactions;
+  // حذف ميزانية التصنيف (كل الأشهر) ثم حذف/إخفاء التصنيف نفسه - خطوة
+  // مشتركة بين مسار الحذف المباشر (بلا معاملات) ومسار الحذف بعد إعادة
+  // التصنيف (له معاملات، بعد اختيار المستخدم بديلاً لها).
+  async function finalizeDeleteCategory(id) {
     const prevBudgets = budgets;
     const prevCustom = customCategories;
     const prevHidden = hiddenDefaultIds;
 
-    if (hasTransactions) {
-      setTransactions((list) => list.map((tx) => (tx.categoryId === id ? { ...tx, categoryId: "other" } : tx)));
-      const reassignRes = await store.reassignVaultTransactionsCategory(id, "other");
-      if (!reassignRes.ok) {
-        setTransactions(prevTransactions);
-        showToast(t("common.errors.saveFailed"));
-        return;
-      }
-    }
-
     setBudgets((list) => list.filter((b) => b.categoryId !== id));
     const budgetsRes = await store.deleteBudgetsForCategory(id);
-    if (!budgetsRes.ok) {
-      setBudgets(prevBudgets);
+    if (!budgetsRes.ok) { setBudgets(prevBudgets); showToast(t("common.errors.saveFailed")); return; }
+
+    const isCustom = customCategories.some((c) => c.id === id);
+    if (isCustom) {
+      setCustomCategories((list) => list.filter((c) => c.id !== id));
+      const res = await store.deleteBudgetCategory(id);
+      if (!res.ok) { setCustomCategories(prevCustom); setBudgets(prevBudgets); showToast(t("common.errors.deleteFailed")); return; }
+    } else {
+      setHiddenDefaultIds((list) => [...list, id]);
+      const res = await store.hideBudgetCategory(id);
+      if (!res.ok) { setHiddenDefaultIds(prevHidden); setBudgets(prevBudgets); showToast(t("common.errors.deleteFailed")); return; }
+    }
+    showToast(t("vault.categoryDeleted"));
+  }
+
+  // نقطة دخول حذف أي تصنيف (جاهز أو مخصَّص). لا تصنيف "أخرى" ثابتاً بعد
+  // الآن كملاذ إجباري - إن كان للتصنيف معاملات سابقة، يختار المستخدم بنفسه
+  // تصنيفاً بديلاً حقيقياً من تصنيفاته الفعلية قبل تأكيد الحذف (عبر
+  // confirmReassignAndDelete أدناه)؛ إن لم يكن له أي معاملات، يُحذف مباشرة
+  // دون سؤال إضافي.
+  async function removeCategory(id) {
+    const hasTransactions = transactions.some((tx) => tx.categoryId === id);
+    if (!hasTransactions) { await finalizeDeleteCategory(id); return; }
+
+    const others = allCategories.filter((c) => c.id !== id);
+    if (others.length === 0) { showToast(t("vault.needAnotherCategoryFirst")); return; }
+
+    const cat = allCategories.find((c) => c.id === id);
+    setDeletingCategory(cat);
+    setReassignTarget(others[0].id);
+  }
+
+  // يُنقَل كل معاملات التصنيف المحذوف فعلياً إلى التصنيف البديل الذي اختاره
+  // المستخدم أولاً (بلا فقدان بيانات)، قبل حذف الميزانية ثم حذف/إخفاء
+  // التصنيف نفسه - بهذا الترتيب تحديداً حتى لا يبقى أي تعارض إن فشلت خطوة.
+  async function confirmReassignAndDelete() {
+    if (!deletingCategory || !reassignTarget) return;
+    const id = deletingCategory.id;
+    const targetId = reassignTarget;
+    const prevTransactions = transactions;
+
+    setTransactions((list) => list.map((tx) => (tx.categoryId === id ? { ...tx, categoryId: targetId } : tx)));
+    const reassignRes = await store.reassignVaultTransactionsCategory(id, targetId);
+    if (!reassignRes.ok) {
       setTransactions(prevTransactions);
       showToast(t("common.errors.saveFailed"));
       return;
     }
 
-    if (isCustom) {
-      setCustomCategories((list) => list.filter((c) => c.id !== id));
-      const res = await store.deleteBudgetCategory(id);
-      if (!res.ok) {
-        setCustomCategories(prevCustom); setBudgets(prevBudgets); setTransactions(prevTransactions);
-        showToast(t("common.errors.deleteFailed"));
-        return;
-      }
-    } else {
-      setHiddenDefaultIds((list) => [...list, id]);
-      const res = await store.hideBudgetCategory(id);
-      if (!res.ok) {
-        setHiddenDefaultIds(prevHidden); setBudgets(prevBudgets); setTransactions(prevTransactions);
-        showToast(t("common.errors.deleteFailed"));
-        return;
-      }
-    }
-    showToast(t("vault.categoryDeleted"));
+    setDeletingCategory(null);
+    setReassignTarget("");
+    await finalizeDeleteCategory(id);
   }
 
   async function updateBudgetAmount(categoryId, amount) {
@@ -969,7 +979,7 @@ export default function VaultView({ showToast }) {
                       onKeyDown={(e) => e.key === "Enter" && e.target.blur()}
                       style={VS.budgetInput}
                     />
-                    {cat.id !== "other" && <button onClick={() => removeCategory(cat.id)} style={{ ...S.deleteBtn, padding: 4 }}><Trash2 size={13} /></button>}
+                    <button onClick={() => removeCategory(cat.id)} style={{ ...S.deleteBtn, padding: 4 }}><Trash2 size={13} /></button>
                   </div>
                   {amount > 0 && (
                     <>
@@ -991,6 +1001,27 @@ export default function VaultView({ showToast }) {
                   <input value={newCatName} onChange={(e) => setNewCatName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submitNewCategory()} style={{ ...S.input, marginTop: 6 }} autoFocus />
                   <div style={{ ...S.colorPickRow, marginTop: 10 }}>{COLOR_CHOICES.map((col) => <button key={col} onClick={() => setNewCatColor(col)} style={{ ...S.colorDot, background: col, outline: newCatColor === col ? "2px solid #fff" : "none" }} />)}</div>
                   <button onClick={submitNewCategory} style={S.saveBtn}>{t("common.buttons.save")}</button>
+                </div>
+              </div>
+            )}
+
+            {deletingCategory && (
+              <div style={S.modalOverlay} onClick={() => { setDeletingCategory(null); setReassignTarget(""); }}>
+                <div style={S.modal} onClick={(e) => e.stopPropagation()}>
+                  <div style={S.modalHeader}>
+                    <span>{t("vault.reassignBeforeDeleteTitle")}</span>
+                    <button onClick={() => { setDeletingCategory(null); setReassignTarget(""); }} style={S.deleteBtn}><X size={18} /></button>
+                  </div>
+                  <p style={{ fontSize: 13, color: "var(--muted2)", lineHeight: 1.6, margin: "4px 0 12px" }}>
+                    {t("vault.reassignBeforeDeleteMsg", { name: isEn ? deletingCategory.nameEn : deletingCategory.name })}
+                  </p>
+                  <label style={S.label}>{t("vault.moveTransactionsTo")}</label>
+                  <select value={reassignTarget} onChange={(e) => setReassignTarget(e.target.value)} style={{ ...S.input, marginTop: 6 }}>
+                    {allCategories.filter((c) => c.id !== deletingCategory.id).map((c) => (
+                      <option key={c.id} value={c.id}>{isEn ? c.nameEn : c.name}</option>
+                    ))}
+                  </select>
+                  <button onClick={confirmReassignAndDelete} style={{ ...S.saveBtn, background: "#E05252" }}>{t("vault.confirmMoveAndDelete")}</button>
                 </div>
               </div>
             )}

@@ -1379,6 +1379,43 @@ drop policy if exists product_photos_read_public on storage.objects;
 create policy product_photos_read_public on storage.objects for select to public
   using (bucket_id = 'product-photos');
 
+-- كاش نتائج بحث USDA FoodData Central (netlify/functions/usda.js) - يحمي
+-- حصة الحساب المجاني المشتركة بين كل مستخدمي التطبيق (1000 طلب/ساعة) لأن
+-- أغلب عمليات البحث تتكرر على نفس الأطعمة الأساسية الشائعة (بيض، دجاج،
+-- أرز...)؛ الدالة تتحقق من هذا الجدول أولاً قبل أي اتصال فعلي بـUSDA.
+-- search_term هو المصطلح الإنجليزي الفعلي المُرسَل لـUSDA (بعد ترجمته من
+-- العربية عبر food_synonyms إن لزم) بأحرف صغيرة - هذا ما يجعله مفتاحاً
+-- أساسياً طبيعياً (نفس المصطلح الإنجليزي يُعاد استخدامه لعدة مرادفات
+-- عربية مختلفة تشير لنفس الطعام، فيُفيد الكاش أكثر من فهرسته بالعربي).
+-- results: مصفوفة JSON بنفس شكل المنتجات المُطبَّعة (كل عنصر: fdcId، name،
+-- caloriesPer100g...) - جاهزة للإرسال مباشرة للواجهة دون أي معالجة إضافية
+-- عند إصابة الكاش (cache hit).
+create table if not exists usda_cache (
+  search_term   text primary key,
+  results       jsonb not null default '[]'::jsonb,
+  cached_at     timestamptz not null default now()
+);
+create index if not exists usda_cache_cached_at on usda_cache (cached_at);
+
+-- قرار هندسي مهم: الدالة (Netlify Function) تتصل بـSupabase عبر مفتاح
+-- anon من متغيرات البيئة نفسها - وهو مفتاح عام أصلاً (مطبوع في حزمة
+-- الواجهة أيضاً)، لا سرّاً خاصاً بالدالة وحدها. لذا "الكتابة عبر الدالة
+-- فقط" هنا تعني عملياً "لا حاجة لأي مفتاح service_role إضافي أكثر حساسية
+-- بكثير لمجرد كاش عام لا يحوي أي بيانات شخصية إطلاقاً" (فقط أسماء أطعمة
+-- وقيم غذائية عامة، تماماً كـcustom_foods/food_synonyms أعلاه). القراءة
+-- والكتابة مفتوحتان لـanon أيضاً (لا authenticated فقط) عمداً: الدالة
+-- تخدم بحث التغذية حتى للضيوف غير المسجَّلين، وتحقيق الكاش يحدث من طرف
+-- الدالة نفسها بمفتاح anon بغض النظر عن كون طالب البحث الفعلي مسجَّلاً أم
+-- لا - فلو اقتصرت السياسة على authenticated فقط لتعطّل الكاش كلياً لكل
+-- بحث ضيف، وهذا يضرب صراحة الهدف من هذا الجدول (حماية حصة USDA المشتركة).
+alter table usda_cache enable row level security;
+drop policy if exists usda_cache_public_read on usda_cache;
+drop policy if exists usda_cache_public_insert on usda_cache;
+drop policy if exists usda_cache_public_update on usda_cache;
+create policy usda_cache_public_read on usda_cache for select to anon, authenticated using (true);
+create policy usda_cache_public_insert on usda_cache for insert to anon, authenticated with check (true);
+create policy usda_cache_public_update on usda_cache for update to anon, authenticated using (true) with check (true);
+
 -- إجبار طبقة PostgREST (التي تُعرِّض RPC عبر supabase.rpc(...)) على إعادة
 -- تحميل ذاكرتها المؤقتة للمخطط فوراً، بدل انتظار إعادة التحميل التلقائية
 -- (تحدث عادة خلال ثوانٍ، لكن قد تتأخر) - يضمن أن get_group_by_invite_code

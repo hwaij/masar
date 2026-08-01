@@ -236,6 +236,52 @@ export async function searchProductsByName(query) {
   }
 }
 
+const USDA_FUNCTION_URL = "/.netlify/functions/usda";
+
+// USDA FoodData Central عبر netlify/functions/usda.js (المفتاح لا يصل
+// للمتصفح إطلاقاً - انظر تعليق الدالة). term يجب أن يكون إنجليزياً (USDA
+// لا يفهم العربية) - ترجمته من العربية عبر food_synonyms مسؤولية المستدعي
+// (SearchPanel في NutritionView.jsx) لا هذه الدالة، حتى تبقى معزولة تماماً
+// عن أي منطق مرادفات، تماماً كعزل searchProductsByName عن نفس المنطق.
+function normalizeUsdaProduct(p) {
+  if (p == null || typeof p.caloriesPer100g !== "number") return null;
+  return {
+    barcode: `usda:${p.fdcId}`,
+    name: p.name,
+    brand: "",
+    country: "",
+    imageUrl: null,
+    caloriesPer100g: p.caloriesPer100g,
+    proteinPer100g: p.proteinPer100g ?? 0,
+    carbsPer100g: p.carbsPer100g ?? 0,
+    fatPer100g: p.fatPer100g ?? 0,
+    fiberPer100g: p.fiberPer100g ?? 0,
+    sugarPer100g: p.sugarPer100g ?? 0,
+    sodiumPer100gMg: p.sodiumPer100gMg ?? 0,
+    servingSizeLabel: null,
+    servingGrams: null,
+    micronutrientsPer100g: p.micronutrientsPer100g || {},
+    origin: "usda",
+    dataType: p.dataType || "",
+  };
+}
+
+export async function searchUSDAFoods(term) {
+  try {
+    const data = await fetchWithTimeout(`${USDA_FUNCTION_URL}?query=${encodeURIComponent(term)}`);
+    const products = (data.products || []).map(normalizeUsdaProduct).filter(Boolean);
+    return { ok: true, products };
+  } catch (e) {
+    console.error("[nutrition] searchUSDAFoods failed:", e);
+    return {
+      ok: false,
+      products: [],
+      error: "تعذّر البحث في قاعدة USDA الآن.",
+      errorEn: "Couldn't search the USDA database right now.",
+    };
+  }
+}
+
 // خيارات سريعة لحجم الحصة — تُعبّئ خانة "الكمية (غم)" ولا تمنع المستخدم
 // من كتابة رقم مختلف بنفسه.
 export function servingPresets(servingGrams) {

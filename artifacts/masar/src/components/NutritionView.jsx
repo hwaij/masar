@@ -3,13 +3,13 @@ import { useTranslation } from "react-i18next";
 import {
   Plus, X, Trash2, Camera, Search, Loader2, Droplet, Flame, Check, Bell,
   Hash, Sparkles, ImagePlus, ClipboardList, Edit3, ChevronLeft, ChevronRight, SkipForward,
-  Egg, Drumstick, Beef, Fish, Wheat, Carrot, Apple, Bean, Milk, Nut, Coffee, Cookie,
+  Egg, Drumstick, Beef, Fish, Wheat, Carrot, Apple, Bean, Milk, Nut, Coffee, Cookie, Salad,
 } from "lucide-react";
 import { store } from "../lib/store";
 import { todayKey, uid, analyze, parseJsonLoose, arabicDate } from "../lib/helpers";
 import { isActiveSubscriber } from "../lib/subscription";
 import {
-  fetchProductByBarcode, searchProductsByName, scaleNutrients,
+  fetchProductByBarcode, searchProductsByName, searchUSDAFoods, scaleNutrients,
   sumNutritionEntries, waterGoalCups, servingPresets,
   isSecureContextForCamera, describeCameraError,
   normalizeSearchTerm, recognizeMealFromImage, readNutritionLabel,
@@ -1039,18 +1039,41 @@ const CATEGORY_ICONS = {
   vegetable: Carrot, fruit: Apple, legume: Bean, dairy: Milk, nut: Nut,
   beverage: Coffee, oil: Droplet, other: Cookie,
 };
+// Salad هي أيقونة احتياطية عامة (لا "other" تحديداً - تلك محجوزة لعسل/أخرى
+// شائعة عبر Cookie) لأي نتيجة بلا فئة معروفة وبلا صورة حقيقية أيضاً - وهي
+// الحالة الشائعة لنتائج USDA (آلاف الأطعمة بلا تصنيف فئة في بياناتنا).
 function CategoryIcon({ category }) {
-  const Icon = CATEGORY_ICONS[category] || Cookie;
+  const Icon = CATEGORY_ICONS[category] || Salad;
   return <Icon size={17} color="var(--muted2)" />;
 }
 
-// بحث موحّد: يدمج ثلاثة مصادر في نتيجة واحدة مرتّبة -
+// بحث موحّد: يدمج أربعة مصادر في نتيجة واحدة مرتّبة -
 // 1) generic-foods.js (محلي، فوري بلا مؤقت ولا اتصال شبكة على الإطلاق).
-// 2) custom_foods المشتركة (مساهمات مستخدمين سابقين، بحث بالاسم).
-// 3) Open Food Facts (شبكة، منتجات تجارية بباركود).
-// المصدران 2-3 يعملان بمؤقت debounce قصير (350ms) بعد توقف الكتابة، ولا
-// يحجبان أبداً ظهور نتائج (1) الفورية. ترتيب العرض: محلي أولاً (الأدق
-// والأسرع لأطعمة أساسية)، ثم custom_foods، ثم Open Food Facts أخيراً.
+// 2) USDA FoodData Central (شبكة عبر netlify/functions/usda.js، آلاف
+//    الأطعمة العامة الموثّقة رسمياً - المصدر الأساسي الجديد لسدّ أي نقص).
+// 3) custom_foods المشتركة (مساهمات مستخدمين سابقين، بحث بالاسم).
+// 4) Open Food Facts (شبكة، منتجات تجارية بباركود).
+// المصادر 2-4 تعمل بمؤقت debounce قصير (350ms) بعد توقف الكتابة، ولا
+// تحجب أبداً ظهور نتائج (1) الفورية. ترتيب العرض: محلي أولاً، ثم USDA
+// (قاعدة عامة ضخمة وموثّقة)، ثم custom_foods، ثم Open Food Facts أخيراً.
+// ترتيب أنواع بيانات USDA من الأقرب لـ"عنصر أساسي/خام" إلى الأبعد (أطباق
+// مُجهَّزة/منتجات تجارية) - Foundation وSR Legacy مصادر USDA المرجعية
+// الأدق للأطعمة الخام، Survey (FNDDS) تشمل أطعمة مُجهَّزة ووجبات، Branded
+// منتجات تجارية بأسماء علامات. لا تسلسل هرمي حقيقي هنا (USDA لا يوفّر
+// "عنصر أساسي ثم تنويعات تحته" كبنية بيانات صريحة) - هذا ترتيب تقريبي
+// ذكي فقط: نوع البيانات أولاً، ثم طول الوصف تصاعدياً كمؤشر تقريبي على
+// البساطة ("Egg, whole, raw, fresh" أقصر وأقرب لـ"أساسي" من "Egg, whole,
+// cooked, fried, no added fat").
+const USDA_DATA_TYPE_RANK = { "Foundation": 0, "SR Legacy": 1, "Survey (FNDDS)": 2, "Branded": 3 };
+function sortUsdaResults(products) {
+  return [...products].sort((a, b) => {
+    const rankA = USDA_DATA_TYPE_RANK[a.dataType] ?? 4;
+    const rankB = USDA_DATA_TYPE_RANK[b.dataType] ?? 4;
+    if (rankA !== rankB) return rankA - rankB;
+    return (a.name?.length || 0) - (b.name?.length || 0);
+  });
+}
+
 function SearchPanel({ onPick, onManual }) {
   const { t, i18n } = useTranslation();
   const isEn = i18n.language === "en";
@@ -1059,6 +1082,9 @@ function SearchPanel({ onPick, onManual }) {
   const [offResults, setOffResults] = useState([]);
   const [offLoading, setOffLoading] = useState(false);
   const [offError, setOffError] = useState(null);
+  const [usdaResults, setUsdaResults] = useState([]);
+  const [usdaLoading, setUsdaLoading] = useState(false);
+  const [usdaError, setUsdaError] = useState(null);
   // يحرس ضد سباق حالات بين طلبات شبكة متتالية (نفس مبدأ requestIdRef
   // السابق) - لو تغيّر النص قبل عودة رد سابق، يُتجاهل أي رد متأخر لا يحمل
   // أحدث رقم مسجَّل وقت وصوله.
@@ -1072,18 +1098,22 @@ function SearchPanel({ onPick, onManual }) {
     [normalized, isEn],
   );
 
-  // بحث "ذكي" لمصدر Open Food Facts: يبحث مباشرة أولاً، وإن جاءت النتائج
-  // فارغة يبحث عن مرادف (عربي أو إنجليزي) في جدول food_synonyms ويعيد
-  // المحاولة بالمصطلح القانوني المقابل - يجعل البحث بالعربي يعمل فعلياً حتى
-  // إن كان اسم المنتج في Open Food Facts مخزَّناً بالإنجليزي (الغالب).
+  // بحث الشبكة: USDA FoodData Central (المصدر الأساسي الجديد، آلاف الأطعمة
+  // العامة الموثّقة) + custom_foods المشتركة + Open Food Facts (منتجات
+  // تجارية بباركود) - الثلاثة بمؤقت debounce واحد (350ms). USDA لا يفهم
+  // العربية إطلاقاً، فيُترجَم مصطلح البحث أولاً عبر food_synonyms (نفس
+  // الجدول المستخدم أصلاً لمرادفات Open Food Facts) - نداء واحد مشترك
+  // (canonicalPromise) يُعاد استخدامه لكل من USDA والاحتياط الذكي لـOFF،
+  // بدل مضاعفة نفس الاستعلام مرتين.
   useEffect(() => {
     // تُمسَح نتائج الشبكة السابقة فوراً عند أي تغيير في نص البحث (لا تنتظر
     // مهلة الـdebounce) حتى لا تظهر نتائج شبكة تخص بحثاً سابقاً مختلطة مع
     // النتائج المحلية الجديدة الظاهرة فوراً أعلاه.
     setOffResults([]); setCustomResults([]); setOffError(null);
-    if (!normalized) { setOffLoading(false); return; }
+    setUsdaResults([]); setUsdaError(null);
+    if (!normalized) { setOffLoading(false); setUsdaLoading(false); return; }
     const requestId = ++requestIdRef.current;
-    setOffLoading(true);
+    setOffLoading(true); setUsdaLoading(true);
     const timer = setTimeout(async () => {
       store.searchCustomFoodsByName(normalized).then((rows) => {
         if (requestId !== requestIdRef.current) return;
@@ -1095,6 +1125,23 @@ function SearchPanel({ onPick, onManual }) {
           micronutrientsPer100g: f.micronutrients || {}, origin: "custom_foods",
         })));
       });
+
+      const canonicalPromise = store.lookupFoodSynonym(normalized);
+
+      canonicalPromise.then(async (canonical) => {
+        if (requestId !== requestIdRef.current) return;
+        const usdaTerm = canonical || normalized; // إن لم يوجد مرادف، جرّب النص كما هو (قد يكون إنجليزياً أصلاً)
+        const usdaRes = await searchUSDAFoods(usdaTerm);
+        if (requestId !== requestIdRef.current) return;
+        if (!usdaRes.ok) {
+          setUsdaError(isEn ? (usdaRes.errorEn || usdaRes.error) : usdaRes.error);
+          setUsdaResults([]);
+        } else {
+          setUsdaResults(sortUsdaResults(usdaRes.products));
+        }
+        if (requestId === requestIdRef.current) setUsdaLoading(false);
+      });
+
       const res = await searchProductsByName(normalized);
       if (requestId !== requestIdRef.current) return;
       if (!res.ok) {
@@ -1103,7 +1150,7 @@ function SearchPanel({ onPick, onManual }) {
       } else if (res.products.length > 0) {
         setOffResults(res.products.map((p) => ({ ...p, origin: "off" })));
       } else {
-        const canonical = await store.lookupFoodSynonym(normalized);
+        const canonical = await canonicalPromise;
         if (requestId !== requestIdRef.current) return;
         if (canonical && normalizeSearchTerm(canonical) !== normalized) {
           const retry = await searchProductsByName(canonical);
@@ -1118,8 +1165,12 @@ function SearchPanel({ onPick, onManual }) {
     return () => clearTimeout(timer);
   }, [normalized, isEn]);
 
-  const merged = [...genericResults, ...customResults, ...offResults];
+  // ترتيب العرض: المحلي الفوري أولاً، ثم USDA (قاعدة عامة موثّقة وضخمة)،
+  // ثم custom_foods (مساهمات مستخدمين)، ثم Open Food Facts (منتجات تجارية
+  // بباركود) أخيراً - الأطعمة العامة النظيفة تسبق دائماً المنتجات التجارية.
+  const merged = [...genericResults, ...usdaResults, ...customResults, ...offResults];
   const searched = normalized.length > 0;
+  const networkLoading = offLoading || usdaLoading;
 
   return (
     <>
@@ -1131,10 +1182,11 @@ function SearchPanel({ onPick, onManual }) {
           style={NS.searchInput}
           autoFocus
         />
-        <div style={{ ...NS.searchBtn, cursor: "default" }}>{offLoading ? <Loader2 size={16} className="spin" /> : <Search size={16} />}</div>
+        <div style={{ ...NS.searchBtn, cursor: "default" }}>{networkLoading ? <Loader2 size={16} className="spin" /> : <Search size={16} />}</div>
       </div>
       {offError && <div style={NS.errorText}>{offError}</div>}
-      {searched && !offLoading && merged.length === 0 && (
+      {usdaError && <div style={NS.errorText}>{usdaError}</div>}
+      {searched && !networkLoading && merged.length === 0 && (
         <p style={NS.notFoundNote}>{t("nutrition.noSearchResults")}</p>
       )}
       {merged.map((p) => (
@@ -1155,7 +1207,7 @@ function SearchPanel({ onPick, onManual }) {
           </div>
         </button>
       ))}
-      {searched && offLoading && (
+      {searched && networkLoading && (
         <p style={NS.notFoundNote}>{t("nutrition.searchingWiderDatabase")}</p>
       )}
       <button onClick={onManual} style={{ ...S.exportBtn, marginTop: 4 }}>{t("nutrition.manualAddInstead")}</button>

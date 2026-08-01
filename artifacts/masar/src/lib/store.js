@@ -1158,6 +1158,10 @@ export const store = {
 
   // قسم "خزنة": null يعني أن المستخدم لم يُعِدَّ رصيده بعد (شاشة الإعداد
   // الأولى تظهر عندها)، أما بعد الإعداد فتُعاد دائماً { balance, currency }.
+  // هذا الرصيد الفردي القديم أصبح "قديماً/legacy" بعد إضافة vault_accounts
+  // (حسابات متعددة) - يبقى مقروءاً هنا فقط ليُستخدَم كبذرة هجرة تلقائية
+  // لحساب "كاش" افتراضي أول مرة يفتح فيها مستخدم قديم الخزنة الجديدة
+  // (انظر migrateLegacyVaultIfNeeded أدناه)، ولا يُكتَب إليه بعد ذلك.
   async loadVault() {
     const local = lsGet("masar_vault", null);
     if (!useCloud()) return local;
@@ -1170,19 +1174,6 @@ export const store = {
       return v;
     } catch (e) { console.error("[loadVault] read failed:", e); return local; }
   },
-  async saveVault(vault) {
-    lsSet("masar_vault", vault);
-    if (useCloud()) {
-      try {
-        const { error } = await supabase.from("vault").upsert(
-          { owner: CURRENT_OWNER, balance: vault.balance, currency: vault.currency, updated_at: new Date().toISOString() },
-          { onConflict: "owner" }
-        );
-        if (error) { console.error("[saveVault] Supabase error:", error.message); return false; }
-      } catch (e) { console.error("[saveVault] write failed:", e); return false; }
-    }
-    return true;
-  },
   async loadVaultTransactions() {
     const local = lsGet("masar_vault_transactions", []);
     if (!useCloud()) return local;
@@ -1190,32 +1181,206 @@ export const store = {
       const { data, error } = await supabase.from("vault_transactions").select("*").eq("owner", CURRENT_OWNER).order("created_at", { ascending: false });
       if (error) { console.error("[loadVaultTransactions] Supabase error:", error.message); return local; }
       if (!data) return local;
-      const items = data.map((r) => ({ id: r.id, date: r.date, amount: Number(r.amount), type: r.type, reason: r.reason, createdAt: r.created_at }));
+      const items = data.map((r) => ({
+        id: r.id, date: r.date, amount: Number(r.amount), type: r.type, reason: r.reason, createdAt: r.created_at,
+        accountId: r.account_id || null, categoryId: r.category_id || null,
+        isRecurring: !!r.is_recurring, recurringFrequency: r.recurring_frequency || null, recurringSourceId: r.recurring_source_id || null,
+      }));
       lsSet("masar_vault_transactions", items);
       return items;
     } catch (e) { console.error("[loadVaultTransactions] read failed:", e); return local; }
   },
+  // account_id غير مطلوب (يبقى null إن أضاف المستخدم معاملة قبل إنشاء أي
+  // حساب - حالة نادرة بفضل الهجرة التلقائية، لكن مسموحة بلا رفض حفظ).
+  // upsert بمعرّف ثابت (لا insert فقط) - لازم لأن مسار الهجرة التلقائية من
+  // "الخزنة" القديمة يعيد استدعاء هذه الدالة على معاملات موجودة مسبقاً (لربطها
+  // بحساب مهاجَر)، لا معاملات جديدة فقط؛ insert صرف كان يكرر السجل محلياً
+  // ويفشل بتعارض مفتاح أساسي على السحابة.
   async addVaultTransaction(tx) {
-    lsSet("masar_vault_transactions", [tx, ...lsGet("masar_vault_transactions", [])]);
+    const before = lsGet("masar_vault_transactions", []);
+    lsSet("masar_vault_transactions", [tx, ...before.filter((t) => t.id !== tx.id)]);
     if (useCloud()) {
       try {
-        const { error } = await supabase.from("vault_transactions").insert({
+        const { error } = await supabase.from("vault_transactions").upsert({
           id: tx.id, owner: CURRENT_OWNER, date: tx.date, amount: tx.amount, type: tx.type, reason: tx.reason,
+          account_id: tx.accountId || null, category_id: tx.categoryId || null,
+          is_recurring: !!tx.isRecurring, recurring_frequency: tx.recurringFrequency || null, recurring_source_id: tx.recurringSourceId || null,
         });
-        if (error) { console.error("[addVaultTransaction] Supabase error:", error.message); return false; }
-      } catch (e) { console.error("[addVaultTransaction] write failed:", e); return false; }
+        if (error) {
+          console.error("[addVaultTransaction] Supabase error:", error.message);
+          lsSet("masar_vault_transactions", before);
+          return { ok: false, error: error.message };
+        }
+      } catch (e) {
+        console.error("[addVaultTransaction] write failed:", e);
+        lsSet("masar_vault_transactions", before);
+        return { ok: false, error: String(e) };
+      }
     }
-    return true;
+    return { ok: true };
   },
   async deleteVaultTransaction(id) {
     lsSet("masar_vault_transactions", lsGet("masar_vault_transactions", []).filter((t) => t.id !== id));
     if (useCloud()) {
       try {
         const { error } = await supabase.from("vault_transactions").delete().eq("id", id).eq("owner", CURRENT_OWNER);
-        if (error) { console.error("[deleteVaultTransaction] Supabase error:", error.message); return false; }
-      } catch (e) { console.error("[deleteVaultTransaction] write failed:", e); return false; }
+        if (error) { console.error("[deleteVaultTransaction] Supabase error:", error.message); return { ok: false, error: error.message }; }
+      } catch (e) { console.error("[deleteVaultTransaction] write failed:", e); return { ok: false, error: String(e) }; }
     }
-    return true;
+    return { ok: true };
+  },
+
+  // ===== حسابات الخزنة (vault_accounts) =====
+  async loadVaultAccounts() {
+    const local = lsGet("masar_vault_accounts", []);
+    if (!useCloud()) return local;
+    try {
+      const { data, error } = await supabase.from("vault_accounts").select("*").eq("owner", CURRENT_OWNER).order("created_at", { ascending: true });
+      if (error) { console.error("[loadVaultAccounts] Supabase error:", error.message); return local; }
+      if (!data) return local;
+      const items = data.map((r) => ({ id: r.id, name: r.name, type: r.type, balance: Number(r.balance) || 0, currency: r.currency }));
+      lsSet("masar_vault_accounts", items);
+      return items;
+    } catch (e) { console.error("[loadVaultAccounts] read failed:", e); return local; }
+  },
+  // upsert بمعرّف ثابت - يُستخدَم لكل من إنشاء حساب جديد وتحديث رصيده
+  // (بدل دالتين منفصلتين، تماماً كنمط saveCustomFood في التغذية).
+  async saveVaultAccount(account) {
+    const local = lsGet("masar_vault_accounts", []);
+    const exists = local.some((a) => a.id === account.id);
+    lsSet("masar_vault_accounts", exists ? local.map((a) => (a.id === account.id ? account : a)) : [...local, account]);
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("vault_accounts").upsert({
+          id: account.id, owner: CURRENT_OWNER, name: account.name, type: account.type,
+          balance: account.balance, currency: account.currency, updated_at: new Date().toISOString(),
+        });
+        if (error) { console.error("[saveVaultAccount] Supabase error:", error.message); return { ok: false, error: error.message }; }
+      } catch (e) { console.error("[saveVaultAccount] write failed:", e); return { ok: false, error: String(e) }; }
+    }
+    return { ok: true };
+  },
+  async deleteVaultAccount(id) {
+    const local = lsGet("masar_vault_accounts", []);
+    lsSet("masar_vault_accounts", local.filter((a) => a.id !== id));
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("vault_accounts").delete().eq("id", id).eq("owner", CURRENT_OWNER);
+        if (error) { console.error("[deleteVaultAccount] Supabase error:", error.message); return { ok: false, error: error.message }; }
+      } catch (e) { console.error("[deleteVaultAccount] write failed:", e); return { ok: false, error: String(e) }; }
+    }
+    return { ok: true };
+  },
+
+  // ===== تصنيفات مخصَّصة (budget_categories) - الجاهزة ثابتة في budget.js =====
+  async loadBudgetCategories() {
+    const local = lsGet("masar_budget_categories", []);
+    if (!useCloud()) return local;
+    try {
+      const { data, error } = await supabase.from("budget_categories").select("*").eq("owner", CURRENT_OWNER).order("created_at", { ascending: true });
+      if (error) { console.error("[loadBudgetCategories] Supabase error:", error.message); return local; }
+      if (!data) return local;
+      const items = data.map((r) => ({ id: r.id, name: r.name, icon: r.icon, color: r.color }));
+      lsSet("masar_budget_categories", items);
+      return items;
+    } catch (e) { console.error("[loadBudgetCategories] read failed:", e); return local; }
+  },
+  async saveBudgetCategory(cat) {
+    lsSet("masar_budget_categories", [...lsGet("masar_budget_categories", []), cat]);
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("budget_categories").insert({
+          id: cat.id, owner: CURRENT_OWNER, name: cat.name, icon: cat.icon, color: cat.color,
+        });
+        if (error) { console.error("[saveBudgetCategory] Supabase error:", error.message); return { ok: false, error: error.message }; }
+      } catch (e) { console.error("[saveBudgetCategory] write failed:", e); return { ok: false, error: String(e) }; }
+    }
+    return { ok: true };
+  },
+  async deleteBudgetCategory(id) {
+    lsSet("masar_budget_categories", lsGet("masar_budget_categories", []).filter((c) => c.id !== id));
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("budget_categories").delete().eq("id", id).eq("owner", CURRENT_OWNER);
+        if (error) { console.error("[deleteBudgetCategory] Supabase error:", error.message); return { ok: false, error: error.message }; }
+      } catch (e) { console.error("[deleteBudgetCategory] write failed:", e); return { ok: false, error: String(e) }; }
+    }
+    return { ok: true };
+  },
+
+  // ===== ميزانيات شهرية لكل تصنيف (budgets) =====
+  // تُحمَّل آخر 12 شهراً فقط (كافية تماماً لكل استخدامات الواجهة: الشهر
+  // الحالي + مقارنة الشهر السابق + رسم بياني سنوي) - نفس مبدأ التقييد
+  // الزمني المطبَّق سابقاً على nutrition_log/sleep_log، بلا جلب كامل تاريخ
+  // الميزانيات منذ إنشاء الحساب.
+  async loadBudgets() {
+    const local = lsGet("masar_budgets", []);
+    if (!useCloud()) return local;
+    try {
+      const cutoff = isoDateDaysAgo(365).slice(0, 7);
+      const { data, error } = await supabase.from("budgets").select("*").eq("owner", CURRENT_OWNER).gte("month", cutoff);
+      if (error) { console.error("[loadBudgets] Supabase error:", error.message); return local; }
+      if (!data) return local;
+      const items = data.map((r) => ({ categoryId: r.category_id, month: r.month, amount: Number(r.amount) || 0 }));
+      lsSet("masar_budgets", items);
+      return items;
+    } catch (e) { console.error("[loadBudgets] read failed:", e); return local; }
+  },
+  async saveBudget(budget) {
+    const local = lsGet("masar_budgets", []);
+    const exists = local.some((b) => b.categoryId === budget.categoryId && b.month === budget.month);
+    lsSet("masar_budgets", exists
+      ? local.map((b) => (b.categoryId === budget.categoryId && b.month === budget.month ? budget : b))
+      : [...local, budget]);
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("budgets").upsert(
+          { owner: CURRENT_OWNER, category_id: budget.categoryId, month: budget.month, amount: budget.amount, updated_at: new Date().toISOString() },
+          { onConflict: "owner,category_id,month" },
+        );
+        if (error) { console.error("[saveBudget] Supabase error:", error.message); return { ok: false, error: error.message }; }
+      } catch (e) { console.error("[saveBudget] write failed:", e); return { ok: false, error: String(e) }; }
+    }
+    return { ok: true };
+  },
+
+  // ===== أهداف ادخار (savings_goals) =====
+  async loadSavingsGoals() {
+    const local = lsGet("masar_savings_goals", []);
+    if (!useCloud()) return local;
+    try {
+      const { data, error } = await supabase.from("savings_goals").select("*").eq("owner", CURRENT_OWNER).order("created_at", { ascending: true });
+      if (error) { console.error("[loadSavingsGoals] Supabase error:", error.message); return local; }
+      if (!data) return local;
+      const items = data.map((r) => ({ id: r.id, name: r.name, targetAmount: Number(r.target_amount) || 0, currentAmount: Number(r.current_amount) || 0, currency: r.currency }));
+      lsSet("masar_savings_goals", items);
+      return items;
+    } catch (e) { console.error("[loadSavingsGoals] read failed:", e); return local; }
+  },
+  async saveSavingsGoal(goal) {
+    const local = lsGet("masar_savings_goals", []);
+    const exists = local.some((g) => g.id === goal.id);
+    lsSet("masar_savings_goals", exists ? local.map((g) => (g.id === goal.id ? goal : g)) : [...local, goal]);
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("savings_goals").upsert({
+          id: goal.id, owner: CURRENT_OWNER, name: goal.name, target_amount: goal.targetAmount,
+          current_amount: goal.currentAmount, currency: goal.currency, updated_at: new Date().toISOString(),
+        });
+        if (error) { console.error("[saveSavingsGoal] Supabase error:", error.message); return { ok: false, error: error.message }; }
+      } catch (e) { console.error("[saveSavingsGoal] write failed:", e); return { ok: false, error: String(e) }; }
+    }
+    return { ok: true };
+  },
+  async deleteSavingsGoal(id) {
+    lsSet("masar_savings_goals", lsGet("masar_savings_goals", []).filter((g) => g.id !== id));
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("savings_goals").delete().eq("id", id).eq("owner", CURRENT_OWNER);
+        if (error) { console.error("[deleteSavingsGoal] Supabase error:", error.message); return { ok: false, error: error.message }; }
+      } catch (e) { console.error("[deleteSavingsGoal] write failed:", e); return { ok: false, error: String(e) }; }
+    }
+    return { ok: true };
   },
 
   // قسم تتبّع النوم داخل "التقارير": صف واحد لكل تاريخ (يوم الاستيقاظ)،

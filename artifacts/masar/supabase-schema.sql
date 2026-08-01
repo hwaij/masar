@@ -453,6 +453,94 @@ create table if not exists vault_transactions (
 );
 create index if not exists vault_transactions_owner_created on vault_transactions (owner, created_at desc);
 
+-- ===== تطوير "الخزنة" إلى نظام ميزانية (Budgeting) =====
+
+-- حسابات المستخدم المالية (كاش، بنكي...). "type" مقيَّد بقائمة صريحة قابلة
+-- للتوسع لاحقاً (محفظة إلكترونية، بطاقة ائتمانية...) بمجرد تعديل الـcheck
+-- constraint وحدها - بلا أي تغيير بنيوي آخر. كل حساب يحمل عملته الخاصة
+-- (لا عملة واحدة إلزامية على كل حسابات المستخدم) لأن بعض المستخدمين فعلاً
+-- يملكون حسابات بعملات مختلفة (حساب بنكي محلي + آخر بعملة أجنبية مثلاً).
+create table if not exists vault_accounts (
+  id          text primary key,
+  owner       text not null default 'solo',
+  name        text not null,
+  type        text not null default 'cash' check (type in ('cash', 'bank')),
+  balance     numeric not null default 0,
+  currency    text not null default 'KWD',
+  created_at  timestamptz default now(),
+  updated_at  timestamptz default now()
+);
+create index if not exists vault_accounts_owner on vault_accounts (owner);
+
+-- ربط كل معاملة بحساب وتصنيف محدَّدين، ودعم المعاملات المتكررة (فواتير/
+-- رواتب شهرية ثابتة). account_id/category_id نصّيان بلا قيد FK صارم:
+-- category_id قد يكون أحد مفاتيح DEFAULT_BUDGET_CATEGORIES الثابتة في
+-- src/lib/budget.js (ليست صفوفاً في القاعدة أصلاً، تماماً كمبدأ
+-- DEFAULT_CATEGORIES المستخدم أصلاً في قسم "اليوم") أو معرّف تصنيف مخصّص
+-- من جدول budget_categories أدناه - عمود واحد يخدم الحالتين بلا تعقيد.
+-- account_id مرتبط فعلياً بـvault_accounts (on delete set null: حذف حساب
+-- لا يحذف تاريخ معاملاته، فقط يفصلها عنه) لأن العلاقة هنا حقيقية ومحدَّدة
+-- دائماً بمعرّف حساب فعلي أنشأه نفس المستخدم.
+alter table vault_transactions add column if not exists account_id text references vault_accounts(id) on delete set null;
+alter table vault_transactions add column if not exists category_id text;
+alter table vault_transactions add column if not exists is_recurring boolean not null default false;
+alter table vault_transactions add column if not exists recurring_frequency text check (recurring_frequency in ('monthly') or recurring_frequency is null);
+-- أول معاملة يُفعَّل لها التكرار هي "القالب" (recurring_source_id فارغ)؛
+-- كل نسخة شهرية لاحقة تُنشئها الواجهة تلقائياً تشير لمعرّف القالب هنا -
+-- هذا ما يسمح باكتشاف "هل طُبِّق هذا الشهر فعلياً؟" بفحص المعاملات
+-- المحمَّلة فقط، بلا أي عمود "آخر شهر طُبِّق فيه" منفصل (انظر
+-- findDueRecurringTemplates في src/lib/budget.js).
+alter table vault_transactions add column if not exists recurring_source_id text references vault_transactions(id) on delete set null;
+create index if not exists vault_transactions_account on vault_transactions (account_id);
+create index if not exists vault_transactions_category on vault_transactions (owner, category_id);
+create index if not exists vault_transactions_recurring_source on vault_transactions (recurring_source_id);
+
+-- تصنيفات مصاريف مخصَّصة أضافها المستخدم بنفسه (التصنيفات الجاهزة الإحدى
+-- عشرة لا تُخزَّن كصفوف هنا إطلاقاً - قائمة ثابتة في budget.js، بلا حاجة
+-- لأي seeding لكل مستخدم جديد). icon/color نصّان حرّان (اسم أيقونة من
+-- مجموعة Lucide منسّقة ولون hex من لوحة ألوان منسّقة، تُفرَض الواجهة لا
+-- القاعدة) - لا اختراع قيمة افتراضية لهما هنا.
+create table if not exists budget_categories (
+  id          text primary key,
+  owner       text not null default 'solo',
+  name        text not null,
+  icon        text not null default 'Tag',
+  color       text not null default '#C9A24B',
+  created_at  timestamptz default now()
+);
+create index if not exists budget_categories_owner on budget_categories (owner);
+
+-- ميزانية شهرية واحدة لكل تصنيف لكل شهر - صف واحد يُستبدَل (upsert) عند أي
+-- تعديل بدل تراكم صفوف قديمة لنفس الشهر. month بصيغة نصية 'YYYY-MM' (نفس
+-- مبدأ التخزين النصي لسهولة الفرز/الفلترة بلا تعقيد تحويل تاريخ).
+create table if not exists budgets (
+  owner       text not null default 'solo',
+  category_id text not null,
+  month       text not null,
+  amount      numeric not null default 0,
+  created_at  timestamptz default now(),
+  updated_at  timestamptz default now(),
+  primary key (owner, category_id, month)
+);
+create index if not exists budgets_owner_month on budgets (owner, month);
+
+-- أهداف ادخار مالية (مبلغ مستهدف + مبلغ حالي) - منفصلة تماماً عن جدول
+-- "goals" العام (تتبّع عادات أسبوعية/شهرية/سنوية بلا مبالغ مالية إطلاقاً)
+-- لأن طبيعة البيانات مختلفة جذرياً (مبلغ مستهدف/حالي لا خلايا تقويم/فترات
+-- مراجعة) - قرار هندسي: دمجها في جدول goals كان سيفرض حقولاً مالية على كل
+-- هدف عادة غير مالية إطلاقاً، فأُفرِد لها جدول خاص أنظف وأبسط.
+create table if not exists savings_goals (
+  id             text primary key,
+  owner          text not null default 'solo',
+  name           text not null,
+  target_amount  numeric not null,
+  current_amount numeric not null default 0,
+  currency       text not null default 'KWD',
+  created_at     timestamptz default now(),
+  updated_at     timestamptz default now()
+);
+create index if not exists savings_goals_owner on savings_goals (owner);
+
 -- تتبّع النوم (قسم "التقارير"): صف واحد لكل مستخدم لكل تاريخ — التاريخ
 -- هو يوم الاستيقاظ (بالتاريخ المحلي، localDayKey). sleep_time/wake_time
 -- تُملآن إن سجّل المستخدم الوقتين، وتبقيان فارغتين إن أدخل عدد الساعات
@@ -896,6 +984,34 @@ alter table vault_transactions enable row level security;
 drop policy if exists vault_transactions_anon_solo on vault_transactions;
 drop policy if exists vault_transactions_user_own on vault_transactions;
 create policy vault_transactions_user_own on vault_transactions for all to authenticated
+  using (owner = auth.uid()::text and is_active_subscriber())
+  with check (owner = auth.uid()::text and is_active_subscriber());
+
+-- بيانات مالية حسّاسة جداً - عزل صارم بلا أي استثناء (لا anon، لا قراءة
+-- مشتركة كـcustom_foods) + نفس بوابة is_active_subscriber() المطبَّقة على
+-- vault/vault_transactions أعلاه، حتى لا يقدر مستخدم غير مشترك الوصول
+-- لهذه الجداول الجديدة مباشرة عبر تلاعب بالطلبات رغم أن الواجهة تحجبها.
+alter table vault_accounts enable row level security;
+drop policy if exists vault_accounts_user_own on vault_accounts;
+create policy vault_accounts_user_own on vault_accounts for all to authenticated
+  using (owner = auth.uid()::text and is_active_subscriber())
+  with check (owner = auth.uid()::text and is_active_subscriber());
+
+alter table budget_categories enable row level security;
+drop policy if exists budget_categories_user_own on budget_categories;
+create policy budget_categories_user_own on budget_categories for all to authenticated
+  using (owner = auth.uid()::text and is_active_subscriber())
+  with check (owner = auth.uid()::text and is_active_subscriber());
+
+alter table budgets enable row level security;
+drop policy if exists budgets_user_own on budgets;
+create policy budgets_user_own on budgets for all to authenticated
+  using (owner = auth.uid()::text and is_active_subscriber())
+  with check (owner = auth.uid()::text and is_active_subscriber());
+
+alter table savings_goals enable row level security;
+drop policy if exists savings_goals_user_own on savings_goals;
+create policy savings_goals_user_own on savings_goals for all to authenticated
   using (owner = auth.uid()::text and is_active_subscriber())
   with check (owner = auth.uid()::text and is_active_subscriber());
 

@@ -160,6 +160,7 @@ export default function VaultView({ showToast }) {
   const [accounts, setAccounts] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [customCategories, setCustomCategories] = useState([]);
+  const [hiddenDefaultIds, setHiddenDefaultIds] = useState([]);
   const [budgets, setBudgets] = useState([]);
   const [savingsGoals, setSavingsGoals] = useState([]);
 
@@ -215,9 +216,9 @@ export default function VaultView({ showToast }) {
   useEffect(() => {
     let active = true;
     (async () => {
-      const [legacyVault, legacyTx, acc, cats, bud, goals] = await Promise.all([
+      const [legacyVault, legacyTx, acc, cats, hidden, bud, goals] = await Promise.all([
         store.loadVault(), store.loadVaultTransactions(), store.loadVaultAccounts(),
-        store.loadBudgetCategories(), store.loadBudgets(), store.loadSavingsGoals(),
+        store.loadBudgetCategories(), store.loadHiddenBudgetCategories(), store.loadBudgets(), store.loadSavingsGoals(),
       ]);
       if (!active) return;
 
@@ -266,6 +267,7 @@ export default function VaultView({ showToast }) {
       setAccounts(finalAccounts);
       setTransactions(finalTx);
       setCustomCategories(cats);
+      setHiddenDefaultIds(hidden);
       setBudgets(bud);
       setSavingsGoals(goals);
       setLoaded(true);
@@ -351,8 +353,12 @@ export default function VaultView({ showToast }) {
     }));
   }, [chartRange, monthTx, transactions, isEn]);
 
-  // كل التصنيفات المتاحة للميزانيات/الفلترة - الجاهزة أولاً ثم المخصَّصة.
-  const allCategories = useMemo(() => [...DEFAULT_BUDGET_CATEGORIES, ...customCategories.map((c) => ({ ...c, nameEn: c.name }))], [customCategories]);
+  // كل التصنيفات المتاحة للميزانيات/الفلترة - الجاهزة (باستثناء ما حذفه هذا
+  // المستخدم تحديداً منها - انظر hiddenDefaultIds) ثم المخصَّصة.
+  const allCategories = useMemo(
+    () => [...DEFAULT_BUDGET_CATEGORIES.filter((c) => !hiddenDefaultIds.includes(c.id)), ...customCategories.map((c) => ({ ...c, nameEn: c.name }))],
+    [customCategories, hiddenDefaultIds],
+  );
 
   const budgetRows = useMemo(() => allCategories.map((cat) => {
     const b = budgets.find((x) => x.categoryId === cat.id && x.month === currentMonth);
@@ -478,11 +484,60 @@ export default function VaultView({ showToast }) {
     else { setCustomCategories((prev) => prev.filter((c) => c.id !== cat.id)); showToast(t("common.errors.saveFailed")); }
   }
 
+  // حذف أي تصنيف (جاهز أو مخصَّص) - عدا "أخرى" نفسها التي تبقى دائماً
+  // الملاذ الأخير لأي معاملات يُحذَف تصنيفها لاحقاً، فلا معنى لحذفها. عند
+  // حذف تصنيف له معاملات سابقة، تُنقَل هذه المعاملات فعلياً لتصنيف "أخرى"
+  // أولاً (بلا فقدان بيانات) قبل حذف ميزانيته ثم حذف/إخفاء التصنيف نفسه -
+  // بهذا الترتيب تحديداً حتى لا يبقى أي تعارض إن فشلت إحدى الخطوات.
   async function removeCategory(id) {
-    const prev = customCategories;
-    setCustomCategories((list) => list.filter((c) => c.id !== id));
-    const res = await store.deleteBudgetCategory(id);
-    if (!res.ok) { setCustomCategories(prev); showToast(t("common.errors.deleteFailed")); }
+    if (id === "other") { showToast(t("vault.cannotDeleteOther")); return; }
+    const isCustom = customCategories.some((c) => c.id === id);
+    const hasTransactions = transactions.some((tx) => tx.categoryId === id);
+    const confirmMsg = hasTransactions ? t("vault.confirmDeleteCategoryWithTx") : t("vault.confirmDeleteCategory");
+    if (!window.confirm(confirmMsg)) return;
+
+    const prevTransactions = transactions;
+    const prevBudgets = budgets;
+    const prevCustom = customCategories;
+    const prevHidden = hiddenDefaultIds;
+
+    if (hasTransactions) {
+      setTransactions((list) => list.map((tx) => (tx.categoryId === id ? { ...tx, categoryId: "other" } : tx)));
+      const reassignRes = await store.reassignVaultTransactionsCategory(id, "other");
+      if (!reassignRes.ok) {
+        setTransactions(prevTransactions);
+        showToast(t("common.errors.saveFailed"));
+        return;
+      }
+    }
+
+    setBudgets((list) => list.filter((b) => b.categoryId !== id));
+    const budgetsRes = await store.deleteBudgetsForCategory(id);
+    if (!budgetsRes.ok) {
+      setBudgets(prevBudgets);
+      setTransactions(prevTransactions);
+      showToast(t("common.errors.saveFailed"));
+      return;
+    }
+
+    if (isCustom) {
+      setCustomCategories((list) => list.filter((c) => c.id !== id));
+      const res = await store.deleteBudgetCategory(id);
+      if (!res.ok) {
+        setCustomCategories(prevCustom); setBudgets(prevBudgets); setTransactions(prevTransactions);
+        showToast(t("common.errors.deleteFailed"));
+        return;
+      }
+    } else {
+      setHiddenDefaultIds((list) => [...list, id]);
+      const res = await store.hideBudgetCategory(id);
+      if (!res.ok) {
+        setHiddenDefaultIds(prevHidden); setBudgets(prevBudgets); setTransactions(prevTransactions);
+        showToast(t("common.errors.deleteFailed"));
+        return;
+      }
+    }
+    showToast(t("vault.categoryDeleted"));
   }
 
   async function updateBudgetAmount(categoryId, amount) {
@@ -903,7 +958,6 @@ export default function VaultView({ showToast }) {
               const amount = b?.amount || 0;
               const pct = amount > 0 ? Math.min(999, Math.round((spent / amount) * 100)) : 0;
               const barColor = pct >= 100 ? "#E05252" : pct >= 80 ? "#D4A04C" : "#5FA8A0";
-              const isCustom = customCategories.some((c) => c.id === cat.id);
               return (
                 <div key={cat.id} style={VS.budgetRow}>
                   <div style={VS.budgetHead}>
@@ -915,7 +969,7 @@ export default function VaultView({ showToast }) {
                       onKeyDown={(e) => e.key === "Enter" && e.target.blur()}
                       style={VS.budgetInput}
                     />
-                    {isCustom && <button onClick={() => removeCategory(cat.id)} style={{ ...S.deleteBtn, padding: 4 }}><Trash2 size={13} /></button>}
+                    {cat.id !== "other" && <button onClick={() => removeCategory(cat.id)} style={{ ...S.deleteBtn, padding: 4 }}><Trash2 size={13} /></button>}
                   </div>
                   {amount > 0 && (
                     <>

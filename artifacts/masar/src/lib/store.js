@@ -1308,6 +1308,90 @@ export const store = {
     return { ok: true };
   },
 
+  // ===== إخفاء تصنيفات جاهزة (hidden_budget_categories) =====
+  // "حذف" أحد التصنيفات الإحدى عشرة الجاهزة (الثابتة في budget.js، ليست
+  // صفوفاً في القاعدة) يعني تسجيل معرّفه هنا كمخفي لهذا المستخدم تحديداً -
+  // لا حذف حقيقي، فقط إخفاء عن هذا المستخدم بعينه (انظر تعليق الجدول في
+  // supabase-schema.sql لشرح القرار الهندسي كاملاً).
+  async loadHiddenBudgetCategories() {
+    const local = lsGet("masar_hidden_budget_categories", []);
+    if (!useCloud()) return local;
+    try {
+      const { data, error } = await supabase.from("hidden_budget_categories").select("category_id").eq("owner", CURRENT_OWNER);
+      if (error) { console.error("[loadHiddenBudgetCategories] Supabase error:", error.message); return local; }
+      if (!data) return local;
+      const items = data.map((r) => r.category_id);
+      lsSet("masar_hidden_budget_categories", items);
+      return items;
+    } catch (e) { console.error("[loadHiddenBudgetCategories] read failed:", e); return local; }
+  },
+  async hideBudgetCategory(categoryId) {
+    const before = lsGet("masar_hidden_budget_categories", []);
+    if (!before.includes(categoryId)) lsSet("masar_hidden_budget_categories", [...before, categoryId]);
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("hidden_budget_categories").upsert(
+          { owner: CURRENT_OWNER, category_id: categoryId },
+          { onConflict: "owner,category_id" },
+        );
+        if (error) {
+          console.error("[hideBudgetCategory] Supabase error:", error.message);
+          lsSet("masar_hidden_budget_categories", before);
+          return { ok: false, error: error.message };
+        }
+      } catch (e) {
+        console.error("[hideBudgetCategory] write failed:", e);
+        lsSet("masar_hidden_budget_categories", before);
+        return { ok: false, error: String(e) };
+      }
+    }
+    return { ok: true };
+  },
+
+  // ===== إعادة تصنيف جماعية (تُستخدَم عند حذف تصنيف له معاملات سابقة - تُنقل
+  // كل معاملاته لتصنيف آخر، عادةً "أخرى", بدل أن تُفقد أو تشير لتصنيف حُذف) =====
+  async reassignVaultTransactionsCategory(fromCategoryId, toCategoryId) {
+    const before = lsGet("masar_vault_transactions", []);
+    lsSet("masar_vault_transactions", before.map((tx) => (tx.categoryId === fromCategoryId ? { ...tx, categoryId: toCategoryId } : tx)));
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("vault_transactions").update({ category_id: toCategoryId }).eq("owner", CURRENT_OWNER).eq("category_id", fromCategoryId);
+        if (error) {
+          console.error("[reassignVaultTransactionsCategory] Supabase error:", error.message);
+          lsSet("masar_vault_transactions", before);
+          return { ok: false, error: error.message };
+        }
+      } catch (e) {
+        console.error("[reassignVaultTransactionsCategory] write failed:", e);
+        lsSet("masar_vault_transactions", before);
+        return { ok: false, error: String(e) };
+      }
+    }
+    return { ok: true };
+  },
+
+  // ===== حذف ميزانية تصنيف عبر كل الأشهر دفعة واحدة (تُستخدَم عند حذف
+  // التصنيف نفسه - لا معنى لميزانية شهرية لتصنيف لم يعد موجوداً) =====
+  async deleteBudgetsForCategory(categoryId) {
+    const before = lsGet("masar_budgets", []);
+    lsSet("masar_budgets", before.filter((b) => b.categoryId !== categoryId));
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("budgets").delete().eq("owner", CURRENT_OWNER).eq("category_id", categoryId);
+        if (error) {
+          console.error("[deleteBudgetsForCategory] Supabase error:", error.message);
+          lsSet("masar_budgets", before);
+          return { ok: false, error: error.message };
+        }
+      } catch (e) {
+        console.error("[deleteBudgetsForCategory] write failed:", e);
+        lsSet("masar_budgets", before);
+        return { ok: false, error: String(e) };
+      }
+    }
+    return { ok: true };
+  },
+
   // ===== ميزانيات شهرية لكل تصنيف (budgets) =====
   // تُحمَّل آخر 12 شهراً فقط (كافية تماماً لكل استخدامات الواجهة: الشهر
   // الحالي + مقارنة الشهر السابق + رسم بياني سنوي) - نفس مبدأ التقييد

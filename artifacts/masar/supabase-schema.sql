@@ -541,6 +541,20 @@ create table if not exists savings_goals (
 );
 create index if not exists savings_goals_owner on savings_goals (owner);
 
+-- التصنيفات الجاهزة الإحدى عشرة ثابتة في الكود (DEFAULT_BUDGET_CATEGORIES
+-- في budget.js) ولا تُخزَّن كصفوف لكل مستخدم - لذا "حذف" تصنيف جاهز لا
+-- يحذف صفاً فعلياً بل يسجّل معرّفه هنا كمخفي لهذا المستخدم تحديداً. قرار
+-- هندسي متعمَّد: أبسط وأمتن بكثير من تحويل كل التصنيفات الجاهزة لصفوف
+-- حقيقية لكل مستخدم (كان سيتطلّب seeding لكل مستخدم جديد وهجرة لكل مستخدم
+-- قديم، بلا أي فائدة إضافية تُذكر مقابل هذا التعقيد).
+create table if not exists hidden_budget_categories (
+  owner       text not null default 'solo',
+  category_id text not null,
+  created_at  timestamptz default now(),
+  primary key (owner, category_id)
+);
+create index if not exists hidden_budget_categories_owner on hidden_budget_categories (owner);
+
 -- تتبّع النوم (قسم "التقارير"): صف واحد لكل مستخدم لكل تاريخ — التاريخ
 -- هو يوم الاستيقاظ (بالتاريخ المحلي، localDayKey). sleep_time/wake_time
 -- تُملآن إن سجّل المستخدم الوقتين، وتبقيان فارغتين إن أدخل عدد الساعات
@@ -1012,6 +1026,12 @@ create policy budgets_user_own on budgets for all to authenticated
 alter table savings_goals enable row level security;
 drop policy if exists savings_goals_user_own on savings_goals;
 create policy savings_goals_user_own on savings_goals for all to authenticated
+  using (owner = auth.uid()::text and is_active_subscriber())
+  with check (owner = auth.uid()::text and is_active_subscriber());
+
+alter table hidden_budget_categories enable row level security;
+drop policy if exists hidden_budget_categories_user_own on hidden_budget_categories;
+create policy hidden_budget_categories_user_own on hidden_budget_categories for all to authenticated
   using (owner = auth.uid()::text and is_active_subscriber())
   with check (owner = auth.uid()::text and is_active_subscriber());
 

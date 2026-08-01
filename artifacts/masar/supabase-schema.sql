@@ -743,6 +743,51 @@ insert into food_synonyms (term_ar, term_en, canonical_term) values
   ('عصير', 'juice', 'Juice')
 on conflict (term_ar) do nothing;
 
+-- توسيع جدول المرادفات (نفس الجدول القائم أعلاه، لا تعديل بنيوي - مجرد
+-- صفوف إضافية) ليغطي الأطعمة الأساسية الجديدة المضافة في generic-foods.js،
+-- تحسيناً لمسار البحث الثانوي (Open Food Facts) عندما لا يُعثر على نتيجة
+-- محلية أو من custom_foods. term_ar فريد (unique) فلا خطر تعارض مع الدفعة
+-- الأولى أعلاه.
+insert into food_synonyms (term_ar, term_en, canonical_term) values
+  ('خس', 'lettuce', 'Lettuce'),
+  ('بصل', 'onion', 'Onion'),
+  ('بسمتي', 'basmati', 'Basmati rice'),
+  ('توست', 'toast', 'Toast bread'),
+  ('صمون', 'pita', 'Pita bread'),
+  ('معكرونة', 'pasta', 'Pasta'),
+  ('باستا', 'pasta', 'Pasta'),
+  ('برغل', 'bulgur', 'Bulgur'),
+  ('كينوا', 'quinoa', 'Quinoa'),
+  ('فخذ دجاج', 'chicken thigh', 'Chicken thigh'),
+  ('غنم', 'lamb', 'Lamb'),
+  ('خروف', 'mutton', 'Lamb'),
+  ('سلمون', 'salmon', 'Salmon'),
+  ('تونة', 'tuna', 'Tuna'),
+  ('بلطي', 'tilapia', 'Tilapia'),
+  ('روبيان', 'shrimp', 'Shrimp'),
+  ('جمبري', 'prawns', 'Shrimp'),
+  ('بروكلي', 'broccoli', 'Broccoli'),
+  ('فلفل', 'bell pepper', 'Bell pepper'),
+  ('باذنجان', 'eggplant', 'Eggplant'),
+  ('كوسا', 'zucchini', 'Zucchini'),
+  ('كوسة', 'zucchini', 'Zucchini'),
+  ('مانجو', 'mango', 'Mango'),
+  ('بطيخ', 'watermelon', 'Watermelon'),
+  ('رمان', 'pomegranate', 'Pomegranate'),
+  ('كيوي', 'kiwi', 'Kiwi'),
+  ('حمص', 'chickpeas', 'Chickpeas'),
+  ('فول', 'fava beans', 'Fava beans'),
+  ('فاصوليا', 'kidney beans', 'Kidney beans'),
+  ('لبن', 'buttermilk', 'Buttermilk'),
+  ('كاجو', 'cashews', 'Cashews'),
+  ('فستق', 'pistachios', 'Pistachios'),
+  ('فول سوداني', 'peanuts', 'Peanuts'),
+  ('جوز', 'walnuts', 'Walnuts'),
+  ('زيت زيتون', 'olive oil', 'Olive oil'),
+  ('سمن', 'ghee', 'Ghee'),
+  ('كولا', 'cola', 'Cola')
+on conflict (term_ar) do nothing;
+
 alter table water_log enable row level security;
 drop policy if exists water_log_anon_solo on water_log;
 drop policy if exists water_log_user_own on water_log;

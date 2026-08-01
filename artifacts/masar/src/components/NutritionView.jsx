@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Plus, X, Trash2, Camera, Search, Loader2, Droplet, Flame, Check, Bell,
   Hash, Sparkles, ImagePlus, ClipboardList, Edit3, ChevronLeft, ChevronRight, SkipForward,
-  Utensils,
+  Egg, Drumstick, Beef, Fish, Wheat, Carrot, Apple, Bean, Milk, Nut, Coffee, Cookie,
 } from "lucide-react";
 import { store } from "../lib/store";
 import { todayKey, uid, analyze, parseJsonLoose, arabicDate } from "../lib/helpers";
@@ -18,7 +18,7 @@ import {
   scaleMicronutrients, MICRONUTRIENT_META, personalizedRDI, compressImageToBlob,
 } from "../lib/nutrition";
 import { requestNotificationPermission } from "../lib/push";
-import { COMMON_FOODS, COMMON_FOOD_CATEGORIES, commonFoodToProduct } from "../lib/common-foods";
+import { searchGenericFoods, genericFoodToProduct } from "../lib/generic-foods";
 import { S } from "./styles";
 
 const NS = {
@@ -86,7 +86,6 @@ const NS = {
   notifBtn: { flex: 1, background: "var(--gold)", color: "var(--bg)", border: "none", borderRadius: 10, padding: "8px 0", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
   notifDismissBtn: { flex: 1, background: "transparent", border: "1px solid var(--border2)", color: "var(--muted2)", borderRadius: 10, padding: "8px 0", fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" },
 
-  commonFoodCategoryHead: { fontSize: 12, fontWeight: 700, color: "var(--gold)", margin: "14px 0 8px" },
   pastDayBanner: { display: "flex", alignItems: "center", gap: 8, background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.3)", borderRadius: 12, padding: "9px 12px", marginBottom: 14, fontSize: 12.5, color: "var(--ink-soft)", lineHeight: 1.6 },
 
   servingLabel: { fontSize: 12.5, color: "var(--muted2)", marginBottom: 8 },
@@ -565,8 +564,18 @@ function ConfirmQuantityCard({ product: initialProduct, source, onAdd, onCancel,
         onClick={() => onAdd({
           id: uid(), foodName: product.name, ...preview,
           unit,
+          // خلل حقيقي وُجد وأُصلح: كانت هذه تعرض دائماً "multiplier × servingGrams"
+          // بمجرد وجود حجم حصة معروف للمنتج، حتى لو عدّل المستخدم حقل "الكمية
+          // (غم)" يدوياً لرقم مختلف تماماً - فيُحفظ في السجل نص "1 × 120غ" رغم
+          // أن القيم الغذائية الفعلية محسوبة لكمية أخرى بالكامل (كانت القيمة
+          // الرقمية نفسها صحيحة دائماً، فقط النص الوصفي في السجل مضلِّلاً). الآن
+          // يُقارَن grams الفعلي بما يفترضه multiplier×servingGrams: تطابق يعني
+          // المستخدم استخدم أزرار ×1..×5 فعلاً (نفس النص القديم كما هو)، وأي
+          // اختلاف يعني تعديلاً يدوياً فيُعرض الرقم الفعلي مباشرة بدل تضليل.
           servingInfo: unit === "g"
-            ? (hasServing ? `${multiplier} × ${Math.round(product.servingGrams)}${t("common.units.g")}` : `${grams} ${t("common.units.g")}`)
+            ? (hasServing && grams === Math.round(product.servingGrams * multiplier)
+                ? `${multiplier} × ${Math.round(product.servingGrams)}${t("common.units.g")}`
+                : `${grams} ${t("common.units.g")}`)
             : `${fmtQty(unitQty)} ${t(`nutrition.unitOptions.${unit}`)}`,
           source,
           micronutrients: scaleMicronutrients(product.micronutrientsPer100g, gramsEquivalent || 0),
@@ -1021,89 +1030,96 @@ function AddProductWizard({ initialBarcode, onSave, onManual, showToast }) {
   );
 }
 
-function SearchPanel({ onPick, onManual }) {
-  const { t, i18n } = useTranslation();
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [searched, setSearched] = useState(false);
-  // يحرس ضد سباق حالات بين طلبات بحث متتالية: لو ضغط المستخدم بحث/Enter
-  // أكثر من مرة بسرعة (مثلاً عدّل النص وبحث من جديد قبل عودة الرد الأول)،
-  // كانت النتيجة القديمة قد تصل بعد الجديدة وتكتب فوقها فيبدو البحث وكأنه
-  // يحتاج إعادة محاولة. كل نداء لـ runSearch يأخذ رقماً تسلسلياً، ولا يُطبَّق
-  // أي رد لم يعد رقمه الأحدث المسجَّل وقت وصوله.
-  const requestIdRef = useRef(0);
-
-  // بحث "ذكي": يبحث مباشرة أولاً، وإن جاءت النتائج فارغة يبحث عن مرادف
-  // (عربي أو إنجليزي) في جدول food_synonyms ويعيد المحاولة بالمصطلح
-  // القانوني المقابل - هذا ما يجعل البحث بالعربي يعمل فعلياً حتى إن كان
-  // اسم المنتج في Open Food Facts مخزَّناً بالإنجليزي (الغالب).
-  async function runSearch() {
-    const q = normalizeSearchTerm(query);
-    if (!q) return;
-    const requestId = ++requestIdRef.current;
-    setLoading(true); setError(null); setSearched(true);
-    const res = await searchProductsByName(q);
-    if (requestId !== requestIdRef.current) return; // رد متأخر لطلب سابق، تجاهله
-    if (!res.ok) { setLoading(false); setError(i18n.language === "en" ? (res.errorEn || res.error) : res.error); setResults([]); return; }
-    if (res.products.length > 0) { setLoading(false); setResults(res.products); return; }
-    const canonical = await store.lookupFoodSynonym(q);
-    if (requestId !== requestIdRef.current) return;
-    if (canonical && normalizeSearchTerm(canonical) !== q) {
-      const retry = await searchProductsByName(canonical);
-      if (requestId !== requestIdRef.current) return;
-      setLoading(false);
-      setResults(retry.ok ? retry.products : []);
-      return;
-    }
-    setLoading(false);
-    setResults([]);
-  }
-
-  return (
-    <>
-      <div style={NS.searchRow}>
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") runSearch(); }}
-          placeholder={t("nutrition.searchPlaceholder")}
-          style={NS.searchInput}
-        />
-        <button onClick={runSearch} style={NS.searchBtn}>{loading ? <Loader2 size={16} className="spin" /> : <Search size={16} />}</button>
-      </div>
-      {error && <div style={NS.errorText}>{error}</div>}
-      {!loading && searched && !error && results.length === 0 && (
-        <p style={NS.notFoundNote}>{t("nutrition.noSearchResults")}</p>
-      )}
-      {results.map((p) => (
-        <button key={p.barcode + p.name} onClick={() => onPick(p)} style={NS.resultRow}>
-          {p.imageUrl ? <img src={p.imageUrl} alt="" style={NS.resultImg} /> : <div style={NS.resultImg} />}
-          <div>
-            <div style={NS.resultName}>{p.name}</div>
-            <div style={NS.resultMeta}>{t("nutrition.calPer100g", { cal: p.caloriesPer100g })}</div>
-          </div>
-        </button>
-      ))}
-      <button onClick={onManual} style={{ ...S.exportBtn, marginTop: 4 }}>{t("nutrition.manualAddInstead")}</button>
-    </>
-  );
+// أيقونة توضيحية للفئة تُستخدم فقط عندما لا تتوفر صورة حقيقية للمنتج
+// (الحال الشائع لأطعمة generic-foods المحلية؛ نتائج custom_foods/Open Food
+// Facts تحمل غالباً صورة حقيقية فتُستخدَم بدلها مباشرة - انظر رندر النتائج
+// في SearchPanel أدناه).
+const CATEGORY_ICONS = {
+  egg: Egg, poultry: Drumstick, meat: Beef, fish: Fish, grain: Wheat,
+  vegetable: Carrot, fruit: Apple, legume: Bean, dairy: Milk, nut: Nut,
+  beverage: Coffee, oil: Droplet, other: Cookie,
+};
+function CategoryIcon({ category }) {
+  const Icon = CATEGORY_ICONS[category] || Cookie;
+  return <Icon size={17} color="var(--muted2)" />;
 }
 
-// قائمة "أطعمة شائعة" - اختيار سريع بضغطة واحدة بلا باركود/بحث، من بيانات
-// ثابتة محلية (common-foods.js، لا اتصال API). صندوق البحث هنا فلتر محلي
-// فوري على القائمة الثابتة (لا يستدعي searchProductsByName إطلاقاً)، يطابق
-// نص البحث مقابل searchTerms (عربي/إنجليزي) عبر normalizeSearchTerm - نفس
-// دالة التطبيع المستخدمة في SearchPanel لثبات نفس سلوك البحث بلا تشكيل.
-function CommonFoodsPanel({ onPick }) {
+// بحث موحّد: يدمج ثلاثة مصادر في نتيجة واحدة مرتّبة -
+// 1) generic-foods.js (محلي، فوري بلا مؤقت ولا اتصال شبكة على الإطلاق).
+// 2) custom_foods المشتركة (مساهمات مستخدمين سابقين، بحث بالاسم).
+// 3) Open Food Facts (شبكة، منتجات تجارية بباركود).
+// المصدران 2-3 يعملان بمؤقت debounce قصير (350ms) بعد توقف الكتابة، ولا
+// يحجبان أبداً ظهور نتائج (1) الفورية. ترتيب العرض: محلي أولاً (الأدق
+// والأسرع لأطعمة أساسية)، ثم custom_foods، ثم Open Food Facts أخيراً.
+function SearchPanel({ onPick, onManual }) {
   const { t, i18n } = useTranslation();
   const isEn = i18n.language === "en";
   const [query, setQuery] = useState("");
-  const q = normalizeSearchTerm(query);
-  const filtered = q
-    ? COMMON_FOODS.filter((f) => f.searchTerms.some((s) => normalizeSearchTerm(s).includes(q)) || normalizeSearchTerm(f.name).includes(q) || normalizeSearchTerm(f.nameEn).includes(q))
-    : COMMON_FOODS;
+  const [customResults, setCustomResults] = useState([]);
+  const [offResults, setOffResults] = useState([]);
+  const [offLoading, setOffLoading] = useState(false);
+  const [offError, setOffError] = useState(null);
+  // يحرس ضد سباق حالات بين طلبات شبكة متتالية (نفس مبدأ requestIdRef
+  // السابق) - لو تغيّر النص قبل عودة رد سابق، يُتجاهل أي رد متأخر لا يحمل
+  // أحدث رقم مسجَّل وقت وصوله.
+  const requestIdRef = useRef(0);
+  const normalized = normalizeSearchTerm(query);
+
+  // محلي وفوري بلا أي مؤقت - 77 عنصراً كحد أقصى حالياً، حساب رخيص جداً على
+  // كل ضغطة زر، فتظهر نتائج الأطعمة الأساسية "من أول محاولة" بلا أي تأخير.
+  const genericResults = useMemo(
+    () => searchGenericFoods(normalized).map((f) => genericFoodToProduct(f, isEn)),
+    [normalized, isEn],
+  );
+
+  // بحث "ذكي" لمصدر Open Food Facts: يبحث مباشرة أولاً، وإن جاءت النتائج
+  // فارغة يبحث عن مرادف (عربي أو إنجليزي) في جدول food_synonyms ويعيد
+  // المحاولة بالمصطلح القانوني المقابل - يجعل البحث بالعربي يعمل فعلياً حتى
+  // إن كان اسم المنتج في Open Food Facts مخزَّناً بالإنجليزي (الغالب).
+  useEffect(() => {
+    // تُمسَح نتائج الشبكة السابقة فوراً عند أي تغيير في نص البحث (لا تنتظر
+    // مهلة الـdebounce) حتى لا تظهر نتائج شبكة تخص بحثاً سابقاً مختلطة مع
+    // النتائج المحلية الجديدة الظاهرة فوراً أعلاه.
+    setOffResults([]); setCustomResults([]); setOffError(null);
+    if (!normalized) { setOffLoading(false); return; }
+    const requestId = ++requestIdRef.current;
+    setOffLoading(true);
+    const timer = setTimeout(async () => {
+      store.searchCustomFoodsByName(normalized).then((rows) => {
+        if (requestId !== requestIdRef.current) return;
+        setCustomResults(rows.map((f) => ({
+          barcode: f.barcode, name: f.foodName, brand: f.brand || "", country: f.country || "",
+          imageUrl: f.imageUrl || null, caloriesPer100g: f.calories, proteinPer100g: f.protein,
+          carbsPer100g: f.carbs, fatPer100g: f.fat, fiberPer100g: f.fiber || 0, sugarPer100g: f.sugar || 0,
+          sodiumPer100gMg: f.sodium || 0, servingSizeLabel: f.servingSizeLabel || null, servingGrams: f.servingGrams || null,
+          micronutrientsPer100g: f.micronutrients || {}, origin: "custom_foods",
+        })));
+      });
+      const res = await searchProductsByName(normalized);
+      if (requestId !== requestIdRef.current) return;
+      if (!res.ok) {
+        setOffError(isEn ? (res.errorEn || res.error) : res.error);
+        setOffResults([]);
+      } else if (res.products.length > 0) {
+        setOffResults(res.products.map((p) => ({ ...p, origin: "off" })));
+      } else {
+        const canonical = await store.lookupFoodSynonym(normalized);
+        if (requestId !== requestIdRef.current) return;
+        if (canonical && normalizeSearchTerm(canonical) !== normalized) {
+          const retry = await searchProductsByName(canonical);
+          if (requestId !== requestIdRef.current) return;
+          setOffResults(retry.ok ? retry.products.map((p) => ({ ...p, origin: "off" })) : []);
+        } else {
+          setOffResults([]);
+        }
+      }
+      if (requestId === requestIdRef.current) setOffLoading(false);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [normalized, isEn]);
+
+  const merged = [...genericResults, ...customResults, ...offResults];
+  const searched = normalized.length > 0;
 
   return (
     <>
@@ -1111,29 +1127,38 @@ function CommonFoodsPanel({ onPick }) {
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder={t("nutrition.commonFoodSearchPlaceholder")}
+          placeholder={t("nutrition.searchPlaceholder")}
           style={NS.searchInput}
+          autoFocus
         />
+        <div style={{ ...NS.searchBtn, cursor: "default" }}>{offLoading ? <Loader2 size={16} className="spin" /> : <Search size={16} />}</div>
       </div>
-      {filtered.length === 0 && <p style={NS.notFoundNote}>{t("nutrition.noCommonFoodResults")}</p>}
-      {COMMON_FOOD_CATEGORIES.map((cat) => {
-        const items = filtered.filter((f) => f.category === cat);
-        if (items.length === 0) return null;
-        return (
-          <div key={cat}>
-            <div style={NS.commonFoodCategoryHead}>{t(`nutrition.commonFoodCategories.${cat}`)}</div>
-            {items.map((f) => (
-              <button key={f.id} onClick={() => onPick(commonFoodToProduct(f, isEn))} style={NS.resultRow}>
-                <div style={NS.resultImg} />
-                <div>
-                  <div style={NS.resultName}>{isEn ? f.nameEn : f.name}</div>
-                  <div style={NS.resultMeta}>{t("nutrition.calPer100g", { cal: f.caloriesPer100g })}</div>
-                </div>
-              </button>
-            ))}
+      {offError && <div style={NS.errorText}>{offError}</div>}
+      {searched && !offLoading && merged.length === 0 && (
+        <p style={NS.notFoundNote}>{t("nutrition.noSearchResults")}</p>
+      )}
+      {merged.map((p) => (
+        <button key={`${p.origin}-${p.barcode}-${p.name}`} onClick={() => onPick(p)} style={NS.resultRow}>
+          {p.imageUrl ? <img src={p.imageUrl} alt="" style={NS.resultImg} /> : (
+            <div style={{ ...NS.resultImg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <CategoryIcon category={p.category} />
+            </div>
+          )}
+          <div style={{ flex: 1 }}>
+            <div style={NS.resultName}>{p.name}</div>
+            <div style={NS.resultMeta}>
+              {t("nutrition.calPer100g", { cal: Math.round(p.caloriesPer100g) })}
+              {" · "}{t("common.units.protein")} {Math.round(p.proteinPer100g)}{t("common.units.g")}
+              {" · "}{t("common.units.carbs")} {Math.round(p.carbsPer100g)}{t("common.units.g")}
+              {" · "}{t("common.units.fat")} {Math.round(p.fatPer100g)}{t("common.units.g")}
+            </div>
           </div>
-        );
-      })}
+        </button>
+      ))}
+      {searched && offLoading && (
+        <p style={NS.notFoundNote}>{t("nutrition.searchingWiderDatabase")}</p>
+      )}
+      <button onClick={onManual} style={{ ...S.exportBtn, marginTop: 4 }}>{t("nutrition.manualAddInstead")}</button>
     </>
   );
 }
@@ -1922,7 +1947,6 @@ Write a short paragraph (two to three sentences) analyzing today's eating patter
               <div style={NS.sheetHead}>
                 <span style={NS.sheetTitle}>
                   {sheet === "choose" && t("nutrition.sheetTitles.addFood")}
-                  {sheet === "commonFoods" && t("nutrition.sheetTitles.commonFoods")}
                   {sheet === "barcodeManual" && t("nutrition.sheetTitles.barcodeEntry")}
                   {sheet === "search" && t("nutrition.sheetTitles.searchByName")}
                   {sheet === "aiPhoto" && t("nutrition.sheetTitles.photographMeal")}
@@ -1947,9 +1971,6 @@ Write a short paragraph (two to three sentences) analyzing today's eating patter
 
             {sheet === "choose" && (
               <div style={NS.chooserGrid}>
-                <button onClick={() => setSheet("commonFoods")} style={NS.chooserBtn}>
-                  <span style={NS.chooserIcon}><Utensils size={19} /></span> {t("nutrition.commonFoodsOption")}
-                </button>
                 <button onClick={() => setSheet("scan")} style={NS.chooserBtn}>
                   <span style={NS.chooserIcon}><Camera size={19} /></span> {t("nutrition.scanWithCameraOption")}
                 </button>
@@ -1984,12 +2005,6 @@ Write a short paragraph (two to three sentences) analyzing today's eating patter
                   {!isSub && <span style={NS.chooserBadge}>{t("nutrition.premiumBadge")}</span>}
                 </button>
               </div>
-            )}
-
-            {sheet === "commonFoods" && (
-              <CommonFoodsPanel
-                onPick={(product) => { setPendingProduct({ product, source: "common" }); setSheet("confirm"); }}
-              />
             )}
 
             {sheet === "barcodeManual" && (

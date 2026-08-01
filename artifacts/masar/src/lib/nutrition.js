@@ -215,7 +215,12 @@ export async function fetchProductByBarcode(barcode) {
 export async function searchProductsByName(query) {
   try {
     const data = await fetchWithTimeout(OFF_SEARCH_URL(query));
+    // فلترة النتائج الرديئة: منتج بلا اسم حقيقي (product_name/generic_name
+    // فارغان في Open Food Facts نفسها) لا فائدة من عرضه ضمن نتائج بحث متعددة
+    // (خلافاً لمسح باركود مباشر لمنتج بعينه في fetchProductByBarcode أعلاه،
+    // حيث لا بديل آخر يُعرض فيبقى "منتج بلا اسم" أفضل من لا شيء هناك تحديداً).
     const products = (data.products || [])
+      .filter((p) => (p.product_name || p.generic_name || "").trim().length > 0)
       .map((p) => normalizeProduct(p, p.code))
       .filter(Boolean)
       .slice(0, 20);

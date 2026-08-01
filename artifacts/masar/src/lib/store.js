@@ -595,6 +595,30 @@ export const store = {
       return food;
     } catch (e) { console.error("[findCustomFood] read failed:", e); return null; }
   },
+  // بحث بالاسم (لا بالباركود) ضمن custom_foods المشتركة - يُستخدم كمصدر
+  // ثانٍ في البحث الموحّد بجانب generic-foods المحلية ونتائج Open Food
+  // Facts. بلا اتصال سحابي (ضيف/solo)، يبحث فقط ضمن ما خزّنه findCustomFood
+  // سابقاً في هذا الجهاز (best effort، لا فهرسة شاملة بلا حساب). يُرجع
+  // دائماً مصفوفة (فارغة عند أي فشل) بدل رمي استثناء، مطابقةً لنمط
+  // lookupFoodSynonym أدناه - هذا استعلام قراءة عرضي ضمن البحث، لا حفظاً.
+  async searchCustomFoodsByName(query) {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    if (!useCloud()) {
+      const local = lsGet("masar_custom_foods", {});
+      return Object.values(local).filter((f) => (f.foodName || "").toLowerCase().includes(q));
+    }
+    try {
+      const { data, error } = await supabase.from("custom_foods").select("*").ilike("food_name", `%${query}%`).limit(10);
+      if (error) { console.error("[searchCustomFoodsByName] Supabase error:", error.message); return []; }
+      return (data || []).map((d) => ({
+        barcode: d.barcode, foodName: d.food_name, calories: d.calories, protein: d.protein,
+        carbs: d.carbs, fat: d.fat, fiber: d.fiber || 0, sugar: d.sugar || 0, sodium: d.sodium || 0,
+        brand: d.brand || "", country: d.country || "", servingSizeLabel: d.serving_size_label || "",
+        servingGrams: d.serving_grams || null, imageUrl: d.image_url || "", micronutrients: d.micronutrients || {},
+      }));
+    } catch (e) { console.error("[searchCustomFoodsByName] read failed:", e); return []; }
+  },
   // قرار هندسي: custom_foods قاعدة بيانات منتجات مُجتمعية مشتركة الآن (لا
   // خاصة بكل مستخدم) - owner هنا يعني فقط "من ساهم بهذا الصف"، ولا يُستخدم
   // للتصفية عند القراءة (انظر findCustomFood أعلاه). كل مستخدم يستفيد من

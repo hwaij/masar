@@ -407,15 +407,19 @@ export const store = {
     return { ok: true };
   },
 
-  // قسم "الرياضة": إعداد أولي (هدف/معدات/أيام أسبوعياً) + سجل بسيط لأيام
-  // التمرين المكتملة (تاريخ واحد لكل يوم، بلا ربط بيوم مُحدَّد من الخطة).
+  // قسم "الرياضة": إعداد أولي (هدف/معدات/أيام أسبوعياً + مستوى خبرة/مدة
+  // حصة/إصابات لمحرك المدرب الشخصي الذكي) + سجل بسيط لأيام التمرين
+  // المكتملة (تاريخ واحد لكل يوم، بلا ربط بيوم مُحدَّد من الخطة).
   async loadFitnessProfile() {
-    const local = lsGet("masar_fitness_profile", { goal: null, equipment: null, daysPerWeek: null });
+    const local = lsGet("masar_fitness_profile", { goal: null, equipment: null, daysPerWeek: null, experience: null, sessionMinutes: null, injuries: [] });
     if (!useCloud()) return local;
     try {
       const { data, error } = await supabase.from("fitness_profile").select("*").eq("owner", CURRENT_OWNER).maybeSingle();
       if (error || !data) return local;
-      const result = { goal: data.goal, equipment: data.equipment, daysPerWeek: data.days_per_week };
+      const result = {
+        goal: data.goal, equipment: data.equipment, daysPerWeek: data.days_per_week,
+        experience: data.experience, sessionMinutes: data.session_minutes, injuries: data.injuries || [],
+      };
       lsSet("masar_fitness_profile", result);
       return result;
     } catch (e) { console.error("[loadFitnessProfile] read failed:", e); return local; }
@@ -426,10 +430,72 @@ export const store = {
       try {
         const { error } = await supabase.from("fitness_profile").upsert({
           owner: CURRENT_OWNER, goal: p.goal, equipment: p.equipment, days_per_week: p.daysPerWeek,
+          experience: p.experience || null, session_minutes: p.sessionMinutes || null, injuries: p.injuries || [],
           updated_at: new Date().toISOString(),
         });
         if (error) { console.error("[saveFitnessProfile] Supabase error:", error.message); return { ok: false, error: error.message }; }
       } catch (e) { console.error("[saveFitnessProfile] write failed:", e); return { ok: false, error: String(e) }; }
+    }
+    return { ok: true };
+  },
+
+  // ===== البرنامج المولَّد الحالي (workout_program) =====
+  async loadWorkoutProgram() {
+    const local = lsGet("masar_workout_program", null);
+    if (!useCloud()) return local;
+    try {
+      const { data, error } = await supabase.from("workout_program").select("*").eq("owner", CURRENT_OWNER).maybeSingle();
+      if (error) { console.error("[loadWorkoutProgram] Supabase error:", error.message); return local; }
+      if (!data) return local;
+      const result = {
+        program: data.program, seed: Number(data.seed),
+        weekRotationEnabled: !!data.week_rotation_enabled, rotationFrequency: data.rotation_frequency,
+        lastRotatedAt: data.last_rotated_at,
+      };
+      lsSet("masar_workout_program", result);
+      return result;
+    } catch (e) { console.error("[loadWorkoutProgram] read failed:", e); return local; }
+  },
+  async saveWorkoutProgram(entry) {
+    const before = lsGet("masar_workout_program", null);
+    lsSet("masar_workout_program", entry);
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("workout_program").upsert({
+          owner: CURRENT_OWNER, program: entry.program, seed: entry.seed,
+          week_rotation_enabled: !!entry.weekRotationEnabled, rotation_frequency: entry.rotationFrequency || null,
+          last_rotated_at: entry.lastRotatedAt || null, updated_at: new Date().toISOString(),
+        });
+        if (error) { console.error("[saveWorkoutProgram] Supabase error:", error.message); lsSet("masar_workout_program", before); return { ok: false, error: error.message }; }
+      } catch (e) { console.error("[saveWorkoutProgram] write failed:", e); lsSet("masar_workout_program", before); return { ok: false, error: String(e) }; }
+    }
+    return { ok: true };
+  },
+
+  // ===== سجل أداء التمارين (workout_log) - أساس التطوّر التلقائي =====
+  async loadWorkoutLog() {
+    const local = lsGet("masar_workout_log", []);
+    if (!useCloud()) return local;
+    try {
+      const { data, error } = await supabase.from("workout_log").select("*").eq("owner", CURRENT_OWNER).order("date", { ascending: true });
+      if (error) { console.error("[loadWorkoutLog] Supabase error:", error.message); return local; }
+      if (!data) return local;
+      const items = data.map((r) => ({ id: r.id, date: r.date, exerciseId: r.exercise_id, weight: r.weight != null ? Number(r.weight) : null, reps: r.reps, setsCompleted: r.sets_completed }));
+      lsSet("masar_workout_log", items);
+      return items;
+    } catch (e) { console.error("[loadWorkoutLog] read failed:", e); return local; }
+  },
+  async addWorkoutLogEntry(entry) {
+    const before = lsGet("masar_workout_log", []);
+    lsSet("masar_workout_log", [...before, entry]);
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("workout_log").insert({
+          id: entry.id, owner: CURRENT_OWNER, date: entry.date, exercise_id: entry.exerciseId,
+          weight: entry.weight ?? null, reps: entry.reps ?? null, sets_completed: entry.setsCompleted ?? null,
+        });
+        if (error) { console.error("[addWorkoutLogEntry] Supabase error:", error.message); lsSet("masar_workout_log", before); return { ok: false, error: error.message }; }
+      } catch (e) { console.error("[addWorkoutLogEntry] write failed:", e); lsSet("masar_workout_log", before); return { ok: false, error: String(e) }; }
     }
     return { ok: true };
   },

@@ -119,6 +119,56 @@ create table if not exists fitness_log (
   primary key (owner, date)
 );
 
+-- ترقية "المدرب الشخصي الذكي": توسيع ملف الرياضة الأولي (fitness_profile)
+-- بأعمدة تقييم إضافية (مستوى الخبرة، مدة الحصة، الإصابات) بلا كسر الأعمدة
+-- القديمة (goal/equipment/days_per_week تبقى كما هي، فقط نطاق القيم
+-- المسموحة اتّسع). goal يضيف 'maintain_weight' (رابع أهداف مذكورة في
+-- الطلب)، equipment يضيف 'home_full_equipment' (بيئة رابعة).
+alter table fitness_profile drop constraint if exists fitness_profile_goal_check;
+alter table fitness_profile add constraint fitness_profile_goal_check
+  check (goal in ('lose_weight', 'build_muscle', 'general_fitness', 'maintain_weight'));
+alter table fitness_profile drop constraint if exists fitness_profile_equipment_check;
+alter table fitness_profile add constraint fitness_profile_equipment_check
+  check (equipment in ('gym', 'home_full_equipment', 'home_light_weights', 'home_no_equipment'));
+alter table fitness_profile add column if not exists experience text check (experience in ('beginner', 'intermediate', 'advanced'));
+alter table fitness_profile add column if not exists session_minutes integer check (session_minutes in (30, 45, 60, 90));
+-- قائمة مناطق إصابة/حساسية مفصلية نصّية (مثال: ["knee","lower_back"]) -
+-- jsonb بدل text[] لتوافقها المباشر مع بنية fitness-engine.js في الواجهة
+-- بلا أي تحويل صيغة إضافي عند القراءة/الكتابة.
+alter table fitness_profile add column if not exists injuries jsonb not null default '[]'::jsonb;
+
+-- البرنامج المولَّد الحالي لكل مستخدم (نتيجة fitness-engine.js) - يُخزَّن
+-- كاملاً بدل إعادة توليده في كل زيارة، حتى يبقى مستقراً عبر الأجهزة/
+-- الجلسات ولا يتغيّر إلا بفعل صريح (تعديل الملف، زر "نوّع البرنامج"،
+-- أو دورة التدوير الأسبوعي إن فُعِّلت). seed يحفظ بذرة التوليد المستخدَمة
+-- (انظر seedFromOwner/buildProgram في fitness-engine.js) لإعادة إنتاج نفس
+-- النتيجة عند إعادة التحميل دون تغييرها بلا سبب.
+create table if not exists workout_program (
+  owner                   text primary key default 'solo',
+  program                 jsonb not null,
+  seed                    bigint not null,
+  week_rotation_enabled   boolean not null default false,
+  rotation_frequency      text check (rotation_frequency in ('weekly', 'biweekly') or rotation_frequency is null),
+  last_rotated_at         timestamptz,
+  updated_at              timestamptz default now()
+);
+
+-- سجل أداء كل تمرين (وزن × تكرارات × مجموعات منجزة) - أساس التطوّر
+-- التلقائي (progressive overload) في suggestProgression بـfitness-engine.js.
+-- منفصل تماماً عن fitness_log (يوم مكتمل/غير مكتمل فقط، يبقى كما هو
+-- بلا أي تغيير حتى لا يُكسر مزامنة إحصاءات الجروبات القائمة عليه).
+create table if not exists workout_log (
+  id              text primary key,
+  owner           text not null default 'solo',
+  date            text not null,
+  exercise_id     text not null,
+  weight          numeric,
+  reps            integer,
+  sets_completed  integer,
+  created_at      timestamptz default now()
+);
+create index if not exists workout_log_owner_exercise on workout_log (owner, exercise_id, date);
+
 -- قسم "الصحة النفسية": تسجيل يومي واحد لكل يوم (مزاج/توتر/طاقة/ملاحظة
 -- اختيارية)، مع علم flagged_risk عند اكتشاف كلمات خطر في الملاحظة (يُستخدم
 -- فقط لعرض بطاقة توجيه لمصادر دعم حقيقية، وليس أي تشخيص أو تدخل علاجي).
@@ -773,6 +823,14 @@ alter table fitness_log enable row level security;
 drop policy if exists fitness_log_anon_solo on fitness_log;
 drop policy if exists fitness_log_user_own on fitness_log;
 create policy fitness_log_user_own on fitness_log for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
+alter table workout_program enable row level security;
+drop policy if exists workout_program_user_own on workout_program;
+create policy workout_program_user_own on workout_program for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
+alter table workout_log enable row level security;
+drop policy if exists workout_log_user_own on workout_log;
+create policy workout_log_user_own on workout_log for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
 
 alter table mental_health_log enable row level security;
 drop policy if exists mental_health_log_anon_solo on mental_health_log;

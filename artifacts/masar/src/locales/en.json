@@ -173,12 +173,30 @@
     "badgeOffline": "📱 Works offline",
     "signInNow": "Sign in now",
     "features": [
-      { "title": "Prayer Tracking", "desc": "Log your five daily prayers and build a lasting habit" },
-      { "title": "Focus Timer", "desc": "Focus sessions with stats and bot competition" },
-      { "title": "Adhkar & Quran", "desc": "Track your daily remembrance and Quran reading/memorization progress" },
-      { "title": "Daily Tasks", "desc": "Organize your tasks and celebrate every small win" },
-      { "title": "Reports & Analysis", "desc": "See your weekly progress with clear numbers" },
-      { "title": "AI Assistant", "desc": "A personal advisor who knows your habits and suggests improvements" }
+      {
+        "title": "Prayer Tracking",
+        "desc": "Log your five daily prayers and build a lasting habit"
+      },
+      {
+        "title": "Focus Timer",
+        "desc": "Focus sessions with stats and bot competition"
+      },
+      {
+        "title": "Adhkar & Quran",
+        "desc": "Track your daily remembrance and Quran reading/memorization progress"
+      },
+      {
+        "title": "Daily Tasks",
+        "desc": "Organize your tasks and celebrate every small win"
+      },
+      {
+        "title": "Reports & Analysis",
+        "desc": "See your weekly progress with clear numbers"
+      },
+      {
+        "title": "AI Assistant",
+        "desc": "A personal advisor who knows your habits and suggests improvements"
+      }
     ]
   },
   "auth": {
@@ -204,17 +222,50 @@
     "start": "Start your journey now 🤍",
     "next": "Next",
     "steps": [
-      { "title": "Welcome to Masar", "body": "Your personal space for productivity and worship. A quick tour of the app's key sections." },
-      { "title": "Start with Settings first", "body": "Add your hobbies and a short bio in \"Settings\" — this step really matters. Without it, the AI in \"Achieve\" and \"Assistant\" can't personalize anything for you, and its suggestions will feel generic." },
-      { "title": "Today", "body": "Log your daily activities and see them on the interactive time wheel, alongside your core daily tasks." },
-      { "title": "Your daily worship", "body": "Track your prayers and daily religious tasks like istighfar and Quran reading in \"Prayer\", and your adhkar in \"Adhkar\"." },
-      { "title": "Wisdom", "body": "A new tip awaits you every day in \"Wisdom\", blending worldly and spiritual wisdom, without repeating for a long while. You can also browse the archive of past tips on the same page." },
-      { "title": "Your productivity tools", "body": "Run focus and study sessions in \"Focus\", and organize your daily tasks in \"Tasks\"." },
-      { "title": "Goals", "body": "Write your weekly, monthly, or yearly goals in \"Goals\", and track them on a visual calendar that reminds you of review dates, with points awarded or deducted based on your progress." },
-      { "title": "Vault", "body": "Track your balance in your currency in \"Vault\", and log every expense or deposit with its reason so you know exactly where your money goes, plus a new financial tip every day." },
-      { "title": "Reports", "body": "See your weekly progress with clear numbers and analysis in \"Reports\", so you know where you're improving and where you need more effort." },
-      { "title": "AI features", "body": "\"Achieve\" suggests challenges and projects suited to you, and \"Assistant\" is your personal chat coach. Both rely on your hobbies and bio in Settings to make suggestions truly personal." },
-      { "title": "Ready?", "body": "Start your journey now 🤍" }
+      {
+        "title": "Welcome to Masar",
+        "body": "Your personal space for productivity and worship. A quick tour of the app's key sections."
+      },
+      {
+        "title": "Start with Settings first",
+        "body": "Add your hobbies and a short bio in \"Settings\" — this step really matters. Without it, the AI in \"Achieve\" and \"Assistant\" can't personalize anything for you, and its suggestions will feel generic."
+      },
+      {
+        "title": "Today",
+        "body": "Log your daily activities and see them on the interactive time wheel, alongside your core daily tasks."
+      },
+      {
+        "title": "Your daily worship",
+        "body": "Track your prayers and daily religious tasks like istighfar and Quran reading in \"Prayer\", and your adhkar in \"Adhkar\"."
+      },
+      {
+        "title": "Wisdom",
+        "body": "A new tip awaits you every day in \"Wisdom\", blending worldly and spiritual wisdom, without repeating for a long while. You can also browse the archive of past tips on the same page."
+      },
+      {
+        "title": "Your productivity tools",
+        "body": "Run focus and study sessions in \"Focus\", and organize your daily tasks in \"Tasks\"."
+      },
+      {
+        "title": "Goals",
+        "body": "Write your weekly, monthly, or yearly goals in \"Goals\", and track them on a visual calendar that reminds you of review dates, with points awarded or deducted based on your progress."
+      },
+      {
+        "title": "Vault",
+        "body": "Track your balance in your currency in \"Vault\", and log every expense or deposit with its reason so you know exactly where your money goes, plus a new financial tip every day."
+      },
+      {
+        "title": "Reports",
+        "body": "See your weekly progress with clear numbers and analysis in \"Reports\", so you know where you're improving and where you need more effort."
+      },
+      {
+        "title": "AI features",
+        "body": "\"Achieve\" suggests challenges and projects suited to you, and \"Assistant\" is your personal chat coach. Both rely on your hobbies and bio in Settings to make suggestions truly personal."
+      },
+      {
+        "title": "Ready?",
+        "body": "Start your journey now 🤍"
+      }
     ]
   },
   "tasksView": {
@@ -396,9 +447,18 @@
     "acceptedByAllah": "May Allah accept it",
     "done": "Done",
     "categories": {
-      "morning": { "title": "Morning Adhkar", "subtitle": "From after Fajr prayer until sunrise" },
-      "evening": { "title": "Evening Adhkar", "subtitle": "From after Asr prayer until sunset" },
-      "sleep": { "title": "Sleep Adhkar", "subtitle": "Before going to sleep" }
+      "morning": {
+        "title": "Morning Adhkar",
+        "subtitle": "From after Fajr prayer until sunrise"
+      },
+      "evening": {
+        "title": "Evening Adhkar",
+        "subtitle": "From after Asr prayer until sunset"
+      },
+      "sleep": {
+        "title": "Sleep Adhkar",
+        "subtitle": "Before going to sleep"
+      }
     }
   },
   "tips": {
@@ -431,9 +491,18 @@
   },
   "goals": {
     "periods": {
-      "weekly": { "label": "Weekly", "reviewLabel": "Midweek" },
-      "monthly": { "label": "Monthly", "reviewLabel": "Mid-month" },
-      "yearly": { "label": "Yearly", "reviewLabel": "Start of each month" }
+      "weekly": {
+        "label": "Weekly",
+        "reviewLabel": "Midweek"
+      },
+      "monthly": {
+        "label": "Monthly",
+        "reviewLabel": "Mid-month"
+      },
+      "yearly": {
+        "label": "Yearly",
+        "reviewLabel": "Start of each month"
+      }
     },
     "finishReasonFirst": "Finish writing the reason it wasn't achieved before adding a new goal",
     "goalAdded": "Added a new goal",
@@ -472,7 +541,12 @@
     },
     "heroTitle": "Vault",
     "heroSub": "Know exactly where your money goes, and set a budget that fits you.",
-    "tabs": { "overview": "Overview", "transactions": "Transactions", "budgets": "Budgets", "goals": "Savings" },
+    "tabs": {
+      "overview": "Overview",
+      "transactions": "Transactions",
+      "budgets": "Budgets",
+      "goals": "Savings"
+    },
     "totalWealth": "Your Total Wealth",
     "recordExpense": "Record expense",
     "recordDeposit": "Record deposit",
@@ -495,7 +569,10 @@
     "addAccount": "Add Account",
     "accountName": "Account name",
     "accountType": "Account type",
-    "accountTypes": { "cash": "Cash", "bank": "Bank Account" },
+    "accountTypes": {
+      "cash": "Cash",
+      "bank": "Bank Account"
+    },
     "currentBalance": "Current balance",
     "currency": "Currency",
     "noAccountsYet": "No accounts yet. Add your first account.",
@@ -654,7 +731,12 @@
     "progress": "{{today}} of {{target}} · Focus sessions count automatically",
     "empty": "No challenges yet. Add one to get started.",
     "placeholder": "Example: one hour of study daily",
-    "options": { "30": "30 min", "60": "60 min", "90": "90 min", "120": "120 min" }
+    "options": {
+      "30": "30 min",
+      "60": "60 min",
+      "90": "90 min",
+      "120": "120 min"
+    }
   },
   "achieve": {
     "identityNudge": "Add your hobbies and a short bio in Settings first, so Achieve can personalize its help for you",
@@ -668,7 +750,11 @@
     "saveFailed": "Couldn't save the achievement, please try again",
     "revertReason": "Reverted an achievement",
     "deleteCompletedReason": "Deleted a completed achievement",
-    "kindMap": { "challenge": "Challenge", "project": "Project", "path": "Learning Path" },
+    "kindMap": {
+      "challenge": "Challenge",
+      "project": "Project",
+      "path": "Learning Path"
+    },
     "promptPlaceholder": {
       "challenge": "Example: I want a light fitness challenge",
       "project": "Example: A simple photography project for the weekend",
@@ -680,9 +766,18 @@
     "goToSettings": "Go to Settings",
     "moodCardTitle": "How's your day?",
     "moodCardSub": "Tell Achieve your mood so it can suggest something to lift it right now.",
-    "moods": { "excited": "Excited", "normal": "Okay", "tired": "Tired", "distracted": "Distracted" },
+    "moods": {
+      "excited": "Excited",
+      "normal": "Okay",
+      "tired": "Tired",
+      "distracted": "Distracted"
+    },
     "thinking": "Achieve is thinking...",
-    "tabs": { "challenges": "Challenges", "projects": "Projects", "paths": "Paths" },
+    "tabs": {
+      "challenges": "Challenges",
+      "projects": "Projects",
+      "paths": "Paths"
+    },
     "emptyTitle": "Nothing here yet",
     "emptySub": "Type your request above and press send",
     "hideSteps": "Hide steps",
@@ -694,7 +789,12 @@
     "saveReplyFailed": "Couldn't save the assistant's reply to history — it may be lost on reload",
     "connectFailed": "Couldn't reach the assistant right now. Check your connection and try again.",
     "clearFailed": "Couldn't clear the conversation, please try again",
-    "suggestions": ["How can I improve my day?", "Plan my day for me", "Suggest an activity for my hobbies", "How do I manage my time better?"],
+    "suggestions": [
+      "How can I improve my day?",
+      "Plan my day for me",
+      "Suggest an activity for my hobbies",
+      "How do I manage my time better?"
+    ],
     "heroTitle": "Achieve Assistant",
     "heroSub": "Your personal coach. It sees your day and helps you grow.",
     "setupNudge": "Add your hobbies and a short bio in Settings first, so Achieve can personalize its help for you.",
@@ -977,47 +1077,113 @@
   },
   "fitness": {
     "goals": {
-      "lose_weight": "Lose Weight",
-      "build_muscle": "Build Muscle",
-      "general_fitness": "General Fitness"
+      "lose_weight": "Fat loss (cutting)",
+      "build_muscle": "Muscle gain (bulking)",
+      "general_fitness": "Improve general fitness",
+      "maintain_weight": "Maintain current weight"
     },
     "equipmentLevels": {
-      "gym": "Full Gym",
-      "home_no_equipment": "Home, No Equipment",
-      "home_light_weights": "Home with Light Weights (light dumbbells)"
+      "gym": "Full gym",
+      "home_no_equipment": "Home, no equipment",
+      "home_light_weights": "Home with light weights (dumbbells)",
+      "home_full_equipment": "Home with full equipment"
     },
     "dayTypes": {
-      "full_body": "Full Body Workout",
+      "full_body": "Full body workout",
       "cardio": "Cardio",
-      "upper": "Upper Body",
-      "push": "Push (Chest/Shoulders/Triceps)",
-      "pull": "Pull (Back/Biceps)",
+      "upper": "Upper body",
+      "push": "Push (chest/shoulders/triceps)",
+      "pull": "Pull (back/biceps)",
       "legs": "Legs",
-      "mobility": "Mobility & Warm-up"
+      "mobility": "Mobility & warm-up",
+      "lower": "Lower body"
     },
     "setsReps": "{{sets}} sets × {{reps}}",
-    "watchTutorial": "Watch Tutorial",
-    "completeGoalFirst": "Complete your goal, equipment, and number of days",
+    "watchTutorial": "Watch tutorial",
+    "completeGoalFirst": "Complete the goal, equipment, days, experience level, and session duration",
     "planSaveFailed": "Couldn't save your program, try again",
-    "planSaved": "Your program has been saved",
+    "planSaved": "Your program was saved",
     "logSaveFailed": "Couldn't save the workout, try again",
-    "workoutLogged": "Well done! Today's workout has been logged",
-    "heroTitleSetup": "Fitness",
-    "heroSubSetup": "A general weekly program based on your goal and equipment — not a personalized medical program.",
+    "workoutLogged": "Nice! Today's workout was logged",
+    "heroTitleSetup": "Smart Personal Trainer",
+    "heroSubSetup": "A program built on general scientific principles, tailored to you - not a medical program nor a substitute for a specialist.",
     "goal": "Goal",
-    "availableEquipment": "Available equipment",
+    "availableEquipment": "Training location and equipment",
     "daysPerWeek": "Workout days per week",
-    "saveAndCreate": "Save and Create My Program",
-    "heroTitle": "Fitness",
-    "heroSub": "Your weekly program.",
-    "conditionWarning": "You have a recorded health condition. Please consult your doctor before starting an exercise program, especially if the condition relates to your heart, joints, or blood pressure.",
+    "saveAndCreate": "Save and create my program",
+    "heroTitle": "Smart Personal Trainer",
+    "heroSub": "Your tailored weekly program.",
+    "conditionWarning": "You have a registered health condition. Please consult your doctor before starting an exercise program, especially if the condition relates to the heart, joints, or blood pressure.",
     "yourProgram": "Your program",
     "programSummary": "{{goal}} · {{equipment}} · {{days}} days/week",
-    "editProgram": "Edit My Program",
+    "editProgram": "Edit my assessment",
     "daysCompletedThisWeek": "Days completed this week",
-    "completedTodayCheck": "Completed a workout today",
-    "markDoneToday": "✓ Mark Today's Workout Done",
-    "dayLabel": "Day {{n}} · {{dayLabel}}"
+    "completedTodayCheck": "Workout completed today",
+    "markDoneToday": "✓ Today's workout done",
+    "dayLabel": "Day {{n}} · {{dayLabel}}",
+    "experienceLevels": {
+      "beginner": "Beginner",
+      "intermediate": "Intermediate",
+      "advanced": "Advanced"
+    },
+    "injuryAreas": {
+      "knee": "Knee",
+      "lower_back": "Lower back",
+      "shoulder": "Shoulder",
+      "wrist": "Wrist",
+      "neck": "Neck",
+      "hip": "Hip",
+      "elbow": "Elbow"
+    },
+    "muscleGroups": {
+      "chest": "Chest",
+      "back": "Back",
+      "shoulders": "Shoulders",
+      "biceps": "Biceps",
+      "triceps": "Triceps",
+      "quads": "Quads",
+      "hamstrings": "Hamstrings",
+      "glutes": "Glutes",
+      "calves": "Calves",
+      "abs": "Abs",
+      "full_body": "Full body",
+      "cardio": "Cardio",
+      "mobility": "Mobility"
+    },
+    "experienceLabel": "Experience level",
+    "sessionMinutesLabel": "Session duration",
+    "minutesShort": "{{n}} min",
+    "injuriesLabel": "Injuries or health issues (optional)",
+    "noInjuriesSelected": "None",
+    "yourAssessmentNote": "We automatically use your \"You\" profile data (age/gender/height/weight) - no need to re-enter it here.",
+    "injuryDisclaimer": "Your program was adjusted based on what you mentioned, but this is general guidance, not a substitute for a doctor's or rehab specialist's advice. Consult a specialist before training with any injury.",
+    "varyProgram": "Vary program",
+    "varyProgramApplied": "Your program was varied with alternative exercises",
+    "weeklyRotation": "Auto-rotate exercises",
+    "rotationFrequency": "Every",
+    "rotationWeekly": "week",
+    "rotationBiweekly": "2 weeks",
+    "rotationOff": "No rotation",
+    "alternativeBtn": "Swap",
+    "alternativeApplied": "Exercise swapped for an equivalent alternative",
+    "alternativeNotFound": "No alternative available with your current equipment",
+    "targetMuscle": "Target muscle",
+    "restLabel": "Rest {{sec}}s",
+    "logPerformance": "Log performance",
+    "weightKg": "Weight (kg) - optional for bodyweight exercises",
+    "repsCompleted": "Reps completed",
+    "setsCompleted": "Sets completed",
+    "savePerformance": "Save performance",
+    "performanceSaved": "Your performance was logged",
+    "performanceSaveFailed": "Couldn't save your performance, try again",
+    "invalidPerformance": "Enter a valid rep and set count",
+    "progressionWeight": "Ready to progress: increase weight to {{weight}} kg next session",
+    "progressionReps": "Ready to progress: add a rep - try {{reps}} next session",
+    "progressChartTitle": "Your workout volume over the weeks",
+    "noProgressYet": "Log your performance after each workout to see your progress here",
+    "compoundFirst": "Compound exercises first, then isolation - to distribute your energy best.",
+    "buildingProgram": "Building your program...",
+    "programSaveFailed": "Couldn't save your program, try again"
   },
   "mentalHealth": {
     "moodLevels": {

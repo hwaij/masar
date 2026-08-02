@@ -30,7 +30,7 @@ import { isActiveSubscriber } from "../lib/subscription";
 import { requestNotificationPermission, disablePush } from "../lib/push";
 import { ACTIVITY_LEVELS, HEALTH_CONDITIONS, NO_CONDITION, computeHealthMetrics } from "../lib/health";
 import { createGoal, isReviewDue, GOAL_PERIODS, GOAL_POINTS_SUCCESS, GOAL_POINTS_FAILURE } from "../lib/goals";
-import { FITNESS_GOALS } from "../lib/exercises";
+import { FITNESS_GOALS } from "../lib/exercises-db";
 import { sumNutritionEntries, waterGoalCups } from "../lib/nutrition";
 import { playSaveSound, playAchievementSound } from "../lib/sound";
 import { getSession, onAuthChange, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut, userFromSession, hasAuth } from "../lib/auth";
@@ -2207,7 +2207,8 @@ function AssistantView({ entries, tasks, categories, focus, prayerLog, religious
     // شيئاً عن مستخدم لم يستخدم هذا القسم بعد.
     if (healthProfile?.bmi) {
       const activityLabel = healthProfile.activityLevel ? t(`you.activityLevels.${healthProfile.activityLevel}`, "") : "";
-      const goalLabel = FITNESS_GOALS.find((g) => g.key === extra?.fitnessProfile?.goal)?.label;
+      const goalMatch = FITNESS_GOALS.find((g) => g.key === extra?.fitnessProfile?.goal);
+      const goalLabel = goalMatch ? (isEn ? goalMatch.nameEn : goalMatch.name) : null;
       lines.push(isEn
         ? `"You" profile: BMI ${healthProfile.bmi} (${healthProfile.bmiCategory})` +
           (goalLabel ? `, goal: ${goalLabel}` : "") +
@@ -2238,7 +2239,8 @@ function AssistantView({ entries, tasks, categories, focus, prayerLog, religious
       // الرياضة: فقط إذا أعدّ المستخدم برنامجه فعلاً في هذا القسم.
       if (extra.fitnessProfile?.goal) {
         const weekCompleted = last7.filter((d) => extra.fitnessLog?.[d]).length;
-        const goalLabel = FITNESS_GOALS.find((g) => g.key === extra.fitnessProfile.goal)?.label || extra.fitnessProfile.goal;
+        const goalMatch2 = FITNESS_GOALS.find((g) => g.key === extra.fitnessProfile.goal);
+        const goalLabel = goalMatch2 ? (isEn ? goalMatch2.nameEn : goalMatch2.name) : extra.fitnessProfile.goal;
         lines.push(isEn
           ? `Fitness: goal ${goalLabel}, completed ${weekCompleted} of ${extra.fitnessProfile.daysPerWeek} days this week, ` +
             (extra.fitnessLog?.[today] ? "completed today's workout" : "hasn't completed today's workout yet")

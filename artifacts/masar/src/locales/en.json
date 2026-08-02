@@ -547,7 +547,8 @@
       "overview": "Overview",
       "transactions": "Transactions",
       "budgets": "Budgets",
-      "goals": "Savings"
+      "goals": "Savings",
+      "bills": "Bills"
     },
     "totalWealth": "Your Total Wealth",
     "recordExpense": "Record expense",
@@ -636,7 +637,44 @@
     "pdfSavings": "Savings",
     "pdfTrend": "Trend",
     "pdfSpent": "Spent",
-    "pdfBudget": "Budget"
+    "pdfBudget": "Budget",
+    "bills": {
+      "needAccountFirst": "Add an account first from the \"Overview\" tab before adding a bill.",
+      "invalidName": "Enter the bill's name",
+      "invalidDueDate": "Choose a due date",
+      "commitmentTitle": "Your commitment this month",
+      "noBillsThisMonth": "No bills due this month",
+      "totalMonthly": "Monthly total (fixed)",
+      "totalYearly": "Yearly total (fixed)",
+      "variableNotIncludedNote": "Variable-amount bills aren't included in the totals (their value is only known when paid)",
+      "upcomingTitle": "Upcoming bills",
+      "addBill": "Add a bill",
+      "noBillsYet": "No bills added yet",
+      "nameLabel": "Bill name",
+      "namePlaceholder": "e.g. Electricity bill",
+      "amountTypeLabel": "Bill amount",
+      "amountFixed": "Fixed",
+      "amountVariable": "Variable (entered when paid)",
+      "variableAmount": "Variable",
+      "recurrenceLabel": "Recurrence",
+      "dueDayLabel": "Due day of the month",
+      "dueDateLabel": "Due date",
+      "customIntervalLabel": "Every how many days?",
+      "markPaidBtn": "Mark as paid",
+      "confirmPayBtn": "Confirm payment",
+      "billPaid": "Payment recorded and deducted from your balance",
+      "billAdded": "Bill added",
+      "deleteBillConfirm": "Delete this bill? (its past payment history stays in your transactions)",
+      "pauseBtn": "Pause",
+      "resumeBtn": "Resume",
+      "statusPaused": "Paused",
+      "status": {
+        "paid": "Paid this month",
+        "overdue": "Overdue since {{date}}",
+        "dueSoon": "Due {{date}}",
+        "ok": "Next due {{date}}"
+      }
+    }
   },
   "focus": {
     "cameBackToast": "We kept counting your time while you were away",

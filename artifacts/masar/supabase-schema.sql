@@ -648,6 +648,58 @@ create table if not exists hidden_budget_categories (
 );
 create index if not exists hidden_budget_categories_owner on hidden_budget_categories (owner);
 
+-- ===== "الفواتير الشهرية" داخل الخزنة (bills.js) =====
+-- كل فاتورة توصف مرة واحدة: قيمتها ثابتة أو متغيّرة (تُطلب عند الدفع)،
+-- حسابها المصدر (account_id)، تصنيفها الاختياري (نفس عمود category_id
+-- النصّي المستخدم في vault_transactions - إما أحد DEFAULT_BUDGET_CATEGORIES
+-- الثابتة أو معرّف من budget_categories)، وتكرارها (شهري: due_day يوم من
+-- الشهر / سنوي: due_date أول تاريخ ثم يتكرر بنفس الشهر واليوم / فترة
+-- مخصّصة: due_date أول تاريخ ثم + custom_interval_days كل دورة).
+-- next_due_date هو مرجع الاستحقاق الوحيد المخزَّن - يُحسَب حسابياً بالكامل
+-- في bills.js عند الإنشاء (computeInitialNextDueDate) ويتقدَّم حسابياً بعد
+-- كل دفعة (advanceDueDate) - بلا أي دالة أو محفّز (trigger) في القاعدة،
+-- بنفس مبدأ حساب رصيد vault_accounts بالكامل من الواجهة لا من القاعدة.
+-- is_active يوقف تتبّع فاتورة مؤقتاً (اشتراك مجمَّد مثلاً) دون حذف تاريخها.
+create table if not exists bills (
+  id                    text primary key,
+  owner                 text not null default 'solo',
+  name                  text not null,
+  amount_type           text not null default 'fixed' check (amount_type in ('fixed', 'variable')),
+  amount                numeric,
+  account_id            text references vault_accounts(id) on delete set null,
+  category_id           text,
+  recurrence            text not null default 'monthly' check (recurrence in ('monthly', 'yearly', 'custom')),
+  due_day               integer check (due_day between 1 and 31),
+  due_date              date,
+  custom_interval_days  integer check (custom_interval_days > 0),
+  next_due_date         date not null,
+  is_active             boolean not null default true,
+  created_at            timestamptz default now(),
+  updated_at            timestamptz default now()
+);
+create index if not exists bills_owner on bills (owner);
+create index if not exists bills_next_due on bills (owner, next_due_date);
+
+-- سجل الدفع الفعلي لكل دورة استحقاق. due_date_for_cycle يحفظ تاريخ
+-- الاستحقاق الذي كانت الفاتورة عليه لحظة الدفع (قيمة ثابتة تاريخياً - على
+-- عكس bills.next_due_date المتقدِّم دائماً للأمام) - هذا ما يبقي السجل
+-- الشهري لكل فاتورة عبر الأشهر صحيحاً حتى بعد تقدُّم next_due_date لدورة
+-- لاحقة. transaction_id يربط الدفعة بمعاملة الخزنة الفعلية التي أُنشئت
+-- تلقائياً عند الضغط على "تم الدفع" (on delete set null: حذف المعاملة
+-- لاحقاً من سجل الخزنة يدوياً لا يمحو تاريخ أنها دُفعت، فقط يفصل الرابط).
+create table if not exists bill_payments (
+  id                  text primary key,
+  owner               text not null default 'solo',
+  bill_id             text not null references bills(id) on delete cascade,
+  due_date_for_cycle  date not null,
+  amount              numeric not null,
+  paid_date           text not null,
+  transaction_id      text references vault_transactions(id) on delete set null,
+  created_at          timestamptz default now()
+);
+create index if not exists bill_payments_bill on bill_payments (bill_id);
+create index if not exists bill_payments_owner on bill_payments (owner);
+
 -- تتبّع النوم (قسم "التقارير"): صف واحد لكل مستخدم لكل تاريخ — التاريخ
 -- هو يوم الاستيقاظ (بالتاريخ المحلي، localDayKey). sleep_time/wake_time
 -- تُملآن إن سجّل المستخدم الوقتين، وتبقيان فارغتين إن أدخل عدد الساعات
@@ -1141,6 +1193,20 @@ create policy savings_goals_user_own on savings_goals for all to authenticated
 alter table hidden_budget_categories enable row level security;
 drop policy if exists hidden_budget_categories_user_own on hidden_budget_categories;
 create policy hidden_budget_categories_user_own on hidden_budget_categories for all to authenticated
+  using (owner = auth.uid()::text and is_active_subscriber())
+  with check (owner = auth.uid()::text and is_active_subscriber());
+
+-- "الفواتير الشهرية": بيانات مالية حسّاسة جداً - نفس بوابة عزل الخزنة
+-- (owner=auth.uid() + is_active_subscriber()) بلا أي استثناء.
+alter table bills enable row level security;
+drop policy if exists bills_user_own on bills;
+create policy bills_user_own on bills for all to authenticated
+  using (owner = auth.uid()::text and is_active_subscriber())
+  with check (owner = auth.uid()::text and is_active_subscriber());
+
+alter table bill_payments enable row level security;
+drop policy if exists bill_payments_user_own on bill_payments;
+create policy bill_payments_user_own on bill_payments for all to authenticated
   using (owner = auth.uid()::text and is_active_subscriber())
   with check (owner = auth.uid()::text and is_active_subscriber());
 

@@ -5,6 +5,7 @@ import {
   Repeat, Sparkles, Download, X, Check, Loader2,
   Coffee, Car, HeartPulse, ShoppingBag, Popcorn, Receipt, ShoppingCart, GraduationCap,
   Home, MoreHorizontal, UtensilsCrossed, Tag, PiggyBank, AlertTriangle,
+  Pause, Play,
 } from "lucide-react";
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend,
@@ -19,6 +20,10 @@ import {
   NEEDS_CATEGORY_IDS, WANTS_CATEGORY_IDS, computeBudget503020, splitEqually,
   findDueRecurringTemplates,
 } from "../lib/budget";
+import {
+  BILL_RECURRENCES, computeInitialNextDueDate, advanceDueDate, billStatus,
+  computeMonthlyCommitment, computeBillTotals, upcomingBills,
+} from "../lib/bills";
 import { S } from "./styles";
 
 const ICONS = {
@@ -111,6 +116,37 @@ const VS = {
 
   insightsCard: { background: "linear-gradient(160deg, var(--warm-tint), var(--panel))", border: "1px solid var(--warm-border)", borderRadius: 16, padding: "14px 12px", marginBottom: 16 },
   insightLine: { fontSize: 13, color: "var(--ink-soft)", lineHeight: 1.9, margin: 0 },
+
+  commitmentCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "16px 14px", marginBottom: 14 },
+  commitmentRow: { display: "flex", justifyContent: "space-between", alignItems: "center" },
+  commitmentValue: { fontSize: 20, fontWeight: 700, color: "var(--gold)", direction: "ltr" },
+  totalsRow: { display: "flex", gap: 10, marginBottom: 16 },
+  totalChip: { flex: 1, background: "var(--surface-sunken)", borderRadius: 12, padding: "10px 8px", textAlign: "center" },
+  totalChipLabel: { fontSize: 10.5, color: "var(--muted2)", marginBottom: 4 },
+  totalChipValue: { fontSize: 13.5, fontWeight: 700, color: "var(--ink)", direction: "ltr" },
+  billCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "12px 12px", marginBottom: 10 },
+  billHead: { display: "flex", alignItems: "center", gap: 8 },
+  billIconWrap: { width: 34, height: 34, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  billInfo: { flex: 1, minWidth: 0 },
+  billName: { fontSize: 13.5, fontWeight: 700, color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
+  billMeta: { fontSize: 11, color: "var(--muted2)", marginTop: 2 },
+  billAmount: { fontSize: 13.5, fontWeight: 700, direction: "ltr", whiteSpace: "nowrap", color: "var(--ink)" },
+  billBadgeRow: { display: "flex", gap: 6, alignItems: "center", marginTop: 8 },
+  billBadge: { fontSize: 10.5, fontWeight: 700, borderRadius: 20, padding: "3px 10px" },
+  billActionsRow: { display: "flex", gap: 8, marginTop: 10 },
+  billPayBtn: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "rgba(95,168,160,0.14)", border: "1px solid rgba(95,168,160,0.4)", color: "#5FA8A0", borderRadius: 10, padding: "9px 0", fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "inherit" },
+  billIconBtn: { display: "flex", alignItems: "center", justifyContent: "center", background: "var(--surface-sunken)", border: "1px solid var(--border2)", color: "var(--muted2)", borderRadius: 10, width: 34, cursor: "pointer" },
+  recurrenceRow: { display: "flex", gap: 8, marginTop: 6 },
+  recurrenceChip: { flex: 1, padding: "9px 0", borderRadius: 10, fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", border: "1px solid var(--border2)", background: "var(--surface-sunken)", color: "var(--ink)", textAlign: "center" },
+  recurrenceChipActive: { border: "1.5px solid var(--gold)", background: "rgba(201,162,75,0.12)", color: "var(--gold)" },
+};
+
+const BILL_STATUS_STYLE = {
+  paid: { color: "#5FA8A0", background: "rgba(95,168,160,0.14)" },
+  overdue: { color: "#E05252", background: "rgba(224,82,82,0.12)" },
+  dueSoon: { color: "#D4A04C", background: "rgba(212,160,76,0.14)" },
+  ok: { color: "var(--muted2)", background: "var(--surface-sunken)" },
+  paused: { color: "var(--muted2)", background: "var(--surface-sunken)" },
 };
 
 // أول معاملة أُنشئت لكل قالب متكرر تصبح مرجع المقارنة - نفس أيقونة الفئة
@@ -156,13 +192,28 @@ export default function VaultView({ showToast }) {
   const { t, i18n } = useTranslation();
   const isEn = i18n.language === "en";
   const [loaded, setLoaded] = useState(false);
-  const [subTab, setSubTab] = useState("overview"); // overview | transactions | budgets | goals
+  const [subTab, setSubTab] = useState("overview"); // overview | transactions | budgets | goals | bills
   const [accounts, setAccounts] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [customCategories, setCustomCategories] = useState([]);
   const [hiddenDefaultIds, setHiddenDefaultIds] = useState([]);
   const [budgets, setBudgets] = useState([]);
   const [savingsGoals, setSavingsGoals] = useState([]);
+  const [bills, setBills] = useState([]);
+  const [billPayments, setBillPayments] = useState([]);
+
+  const [addingBill, setAddingBill] = useState(false);
+  const [billName, setBillName] = useState("");
+  const [billAmountType, setBillAmountType] = useState("fixed"); // fixed | variable
+  const [billAmount, setBillAmount] = useState("");
+  const [billAccountId, setBillAccountId] = useState("");
+  const [billCategoryId, setBillCategoryId] = useState("");
+  const [billRecurrence, setBillRecurrence] = useState("monthly"); // monthly | yearly | custom
+  const [billDueDay, setBillDueDay] = useState("1");
+  const [billDueDate, setBillDueDate] = useState("");
+  const [billCustomIntervalDays, setBillCustomIntervalDays] = useState("30");
+  const [payingBill, setPayingBill] = useState(null);
+  const [payAmountInput, setPayAmountInput] = useState("");
 
   const [txType, setTxType] = useState(null); // 'expense' | 'income' | null
   const [txAmount, setTxAmount] = useState("");
@@ -218,9 +269,10 @@ export default function VaultView({ showToast }) {
   useEffect(() => {
     let active = true;
     (async () => {
-      const [legacyVault, legacyTx, acc, cats, hidden, bud, goals] = await Promise.all([
+      const [legacyVault, legacyTx, acc, cats, hidden, bud, goals, billsData, billPaymentsData] = await Promise.all([
         store.loadVault(), store.loadVaultTransactions(), store.loadVaultAccounts(),
         store.loadBudgetCategories(), store.loadHiddenBudgetCategories(), store.loadBudgets(), store.loadSavingsGoals(),
+        store.loadBills(), store.loadBillPayments(),
       ]);
       if (!active) return;
 
@@ -272,6 +324,8 @@ export default function VaultView({ showToast }) {
       setHiddenDefaultIds(hidden);
       setBudgets(bud);
       setSavingsGoals(goals);
+      setBills(billsData);
+      setBillPayments(billPaymentsData);
       setLoaded(true);
     })();
     return () => { active = false; };
@@ -637,6 +691,122 @@ export default function VaultView({ showToast }) {
     if (!res.ok) { setSavingsGoals(prev); showToast(t("common.errors.deleteFailed")); }
   }
 
+  // ===== "الفواتير الشهرية" =====
+  const monthlyCommitment = useMemo(() => computeMonthlyCommitment(bills, billPayments, currentMonth), [bills, billPayments, currentMonth]);
+  const billTotals = useMemo(() => computeBillTotals(bills), [bills]);
+  const sortedUpcomingBills = useMemo(() => upcomingBills(bills, 50), [bills]);
+
+  function resetBillForm() {
+    setBillName(""); setBillAmountType("fixed"); setBillAmount(""); setBillCategoryId("");
+    setBillAccountId(accounts[0]?.id || ""); setBillRecurrence("monthly"); setBillDueDay("1");
+    setBillDueDate(localDayKey()); setBillCustomIntervalDays("30");
+  }
+  function openAddBillForm() {
+    if (accounts.length === 0) { showToast(t("vault.bills.needAccountFirst")); return; }
+    resetBillForm();
+    setAddingBill(true);
+  }
+
+  async function submitNewBill() {
+    const name = billName.trim();
+    if (!name) { showToast(t("vault.bills.invalidName")); return; }
+    if (!billAccountId) { showToast(t("vault.bills.needAccountFirst")); return; }
+    let amount = null;
+    if (billAmountType === "fixed") {
+      amount = parseFloat(billAmount);
+      if (!Number.isFinite(amount) || amount <= 0) { showToast(t("vault.invalidAmount")); return; }
+    }
+    const draft = {
+      recurrence: billRecurrence,
+      dueDay: billRecurrence === "monthly" ? (parseInt(billDueDay, 10) || 1) : null,
+      dueDate: billRecurrence !== "monthly" ? billDueDate : null,
+      customIntervalDays: billRecurrence === "custom" ? (parseInt(billCustomIntervalDays, 10) || 30) : null,
+    };
+    if (billRecurrence !== "monthly" && !billDueDate) { showToast(t("vault.bills.invalidDueDate")); return; }
+    const nextDueDate = computeInitialNextDueDate(draft);
+    const bill = {
+      id: uid(), name, amountType: billAmountType, amount,
+      accountId: billAccountId, categoryId: billCategoryId || null,
+      recurrence: billRecurrence, dueDay: draft.dueDay, dueDate: draft.dueDate,
+      customIntervalDays: draft.customIntervalDays, nextDueDate, isActive: true,
+    };
+    setBills((prev) => [...prev, bill]);
+    const res = await store.saveBill(bill);
+    if (res.ok) { setAddingBill(false); showToast(t("vault.bills.billAdded")); }
+    else { setBills((prev) => prev.filter((b) => b.id !== bill.id)); showToast(t("common.errors.saveFailed")); }
+  }
+
+  async function removeBill(id) {
+    if (!window.confirm(t("vault.bills.deleteBillConfirm"))) return;
+    const prev = bills;
+    setBills((list) => list.filter((b) => b.id !== id));
+    const res = await store.deleteBill(id);
+    if (!res.ok) { setBills(prev); showToast(t("common.errors.deleteFailed")); }
+  }
+
+  async function toggleBillActive(bill) {
+    const prev = bills;
+    const updated = { ...bill, isActive: !bill.isActive };
+    setBills((list) => list.map((b) => (b.id === bill.id ? updated : b)));
+    const res = await store.saveBill(updated);
+    if (!res.ok) { setBills(prev); showToast(t("common.errors.saveFailed")); }
+  }
+
+  function openPayBill(bill) {
+    setPayingBill(bill);
+    setPayAmountInput(bill.amountType === "fixed" ? String(bill.amount) : "");
+  }
+
+  // زر "تم الدفع" - الترابط المالي الكامل المطلوب: يُنشئ معاملة مصروف فعلية
+  // في سجل الخزنة (نفس store.addVaultTransaction المستخدَم لأي مصروف يدوي -
+  // لا منطق مصروف مواز)، يخصم المبلغ من رصيد الحساب فعلياً (نفس
+  // store.saveVaultAccount)، يسجّل دفعة الدورة الحالية (bill_payments)
+  // بتاريخ استحقاقها الأصلي (bill.nextDueDate قبل أي تقدُّم)، ثم يقدّم
+  // نفس next_due_date للدورة القادمة. أي فشل في أي خطوة يُرجع كل الحالات
+  // المحلية لوضعها قبل الضغط (بلا نصف تحديث).
+  async function submitPayBill() {
+    if (!payingBill) return;
+    const bill = payingBill;
+    const amount = bill.amountType === "fixed" ? bill.amount : parseFloat(payAmountInput);
+    if (!Number.isFinite(amount) || amount <= 0) { showToast(t("vault.invalidAmount")); return; }
+
+    const prevTransactions = transactions;
+    const prevAccounts = accounts;
+    const prevBillPayments = billPayments;
+    const prevBills = bills;
+
+    const account = accounts.find((a) => a.id === bill.accountId);
+    const tx = {
+      id: uid(), date: localDayKey(), amount, type: "expense", reason: bill.name, createdAt: new Date().toISOString(),
+      accountId: bill.accountId || null, categoryId: bill.categoryId || null,
+      isRecurring: false, recurringFrequency: null, recurringSourceId: null,
+    };
+    const dueDateForCycle = bill.nextDueDate;
+    const payment = { id: uid(), billId: bill.id, dueDateForCycle, amount, paidDate: localDayKey(), transactionId: tx.id };
+    const updatedBill = { ...bill, nextDueDate: advanceDueDate(dueDateForCycle, bill) };
+
+    setTransactions((prev) => [tx, ...prev]);
+    if (account) setAccounts((prev) => prev.map((a) => (a.id === account.id ? { ...a, balance: a.balance - amount } : a)));
+    setBillPayments((prev) => [payment, ...prev]);
+    setBills((list) => list.map((b) => (b.id === bill.id ? updatedBill : b)));
+
+    const txResult = await store.addVaultTransaction(tx);
+    let accResult = { ok: true };
+    if (txResult.ok && account) accResult = await store.saveVaultAccount({ ...account, balance: account.balance - amount });
+    const paymentResult = txResult.ok && accResult.ok ? await store.addBillPayment(payment) : { ok: false };
+    const billResult = paymentResult.ok ? await store.saveBill(updatedBill) : { ok: false };
+
+    if (txResult.ok && accResult.ok && paymentResult.ok && billResult.ok) {
+      setPayingBill(null); setPayAmountInput("");
+      showToast(t("vault.bills.billPaid"));
+    } else {
+      setTransactions(prevTransactions); setAccounts(prevAccounts);
+      setBillPayments(prevBillPayments); setBills(prevBills);
+      console.error("[VaultView] submitPayBill failed:", txResult.error || accResult.error || paymentResult.error || billResult.error);
+      showToast(t("common.errors.saveFailed"));
+    }
+  }
+
   const filteredTx = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return transactions.filter((tx) => {
@@ -721,6 +891,7 @@ export default function VaultView({ showToast }) {
             { id: "transactions", label: t("vault.tabs.transactions") },
             { id: "budgets", label: t("vault.tabs.budgets") },
             { id: "goals", label: t("vault.tabs.goals") },
+            { id: "bills", label: t("vault.tabs.bills") },
           ].map((tab) => (
             <button key={tab.id} onClick={() => setSubTab(tab.id)} style={{ ...S.subTab, ...(subTab === tab.id ? S.subTabActive : {}) }}>{tab.label}</button>
           ))}
@@ -1069,6 +1240,157 @@ export default function VaultView({ showToast }) {
                   <label style={S.label}>{t("vault.targetAmount")}</label>
                   <input type="number" step="0.01" inputMode="decimal" value={newGoalTarget} onChange={(e) => setNewGoalTarget(e.target.value)} placeholder="0.00" style={{ ...S.input, marginTop: 6 }} />
                   <button onClick={submitNewGoal} style={S.saveBtn}>{t("common.buttons.save")}</button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {subTab === "bills" && (
+          <>
+            <div style={VS.commitmentCard}>
+              <div style={VS.commitmentRow}>
+                <span style={VS.sectionTitle}>{t("vault.bills.commitmentTitle")}</span>
+                <span style={VS.commitmentValue}>{monthlyCommitment.total > 0 ? `${monthlyCommitment.paid}/${monthlyCommitment.total}` : "—"}</span>
+              </div>
+              {monthlyCommitment.total > 0 && (
+                <div style={{ ...VS.budgetBarWrap, marginTop: 10 }}>
+                  <div style={{ ...VS.budgetBarFill, width: `${monthlyCommitment.pct}%`, background: monthlyCommitment.pct >= 100 ? "#5FA8A0" : "#D4A04C" }} />
+                </div>
+              )}
+              {monthlyCommitment.total === 0 && <div style={{ ...S.emptyHint, padding: "8px 0 0" }}>{t("vault.bills.noBillsThisMonth")}</div>}
+            </div>
+
+            <div style={VS.totalsRow}>
+              <div style={VS.totalChip}><div style={VS.totalChipLabel}>{t("vault.bills.totalMonthly")}</div><div style={VS.totalChipValue}>{formatVaultAmount(billTotals.monthlyFixed, primaryCurrency)}</div></div>
+              <div style={VS.totalChip}><div style={VS.totalChipLabel}>{t("vault.bills.totalYearly")}</div><div style={VS.totalChipValue}>{formatVaultAmount(billTotals.yearlyFixed, primaryCurrency)}</div></div>
+            </div>
+            {billTotals.hasVariable && <div style={{ ...S.emptyHint, marginTop: -8, marginBottom: 12 }}>{t("vault.bills.variableNotIncludedNote")}</div>}
+
+            <div style={VS.sectionHead}>
+              <span style={VS.sectionTitle}>{t("vault.bills.upcomingTitle")}</span>
+              <button onClick={openAddBillForm} style={VS.addChipBtn}><Plus size={13} /> {t("vault.bills.addBill")}</button>
+            </div>
+
+            {sortedUpcomingBills.length === 0 && <div style={S.emptyHint}>{t("vault.bills.noBillsYet")}</div>}
+            <div className="stagger-in responsive-card-list">
+              {sortedUpcomingBills.map((bill) => {
+                const cat = bill.categoryId ? resolveCategory(bill.categoryId, customCategories) : null;
+                const account = accounts.find((a) => a.id === bill.accountId);
+                const status = billStatus(bill, billPayments, currentMonth);
+                const statusStyle = BILL_STATUS_STYLE[status];
+                const recurrenceLabel = BILL_RECURRENCES.find((r) => r.id === bill.recurrence);
+                const [y, m, d] = bill.nextDueDate.split("-").map(Number);
+                return (
+                  <div key={bill.id} style={{ ...VS.billCard, opacity: bill.isActive ? 1 : 0.55 }}>
+                    <div style={VS.billHead}>
+                      <div style={{ ...VS.billIconWrap, background: cat ? `${cat.color}22` : "var(--surface-raised)" }}>
+                        <CatIcon name={cat?.icon || "Receipt"} size={16} color={cat?.color || "var(--muted2)"} />
+                      </div>
+                      <div style={VS.billInfo}>
+                        <div style={VS.billName}>{bill.name}</div>
+                        <div style={VS.billMeta}>
+                          {account ? account.name : ""}{cat ? ` · ${isEn ? cat.nameEn : cat.name}` : ""} · {isEn ? recurrenceLabel?.nameEn : recurrenceLabel?.name}
+                        </div>
+                      </div>
+                      <span style={VS.billAmount}>{bill.amountType === "variable" ? t("vault.bills.variableAmount") : formatVaultAmount(bill.amount, account?.currency || primaryCurrency)}</span>
+                    </div>
+                    <div style={VS.billBadgeRow}>
+                      <span style={{ ...VS.billBadge, ...statusStyle }}>
+                        {status === "paused" ? t("vault.bills.statusPaused") : t(`vault.bills.status.${status}`, { date: arabicDate(new Date(y, m - 1, d), { day: "numeric", month: "short" }, isEn ? "en-US" : undefined) })}
+                      </span>
+                    </div>
+                    <div style={VS.billActionsRow}>
+                      {bill.isActive && status !== "paid" && (
+                        <button onClick={() => openPayBill(bill)} style={VS.billPayBtn}><Check size={14} /> {t("vault.bills.markPaidBtn")}</button>
+                      )}
+                      <button onClick={() => toggleBillActive(bill)} style={VS.billIconBtn} title={bill.isActive ? t("vault.bills.pauseBtn") : t("vault.bills.resumeBtn")}>
+                        {bill.isActive ? <Pause size={14} /> : <Play size={14} />}
+                      </button>
+                      <button onClick={() => removeBill(bill.id)} style={VS.billIconBtn}><Trash2 size={14} /></button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {addingBill && (
+              <div style={S.modalOverlay} onClick={() => setAddingBill(false)}>
+                <div style={S.modal} onClick={(e) => e.stopPropagation()}>
+                  <div style={S.modalHeader}><span>{t("vault.bills.addBill")}</span><button onClick={() => setAddingBill(false)} style={S.deleteBtn}><X size={18} /></button></div>
+
+                  <label style={S.label}>{t("vault.bills.nameLabel")}</label>
+                  <input value={billName} onChange={(e) => setBillName(e.target.value)} placeholder={t("vault.bills.namePlaceholder")} style={{ ...S.input, marginTop: 6 }} autoFocus />
+
+                  <label style={S.label}>{t("vault.bills.amountTypeLabel")}</label>
+                  <div style={VS.recurrenceRow}>
+                    <button onClick={() => setBillAmountType("fixed")} style={{ ...VS.recurrenceChip, ...(billAmountType === "fixed" ? VS.recurrenceChipActive : {}) }}>{t("vault.bills.amountFixed")}</button>
+                    <button onClick={() => setBillAmountType("variable")} style={{ ...VS.recurrenceChip, ...(billAmountType === "variable" ? VS.recurrenceChipActive : {}) }}>{t("vault.bills.amountVariable")}</button>
+                  </div>
+                  {billAmountType === "fixed" && (
+                    <input type="number" step="0.01" inputMode="decimal" value={billAmount} onChange={(e) => setBillAmount(e.target.value)} placeholder="0.00" style={{ ...S.input, marginTop: 10 }} />
+                  )}
+
+                  <label style={S.label}>{t("vault.account")}</label>
+                  <select value={billAccountId} onChange={(e) => setBillAccountId(e.target.value)} style={{ ...S.input, marginTop: 6 }}>
+                    {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  </select>
+
+                  <label style={S.label}>{t("vault.category")}</label>
+                  <select value={billCategoryId} onChange={(e) => setBillCategoryId(e.target.value)} style={{ ...S.input, marginTop: 6 }}>
+                    <option value="">{t("vault.noCategory")}</option>
+                    {allCategories.map((c) => <option key={c.id} value={c.id}>{isEn ? c.nameEn : c.name}</option>)}
+                  </select>
+
+                  <label style={S.label}>{t("vault.bills.recurrenceLabel")}</label>
+                  <div style={VS.recurrenceRow}>
+                    {BILL_RECURRENCES.map((r) => (
+                      <button key={r.id} onClick={() => setBillRecurrence(r.id)} style={{ ...VS.recurrenceChip, ...(billRecurrence === r.id ? VS.recurrenceChipActive : {}) }}>
+                        {isEn ? r.nameEn : r.name}
+                      </button>
+                    ))}
+                  </div>
+
+                  {billRecurrence === "monthly" && (
+                    <>
+                      <label style={S.label}>{t("vault.bills.dueDayLabel")}</label>
+                      <input type="number" min="1" max="31" value={billDueDay} onChange={(e) => setBillDueDay(e.target.value)} style={{ ...S.input, marginTop: 6 }} />
+                    </>
+                  )}
+                  {billRecurrence === "yearly" && (
+                    <>
+                      <label style={S.label}>{t("vault.bills.dueDateLabel")}</label>
+                      <input type="date" value={billDueDate} onChange={(e) => setBillDueDate(e.target.value)} style={{ ...S.input, marginTop: 6 }} />
+                    </>
+                  )}
+                  {billRecurrence === "custom" && (
+                    <>
+                      <label style={S.label}>{t("vault.bills.dueDateLabel")}</label>
+                      <input type="date" value={billDueDate} onChange={(e) => setBillDueDate(e.target.value)} style={{ ...S.input, marginTop: 6 }} />
+                      <label style={S.label}>{t("vault.bills.customIntervalLabel")}</label>
+                      <input type="number" min="1" value={billCustomIntervalDays} onChange={(e) => setBillCustomIntervalDays(e.target.value)} style={{ ...S.input, marginTop: 6 }} />
+                    </>
+                  )}
+
+                  <button onClick={submitNewBill} style={S.saveBtn}>{t("common.buttons.save")}</button>
+                </div>
+              </div>
+            )}
+
+            {payingBill && (
+              <div style={S.modalOverlay} onClick={() => setPayingBill(null)}>
+                <div style={S.modal} onClick={(e) => e.stopPropagation()}>
+                  <div style={S.modalHeader}><span>{t("vault.bills.markPaidBtn")}</span><button onClick={() => setPayingBill(null)} style={S.deleteBtn}><X size={18} /></button></div>
+                  <p style={{ fontSize: 13, color: "var(--ink)", lineHeight: 1.6, margin: "4px 0 12px" }}>{payingBill.name}</p>
+                  {payingBill.amountType === "variable" ? (
+                    <>
+                      <label style={S.label}>{t("vault.amount")}</label>
+                      <input type="number" step="0.01" inputMode="decimal" autoFocus value={payAmountInput} onChange={(e) => setPayAmountInput(e.target.value)} placeholder="0.00" style={{ ...S.input, marginTop: 6 }} />
+                    </>
+                  ) : (
+                    <div style={{ ...VS.wealthAmount, fontSize: 24 }}>{formatVaultAmount(payingBill.amount, accounts.find((a) => a.id === payingBill.accountId)?.currency || primaryCurrency)}</div>
+                  )}
+                  <button onClick={submitPayBill} style={S.saveBtn}>{t("vault.bills.confirmPayBtn")}</button>
                 </div>
               </div>
             )}

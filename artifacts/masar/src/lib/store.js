@@ -1623,6 +1623,79 @@ export const store = {
     return { ok: true };
   },
 
+  // ===== "الفواتير الشهرية" داخل الخزنة (bills / bill_payments) =====
+  async loadBills() {
+    const local = lsGet("masar_bills", []);
+    if (!useCloud()) return local;
+    try {
+      const { data, error } = await supabase.from("bills").select("*").eq("owner", CURRENT_OWNER).order("next_due_date", { ascending: true });
+      if (error) { console.error("[loadBills] Supabase error:", error.message); return local; }
+      if (!data) return local;
+      const items = data.map((r) => ({
+        id: r.id, name: r.name, amountType: r.amount_type, amount: r.amount != null ? Number(r.amount) : null,
+        accountId: r.account_id, categoryId: r.category_id, recurrence: r.recurrence, dueDay: r.due_day,
+        dueDate: r.due_date, customIntervalDays: r.custom_interval_days, nextDueDate: r.next_due_date, isActive: !!r.is_active,
+      }));
+      lsSet("masar_bills", items);
+      return items;
+    } catch (e) { console.error("[loadBills] read failed:", e); return local; }
+  },
+  async saveBill(bill) {
+    const local = lsGet("masar_bills", []);
+    const exists = local.some((b) => b.id === bill.id);
+    lsSet("masar_bills", exists ? local.map((b) => (b.id === bill.id ? bill : b)) : [...local, bill]);
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("bills").upsert({
+          id: bill.id, owner: CURRENT_OWNER, name: bill.name, amount_type: bill.amountType, amount: bill.amount,
+          account_id: bill.accountId || null, category_id: bill.categoryId || null, recurrence: bill.recurrence,
+          due_day: bill.dueDay || null, due_date: bill.dueDate || null, custom_interval_days: bill.customIntervalDays || null,
+          next_due_date: bill.nextDueDate, is_active: bill.isActive, updated_at: new Date().toISOString(),
+        });
+        if (error) { console.error("[saveBill] Supabase error:", error.message); return { ok: false, error: error.message }; }
+      } catch (e) { console.error("[saveBill] write failed:", e); return { ok: false, error: String(e) }; }
+    }
+    return { ok: true };
+  },
+  async deleteBill(id) {
+    lsSet("masar_bills", lsGet("masar_bills", []).filter((b) => b.id !== id));
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("bills").delete().eq("id", id).eq("owner", CURRENT_OWNER);
+        if (error) { console.error("[deleteBill] Supabase error:", error.message); return { ok: false, error: error.message }; }
+      } catch (e) { console.error("[deleteBill] write failed:", e); return { ok: false, error: String(e) }; }
+    }
+    return { ok: true };
+  },
+  async loadBillPayments() {
+    const local = lsGet("masar_bill_payments", []);
+    if (!useCloud()) return local;
+    try {
+      const { data, error } = await supabase.from("bill_payments").select("*").eq("owner", CURRENT_OWNER).order("paid_date", { ascending: false });
+      if (error) { console.error("[loadBillPayments] Supabase error:", error.message); return local; }
+      if (!data) return local;
+      const items = data.map((r) => ({
+        id: r.id, billId: r.bill_id, dueDateForCycle: r.due_date_for_cycle, amount: Number(r.amount),
+        paidDate: r.paid_date, transactionId: r.transaction_id,
+      }));
+      lsSet("masar_bill_payments", items);
+      return items;
+    } catch (e) { console.error("[loadBillPayments] read failed:", e); return local; }
+  },
+  async addBillPayment(payment) {
+    const local = lsGet("masar_bill_payments", []);
+    lsSet("masar_bill_payments", [payment, ...local]);
+    if (!useCloud()) return { ok: true };
+    try {
+      const { error } = await supabase.from("bill_payments").insert({
+        id: payment.id, owner: CURRENT_OWNER, bill_id: payment.billId, due_date_for_cycle: payment.dueDateForCycle,
+        amount: payment.amount, paid_date: payment.paidDate, transaction_id: payment.transactionId || null,
+      });
+      if (error) { console.error("[addBillPayment] Supabase error:", error.message); lsSet("masar_bill_payments", local); return { ok: false, error: error.message }; }
+    } catch (e) { console.error("[addBillPayment] write failed:", e); lsSet("masar_bill_payments", local); return { ok: false, error: String(e) }; }
+    return { ok: true };
+  },
+
   // قسم تتبّع النوم داخل "التقارير": صف واحد لكل تاريخ (يوم الاستيقاظ)،
   // sleepTime/wakeTime اختياريان (فارغان إن أدخل المستخدم الساعات مباشرة).
   // مقيَّدة بآخر 90 يوماً: ReportsView لا يعرض نطاقاً أوسع من "شهر" (30

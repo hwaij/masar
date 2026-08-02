@@ -547,7 +547,8 @@
       "overview": "نظرة عامة",
       "transactions": "الحركات",
       "budgets": "الميزانية",
-      "goals": "الادخار"
+      "goals": "الادخار",
+      "bills": "الفواتير"
     },
     "totalWealth": "إجمالي ثروتك",
     "recordExpense": "تسجيل مصروف",
@@ -636,7 +637,44 @@
     "pdfSavings": "الادخار",
     "pdfTrend": "الاتجاه",
     "pdfSpent": "المصروف",
-    "pdfBudget": "الميزانية"
+    "pdfBudget": "الميزانية",
+    "bills": {
+      "needAccountFirst": "أضف حساباً أولاً من تبويب \"نظرة عامة\" قبل إضافة فاتورة.",
+      "invalidName": "اكتب اسم الفاتورة",
+      "invalidDueDate": "اختر تاريخ استحقاق",
+      "commitmentTitle": "التزامك هذا الشهر",
+      "noBillsThisMonth": "لا فواتير مستحقة هذا الشهر",
+      "totalMonthly": "إجمالي شهري (ثابت)",
+      "totalYearly": "إجمالي سنوي (ثابت)",
+      "variableNotIncludedNote": "الفواتير متغيّرة القيمة غير مُدرَجة في الإجماليات (قيمتها تُعرف عند الدفع فقط)",
+      "upcomingTitle": "الفواتير القادمة",
+      "addBill": "إضافة فاتورة",
+      "noBillsYet": "لا فواتير مضافة بعد",
+      "nameLabel": "اسم الفاتورة",
+      "namePlaceholder": "مثال: فاتورة الكهرباء",
+      "amountTypeLabel": "قيمة الفاتورة",
+      "amountFixed": "ثابتة",
+      "amountVariable": "متغيّرة (تُدخَل عند الدفع)",
+      "variableAmount": "متغيّرة",
+      "recurrenceLabel": "التكرار",
+      "dueDayLabel": "يوم الاستحقاق من الشهر",
+      "dueDateLabel": "تاريخ الاستحقاق",
+      "customIntervalLabel": "كل كم يوم؟",
+      "markPaidBtn": "تم الدفع",
+      "confirmPayBtn": "تأكيد الدفع",
+      "billPaid": "تم تسجيل الدفع وخصمه من رصيدك",
+      "billAdded": "تمت إضافة الفاتورة",
+      "deleteBillConfirm": "حذف هذه الفاتورة؟ (سجل دفعاتها السابقة يبقى في الحركات)",
+      "pauseBtn": "إيقاف مؤقت",
+      "resumeBtn": "استئناف",
+      "statusPaused": "موقوفة",
+      "status": {
+        "paid": "مدفوعة هذا الشهر",
+        "overdue": "متأخرة منذ {{date}}",
+        "dueSoon": "مستحقة {{date}}",
+        "ok": "القادمة {{date}}"
+      }
+    }
   },
   "focus": {
     "cameBackToast": "استمرنا في حساب وقتك أثناء غيابك",

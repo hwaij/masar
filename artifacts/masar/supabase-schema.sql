@@ -184,6 +184,34 @@ create table if not exists user_diet_plan (
   updated_at   timestamptz default now()
 );
 
+-- قسم "النظام الغذائي" (الخطة الشخصية الحيّة - منفصل تماماً عن "الأنظمة
+-- الغذائية"/user_diet_plan أعلاه، وهو تثقيف بأنظمة جاهزة كـDASH لا يُلمَس
+-- هنا). الأرقام (daily_calories/protein_g/carbs_g/fat_g/fiber_g/meals)
+-- كلها محسوبة حسابياً في nutrition-plan.js بلا أي مدخل AI - Gemini يملأ
+-- فقط meal_suggestions_text (نص واحد على مستوى الخطة يغطي كل الوجبات،
+-- اختيارياً لمشتركي مسار الكامل) ونص last_advice_text (نصيحة اليوم
+-- المخزَّنة - تُحدَّث مرة واحدة يومياً كحد أقصى تلقائياً، لا مع كل زيارة،
+-- توفيراً لتكلفة الاستدعاء). activity_source بنية جاهزة لمصدر نشاط خارجي
+-- مستقبلي (Apple Health/Google Fit) بلا أي ربط فعلي حالياً - قيمته
+-- 'manual' دائماً اليوم.
+create table if not exists user_nutrition_plan (
+  owner                   text primary key default 'solo',
+  daily_calories          numeric not null,
+  protein_g               numeric not null,
+  carbs_g                 numeric not null,
+  fat_g                   numeric not null,
+  fiber_g                 numeric not null,
+  meals                   jsonb not null default '[]'::jsonb,
+  assessment              jsonb not null default '{}'::jsonb,
+  activity_source         text not null default 'manual' check (activity_source in ('manual', 'apple_health', 'google_fit')),
+  meal_suggestions_text   text,
+  meal_suggestions_date   text,
+  last_advice_text        text,
+  last_advice_date        text,
+  generated_at            timestamptz default now(),
+  updated_at              timestamptz default now()
+);
+
 -- قسم "الصحة النفسية": تسجيل يومي واحد لكل يوم (مزاج/توتر/طاقة/ملاحظة
 -- اختيارية)، مع علم flagged_risk عند اكتشاف كلمات خطر في الملاحظة (يُستخدم
 -- فقط لعرض بطاقة توجيه لمصادر دعم حقيقية، وليس أي تشخيص أو تدخل علاجي).
@@ -850,6 +878,10 @@ create policy workout_log_user_own on workout_log for all to authenticated using
 alter table user_diet_plan enable row level security;
 drop policy if exists user_diet_plan_user_own on user_diet_plan;
 create policy user_diet_plan_user_own on user_diet_plan for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
+alter table user_nutrition_plan enable row level security;
+drop policy if exists user_nutrition_plan_user_own on user_nutrition_plan;
+create policy user_nutrition_plan_user_own on user_nutrition_plan for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
 
 alter table mental_health_log enable row level security;
 drop policy if exists mental_health_log_anon_solo on mental_health_log;

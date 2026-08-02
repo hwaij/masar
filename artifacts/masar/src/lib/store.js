@@ -540,6 +540,56 @@ export const store = {
     return { ok: true };
   },
 
+  // ===== قسم "النظام الغذائي" (user_nutrition_plan) - الخطة الشخصية الحيّة =====
+  async loadNutritionPlan() {
+    const local = lsGet("masar_nutrition_plan", null);
+    if (!useCloud()) return local;
+    try {
+      const { data, error } = await supabase.from("user_nutrition_plan").select("*").eq("owner", CURRENT_OWNER).maybeSingle();
+      if (error) { console.error("[loadNutritionPlan] Supabase error:", error.message); return local; }
+      if (!data) return local;
+      const result = {
+        dailyCalories: Number(data.daily_calories), proteinG: Number(data.protein_g), carbsG: Number(data.carbs_g),
+        fatG: Number(data.fat_g), fiberG: Number(data.fiber_g), meals: data.meals || [], assessment: data.assessment || {},
+        activitySource: data.activity_source || "manual",
+        mealSuggestionsText: data.meal_suggestions_text || null, mealSuggestionsDate: data.meal_suggestions_date || null,
+        lastAdviceText: data.last_advice_text || null, lastAdviceDate: data.last_advice_date || null,
+        generatedAt: data.generated_at,
+      };
+      lsSet("masar_nutrition_plan", result);
+      return result;
+    } catch (e) { console.error("[loadNutritionPlan] read failed:", e); return local; }
+  },
+  async saveNutritionPlan(plan) {
+    const before = lsGet("masar_nutrition_plan", null);
+    lsSet("masar_nutrition_plan", plan);
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("user_nutrition_plan").upsert({
+          owner: CURRENT_OWNER, daily_calories: plan.dailyCalories, protein_g: plan.proteinG, carbs_g: plan.carbsG,
+          fat_g: plan.fatG, fiber_g: plan.fiberG, meals: plan.meals || [], assessment: plan.assessment || {},
+          activity_source: plan.activitySource || "manual",
+          meal_suggestions_text: plan.mealSuggestionsText || null, meal_suggestions_date: plan.mealSuggestionsDate || null,
+          last_advice_text: plan.lastAdviceText || null, last_advice_date: plan.lastAdviceDate || null,
+          generated_at: plan.generatedAt || new Date().toISOString(), updated_at: new Date().toISOString(),
+        });
+        if (error) { console.error("[saveNutritionPlan] Supabase error:", error.message); lsSet("masar_nutrition_plan", before); return { ok: false, error: error.message }; }
+      } catch (e) { console.error("[saveNutritionPlan] write failed:", e); lsSet("masar_nutrition_plan", before); return { ok: false, error: String(e) }; }
+    }
+    return { ok: true };
+  },
+  async deleteNutritionPlan() {
+    const before = lsGet("masar_nutrition_plan", null);
+    lsSet("masar_nutrition_plan", null);
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("user_nutrition_plan").delete().eq("owner", CURRENT_OWNER);
+        if (error) { console.error("[deleteNutritionPlan] Supabase error:", error.message); lsSet("masar_nutrition_plan", before); return { ok: false, error: error.message }; }
+      } catch (e) { console.error("[deleteNutritionPlan] write failed:", e); lsSet("masar_nutrition_plan", before); return { ok: false, error: String(e) }; }
+    }
+    return { ok: true };
+  },
+
   async loadFitnessLog() {
     const local = lsGet("masar_fitness_log", {});
     if (!useCloud()) return local;

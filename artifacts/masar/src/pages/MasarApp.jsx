@@ -53,6 +53,7 @@ const MentalHealthView = lazy(() => import("../components/MentalHealthView"));
 const GroupsView = lazy(() => import("../components/GroupsView"));
 const VaultView = lazy(() => import("../components/VaultView"));
 const DietPlansView = lazy(() => import("../components/DietPlansView"));
+const NutritionPlanView = lazy(() => import("../components/NutritionPlanView"));
 
 // حاجز أخطاء محلي حول كل قسم مُقسَّم بالكسل (React.lazy): إن فشل تحميل
 // جزء (chunk) هذا القسم تحديداً - مثلاً بعد نشر جديد يجعل اسم الملف القديم
@@ -262,7 +263,7 @@ export default function MasarApp() {
   // التطبيق برابط "/?view=X" - لا علاقة له بأي منطق بيانات، مجرد قراءة
   // لمرة واحدة عند التحميل الأول لتحديد الشاشة الافتتاحية، مع قائمة بيضاء
   // صريحة حتى لا يقود رابط خارجي المستخدم لشاشة غير موجودة.
-  const VALID_SHORTCUT_VIEWS = ["today", "prayer", "adhkar", "tips", "you", "nutrition", "dietPlans", "fitness", "mental", "focus", "tasks", "goals", "vault", "reports", "groups", "assistant", "achieve", "settings"];
+  const VALID_SHORTCUT_VIEWS = ["today", "prayer", "adhkar", "tips", "you", "nutrition", "nutritionPlan", "dietPlans", "fitness", "mental", "focus", "tasks", "goals", "vault", "reports", "groups", "assistant", "achieve", "settings"];
   const [view, setView] = useState(() => {
     try {
       const requested = new URLSearchParams(window.location.search).get("view");
@@ -710,10 +711,11 @@ export default function MasarApp() {
           <div style={S.view}><UpsellCard icon={MessageCircle} title={i18n.language === "en" ? "Your AI assistant in Masar Premium" : "مساعدك الذكي في مسار الكامل"} message={i18n.language === "en" ? "A personal coach who analyzes your day and habits and suggests practical steps based on your actual data." : "مدرّب شخصي يحلّل يومك وعاداتك ويقترح خطوات عملية بناءً على بياناتك الفعلية."} /></div>
         ))}
         {view === "you" && <YouView healthProfile={healthProfile} setHealthProfile={setHealthProfile} showToast={showToast} />}
-        {(view === "nutrition" || view === "dietPlans" || view === "fitness" || view === "mental" || (view === "groups" && isSub) || (view === "vault" && isSub)) && (
+        {(view === "nutrition" || view === "nutritionPlan" || view === "dietPlans" || view === "fitness" || view === "mental" || (view === "groups" && isSub) || (view === "vault" && isSub)) && (
           <LazySectionErrorBoundary key={view} isEn={i18n.language === "en"}>
             <Suspense fallback={<div style={{ ...S.view, display: "flex", justifyContent: "center", padding: 40 }}><Loader2 size={24} color="#C9A24B" className="spin" /></div>}>
               {view === "nutrition" && <NutritionView healthProfile={healthProfile} showToast={showToast} profile={profile} setProfile={setProfile} subscription={subscription} />}
+              {view === "nutritionPlan" && <NutritionPlanView healthProfile={healthProfile} showToast={showToast} subscription={subscription} setView={setView} />}
               {view === "dietPlans" && <DietPlansView healthProfile={healthProfile} showToast={showToast} subscription={subscription} />}
               {view === "fitness" && <FitnessView healthProfile={healthProfile} showToast={showToast} />}
               {view === "mental" && <MentalHealthView setView={setView} showToast={showToast} />}

@@ -2,7 +2,7 @@ import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import {
-  X, Moon, Eye, User, Utensils, Dumbbell, HeartHandshake,
+  X, Moon, Eye, User, Utensils, Dumbbell, HeartHandshake, Salad,
   Timer, ListChecks, Target, Wallet, TrendingUp,
   MessageCircle, Rocket, Settings, Languages, Users,
 } from "lucide-react";
@@ -28,6 +28,7 @@ export const MENU_SECTIONS = [
     items: [
       { id: "you", labelKey: "nav.you", icon: User },
       { id: "nutrition", labelKey: "nav.nutrition", icon: Utensils },
+      { id: "dietPlans", labelKey: "nav.dietPlans", icon: Salad },
       { id: "fitness", labelKey: "nav.fitness", icon: Dumbbell },
       { id: "mental", labelKey: "nav.mentalHealth", icon: HeartHandshake },
     ],

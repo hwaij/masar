@@ -500,6 +500,46 @@ export const store = {
     return { ok: true };
   },
 
+  // ===== قسم "الأنظمة الغذائية" (user_diet_plan) - صف واحد فقط لكل مستخدم =====
+  async loadDietPlan() {
+    const local = lsGet("masar_diet_plan", null);
+    if (!useCloud()) return local;
+    try {
+      const { data, error } = await supabase.from("user_diet_plan").select("*").eq("owner", CURRENT_OWNER).maybeSingle();
+      if (error) { console.error("[loadDietPlan] Supabase error:", error.message); return local; }
+      if (!data) return local;
+      const result = { systemId: data.system_id, planText: data.plan_text, assessment: data.assessment || {}, generatedAt: data.generated_at };
+      lsSet("masar_diet_plan", result);
+      return result;
+    } catch (e) { console.error("[loadDietPlan] read failed:", e); return local; }
+  },
+  async saveDietPlan(plan) {
+    const before = lsGet("masar_diet_plan", null);
+    lsSet("masar_diet_plan", plan);
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("user_diet_plan").upsert({
+          owner: CURRENT_OWNER, system_id: plan.systemId, plan_text: plan.planText,
+          assessment: plan.assessment || {}, generated_at: plan.generatedAt || new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+        if (error) { console.error("[saveDietPlan] Supabase error:", error.message); lsSet("masar_diet_plan", before); return { ok: false, error: error.message }; }
+      } catch (e) { console.error("[saveDietPlan] write failed:", e); lsSet("masar_diet_plan", before); return { ok: false, error: String(e) }; }
+    }
+    return { ok: true };
+  },
+  async deleteDietPlan() {
+    const before = lsGet("masar_diet_plan", null);
+    lsSet("masar_diet_plan", null);
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("user_diet_plan").delete().eq("owner", CURRENT_OWNER);
+        if (error) { console.error("[deleteDietPlan] Supabase error:", error.message); lsSet("masar_diet_plan", before); return { ok: false, error: error.message }; }
+      } catch (e) { console.error("[deleteDietPlan] write failed:", e); lsSet("masar_diet_plan", before); return { ok: false, error: String(e) }; }
+    }
+    return { ok: true };
+  },
+
   async loadFitnessLog() {
     const local = lsGet("masar_fitness_log", {});
     if (!useCloud()) return local;

@@ -169,6 +169,21 @@ create table if not exists workout_log (
 );
 create index if not exists workout_log_owner_exercise on workout_log (owner, exercise_id, date);
 
+-- قسم "الأنظمة الغذائية": النظام المختار وخطته الشخصية المولَّدة عبر
+-- Gemini (بناءً على مبادئ ثابتة من diet-systems.js، لا اختراعاً). صف واحد
+-- فقط لكل مستخدم (آخر خطة نشطة) - إعادة البناء تستبدله لا تراكمه، تماماً
+-- كمبدأ upsert المستخدَم في fitness_profile/workout_program. assessment
+-- يحفظ لقطة من مدخلات البناء (دولة/ميزانية/تفضيلات/حساسية + وزن ونشاط
+-- وهدف وقت البناء) لاكتشاف حاجة التحديث لاحقاً إن تغيّرت في "أنت".
+create table if not exists user_diet_plan (
+  owner        text primary key default 'solo',
+  system_id    text not null,
+  plan_text    text not null,
+  assessment   jsonb not null default '{}'::jsonb,
+  generated_at timestamptz default now(),
+  updated_at   timestamptz default now()
+);
+
 -- قسم "الصحة النفسية": تسجيل يومي واحد لكل يوم (مزاج/توتر/طاقة/ملاحظة
 -- اختيارية)، مع علم flagged_risk عند اكتشاف كلمات خطر في الملاحظة (يُستخدم
 -- فقط لعرض بطاقة توجيه لمصادر دعم حقيقية، وليس أي تشخيص أو تدخل علاجي).
@@ -831,6 +846,10 @@ create policy workout_program_user_own on workout_program for all to authenticat
 alter table workout_log enable row level security;
 drop policy if exists workout_log_user_own on workout_log;
 create policy workout_log_user_own on workout_log for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
+alter table user_diet_plan enable row level security;
+drop policy if exists user_diet_plan_user_own on user_diet_plan;
+create policy user_diet_plan_user_own on user_diet_plan for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
 
 alter table mental_health_log enable row level security;
 drop policy if exists mental_health_log_anon_solo on mental_health_log;

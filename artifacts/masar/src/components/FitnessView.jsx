@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  Dumbbell, PersonStanding, Footprints, HeartPulse, Bike, Wind, Flame,
-  AlertTriangle, Edit3, Check, ExternalLink, Repeat, TrendingUp, X,
+  Dumbbell, PersonStanding, Footprints, HeartPulse, Bike, Wind, Flame, Settings2, StretchHorizontal,
+  AlertTriangle, Edit3, Check, Repeat, TrendingUp, X, ChevronDown, ChevronUp, Clapperboard, Circle,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { store, getOwner } from "../lib/store";
@@ -10,13 +10,16 @@ import { todayKey, uid } from "../lib/helpers";
 import { localDayKey } from "../lib/tips";
 import {
   FITNESS_GOALS, EQUIPMENT_ENVIRONMENTS, EXPERIENCE_LEVELS, SESSION_DURATIONS,
-  INJURY_AREAS, youtubeSearchUrl,
+  INJURY_AREAS, GEAR_TYPES,
 } from "../lib/exercises-db";
 import { buildProgram, pickAlternative, suggestProgression, seedFromOwner } from "../lib/fitness-engine";
 import { NO_CONDITION } from "../lib/health";
+import MuscleDiagram from "./MuscleDiagram";
 import { S } from "./styles";
 
-const ICONS = { Dumbbell, PersonStanding, Footprints, HeartPulse, Bike, Wind, Flame };
+const ICONS = { Dumbbell, PersonStanding, Footprints, HeartPulse, Bike, Wind, Flame, Settings2, StretchHorizontal };
+const DIFFICULTY_ORDER = ["beginner", "intermediate", "advanced"];
+
 
 const FS = {
   hero: { display: "flex", alignItems: "center", gap: 12, marginBottom: 16 },
@@ -50,12 +53,22 @@ const FS = {
   rotationSelect: { background: "var(--surface-sunken)", border: "1px solid var(--border2)", borderRadius: 10, padding: "8px 10px", fontSize: 12, color: "var(--ink)", fontFamily: "inherit" },
   dayCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "12px 12px", marginBottom: 10 },
   dayCardHead: { fontSize: 14, fontWeight: 700, color: "var(--gold)", marginBottom: 8 },
-  exerciseRow: { padding: "9px 0", borderBottom: "1px solid var(--line)" },
-  exerciseTop: { display: "flex", alignItems: "center", gap: 10 },
-  exerciseIcon: { width: 32, height: 32, borderRadius: 10, background: "var(--surface-sunken)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--gold)", flexShrink: 0 },
+  exerciseRow: { padding: "10px 0", borderBottom: "1px solid var(--line)" },
+  exerciseTop: { display: "flex", alignItems: "flex-start", gap: 10 },
+  diagramWrap: { width: 40, borderRadius: 10, background: "var(--surface-sunken)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: "5px 0" },
+  genericIconWrap: { width: 40, height: 40, borderRadius: 10, background: "var(--surface-sunken)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--gold)", flexShrink: 0 },
   exerciseName: { fontSize: 13.5, fontWeight: 700, color: "var(--ink)" },
   exerciseMeta: { fontSize: 11.5, color: "var(--muted2)", marginTop: 2 },
-  exerciseDesc: { fontSize: 11.5, color: "var(--muted2)", marginTop: 3, lineHeight: 1.6 },
+  badgeRow: { display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 },
+  badge: { display: "flex", alignItems: "center", gap: 3, fontSize: 10.5, fontWeight: 700, borderRadius: 20, padding: "3px 8px", background: "var(--surface-sunken)", color: "var(--muted2)", border: "1px solid var(--border2)" },
+  typeBadgeCompound: { background: "rgba(201,162,75,0.12)", color: "var(--gold)", border: "1px solid rgba(201,162,75,0.3)" },
+  typeBadgeIsolation: { background: "rgba(111,168,220,0.12)", color: "#6FA8DC", border: "1px solid rgba(111,168,220,0.3)" },
+  difficultyDots: { display: "flex", alignItems: "center", gap: 2 },
+  detailsPanel: { marginTop: 10, background: "var(--surface-sunken)", borderRadius: 10, padding: "12px 12px" },
+  detailsSectionTitle: { fontSize: 11.5, fontWeight: 700, color: "var(--gold)", marginBottom: 4, marginTop: 10 },
+  detailsText: { fontSize: 12, color: "var(--ink-soft)", lineHeight: 1.7, margin: 0 },
+  stepsList: { margin: "0 0 0 0", paddingInlineStart: 18, fontSize: 12, color: "var(--ink-soft)", lineHeight: 1.9 },
+  videoPlaceholder: { display: "flex", alignItems: "center", gap: 8, background: "var(--panel)", border: "1px dashed var(--border2)", borderRadius: 10, padding: "10px 10px", marginTop: 10, fontSize: 12, color: "var(--muted2)", fontWeight: 600 },
   actionsRow: { display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" },
   smallBtn: { display: "flex", alignItems: "center", gap: 4, background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.3)", color: "var(--gold)", borderRadius: 10, padding: "6px 10px", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", textDecoration: "none", flexShrink: 0 },
   progressionBadge: { display: "flex", alignItems: "center", gap: 4, background: "rgba(95,168,160,0.12)", color: "#5FA8A0", border: "1px solid rgba(95,168,160,0.35)", borderRadius: 10, padding: "6px 10px", fontSize: 11.5, fontWeight: 700, marginTop: 8 },
@@ -64,23 +77,63 @@ const FS = {
   logInput: { flex: 1, background: "var(--panel)", border: "1px solid var(--border2)", borderRadius: 8, padding: "8px 10px", color: "var(--ink)", fontSize: 13, fontFamily: "inherit", minWidth: 0 },
 };
 
-function ExerciseRow({ exercise, isEn, isLogging, onToggleLog, logWeight, setLogWeight, logReps, setLogReps, logSets, setLogSets, onSubmitPerformance, onSwap, progression, t }) {
-  const Icon = ICONS[exercise.icon] || Dumbbell;
+const CARDIO_MOBILITY_ICON = { cardio: HeartPulse, mobility: Wind };
+
+function DifficultyDots({ difficulty }) {
+  const idx = DIFFICULTY_ORDER.indexOf(difficulty);
+  return (
+    <span style={FS.difficultyDots}>
+      {DIFFICULTY_ORDER.map((_, i) => (
+        <Circle key={i} size={7} fill={i <= idx ? "#C9A24B" : "none"} color={i <= idx ? "#C9A24B" : "var(--border2)"} strokeWidth={1.5} />
+      ))}
+    </span>
+  );
+}
+
+function ExerciseRow({ exercise, isEn, isLogging, onToggleLog, logWeight, setLogWeight, logReps, setLogReps, logSets, setLogSets, onSubmitPerformance, onSwap, progression, expanded, onToggleExpand, t }) {
+  const gear = GEAR_TYPES.find((g) => g.key === exercise.gear);
+  const GearIcon = gear ? ICONS[gear.icon] || Dumbbell : Dumbbell;
+  const CardioMobilityIcon = CARDIO_MOBILITY_ICON[exercise.muscle];
   return (
     <div style={FS.exerciseRow}>
       <div style={FS.exerciseTop}>
-        <div style={FS.exerciseIcon}><Icon size={16} /></div>
-        <div style={{ flex: 1 }}>
+        {CardioMobilityIcon ? (
+          <div style={FS.genericIconWrap}><CardioMobilityIcon size={18} /></div>
+        ) : (
+          <div style={FS.diagramWrap}><MuscleDiagram muscle={exercise.muscle} size={30} /></div>
+        )}
+        <div style={{ flex: 1, minWidth: 0 }}>
           <div style={FS.exerciseName}>{isEn ? (exercise.nameEn || exercise.name) : exercise.name}</div>
           <div style={FS.exerciseMeta}>{t("fitness.setsReps", { sets: exercise.sets, reps: exercise.reps })} · {t("fitness.restLabel", { sec: exercise.restSeconds })}</div>
           <div style={FS.exerciseMeta}>{t("fitness.targetMuscle")}: {t(`fitness.muscleGroups.${exercise.muscle}`)}</div>
-          <div style={FS.exerciseDesc}>{isEn ? (exercise.descriptionEn || exercise.description) : exercise.description}</div>
+          <div style={FS.badgeRow}>
+            <span style={FS.badge}><GearIcon size={11} /> {isEn ? gear?.nameEn : gear?.name}</span>
+            <span style={{ ...FS.badge, ...(exercise.type === "compound" ? FS.typeBadgeCompound : exercise.type === "isolation" ? FS.typeBadgeIsolation : {}) }}>
+              {t(`fitness.exerciseTypes.${exercise.type}`)}
+            </span>
+            <span style={FS.badge}><DifficultyDots difficulty={exercise.difficulty} /> {t(`fitness.experienceLevels.${exercise.difficulty}`)}</span>
+          </div>
         </div>
       </div>
+
+      {expanded && (
+        <div style={FS.detailsPanel}>
+          <div style={FS.detailsSectionTitle}>{t("fitness.startingPositionTitle")}</div>
+          <p style={FS.detailsText}>{isEn ? (exercise.startPositionEn || exercise.startPosition) : exercise.startPosition}</p>
+          <div style={FS.detailsSectionTitle}>{t("fitness.stepsTitle")}</div>
+          <ol style={FS.stepsList}>
+            {(isEn ? (exercise.stepsEn || exercise.steps) : exercise.steps || []).map((step, i) => <li key={i}>{step}</li>)}
+          </ol>
+          <div style={FS.detailsSectionTitle}>{t("fitness.commonMistakeTitle")}</div>
+          <p style={FS.detailsText}>{isEn ? (exercise.commonMistakeEn || exercise.commonMistake) : exercise.commonMistake}</p>
+          <div style={FS.videoPlaceholder}><Clapperboard size={15} /> {t("fitness.videoComingSoon")}</div>
+        </div>
+      )}
+
       <div style={FS.actionsRow}>
-        <a href={youtubeSearchUrl(exercise, isEn ? "en" : "ar")} target="_blank" rel="noopener noreferrer" style={FS.smallBtn}>
-          <ExternalLink size={12} /> {t("fitness.watchTutorial")}
-        </a>
+        <button onClick={onToggleExpand} style={FS.smallBtn}>
+          {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />} {expanded ? t("fitness.hideDetailsBtn") : t("fitness.detailsBtn")}
+        </button>
         <button onClick={onSwap} style={{ ...FS.smallBtn, border: "1px solid var(--border2)", background: "transparent", color: "var(--muted2)" }}>
           <Repeat size={12} /> {t("fitness.alternativeBtn")}
         </button>
@@ -127,6 +180,7 @@ export default function FitnessView({ healthProfile, showToast }) {
   const [workoutLog, setWorkoutLog] = useState([]);
   const [draft, setDraft] = useState({ goal: null, equipment: null, daysPerWeek: 3, experience: null, sessionMinutes: 45, injuries: [] });
   const [loggingKey, setLoggingKey] = useState(null);
+  const [expandedKey, setExpandedKey] = useState(null);
   const [logWeight, setLogWeight] = useState("");
   const [logReps, setLogReps] = useState("");
   const [logSets, setLogSets] = useState("");
@@ -439,6 +493,8 @@ export default function FitnessView({ healthProfile, showToast }) {
                   isEn={isEn}
                   isLogging={loggingKey === key}
                   onToggleLog={() => setLoggingKey(loggingKey === key ? null : key)}
+                  expanded={expandedKey === key}
+                  onToggleExpand={() => setExpandedKey(expandedKey === key ? null : key)}
                   logWeight={logWeight} setLogWeight={setLogWeight}
                   logReps={logReps} setLogReps={setLogReps}
                   logSets={logSets} setLogSets={setLogSets}

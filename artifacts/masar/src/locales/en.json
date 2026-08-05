@@ -1139,7 +1139,6 @@
       "lower": "Lower body"
     },
     "setsReps": "{{sets}} sets × {{reps}}",
-    "watchTutorial": "Watch tutorial",
     "completeGoalFirst": "Complete the goal, equipment, days, experience level, and session duration",
     "planSaveFailed": "Couldn't save your program, try again",
     "planSaved": "Your program was saved",
@@ -1223,7 +1222,19 @@
     "noProgressYet": "Log your performance after each workout to see your progress here",
     "compoundFirst": "Compound exercises first, then isolation - to distribute your energy best.",
     "buildingProgram": "Building your program...",
-    "programSaveFailed": "Couldn't save your program, try again"
+    "programSaveFailed": "Couldn't save your program, try again",
+    "detailsBtn": "Details",
+    "hideDetailsBtn": "Hide details",
+    "startingPositionTitle": "Starting position",
+    "stepsTitle": "Steps",
+    "commonMistakeTitle": "Common mistake",
+    "videoComingSoon": "Tutorial video coming soon",
+    "exerciseTypes": {
+      "compound": "Compound",
+      "isolation": "Isolation",
+      "cardio": "Cardio",
+      "mobility": "Mobility"
+    }
   },
   "mentalHealth": {
     "moodLevels": {

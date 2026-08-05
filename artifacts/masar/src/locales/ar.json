@@ -1139,7 +1139,6 @@
       "lower": "الجزء السفلي"
     },
     "setsReps": "{{sets}} مجموعات × {{reps}}",
-    "watchTutorial": "شاهد الشرح",
     "completeGoalFirst": "أكمل الهدف والمعدات وعدد الأيام ومستوى الخبرة ومدة الحصة",
     "planSaveFailed": "تعذّر حفظ برنامجك، حاول مرة أخرى",
     "planSaved": "تم حفظ برنامجك",
@@ -1223,7 +1222,19 @@
     "noProgressYet": "سجّل أداءك بعد كل تمرين ليظهر تطوّرك هنا",
     "compoundFirst": "التمارين المركّبة أولاً ثم تمارين العزل - لتوزيع طاقتك بأفضل شكل.",
     "buildingProgram": "يجري بناء برنامجك...",
-    "programSaveFailed": "تعذّر حفظ برنامجك، حاول مرة أخرى"
+    "programSaveFailed": "تعذّر حفظ برنامجك، حاول مرة أخرى",
+    "detailsBtn": "التفاصيل",
+    "hideDetailsBtn": "إخفاء التفاصيل",
+    "startingPositionTitle": "وضعية البداية",
+    "stepsTitle": "خطوات الأداء",
+    "commonMistakeTitle": "خطأ شائع",
+    "videoComingSoon": "الفيديو التعليمي قريباً",
+    "exerciseTypes": {
+      "compound": "مركّب",
+      "isolation": "عزل",
+      "cardio": "كارديو",
+      "mobility": "مرونة"
+    }
   },
   "mentalHealth": {
     "moodLevels": {

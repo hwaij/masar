@@ -1245,7 +1245,17 @@
     "oneRepMaxEstimate": "أقصى وزن تقديري لمرة واحدة: {{value}} كغ",
     "nextExerciseBtn": "التمرين التالي",
     "finishWorkoutBtn": "إنهاء التمرين",
-    "exitWithoutFinishBtn": "خروج بدون إنهاء"
+    "exitWithoutFinishBtn": "خروج بدون إنهاء",
+    "lastTimeWeightReps": "آخر مرة: {{weight}} كغ × {{reps}} تكرار",
+    "lastTimeRepsOnly": "آخر مرة: {{reps}} تكرار",
+    "comparisonHeavier": "+{{diff}} كغ عن آخر مرة",
+    "comparisonLighter": "-{{diff}} كغ عن آخر مرة",
+    "comparisonSame": "نفس الوزن السابق",
+    "trainingVolumeTitle": "حجم التدريب حسب العضلة - آخر جلسة",
+    "volumeUnit": "كغ",
+    "noWeightedVolumeNote": "لا حمل رقمي مسجَّل في آخر جلسة - تمارين وزن الجسم والكارديو لا تُحتسب ضمن حجم التدريب لأنه بالتعريف وزن × تكرارات × مجموعات.",
+    "estimatedCaloriesValue": "~{{value}} سعرة حرارية تقديرية لهذه الجلسة",
+    "estimatedCaloriesNeedWeight": "أدخل وزنك في صفحة \"أنت\" لعرض تقدير السعرات الحرارية"
   },
   "mentalHealth": {
     "moodLevels": {

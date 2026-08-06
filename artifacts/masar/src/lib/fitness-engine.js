@@ -7,7 +7,7 @@
 // sets/reps حسب الهدف، ترتيب التمارين المركّبة قبل العزل، progressive
 // overload) مبادئ علمية عامة متّفق عليها في علم التدريب - لا اسم مدرب أو
 // برنامج تجاري محدَّد مذكور أو منسوخ هنا.
-import { EXERCISES } from "./exercises-db";
+import { EXERCISES, EXERCISES_BY_ID } from "./exercises-db";
 
 // ===== 1) اختيار التقسيم (Split) حسب عدد الأيام ومستوى الخبرة =====
 // مبدأ عام معروف: كلما زادت الأيام المتاحة، أمكن تخصيص كل يوم لعدد أقل من
@@ -317,4 +317,69 @@ export function estimateOneRepMax(weight, reps) {
   if (!Number.isFinite(w) || !Number.isFinite(r) || w <= 0 || r <= 0) return null;
   if (r === 1) return Math.round(w * 10) / 10;
   return Math.round(w * (1 + r / 30) * 10) / 10;
+}
+
+// ===== 6) مقارنة الأداء مع الجلسة السابقة =====
+// آخر أداء مسجَّل لهذا التمرين (باستثناء تاريخ الجلسة الحالية، حتى لا تُقارَن
+// مجموعات اليوم ببعضها أثناء وضع التركيز، بل بالجلسة السابقة الفعلية).
+export function getLastPerformance(exerciseId, workoutLog, excludeDate) {
+  const logs = (workoutLog || []).filter((l) => l.exerciseId === exerciseId && l.date !== excludeDate);
+  const aggregated = aggregateLogsByDate(logs);
+  return aggregated.length > 0 ? aggregated[aggregated.length - 1] : null;
+}
+
+// ===== 7) حجم التدريب (Training Volume = وزن × تكرارات × مجموعات) =====
+// نجمعه فقط للتمارين التي بها وزن رقمي فعلي مسجَّل - الحجم بتعريفه العلمي هو
+// "حمل × تكرار × مجموعات"، وتمارين وزن الجسم بلا وزن مسجَّل ليس لها حمل رقمي
+// حقيقي لتضمينه بأمانة (لا نستخدم رقماً وهمياً كبديل عن الوزن).
+function setVolume(log) {
+  return log.weight && log.weight > 0 ? log.weight * (log.reps || 0) * (log.setsCompleted || 0) : 0;
+}
+
+export function computeSessionVolumeByMuscle(workoutLog, date) {
+  const byMuscle = {};
+  for (const log of workoutLog || []) {
+    if (log.date !== date) continue;
+    const exercise = EXERCISES_BY_ID[log.exerciseId];
+    if (!exercise) continue;
+    const vol = setVolume(log);
+    if (vol <= 0) continue;
+    byMuscle[exercise.muscle] = (byMuscle[exercise.muscle] || 0) + vol;
+  }
+  return byMuscle;
+}
+
+// آخر تاريخ يحمل أي سجل أداء - لعرض حجم/سعرات "آخر جلسة" دون افتراض أنها اليوم.
+export function mostRecentLoggedDate(workoutLog) {
+  let latest = null;
+  for (const log of workoutLog || []) {
+    if (!latest || log.date > latest) latest = log.date;
+  }
+  return latest;
+}
+
+// ===== 8) تقدير السعرات الحرارية المحروقة في الجلسة =====
+// معادلة MET العامة والمعروفة في علم الفسيولوجيا الرياضية (ACSM):
+// سعرات/دقيقة = (MET × 3.5 × وزن الجسم كغ) / 200. قيم MET أدناه تقريبية عامة
+// حسب نوع التمرين (مركّب/عزل أثقل شدةً من كارديو خفيف، إلخ) - مرجع علمي عام
+// (Compendium of Physical Activities) لا نسخ من أي تطبيق. مدة كل مجموعة
+// تقديرية أيضاً (وقت أداء + راحة معتادان) لأن سجل الأداء لا يخزّن التوقيت
+// الفعلي - النتيجة تقدير عام يجب عرضه دائماً موصوفاً بذلك، لا رقماً دقيقاً.
+const MET_BY_TYPE = { compound: 6, isolation: 3.5, cardio: 8, mobility: 2.5 };
+const MINUTES_PER_SET_BY_TYPE = { compound: 1.5, isolation: 1.2, cardio: 1, mobility: 0.75 };
+
+export function estimateSessionCalories(workoutLog, date, bodyWeightKg) {
+  if (!bodyWeightKg || bodyWeightKg <= 0) return null;
+  let totalCalories = 0;
+  let matchedAnyLog = false;
+  for (const log of workoutLog || []) {
+    if (log.date !== date) continue;
+    const exercise = EXERCISES_BY_ID[log.exerciseId];
+    if (!exercise) continue;
+    matchedAnyLog = true;
+    const met = MET_BY_TYPE[exercise.type] || 5;
+    const minutes = (MINUTES_PER_SET_BY_TYPE[exercise.type] || 1.2) * (log.setsCompleted || 0);
+    totalCalories += ((met * 3.5 * bodyWeightKg) / 200) * minutes;
+  }
+  return matchedAnyLog ? Math.round(totalCalories) : null;
 }

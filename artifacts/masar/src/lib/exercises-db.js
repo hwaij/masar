@@ -667,3 +667,8 @@ export function toExerciseContract(exercise) {
 }
 
 export const EXERCISES_CONTRACT = EXERCISES.map(toExerciseContract);
+
+// فهرس تمارين حسب المعرّف (id) - يُستخدَم في fitness-engine.js لحساب حجم
+// التدريب والسعرات التقديرية من سجل الأداء (workout_log) الذي يحمل exerciseId
+// فقط بلا بيانات العضلة/النوع، فيُحتاج لبحث سريع بدل .find() في كل مرة.
+export const EXERCISES_BY_ID = Object.fromEntries(EXERCISES.map((e) => [e.id, e]));

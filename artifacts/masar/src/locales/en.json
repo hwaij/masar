@@ -1245,7 +1245,17 @@
     "oneRepMaxEstimate": "Estimated 1-rep max: {{value}} kg",
     "nextExerciseBtn": "Next exercise",
     "finishWorkoutBtn": "Finish workout",
-    "exitWithoutFinishBtn": "Exit without finishing"
+    "exitWithoutFinishBtn": "Exit without finishing",
+    "lastTimeWeightReps": "Last time: {{weight}} kg x {{reps}} reps",
+    "lastTimeRepsOnly": "Last time: {{reps}} reps",
+    "comparisonHeavier": "+{{diff}} kg vs last time",
+    "comparisonLighter": "-{{diff}} kg vs last time",
+    "comparisonSame": "Same weight as last time",
+    "trainingVolumeTitle": "Training volume by muscle - last session",
+    "volumeUnit": "kg",
+    "noWeightedVolumeNote": "No numeric load logged in the last session - bodyweight and cardio exercises aren't counted in training volume, since it's defined as weight x reps x sets.",
+    "estimatedCaloriesValue": "~{{value}} estimated calories for this session",
+    "estimatedCaloriesNeedWeight": "Enter your weight on the \"You\" page to see an estimated calorie count"
   },
   "mentalHealth": {
     "moodLevels": {

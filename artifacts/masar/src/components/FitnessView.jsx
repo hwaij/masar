@@ -13,7 +13,10 @@ import {
   FITNESS_GOALS, EQUIPMENT_ENVIRONMENTS, EXPERIENCE_LEVELS, SESSION_DURATIONS,
   INJURY_AREAS, GEAR_TYPES, MOVEMENT_PATTERNS,
 } from "../lib/exercises-db";
-import { buildProgram, pickAlternative, suggestProgression, seedFromOwner, estimateOneRepMax } from "../lib/fitness-engine";
+import {
+  buildProgram, pickAlternative, suggestProgression, seedFromOwner, estimateOneRepMax,
+  getLastPerformance, computeSessionVolumeByMuscle, estimateSessionCalories, mostRecentLoggedDate,
+} from "../lib/fitness-engine";
 import { NO_CONDITION } from "../lib/health";
 import { playRestEndSound, primeAudioContext } from "../lib/sound";
 import MuscleDiagram from "./MuscleDiagram";
@@ -90,6 +93,13 @@ const FS = {
   focusCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "16px 14px", marginBottom: 14 },
   focusSetTitle: { fontSize: 13, fontWeight: 700, color: "var(--gold)", marginBottom: 10, textAlign: "center" },
   oneRepMaxBadge: { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.3)", color: "var(--gold)", borderRadius: 10, padding: "8px 0", fontSize: 12.5, fontWeight: 700, marginBottom: 12 },
+  lastPerformanceRow: { display: "flex", alignItems: "center", justifyContent: "center", gap: 5, fontSize: 11.5, color: "var(--muted2)", fontWeight: 600, marginBottom: 10 },
+  comparisonRow: { fontSize: 11.5, fontWeight: 700, marginTop: 4, textAlign: "center" },
+  volumeCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 12px", marginBottom: 16 },
+  volumeRow: { marginTop: 10 },
+  volumeRowHead: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5, fontSize: 12.5, color: "var(--ink-soft)" },
+  volumeValue: { fontWeight: 700, color: "var(--ink)", direction: "ltr" },
+  caloriesRow: { display: "flex", alignItems: "center", gap: 7, marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--line)", fontSize: 12.5, color: "var(--ink-soft)", fontWeight: 600 },
   completeSetBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", border: "none", borderRadius: 12, padding: "13px 0", fontSize: 14.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", background: "var(--gold)", color: "var(--bg)" },
   restCard: { background: "rgba(95,168,160,0.1)", border: "1.5px solid rgba(95,168,160,0.35)", borderRadius: 16, padding: "18px 14px", marginBottom: 14, textAlign: "center" },
   restTitle: { fontSize: 12.5, fontWeight: 700, color: "#5FA8A0", marginBottom: 6 },
@@ -261,7 +271,7 @@ function ExerciseDetailView({ exercise, isEn, isRtl, onBack, t }) {
 function FocusModeView({
   flatExercises, exIndex, isEn, isRtl, t,
   weight, setWeight, reps, setReps, onCompleteSet, setsDoneForCurrent,
-  restEndsAt, restRemainingMs, onSkipRest, lastOneRepMax,
+  restEndsAt, restRemainingMs, onSkipRest, lastOneRepMax, lastPerformance,
   onNextExercise, onFinishWorkout, onExit,
 }) {
   const exercise = flatExercises[exIndex];
@@ -270,6 +280,17 @@ function FocusModeView({
   const resting = restEndsAt != null && restRemainingMs > 0;
   const restSecondsLeft = Math.ceil(restRemainingMs / 1000);
   const restTimeLabel = `${Math.floor(restSecondsLeft / 60)}:${String(restSecondsLeft % 60).padStart(2, "0")}`;
+
+  // مقارنة الوزن المُدخَل حالياً بآخر أداء مسجَّل لنفس التمرين (جلسة سابقة
+  // فعلية، لا مجموعات اليوم نفسه - انظر getLastPerformance في fitness-engine.js).
+  const currentWeightNum = parseFloat(weight);
+  let weightComparison = null;
+  if (lastPerformance && lastPerformance.weight > 0 && weight.trim() !== "" && Number.isFinite(currentWeightNum)) {
+    const diff = Math.round((currentWeightNum - lastPerformance.weight) * 100) / 100;
+    if (diff > 0) weightComparison = { text: t("fitness.comparisonHeavier", { diff }), tone: "up" };
+    else if (diff < 0) weightComparison = { text: t("fitness.comparisonLighter", { diff: Math.abs(diff) }), tone: "down" };
+    else weightComparison = { text: t("fitness.comparisonSame"), tone: "same" };
+  }
 
   return (
     <div style={{ ...S.view, ...FS.focusWrap }}>
@@ -302,9 +323,22 @@ function FocusModeView({
               <span key={i} style={{ ...FS.setDot, background: i < setsDoneForCurrent ? "#5FA8A0" : "var(--border2)" }} />
             ))}
           </div>
+          {lastPerformance && (
+            <div style={FS.lastPerformanceRow}>
+              <TrendingUp size={12} />
+              {lastPerformance.weight > 0
+                ? t("fitness.lastTimeWeightReps", { weight: lastPerformance.weight, reps: lastPerformance.reps })
+                : t("fitness.lastTimeRepsOnly", { reps: lastPerformance.reps })}
+            </div>
+          )}
           <label style={{ ...S.label, marginTop: 0 }}>{t("fitness.weightKg")}</label>
-          <input type="number" step="0.5" inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="0" style={{ ...S.input, marginTop: 4, marginBottom: 10 }} />
-          <label style={S.label}>{t("fitness.repsCompleted")}</label>
+          <input type="number" step="0.5" inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="0" style={{ ...S.input, marginTop: 4 }} />
+          {weightComparison && (
+            <div style={{ ...FS.comparisonRow, color: weightComparison.tone === "up" ? "#5FA8A0" : weightComparison.tone === "down" ? "#D17B5F" : "var(--muted2)" }}>
+              {weightComparison.text}
+            </div>
+          )}
+          <label style={{ ...S.label, marginTop: weightComparison ? 6 : 10 }}>{t("fitness.repsCompleted")}</label>
           <input type="number" inputMode="numeric" value={reps} onChange={(e) => setReps(e.target.value)} style={{ ...S.input, marginTop: 4 }} />
           {lastOneRepMax != null && (
             <div style={FS.oneRepMaxBadge}><TrendingUp size={13} /> {t("fitness.oneRepMaxEstimate", { value: lastOneRepMax })}</div>
@@ -432,6 +466,22 @@ export default function FitnessView({ healthProfile, showToast }) {
     return Object.entries(weeks).sort((a, b) => Number(a[0]) - Number(b[0])).slice(-8)
       .map(([, vol], i) => ({ label: String(i + 1), volume: Math.round(vol) }));
   }, [workoutLog]);
+
+  // ملخص آخر جلسة مسجَّلة: حجم التدريب لكل عضلة (وزن×تكرارات×مجموعات) +
+  // سعرات حرارية تقديرية (معادلة MET عامة - انظر fitness-engine.js).
+  const lastSessionSummary = useMemo(() => {
+    const date = mostRecentLoggedDate(workoutLog);
+    if (!date) return null;
+    const volumeByMuscle = computeSessionVolumeByMuscle(workoutLog, date);
+    const calories = estimateSessionCalories(workoutLog, date, healthProfile?.weightKg);
+    return { date, volumeByMuscle, calories };
+  }, [workoutLog, healthProfile]);
+
+  const maxMuscleVolume = useMemo(() => {
+    if (!lastSessionSummary) return 0;
+    const vals = Object.values(lastSessionSummary.volumeByMuscle);
+    return vals.length > 0 ? Math.max(...vals) : 0;
+  }, [lastSessionSummary]);
 
   function toggleInjury(key) {
     setDraft((d) => ({ ...d, injuries: d.injuries.includes(key) ? d.injuries.filter((x) => x !== key) : [...d.injuries, key] }));
@@ -578,6 +628,8 @@ export default function FitnessView({ healthProfile, showToast }) {
   function exitFocusWithoutFinishing() { setFocusDay(null); }
 
   if (focusDay) {
+    const currentFocusExercise = focusDay.exercises[focusExIndex];
+    const lastPerformance = getLastPerformance(currentFocusExercise.id, workoutLog, today);
     return (
       <FocusModeView
         flatExercises={focusDay.exercises}
@@ -593,6 +645,7 @@ export default function FitnessView({ healthProfile, showToast }) {
         restRemainingMs={restEndsAt != null ? Math.max(0, restEndsAt - nowTick) : 0}
         onSkipRest={skipRest}
         lastOneRepMax={focusOneRepMax}
+        lastPerformance={lastPerformance}
         onNextExercise={nextFocusExercise}
         onFinishWorkout={finishFocusWorkout}
         onExit={exitFocusWithoutFinishing}
@@ -733,6 +786,30 @@ export default function FitnessView({ healthProfile, showToast }) {
         </div>
       )}
       {progressChartData.length === 0 && <div style={S.emptyHint}>{t("fitness.noProgressYet")}</div>}
+
+      {lastSessionSummary && (
+        <div style={FS.volumeCard}>
+          <div style={S.chartTitle}>{t("fitness.trainingVolumeTitle")}</div>
+          {Object.keys(lastSessionSummary.volumeByMuscle).length > 0 ? (
+            Object.entries(lastSessionSummary.volumeByMuscle).sort((a, b) => b[1] - a[1]).map(([muscle, vol]) => (
+              <div key={muscle} style={FS.volumeRow}>
+                <div style={FS.volumeRowHead}>
+                  <span>{t(`fitness.muscleGroups.${muscle}`)}</span>
+                  <span style={FS.volumeValue}>{Math.round(vol).toLocaleString()} {t("fitness.volumeUnit")}</span>
+                </div>
+                <div style={FS.barTrack}><div style={{ ...FS.barFill, width: `${maxMuscleVolume > 0 ? Math.round((vol / maxMuscleVolume) * 100) : 0}%` }} /></div>
+              </div>
+            ))
+          ) : (
+            <p style={FS.noteText}>{t("fitness.noWeightedVolumeNote")}</p>
+          )}
+          {lastSessionSummary.calories != null ? (
+            <div style={FS.caloriesRow}><Flame size={14} color="#D17B5F" /> {t("fitness.estimatedCaloriesValue", { value: lastSessionSummary.calories })}</div>
+          ) : (
+            <div style={FS.caloriesRow}><Flame size={14} color="var(--muted2)" /> {t("fitness.estimatedCaloriesNeedWeight")}</div>
+          )}
+        </div>
+      )}
 
       <div className="stagger-in responsive-card-list">
         {programEntry?.program.days.map((day) => (

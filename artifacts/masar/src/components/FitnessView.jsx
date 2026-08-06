@@ -10,7 +10,7 @@ import { todayKey, uid } from "../lib/helpers";
 import { localDayKey } from "../lib/tips";
 import {
   FITNESS_GOALS, EQUIPMENT_ENVIRONMENTS, EXPERIENCE_LEVELS, SESSION_DURATIONS,
-  INJURY_AREAS, GEAR_TYPES,
+  INJURY_AREAS, GEAR_TYPES, MOVEMENT_PATTERNS,
 } from "../lib/exercises-db";
 import { buildProgram, pickAlternative, suggestProgression, seedFromOwner } from "../lib/fitness-engine";
 import { NO_CONDITION } from "../lib/health";
@@ -94,10 +94,13 @@ function ExerciseRow({ exercise, isEn, isLogging, onToggleLog, logWeight, setLog
   const gear = GEAR_TYPES.find((g) => g.key === exercise.gear);
   const GearIcon = gear ? ICONS[gear.icon] || Dumbbell : Dumbbell;
   const CardioMobilityIcon = CARDIO_MOBILITY_ICON[exercise.muscle];
+  const pattern = MOVEMENT_PATTERNS.find((p) => p.key === exercise.movementPattern);
   return (
     <div style={FS.exerciseRow}>
       <div style={FS.exerciseTop}>
-        {CardioMobilityIcon ? (
+        {exercise.imageUrl ? (
+          <div style={FS.diagramWrap}><img src={exercise.imageUrl} alt="" width={30} height={55} style={{ objectFit: "contain" }} /></div>
+        ) : CardioMobilityIcon ? (
           <div style={FS.genericIconWrap}><CardioMobilityIcon size={18} /></div>
         ) : (
           <div style={FS.diagramWrap}><MuscleDiagram muscle={exercise.muscle} size={30} /></div>
@@ -112,6 +115,7 @@ function ExerciseRow({ exercise, isEn, isLogging, onToggleLog, logWeight, setLog
               {t(`fitness.exerciseTypes.${exercise.type}`)}
             </span>
             <span style={FS.badge}><DifficultyDots difficulty={exercise.difficulty} /> {t(`fitness.experienceLevels.${exercise.difficulty}`)}</span>
+            {pattern && <span style={FS.badge}>{isEn ? pattern.nameEn : pattern.name}</span>}
           </div>
         </div>
       </div>
@@ -126,7 +130,15 @@ function ExerciseRow({ exercise, isEn, isLogging, onToggleLog, logWeight, setLog
           </ol>
           <div style={FS.detailsSectionTitle}>{t("fitness.commonMistakeTitle")}</div>
           <p style={FS.detailsText}>{isEn ? (exercise.commonMistakeEn || exercise.commonMistake) : exercise.commonMistake}</p>
-          <div style={FS.videoPlaceholder}><Clapperboard size={15} /> {t("fitness.videoComingSoon")}</div>
+          {exercise.tips && (
+            <>
+              <div style={FS.detailsSectionTitle}>{t("fitness.tipTitle")}</div>
+              <p style={FS.detailsText}>{isEn ? (exercise.tipsEn || exercise.tips) : exercise.tips}</p>
+            </>
+          )}
+          {!exercise.videoUrl && !exercise.animationUrl && (
+            <div style={FS.videoPlaceholder}><Clapperboard size={15} /> {t("fitness.videoComingSoon")}</div>
+          )}
         </div>
       )}
 

@@ -1234,7 +1234,8 @@
       "isolation": "Isolation",
       "cardio": "Cardio",
       "mobility": "Mobility"
-    }
+    },
+    "tipTitle": "Performance tip"
   },
   "mentalHealth": {
     "moodLevels": {

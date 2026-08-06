@@ -1234,7 +1234,8 @@
       "isolation": "عزل",
       "cardio": "كارديو",
       "mobility": "مرونة"
-    }
+    },
+    "tipTitle": "نصيحة أداء"
   },
   "mentalHealth": {
     "moodLevels": {

@@ -126,20 +126,30 @@ function candidatesFor(muscle, equipment, injuries, experience) {
 // يختار تمريناً واحداً لعضلة معيّنة، مفضِّلاً المركّب على العزل ومستبعداً
 // المستخدَم بالفعل هذا الأسبوع (تنويع بين الأيام) - مع تراجع لعضلة بديلة
 // آمنة إن لم يبقَ أي مرشح صالح (انظر MUSCLE_FALLBACK أعلاه).
-function pickOneForMuscle(muscle, equipment, injuries, experience, usedIds, rng, substitutionFlag) {
+//
+// usedPatternsToday (اختياري): مجموعة أنماط الحركة (movementPattern) المستخدَمة
+// بالفعل في نفس جلسة اليوم - مبدأ تدريبي عام معروف: استهداف العضلة عبر أكثر
+// من نمط حركة واحد ضمن نفس اليوم (دفع أفقي + رأسي مثلاً) يعطي تطوراً أعمّ من
+// تكرار نفس النمط الحركي بأدوات مختلفة فقط. يُستخدَم فقط كتفضيل ثانوي بعد
+// المركّب/العزل - لا يستبعد أي مرشح، فقط يعيد ترتيب الأولوية بينها.
+function pickOneForMuscle(muscle, equipment, injuries, experience, usedIds, rng, substitutionFlag, usedPatternsToday) {
   let pool = candidatesFor(muscle, equipment, injuries, experience).filter((e) => !usedIds.has(e.id));
   if (pool.length === 0) pool = candidatesFor(muscle, equipment, injuries, experience);
   if (pool.length === 0) {
     const fallbackMuscle = MUSCLE_FALLBACK[muscle];
     if (fallbackMuscle) {
       substitutionFlag.value = true;
-      return pickOneForMuscle(fallbackMuscle, equipment, injuries, experience, usedIds, rng, substitutionFlag);
+      return pickOneForMuscle(fallbackMuscle, equipment, injuries, experience, usedIds, rng, substitutionFlag, usedPatternsToday);
     }
     return null;
   }
   if (injuries.length > 0) substitutionFlag.value = true;
   const shuffled = seededShuffle(pool, rng);
   const compoundFirst = [...shuffled.filter((e) => e.type === "compound" || e.type === "cardio"), ...shuffled.filter((e) => e.type === "isolation" || e.type === "mobility")];
+  if (usedPatternsToday) {
+    const novelPattern = compoundFirst.find((e) => e.movementPattern && !usedPatternsToday.has(e.movementPattern));
+    if (novelPattern) return novelPattern;
+  }
   return compoundFirst[0] || shuffled[0];
 }
 
@@ -160,35 +170,44 @@ export function buildProgram(assessment, seed) {
     const muscles = DAY_TYPE_MUSCLES[dayType] || DAY_TYPE_MUSCLES.full_body;
     const dayRng = mulberry32((actualSeed + dayIndex * 977) >>> 0);
     const picked = [];
+    const usedPatternsToday = new Set();
+    const addPicked = (ex) => { picked.push(ex); usedThisWeek.add(ex.id); if (ex.movementPattern) usedPatternsToday.add(ex.movementPattern); };
     // مرحلة أولى: تمرين واحد لكل عضلة مستهدَفة (تغطية متوازنة أولاً).
     for (const muscle of muscles) {
       if (picked.length >= exerciseCount) break;
-      const ex = pickOneForMuscle(muscle, equipment, injuries, experience, usedThisWeek, dayRng, substitutionFlag);
-      if (ex) { picked.push(ex); usedThisWeek.add(ex.id); }
+      const ex = pickOneForMuscle(muscle, equipment, injuries, experience, usedThisWeek, dayRng, substitutionFlag, usedPatternsToday);
+      if (ex) addPicked(ex);
     }
     // مرحلة ثانية: إن سمحت مدة الحصة بتمارين إضافية، أضف تمريناً ثانياً
     // للعضلات الأساسية لليوم (أولوية للعضلات الكبرى) بالدوران عليها.
     let round = 0;
     while (picked.length < exerciseCount && round < muscles.length) {
       const muscle = muscles[round % muscles.length];
-      const ex = pickOneForMuscle(muscle, equipment, injuries, experience, usedThisWeek, dayRng, substitutionFlag);
-      if (ex) { picked.push(ex); usedThisWeek.add(ex.id); }
+      const ex = pickOneForMuscle(muscle, equipment, injuries, experience, usedThisWeek, dayRng, substitutionFlag, usedPatternsToday);
+      if (ex) addPicked(ex);
       round++;
     }
     // إن كان الهدف تنشيفاً، أضف تمريناً كارديو ختامياً قصيراً (مبدأ عام:
     // عجز سعرات أكبر باستهلاك إضافي، لا يستبدل تمارين المقاومة الأساسية).
     if (goal === "lose_weight" && picked.length < exerciseCount + 1) {
-      const cardioEx = pickOneForMuscle("cardio", equipment, injuries, experience, usedThisWeek, dayRng, substitutionFlag);
-      if (cardioEx) { picked.push(cardioEx); usedThisWeek.add(cardioEx.id); }
+      const cardioEx = pickOneForMuscle("cardio", equipment, injuries, experience, usedThisWeek, dayRng, substitutionFlag, usedPatternsToday);
+      if (cardioEx) addPicked(cardioEx);
     }
+    // تمرين تهدئة/مرونة واحد في ختام كل يوم بغضّ النظر عن الهدف - مبدأ
+    // تدريبي عام (تمدد بعد تمرين المقاومة يساعد المرونة والتعافي). يُفعّل
+    // هذا فعلياً مجموعة تمارين "المرونة" في قاعدة البيانات التي لم تكن تظهر
+    // لأي مستخدم من قبل (لا split يستهدف mobility كعضلة رئيسية) - بيانات
+    // كانت ميتة فعلياً حتى الآن.
+    const cooldownEx = pickOneForMuscle("mobility", equipment, injuries, experience, usedThisWeek, dayRng, substitutionFlag, usedPatternsToday);
+    if (cooldownEx) addPicked(cooldownEx);
 
     return {
       dayIndex,
       dayType,
       exercises: picked.map((e) => ({
         ...e,
-        sets: e.muscle === "cardio" ? 1 : sets,
-        reps: e.type === "cardio" ? e.reps : volume.reps,
+        sets: (e.muscle === "cardio" || e.muscle === "mobility") ? 1 : sets,
+        reps: (e.type === "cardio" || e.type === "mobility") ? e.reps : volume.reps,
         restSeconds: volume.restSeconds,
       })),
     };
@@ -223,7 +242,13 @@ export function pickAlternative(exercise, assessment, excludeIds = []) {
   if (pool.length === 0) return null;
   const sameType = pool.filter((e) => e.type === exercise.type);
   const candidates = sameType.length > 0 ? sameType : pool;
-  return candidates[Math.floor(Math.random() * candidates.length)];
+  // أكثر سبب واقعي لضغط "بديل" هو أن المعدة الحالية مشغولة أو غير متاحة
+  // فعلياً، لا مجرد رغبة بتنويع عشوائي - لذا نفضّل بديلاً بعتاد مختلف
+  // (exercise.gear) عن التمرين الحالي إن وُجد، مع التراجع لكل المرشحين
+  // المتوافقين إن لم يوجد خيار بعتاد مختلف.
+  const differentGear = candidates.filter((e) => e.gear !== exercise.gear);
+  const finalPool = differentGear.length > 0 ? differentGear : candidates;
+  return finalPool[Math.floor(Math.random() * finalPool.length)];
 }
 
 // ===== 5) التطوّر التلقائي (Progressive Overload) =====

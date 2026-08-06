@@ -115,7 +115,11 @@ export const MOVEMENT_PATTERNS = [
 //   (...MOVEMENT_PATTERNS keys)، videoUrl/imageUrl/animationUrl (فارغة
 //   دائماً حالياً - جاهزة لربط محتوى مسار الأصلي مستقبلاً بلا أي تعديل بنيوي:
 //   إن أُضيف imageUrl لاحقاً، بطاقة التمرين في FitnessView.jsx تعرضه تلقائياً
-//   بدل الرسم التخطيطي SVG دون أي تعديل كود إضافي).
+//   بدل الرسم التخطيطي SVG دون أي تعديل كود إضافي؛ وبالمثل videoUrl/
+//   animationUrl يُشغَّلان تلقائياً في صفحة التفاصيل إن أُضيفا). تمارين
+//   الكارديو والمرونة (type: cardio|mobility) تحمل reps/repsEn كنص مدة/
+//   تكرار (مثال: "30-45 ثانية" أو "8-10 تكرارات") بدل نطاق رقمي، لأنها
+//   تُقاس بالوقت أو التكرار البسيط لا بمجموعات/تكرارات تقليدية.
 //
 // ملاحظة حول تسمية الحقول: هذا الشكل (camelCase: id/name/nameEn/muscle/
 // steps/commonMistake...) يطابق دلالياً حقول العقد الاحترافي المطلوب
@@ -540,79 +544,79 @@ export const EXERCISES = [
     commonMistake: "سحب المقبض بالذراعين قبل دفع الساقين.", commonMistakeEn: "Pulling the handle with the arms before driving with the legs.", videoUrl: null, imageUrl: null, animationUrl: null, secondaryMuscles: [], movementPattern: "pull", tips: "حافظ على ترتيب الدفع: الساقان ثم الظهر ثم الذراعان.", tipsEn: "Keep the drive sequence: legs, then back, then arms." },
 
   // ===================== كارديو (cardio) =====================
-  { id: "jumping_jack", name: "نطة الفتح", nameEn: "Jumping jacks", muscle: "cardio", type: "cardio", equipment: ["gym", "home_full_equipment", "home_light_weights", "home_no_equipment"], difficulty: "beginner", joints: ["knee"], icon: "HeartPulse", gear: "bodyweight",
+  { id: "jumping_jack", name: "نطة الفتح", nameEn: "Jumping jacks", muscle: "cardio", type: "cardio", equipment: ["gym", "home_full_equipment", "home_light_weights", "home_no_equipment"], difficulty: "beginner", joints: ["knee"], icon: "HeartPulse", gear: "bodyweight", reps: "30-45 ثانية", repsEn: "30-45 seconds",
     description: "اقفز مع فتح الساقين والذراعين للأعلى في آن واحد، ثم عد للوضعية الأصلية بسرعة.", descriptionEn: "Jump while opening your legs and raising your arms up at the same time, then quickly return to the starting position.",
     startPosition: "قف باستقامة، القدمان متلاصقتان، الذراعان بجانب الجسم.", startPositionEn: "Stand tall, feet together, arms at your sides.",
     steps: ["اقفز مع فتح الساقين ورفع الذراعين فوق الرأس.", "اقفز مرة أخرى للعودة للوضعية الأصلية.", "كرّر بإيقاع ثابت."], stepsEn: ["Jump while spreading your legs and raising your arms overhead.", "Jump again to return to the starting position.", "Repeat at a steady rhythm."],
     commonMistake: "الهبوط بقوة على كعبين مستقيمتين بدل ثني خفيف بالركبتين.", commonMistakeEn: "Landing hard on stiff legs instead of a slight knee bend.", videoUrl: null, imageUrl: null, animationUrl: null, secondaryMuscles: [], movementPattern: "locomotion", tips: "اهبط بثني خفيف بالركبتين لحماية المفاصل.", tipsEn: "Land with a slight knee bend to protect your joints." },
-  { id: "high_knees", name: "رفع الركبتين", nameEn: "High knees", muscle: "cardio", type: "cardio", equipment: ["gym", "home_full_equipment", "home_light_weights", "home_no_equipment"], difficulty: "beginner", joints: ["knee"], icon: "HeartPulse", gear: "bodyweight",
+  { id: "high_knees", name: "رفع الركبتين", nameEn: "High knees", muscle: "cardio", type: "cardio", equipment: ["gym", "home_full_equipment", "home_light_weights", "home_no_equipment"], difficulty: "beginner", joints: ["knee"], icon: "HeartPulse", gear: "bodyweight", reps: "30-45 ثانية", repsEn: "30-45 seconds",
     description: "اركض في مكانك مع رفع الركبتين لأعلى قدر الإمكان بسرعة.", descriptionEn: "Run in place while raising your knees as high as possible, as fast as you can.",
     startPosition: "قف باستقامة، القدمان بعرض الوركين.", startPositionEn: "Stand tall, feet hip-width apart.",
     steps: ["ارفع ركبة واحدة نحو الصدر بسرعة.", "أنزلها وارفع الركبة الأخرى بالتناوب.", "حافظ على إيقاع سريع مع استقامة الجذع."], stepsEn: ["Quickly raise one knee toward your chest.", "Lower it and raise the other knee, alternating.", "Keep a fast rhythm with an upright torso."],
     commonMistake: "الانحناء بالجذع للأمام بدل البقاء منتصباً.", commonMistakeEn: "Leaning the torso forward instead of staying upright.", videoUrl: null, imageUrl: null, animationUrl: null, secondaryMuscles: [], movementPattern: "locomotion", tips: "ابدأ بإيقاع أبطأ للتحكّم قبل زيادة السرعة.", tipsEn: "Start at a slower pace for control before increasing speed." },
-  { id: "butt_kicks", name: "ركل المؤخرة", nameEn: "Butt kicks", muscle: "cardio", type: "cardio", equipment: ["gym", "home_full_equipment", "home_light_weights", "home_no_equipment"], difficulty: "beginner", joints: [], icon: "HeartPulse", gear: "bodyweight",
+  { id: "butt_kicks", name: "ركل المؤخرة", nameEn: "Butt kicks", muscle: "cardio", type: "cardio", equipment: ["gym", "home_full_equipment", "home_light_weights", "home_no_equipment"], difficulty: "beginner", joints: [], icon: "HeartPulse", gear: "bodyweight", reps: "30-45 ثانية", repsEn: "30-45 seconds",
     description: "اركض في مكانك مع محاولة لمس كعبيك لمؤخرتك بسرعة.", descriptionEn: "Run in place while trying to touch your glutes with your heels, quickly.",
     startPosition: "قف باستقامة، القدمان بعرض الوركين.", startPositionEn: "Stand tall, feet hip-width apart.",
     steps: ["اثنِ ركبة واحدة للخلف رافعاً الكعب نحو المؤخرة بسرعة.", "أنزلها وكرّر بالرجل الأخرى بالتناوب.", "حافظ على إيقاع سريع ومستمر."], stepsEn: ["Quickly bend one knee back, bringing the heel toward your glutes.", "Lower it and repeat with the other leg, alternating.", "Keep a fast, continuous rhythm."],
     commonMistake: "بطء الإيقاع بدل الحفاظ على سرعة تنشّط القلب.", commonMistakeEn: "Slowing the pace instead of keeping it fast enough to elevate heart rate.", videoUrl: null, imageUrl: null, animationUrl: null, secondaryMuscles: [], movementPattern: "locomotion", tips: "مثالي كإحماء سريع قبل تمارين الأرجل.", tipsEn: "Great as a quick warm-up before leg exercises." },
-  { id: "star_jump", name: "قفزة النجمة", nameEn: "Star jump", muscle: "cardio", type: "cardio", equipment: ["gym", "home_full_equipment", "home_light_weights", "home_no_equipment"], difficulty: "beginner", joints: ["knee"], icon: "HeartPulse", gear: "bodyweight",
+  { id: "star_jump", name: "قفزة النجمة", nameEn: "Star jump", muscle: "cardio", type: "cardio", equipment: ["gym", "home_full_equipment", "home_light_weights", "home_no_equipment"], difficulty: "beginner", joints: ["knee"], icon: "HeartPulse", gear: "bodyweight", reps: "20-30 ثانية", repsEn: "20-30 seconds",
     description: "اقفز من وضعية القرفصاء مع فرد الذراعين والساقين على شكل نجمة في الهواء.", descriptionEn: "Jump up from a squat position while spreading your arms and legs into a star shape in the air.",
     startPosition: "قف بوضعية سكوات خفيفة، اليدان أمام الصدر.", startPositionEn: "Stand in a slight squat position, hands in front of your chest.",
     steps: ["اقفز عمودياً بأقصى ما يمكن مع فرد الذراعين والساقين.", "اهبط بثني الركبتين لامتصاص القفزة.", "عد لوضعية السكوات الخفيفة وكرّر."], stepsEn: ["Jump vertically as high as possible while spreading your arms and legs.", "Land with bent knees to absorb the jump.", "Return to the slight squat position and repeat."],
     commonMistake: "الهبوط بركبتين مقفلتين بدل امتصاص الصدمة.", commonMistakeEn: "Landing with locked knees instead of absorbing the impact.", videoUrl: null, imageUrl: null, animationUrl: null, secondaryMuscles: [], movementPattern: "locomotion", tips: "امتصّ صدمة الهبوط بثني الركبتين مباشرة.", tipsEn: "Absorb the landing impact by bending your knees immediately." },
-  { id: "shadow_jump_rope", name: "قفز الحبل (بلا حبل)", nameEn: "Shadow jump rope", muscle: "cardio", type: "cardio", equipment: ["gym", "home_full_equipment", "home_light_weights", "home_no_equipment"], difficulty: "beginner", joints: ["knee"], icon: "HeartPulse", gear: "bodyweight",
+  { id: "shadow_jump_rope", name: "قفز الحبل (بلا حبل)", nameEn: "Shadow jump rope", muscle: "cardio", type: "cardio", equipment: ["gym", "home_full_equipment", "home_light_weights", "home_no_equipment"], difficulty: "beginner", joints: ["knee"], icon: "HeartPulse", gear: "bodyweight", reps: "45-60 ثانية", repsEn: "45-60 seconds",
     description: "قلّد حركة القفز على الحبل بالوثب الخفيف مع تحريك المعصمين، حتى دون حبل فعلي.", descriptionEn: "Mimic a jump rope motion with light hops and wrist movements, even without an actual rope.",
     startPosition: "قف باستقامة، القدمان متلاصقتان تقريباً، اليدان بجانب الوركين.", startPositionEn: "Stand tall, feet close together, hands at your sides near your hips.",
     steps: ["ثِب وثباً خفيفاً على أطراف أصابع القدمين.", "حرّك معصميك كأنك تدير حبلاً فعلياً.", "حافظ على إيقاع ثابت ومنخفض الارتفاع."], stepsEn: ["Hop lightly on the balls of your feet.", "Rotate your wrists as if turning an actual rope.", "Keep a steady, low-impact rhythm."],
     commonMistake: "القفز عالياً جداً فيُجهد الركبتين دون داعٍ.", commonMistakeEn: "Jumping too high, unnecessarily straining the knees.", videoUrl: null, imageUrl: null, animationUrl: null, secondaryMuscles: [], movementPattern: "locomotion", tips: "خيار ممتاز للإحماء أو أماكن بلا مساحة كافية لحبل حقيقي.", tipsEn: "A great option for warming up or spaces too tight for an actual rope." },
-  { id: "jump_rope", name: "نط الحبل", nameEn: "Jump rope", muscle: "cardio", type: "cardio", equipment: ["home_no_equipment", "home_light_weights", "home_full_equipment", "gym"], difficulty: "intermediate", joints: ["knee"], icon: "HeartPulse", gear: "bodyweight",
+  { id: "jump_rope", name: "نط الحبل", nameEn: "Jump rope", muscle: "cardio", type: "cardio", equipment: ["home_no_equipment", "home_light_weights", "home_full_equipment", "gym"], difficulty: "intermediate", joints: ["knee"], icon: "HeartPulse", gear: "bodyweight", reps: "45-60 ثانية", repsEn: "45-60 seconds",
     description: "انطّ بحبل حقيقي بإيقاع ثابت مع الحفاظ على استقامة الجسم.", descriptionEn: "Jump rope at a steady rhythm while keeping your body upright.",
     startPosition: "قف باستقامة، الحبل خلف الكعبين، مقبضاه بيديك.", startPositionEn: "Stand tall, the rope behind your heels, handles in your hands.",
     steps: ["أدر الحبل من المعصمين وانطّ خفيفاً فوقه.", "اهبط على أطراف أصابع القدمين.", "حافظ على إيقاع ثابت دون قفز عالٍ."], stepsEn: ["Turn the rope from your wrists and hop lightly over it.", "Land on the balls of your feet.", "Keep a steady rhythm without jumping too high."],
     commonMistake: "تحريك الذراعين بالكامل بدل المعصمين فقط.", commonMistakeEn: "Swinging the whole arms instead of just the wrists.", videoUrl: null, imageUrl: null, animationUrl: null, secondaryMuscles: [], movementPattern: "locomotion", tips: "ابدأ بجلسات قصيرة فالحركة تُجهد ربلة الساق سريعاً في البداية.", tipsEn: "Start with short sessions since the calves fatigue quickly at first." },
-  { id: "treadmill_run", name: "الجري على المشاية", nameEn: "Treadmill running", muscle: "cardio", type: "cardio", equipment: ["gym"], difficulty: "beginner", joints: ["knee"], icon: "Bike", gear: "machine",
+  { id: "treadmill_run", name: "الجري على المشاية", nameEn: "Treadmill running", muscle: "cardio", type: "cardio", equipment: ["gym"], difficulty: "beginner", joints: ["knee"], icon: "Bike", gear: "machine", reps: "5-10 دقائق", repsEn: "5-10 minutes",
     description: "اجرِ أو امشِ بسرعة ثابتة على المشاية مع رفع السرعة تدريجياً حسب لياقتك.", descriptionEn: "Run or walk at a steady pace on the treadmill, gradually increasing speed according to your fitness level.",
     startPosition: "قف على المشاية، ابدأ بسرعة مشي هادئة.", startPositionEn: "Stand on the treadmill, start at a comfortable walking pace.",
     steps: ["ارفع السرعة تدريجياً حتى إيقاع مريح للجري أو المشي السريع.", "حافظ على استقامة الجذع دون إمساك المقابض بقوة.", "خفّض السرعة تدريجياً في النهاية بدل التوقف المفاجئ."], stepsEn: ["Gradually increase speed to a comfortable running or brisk-walking pace.", "Keep your torso upright without gripping the handles tightly.", "Gradually reduce speed at the end instead of stopping abruptly."],
     commonMistake: "التوقف المفاجئ عن الحركة بدل خفض السرعة تدريجياً.", commonMistakeEn: "Stopping abruptly instead of gradually slowing down.", videoUrl: null, imageUrl: null, animationUrl: null, secondaryMuscles: [], movementPattern: "cardio", tips: "تجنّب الإمساك بالمقابض بقوة أثناء الجري - يقلّل فعالية التمرين.", tipsEn: "Avoid gripping the handrails tightly while running - it reduces the workout's effectiveness." },
-  { id: "stationary_bike", name: "الدراجة الثابتة", nameEn: "Stationary bike", muscle: "cardio", type: "cardio", equipment: ["gym", "home_full_equipment"], difficulty: "beginner", joints: ["knee"], icon: "Bike", gear: "machine",
+  { id: "stationary_bike", name: "الدراجة الثابتة", nameEn: "Stationary bike", muscle: "cardio", type: "cardio", equipment: ["gym", "home_full_equipment"], difficulty: "beginner", joints: ["knee"], icon: "Bike", gear: "machine", reps: "5-10 دقائق", repsEn: "5-10 minutes",
     description: "اضبط مقاومة متوسطة وادفع بانتظام لمدة الجلسة مع الحفاظ على معدل نبض ثابت.", descriptionEn: "Set a moderate resistance and pedal steadily for the session while keeping a consistent heart rate.",
     startPosition: "اجلس على الدراجة، اضبط ارتفاع المقعد بحيث تبقى الركبة مثنية قليلاً عند أدنى نقطة.", startPositionEn: "Sit on the bike, adjust the seat height so your knee stays slightly bent at the lowest pedal point.",
     steps: ["ابدأ بالدفع بإيقاع معتدل لبضع دقائق للإحماء.", "ارفع المقاومة أو السرعة تدريجياً حسب الهدف.", "خفّض الإيقاع تدريجياً في النهاية للتهدئة."], stepsEn: ["Start pedaling at a moderate pace for a few minutes to warm up.", "Gradually increase resistance or speed based on your goal.", "Gradually slow down at the end to cool down."],
     commonMistake: "ضبط ارتفاع المقعد بشكل خاطئ فيُجهد الركبتين.", commonMistakeEn: "Setting the seat height incorrectly, straining the knees.", videoUrl: null, imageUrl: null, animationUrl: null, secondaryMuscles: [], movementPattern: "cardio", tips: "اضبط المقاومة بحيث تكمل الجلسة كاملة دون توقف مبكر.", tipsEn: "Set the resistance so you can complete the full session without stopping early." },
-  { id: "elliptical", name: "جهاز الإليبتيكال", nameEn: "Elliptical machine", muscle: "cardio", type: "cardio", equipment: ["gym"], difficulty: "beginner", joints: [], icon: "Bike", gear: "machine",
+  { id: "elliptical", name: "جهاز الإليبتيكال", nameEn: "Elliptical machine", muscle: "cardio", type: "cardio", equipment: ["gym"], difficulty: "beginner", joints: [], icon: "Bike", gear: "machine", reps: "5-10 دقائق", repsEn: "5-10 minutes",
     description: "حرّك الجهاز بإيقاع ثابت مع دفع الذراعين والساقين معاً لتنشيط كامل الجسم.", descriptionEn: "Move the machine at a steady rhythm while pushing with both your arms and legs to activate your whole body.",
     startPosition: "قف على دواستي الجهاز، أمسك المقابض المتحرّكة بيديك.", startPositionEn: "Stand on the pedals, holding the moving handles with your hands.",
     steps: ["ادفع بالساقين والذراعين معاً بإيقاع ثابت.", "حافظ على استقامة الجذع دون الاتكاء على المقابض بثقل.", "غيّر اتجاه الحركة (للخلف) لتنويع التنشيط إن رغبت."], stepsEn: ["Push with your legs and arms together at a steady rhythm.", "Keep your torso upright without leaning heavily on the handles.", "Reverse the direction (pedal backward) for variety if you like."],
     commonMistake: "الاتكاء بثقل على المقابض بدل تحريك الجسم فعلياً.", commonMistakeEn: "Leaning heavily on the handles instead of actually driving the movement with the body.", videoUrl: null, imageUrl: null, animationUrl: null, secondaryMuscles: [], movementPattern: "cardio", tips: "جرّب الدفع للخلف من وقت لآخر لتنويع تنشيط العضلات.", tipsEn: "Try pedaling backward occasionally to vary muscle activation." },
 
   // ===================== مرونة وإحماء (mobility) =====================
-  { id: "cat_cow", name: "تمدد القطة والبقرة", nameEn: "Cat-cow stretch", muscle: "mobility", type: "mobility", equipment: ["gym", "home_full_equipment", "home_light_weights", "home_no_equipment"], difficulty: "beginner", joints: [], icon: "Wind", gear: "bodyweight",
+  { id: "cat_cow", name: "تمدد القطة والبقرة", nameEn: "Cat-cow stretch", muscle: "mobility", type: "mobility", equipment: ["gym", "home_full_equipment", "home_light_weights", "home_no_equipment"], difficulty: "beginner", joints: [], icon: "Wind", gear: "bodyweight", reps: "8-10 تكرارات", repsEn: "8-10 reps",
     description: "على وضعية الزحف، قوّس ظهرك للأعلى ثم للأسفل بالتناوب مع التنفس ببطء.", descriptionEn: "On all fours, arch your back up then down alternately while breathing slowly.",
     startPosition: "على أربع، اليدان تحت الكتفين والركبتان تحت الوركين.", startPositionEn: "On all fours, hands under shoulders and knees under hips.",
     steps: ["قوّس الظهر للأسفل مع رفع الرأس (البقرة) أثناء الشهيق.", "قوّس الظهر للأعلى مع خفض الرأس (القطة) أثناء الزفير.", "كرّر ببطء مع التنفس العميق."], stepsEn: ["Arch your back down while lifting your head (cow) while inhaling.", "Round your back up while lowering your head (cat) while exhaling.", "Repeat slowly with deep breathing."],
     commonMistake: "تحريك الظهر بسرعة بدل التزامن مع التنفس.", commonMistakeEn: "Moving the back quickly instead of syncing with the breath.", videoUrl: null, imageUrl: null, animationUrl: null, secondaryMuscles: [], movementPattern: "mobility", tips: "زامِن الحركة مع تنفسك ببطء لأفضل استفادة.", tipsEn: "Sync the movement slowly with your breath for the best benefit." },
-  { id: "hip_flexor_stretch", name: "تمدد ثنيات الورك", nameEn: "Hip flexor stretch", muscle: "mobility", type: "mobility", equipment: ["gym", "home_full_equipment", "home_light_weights", "home_no_equipment"], difficulty: "beginner", joints: [], icon: "Wind", gear: "bodyweight",
+  { id: "hip_flexor_stretch", name: "تمدد ثنيات الورك", nameEn: "Hip flexor stretch", muscle: "mobility", type: "mobility", equipment: ["gym", "home_full_equipment", "home_light_weights", "home_no_equipment"], difficulty: "beginner", joints: [], icon: "Wind", gear: "bodyweight", reps: "20-30 ثانية لكل جانب", repsEn: "20-30 seconds per side",
     description: "اركع بركبة واحدة وادفع الوركين للأمام برفق حتى تشعر بتمدد أمام الفخذ الخلفي، ثم بدّل الجانب.", descriptionEn: "Kneel on one knee and gently push your hips forward until you feel a stretch in front of your rear thigh, then switch sides.",
     startPosition: "اركع بركبة واحدة، الرجل الأخرى أمامك بزاوية 90 درجة.", startPositionEn: "Kneel on one knee, the other leg in front at a 90-degree angle.",
     steps: ["ادفع الوركين للأمام برفق مع بقاء الجذع منتصباً.", "استمر حتى تشعر بتمدد خفيف أمام الفخذ الخلفي.", "ثبّت الوضعية بضع ثوانٍ ثم بدّل الجانب."], stepsEn: ["Gently push your hips forward while keeping your torso upright.", "Continue until you feel a light stretch in front of your rear thigh.", "Hold for a few seconds, then switch sides."],
     commonMistake: "الانحناء بالجذع للأمام بدل دفع الوركين فقط.", commonMistakeEn: "Leaning the torso forward instead of just driving the hips.", videoUrl: null, imageUrl: null, animationUrl: null, secondaryMuscles: [], movementPattern: "mobility", tips: "مثالي لمن يجلس لساعات طويلة خلال اليوم.", tipsEn: "Great for anyone who sits for long hours during the day." },
-  { id: "shoulder_rolls", name: "لفّ الأكتاف", nameEn: "Shoulder rolls", muscle: "mobility", type: "mobility", equipment: ["gym", "home_full_equipment", "home_light_weights", "home_no_equipment"], difficulty: "beginner", joints: [], icon: "Wind", gear: "bodyweight",
+  { id: "shoulder_rolls", name: "لفّ الأكتاف", nameEn: "Shoulder rolls", muscle: "mobility", type: "mobility", equipment: ["gym", "home_full_equipment", "home_light_weights", "home_no_equipment"], difficulty: "beginner", joints: [], icon: "Wind", gear: "bodyweight", reps: "8-10 تكرارات لكل اتجاه", repsEn: "8-10 reps per direction",
     description: "ارفع كتفيك ولفّهما للخلف ثم للأمام ببطء لتحرير توتر الرقبة والكتفين.", descriptionEn: "Raise your shoulders and roll them backward then forward slowly to release tension in the neck and shoulders.",
     startPosition: "قف أو اجلس باستقامة، الذراعان مسترخيتان بجانب الجسم.", startPositionEn: "Stand or sit tall, arms relaxed at your sides.",
     steps: ["ارفع الكتفين نحو الأذنين ببطء.", "لفّهما للخلف ثم للأسفل في حركة دائرية.", "كرّر عدة مرات ثم بدّل الاتجاه للأمام."], stepsEn: ["Slowly raise your shoulders toward your ears.", "Roll them backward then down in a circular motion.", "Repeat several times, then switch direction forward."],
     commonMistake: "أداء الحركة بسرعة بدل لفّة بطيئة وكاملة المدى.", commonMistakeEn: "Rushing the movement instead of a slow, full-range roll.", videoUrl: null, imageUrl: null, animationUrl: null, secondaryMuscles: [], movementPattern: "mobility", tips: "يمكن أداؤه في أي وقت لتخفيف توتر الجلوس الطويل.", tipsEn: "Can be done anytime to relieve tension from long periods of sitting." },
-  { id: "quad_stretch", name: "تمدد الفخذ الأمامي", nameEn: "Standing quad stretch", muscle: "mobility", type: "mobility", equipment: ["gym", "home_full_equipment", "home_light_weights", "home_no_equipment"], difficulty: "beginner", joints: ["knee"], icon: "Wind", gear: "bodyweight",
+  { id: "quad_stretch", name: "تمدد الفخذ الأمامي", nameEn: "Standing quad stretch", muscle: "mobility", type: "mobility", equipment: ["gym", "home_full_equipment", "home_light_weights", "home_no_equipment"], difficulty: "beginner", joints: ["knee"], icon: "Wind", gear: "bodyweight", reps: "20-30 ثانية لكل جانب", repsEn: "20-30 seconds per side",
     description: "قف على رجل واحدة واسحب كعب الرجل الأخرى نحو المؤخرة برفق، ثم بدّل.", descriptionEn: "Stand on one leg and gently pull the heel of the other leg toward your glutes, then switch.",
     startPosition: "قف باستقامة، مستنداً على شيء ثابت للتوازن إن لزم.", startPositionEn: "Stand tall, holding onto something stable for balance if needed.",
     steps: ["اثنِ ركبة واحدة وامسك كعبها بيدك.", "اسحب الكعب برفق نحو المؤخرة حتى تشعر بتمدد أمام الفخذ.", "ثبّت بضع ثوانٍ ثم بدّل الرجل."], stepsEn: ["Bend one knee and grab the heel with your hand.", "Gently pull the heel toward your glutes until you feel a stretch in front of your thigh.", "Hold for a few seconds, then switch legs."],
     commonMistake: "سحب الكعب بقوة مفاجئة بدل تمدد تدريجي.", commonMistakeEn: "Yanking the heel suddenly instead of a gradual stretch.", videoUrl: null, imageUrl: null, animationUrl: null, secondaryMuscles: [], movementPattern: "mobility", tips: "اسحب الكعب برفق دون ثني الظهر للخلف.", tipsEn: "Gently pull the heel without arching your back." },
-  { id: "worlds_greatest_stretch", name: "التمدد الشامل", nameEn: "World's greatest stretch", muscle: "mobility", type: "mobility", equipment: ["gym", "home_full_equipment", "home_light_weights", "home_no_equipment"], difficulty: "intermediate", joints: [], icon: "Wind", gear: "bodyweight",
+  { id: "worlds_greatest_stretch", name: "التمدد الشامل", nameEn: "World's greatest stretch", muscle: "mobility", type: "mobility", equipment: ["gym", "home_full_equipment", "home_light_weights", "home_no_equipment"], difficulty: "intermediate", joints: [], icon: "Wind", gear: "bodyweight", reps: "5-8 تكرارات لكل جانب", repsEn: "5-8 reps per side",
     description: "خطِ خطوة واسعة للأمام وضع يدك على الأرض، ثم لُف جذعك ومدّ ذراعك الأخرى للأعلى، وبدّل الجانب.", descriptionEn: "Take a wide step forward and place your hand on the ground, then rotate your torso and extend your other arm upward.",
     startPosition: "خطِ خطوة واسعة للأمام بإحدى الرجلين، اليد المقابلة على الأرض بجانب القدم الأمامية.", startPositionEn: "Take a wide step forward with one leg, the opposite hand on the ground beside the front foot.",
     steps: ["لُف جذعك ومدّ ذراعك الحرّة نحو السقف.", "تابع النظر لليد المرفوعة إن أمكن.", "عد للوضعية الأصلية وبدّل الجانب."], stepsEn: ["Rotate your torso and extend your free arm toward the ceiling.", "Follow the raised hand with your gaze if comfortable.", "Return to the starting position and switch sides."],
     commonMistake: "فقدان توازن الرجل الخلفية أثناء اللَّفّ.", commonMistakeEn: "Losing balance on the back leg while rotating.", videoUrl: null, imageUrl: null, animationUrl: null, secondaryMuscles: [], movementPattern: "mobility", tips: "يجمع عدة تمددات في حركة واحدة - ممتاز كإحماء شامل.", tipsEn: "Combines several stretches into one movement - excellent as a full warm-up." },
-  { id: "neck_stretch", name: "تمدد الرقبة", nameEn: "Neck stretch", muscle: "mobility", type: "mobility", equipment: ["gym", "home_full_equipment", "home_light_weights", "home_no_equipment"], difficulty: "beginner", joints: [], icon: "Wind", gear: "bodyweight",
+  { id: "neck_stretch", name: "تمدد الرقبة", nameEn: "Neck stretch", muscle: "mobility", type: "mobility", equipment: ["gym", "home_full_equipment", "home_light_weights", "home_no_equipment"], difficulty: "beginner", joints: [], icon: "Wind", gear: "bodyweight", reps: "15-20 ثانية لكل جانب", repsEn: "15-20 seconds per side",
     description: "أمل رأسك برفق نحو كتف واحدة حتى تشعر بتمدد جانب الرقبة، ثم بدّل الجانب.", descriptionEn: "Gently tilt your head toward one shoulder until you feel a stretch on the side of your neck, then switch sides.",
     startPosition: "قف أو اجلس باستقامة، الكتفان مسترخيتان.", startPositionEn: "Stand or sit tall, shoulders relaxed.",
     steps: ["أمل رأسك برفق نحو كتف واحدة.", "استمر حتى تشعر بتمدد خفيف بجانب الرقبة.", "ثبّت بضع ثوانٍ ثم بدّل الجانب."], stepsEn: ["Gently tilt your head toward one shoulder.", "Continue until you feel a light stretch on the side of your neck.", "Hold for a few seconds, then switch sides."],
@@ -623,3 +627,43 @@ export const EXERCISES = [
 // home_light_weights) كتوسّع طبيعي، بينما home_no_equipment يبقى مقتصراً
 // على تمارين وزن الجسم الحقيقية فقط - لا حاجة لأي تحقّق إضافي هنا، القائمة
 // أعلاه صحيحة بذاتها.
+
+// ===== محوّل "العقد الاحترافي" (snake_case) للاستخدام الخارجي فقط =====
+// المرحلة 2 من مواصفة قسم الرياضة تطلب صراحة الحقول التالية بأسماء
+// snake_case: exercise_id, name_ar, name_en, image_url, animation_url,
+// video_url, primary_muscle, secondary_muscles, equipment, difficulty,
+// movement_pattern, instructions, tips, common_mistakes. كل حقل منها موجود
+// فعلياً أعلاه بمعناه الكامل بأسماء camelCase (انظر التعليق أعلى EXERCISES)
+// - وإعادة تسمية الحقول الأصلية بالكامل كانت ستكسر fitness-engine.js
+// وMuscleDiagram.jsx وFitnessView.jsx التي تعتمد عليها فعلياً، بلا أي فائدة
+// حقيقية تتجاوز شكل التسمية. الحل الهندسي الأفضل هنا: طبقة تحويل صريحة
+// توفّر الشكل المطلوب حرفياً لأي استهلاك خارجي مستقبلي (تصدير API، مزامنة
+// محتوى مع فريق خارجي، تغذية أداة تحليل) دون لمس أي من الحقول الداخلية أو
+// الملفات التي تعتمد عليها - لا شيء في المشروع يستخدم هذا المحوّل داخلياً.
+export function toExerciseContract(exercise) {
+  return {
+    exercise_id: exercise.id,
+    name_ar: exercise.name,
+    name_en: exercise.nameEn,
+    image_url: exercise.imageUrl,
+    animation_url: exercise.animationUrl,
+    video_url: exercise.videoUrl,
+    primary_muscle: exercise.muscle,
+    secondary_muscles: exercise.secondaryMuscles || [],
+    equipment: exercise.equipment,
+    difficulty: exercise.difficulty,
+    movement_pattern: exercise.movementPattern,
+    instructions: {
+      start_position_ar: exercise.startPosition,
+      start_position_en: exercise.startPositionEn,
+      steps_ar: exercise.steps,
+      steps_en: exercise.stepsEn,
+    },
+    tips_ar: exercise.tips,
+    tips_en: exercise.tipsEn,
+    common_mistakes_ar: exercise.commonMistake,
+    common_mistakes_en: exercise.commonMistakeEn,
+  };
+}
+
+export const EXERCISES_CONTRACT = EXERCISES.map(toExerciseContract);

@@ -70,6 +70,7 @@ const FS = {
   detailsText: { fontSize: 12, color: "var(--ink-soft)", lineHeight: 1.7, margin: 0 },
   stepsList: { margin: "0 0 0 0", paddingInlineStart: 18, fontSize: 12, color: "var(--ink-soft)", lineHeight: 1.9 },
   videoPlaceholder: { display: "flex", alignItems: "center", gap: 8, background: "var(--panel)", border: "1px dashed var(--border2)", borderRadius: 10, padding: "10px 10px", marginTop: 10, fontSize: 12, color: "var(--muted2)", fontWeight: 600 },
+  videoPlayer: { width: "100%", borderRadius: 10, marginTop: 10, display: "block" },
   actionsRow: { display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" },
   smallBtn: { display: "flex", alignItems: "center", gap: 4, background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.3)", color: "var(--gold)", borderRadius: 10, padding: "6px 10px", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", textDecoration: "none", flexShrink: 0 },
   progressionBadge: { display: "flex", alignItems: "center", gap: 4, background: "rgba(95,168,160,0.12)", color: "#5FA8A0", border: "1px solid rgba(95,168,160,0.35)", borderRadius: 10, padding: "6px 10px", fontSize: 11.5, fontWeight: 700, marginTop: 8 },
@@ -239,7 +240,11 @@ function ExerciseDetailView({ exercise, isEn, isRtl, onBack, t }) {
             <p style={FS.detailsText}>{isEn ? (exercise.tipsEn || exercise.tips) : exercise.tips}</p>
           </>
         )}
-        {!exercise.videoUrl && !exercise.animationUrl && (
+        {exercise.videoUrl ? (
+          <video src={exercise.videoUrl} controls playsInline style={FS.videoPlayer} />
+        ) : exercise.animationUrl ? (
+          <img src={exercise.animationUrl} alt="" style={FS.videoPlayer} />
+        ) : (
           <div style={FS.videoPlaceholder}><Clapperboard size={15} /> {t("fitness.videoComingSoon")}</div>
         )}
       </div>

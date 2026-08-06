@@ -1224,7 +1224,6 @@
     "buildingProgram": "يجري بناء برنامجك...",
     "programSaveFailed": "تعذّر حفظ برنامجك، حاول مرة أخرى",
     "detailsBtn": "التفاصيل",
-    "hideDetailsBtn": "إخفاء التفاصيل",
     "startingPositionTitle": "وضعية البداية",
     "stepsTitle": "خطوات الأداء",
     "commonMistakeTitle": "خطأ شائع",
@@ -1235,7 +1234,18 @@
       "cardio": "كارديو",
       "mobility": "مرونة"
     },
-    "tipTitle": "نصيحة أداء"
+    "tipTitle": "نصيحة أداء",
+    "backToProgram": "رجوع للبرنامج",
+    "startWorkoutBtn": "ابدأ التمرين",
+    "exerciseProgress": "التمرين {{current}} من {{total}}",
+    "setProgress": "المجموعة {{current}} من {{total}}",
+    "restingTitle": "وقت الراحة",
+    "skipRestBtn": "تخطّي الراحة",
+    "completeSetBtn": "أكملت المجموعة",
+    "oneRepMaxEstimate": "أقصى وزن تقديري لمرة واحدة: {{value}} كغ",
+    "nextExerciseBtn": "التمرين التالي",
+    "finishWorkoutBtn": "إنهاء التمرين",
+    "exitWithoutFinishBtn": "خروج بدون إنهاء"
   },
   "mentalHealth": {
     "moodLevels": {

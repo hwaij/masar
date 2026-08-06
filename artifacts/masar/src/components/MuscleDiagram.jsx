@@ -15,8 +15,12 @@ import { MUSCLE_SECONDARY } from "../lib/exercises-db";
 const FRONT_MUSCLES = new Set(["chest", "shoulders", "biceps", "quads", "abs"]);
 const BACK_MUSCLES = new Set(["back", "triceps", "hamstrings", "glutes", "calves"]);
 
-const GOLD = "#C9A24B";
-const GOLD_SOFT = "rgba(201,162,75,0.38)";
+// أحمر للعضلة الأساسية (اتفاقية شائعة عامة في مخططات العضلات التوضيحية -
+// "العضلة المستهدفة بالأحمر")، وذهبي (لون هوية مسار) للعضلة الثانوية -
+// تمييز واضح بين الاثنتين بمجرد النظر.
+const PRIMARY = "#E05252";
+const PRIMARY_SOFT = "rgba(224,82,82,0.35)";
+const SECONDARY = "#C9A24B";
 const NEUTRAL_FILL = "var(--surface-sunken)";
 const NEUTRAL_STROKE = "var(--border2)";
 
@@ -89,22 +93,27 @@ const REGION_SHAPE = {
 const FRONT_REGIONS = ["chest", "abs", "shoulders", "biceps", "quads"];
 const BACK_REGIONS = ["back", "triceps", "glutes", "hamstrings", "calves"];
 
-export default function MuscleDiagram({ muscle, size = 64 }) {
+// secondaryMuscles: مصفوفة عضلات ثانوية خاصة بتمرين محدَّد (exercise.
+// secondaryMuscles من exercises-db.js) - إن لم تُمرَّر، يُستخدَم احتياطياً
+// المتوسط العام لكل مجموعة عضلية (MUSCLE_SECONDARY) حتى تبقى الدالة تعمل
+// دون هذا الطرف الاختياري (توافق خلفي).
+export default function MuscleDiagram({ muscle, secondaryMuscles, size = 64 }) {
   const isFullBody = muscle === "full_body";
   const view = isFullBody || FRONT_MUSCLES.has(muscle) ? "front" : BACK_MUSCLES.has(muscle) ? "back" : null;
   if (!view) return null; // كارديو/مرونة: لا مخطط عضلة محدَّدة (تُعرَض أيقونة عامة بدلاً منه في مكان الاستدعاء)
 
   const regions = view === "front" ? FRONT_REGIONS : BACK_REGIONS;
-  const secondary = new Set(isFullBody ? [] : MUSCLE_SECONDARY[muscle] || []);
+  const secondaryList = isFullBody ? [] : (secondaryMuscles && secondaryMuscles.length > 0 ? secondaryMuscles : MUSCLE_SECONDARY[muscle] || []);
+  const secondary = new Set(secondaryList);
 
   return (
     <svg width={size} height={size * (110 / 60)} viewBox="0 0 60 110" fill="none">
       <Body>
         {regions.map((region) => {
           let fill = NEUTRAL_FILL;
-          if (isFullBody) fill = GOLD_SOFT;
-          else if (region === muscle) fill = GOLD;
-          else if (secondary.has(region)) fill = GOLD_SOFT;
+          if (isFullBody) fill = PRIMARY_SOFT;
+          else if (region === muscle) fill = PRIMARY;
+          else if (secondary.has(region)) fill = SECONDARY;
           return <React.Fragment key={region}>{REGION_SHAPE[region](fill)}</React.Fragment>;
         })}
       </Body>

@@ -54,3 +54,28 @@ export function playAchievementSound() {
     tone(ctx, 1109, t + 0.18, 0.14, 0.13);
   } catch (e) { console.error("[sound] playAchievementSound failed:", e); }
 }
+
+// انتهاء مؤقّت الراحة بين المجموعات (وضع التركيز في الرياضة): نغمتان
+// متكرّرتان لافتتان قصيرتان. تُستدعى من مؤقّت (setInterval) لا من ضغطة
+// مباشرة - انظر primeAudioContext أدناه لضمان جهوزية AudioContext رغم ذلك.
+export function playRestEndSound() {
+  if (!store.getLocalSoundEnabled()) return;
+  const ctx = getCtx();
+  if (!ctx) return;
+  try {
+    const t = ctx.currentTime;
+    tone(ctx, 784, t, 0.12, 0.13);
+    tone(ctx, 784, t + 0.18, 0.12, 0.13);
+  } catch (e) { console.error("[sound] playRestEndSound failed:", e); }
+}
+
+// المتصفحات (خصوصاً Safari) تشترط إنشاء/استئناف AudioContext من داخل
+// إيماءة مستخدم حقيقية (ضغطة فعلية). صوت انتهاء الراحة يُطلَق لاحقاً من
+// مؤقّت لا إيماءة مباشرة، فقد يفشل صامتاً إن كان هذا أول لمس لـAudioContext.
+// استدعِ هذه الدالة مباشرة من معالج ضغطة حقيقية (مثل زر "أكملت المجموعة"
+// الذي يبدأ الراحة) لتهيئة/استئناف السياق مبكراً، حتى يعمل الصوت لاحقاً
+// من المؤقّت بأمان.
+export function primeAudioContext() {
+  if (!store.getLocalSoundEnabled()) return;
+  getCtx();
+}

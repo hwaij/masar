@@ -239,10 +239,38 @@ export function parseRepRange(reps) {
   return [n, n];
 }
 
+// يجمع صفوف سجل تمرين واحد حسب التاريخ في صف واحد ممثِّل لكل يوم - ضروري
+// لأن "وضع التركيز" (Focus Mode) في FitnessView.jsx يسجّل كل مجموعة كصف
+// مستقل (setsCompleted: 1 لكل صف) بدل صف تجميعي واحد كالتسجيل اليدوي
+// القديم، فيصبح ليوم واحد عدة صفوف بدل صف واحد. عدد المجموعات = مجموع
+// الصفوف لذلك اليوم، والوزن = أثقل وزن استُخدم (أصعب مجموعة فعلية)،
+// والتكرارات = أقل عدد تكرارات أُنجز بين المجموعات (القياس المحافظ: "هل
+// حقّق الهدف في كل مجموعة" لا في مجموعة واحدة فقط). سجل قديم بصف واحد لكل
+// يوم يمر عبر هذه الدالة بلا أي تغيير في النتيجة (توافق كامل مع البيانات
+// السابقة).
+export function aggregateLogsByDate(logsForExercise) {
+  const byDate = {};
+  for (const log of logsForExercise || []) {
+    if (!byDate[log.date]) byDate[log.date] = { date: log.date, setsCompleted: 0, maxWeight: 0, minReps: Infinity, lastReps: 0 };
+    const bucket = byDate[log.date];
+    bucket.setsCompleted += log.setsCompleted || 0;
+    if ((log.weight || 0) > bucket.maxWeight) bucket.maxWeight = log.weight || 0;
+    if ((log.reps || 0) < bucket.minReps) bucket.minReps = log.reps || 0;
+    bucket.lastReps = log.reps || bucket.lastReps;
+  }
+  return Object.values(byDate)
+    .map((b) => ({
+      date: b.date, setsCompleted: b.setsCompleted,
+      weight: b.maxWeight > 0 ? b.maxWeight : null,
+      reps: b.minReps === Infinity ? b.lastReps : b.minReps,
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
 export function suggestProgression(exercise, logsForExercise) {
-  if (!logsForExercise || logsForExercise.length === 0) return null;
-  const sorted = [...logsForExercise].sort((a, b) => a.date.localeCompare(b.date));
-  const last = sorted[sorted.length - 1];
+  const aggregated = aggregateLogsByDate(logsForExercise);
+  if (aggregated.length === 0) return null;
+  const last = aggregated[aggregated.length - 1];
   const [, repUpper] = parseRepRange(exercise.reps);
   const metTarget = (last.reps || 0) >= repUpper && (last.setsCompleted || 0) >= exercise.sets;
   if (!metTarget) return null;
@@ -252,4 +280,16 @@ export function suggestProgression(exercise, logsForExercise) {
     return { type: "weight", suggestedWeight: Math.round((last.weight + increment) * 100) / 100, suggestedReps: repLower };
   }
   return { type: "reps", suggestedReps: (last.reps || repUpper) + 1 };
+}
+
+// تقدير أقصى وزن لمرة واحدة (1RM) بمعادلة Epley - معادلة علمية عامة منشورة
+// منذ عقود (Epley, 1985) لا حقوق ملكية عليها، مستخدَمة في كل مصادر علم
+// التدريب كنقطة بداية تقديرية (ليست قياساً دقيقاً حقيقياً - تختلف كل جسم
+// عن الأخرى، والتقدير يفقد دقته مع التكرارات العالية جداً).
+export function estimateOneRepMax(weight, reps) {
+  const w = Number(weight);
+  const r = Number(reps);
+  if (!Number.isFinite(w) || !Number.isFinite(r) || w <= 0 || r <= 0) return null;
+  if (r === 1) return Math.round(w * 10) / 10;
+  return Math.round(w * (1 + r / 30) * 10) / 10;
 }

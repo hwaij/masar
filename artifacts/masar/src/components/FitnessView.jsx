@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Dumbbell, PersonStanding, Footprints, HeartPulse, Bike, Wind, Flame, Settings2, StretchHorizontal,
-  AlertTriangle, Edit3, Check, Repeat, TrendingUp, X, ChevronDown, ChevronUp, Clapperboard, Circle,
+  AlertTriangle, Edit3, Check, Repeat, TrendingUp, X, ChevronLeft, ChevronRight,
+  Clapperboard, Circle, Play, SkipForward, PartyPopper,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { store, getOwner } from "../lib/store";
@@ -12,8 +13,9 @@ import {
   FITNESS_GOALS, EQUIPMENT_ENVIRONMENTS, EXPERIENCE_LEVELS, SESSION_DURATIONS,
   INJURY_AREAS, GEAR_TYPES, MOVEMENT_PATTERNS,
 } from "../lib/exercises-db";
-import { buildProgram, pickAlternative, suggestProgression, seedFromOwner } from "../lib/fitness-engine";
+import { buildProgram, pickAlternative, suggestProgression, seedFromOwner, estimateOneRepMax } from "../lib/fitness-engine";
 import { NO_CONDITION } from "../lib/health";
+import { playRestEndSound, primeAudioContext } from "../lib/sound";
 import MuscleDiagram from "./MuscleDiagram";
 import { S } from "./styles";
 
@@ -64,7 +66,6 @@ const FS = {
   typeBadgeCompound: { background: "rgba(201,162,75,0.12)", color: "var(--gold)", border: "1px solid rgba(201,162,75,0.3)" },
   typeBadgeIsolation: { background: "rgba(111,168,220,0.12)", color: "#6FA8DC", border: "1px solid rgba(111,168,220,0.3)" },
   difficultyDots: { display: "flex", alignItems: "center", gap: 2 },
-  detailsPanel: { marginTop: 10, background: "var(--surface-sunken)", borderRadius: 10, padding: "12px 12px" },
   detailsSectionTitle: { fontSize: 11.5, fontWeight: 700, color: "var(--gold)", marginBottom: 4, marginTop: 10 },
   detailsText: { fontSize: 12, color: "var(--ink-soft)", lineHeight: 1.7, margin: 0 },
   stepsList: { margin: "0 0 0 0", paddingInlineStart: 18, fontSize: 12, color: "var(--ink-soft)", lineHeight: 1.9 },
@@ -75,6 +76,30 @@ const FS = {
   logForm: { marginTop: 8, background: "var(--surface-sunken)", borderRadius: 10, padding: "10px 10px" },
   logRow: { display: "flex", gap: 6, marginTop: 6 },
   logInput: { flex: 1, background: "var(--panel)", border: "1px solid var(--border2)", borderRadius: 8, padding: "8px 10px", color: "var(--ink)", fontSize: 13, fontFamily: "inherit", minWidth: 0 },
+  backRow: { display: "flex", alignItems: "center", gap: 6, color: "var(--gold)", fontSize: 13, fontWeight: 700, cursor: "pointer", marginBottom: 14, background: "none", border: "none", fontFamily: "inherit", padding: 0 },
+  detailHero: { display: "flex", flexDirection: "column", alignItems: "center", gap: 10, marginBottom: 18 },
+  detailName: { fontSize: 18, fontWeight: 700, color: "var(--ink)", textAlign: "center" },
+  detailSectionCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 12px", marginBottom: 12 },
+  startWorkoutBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", border: "none", borderRadius: 12, padding: "12px 0", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", marginTop: 10, background: "linear-gradient(135deg, #5FA8A0, #3E7E78)", color: "#fff" },
+  focusWrap: { minHeight: "100%", display: "flex", flexDirection: "column" },
+  focusProgress: { fontSize: 12, color: "var(--muted2)", fontWeight: 700, marginBottom: 10, textAlign: "center" },
+  focusDiagramWrap: { display: "flex", justifyContent: "center", marginBottom: 12 },
+  focusExerciseName: { fontSize: 19, fontWeight: 700, color: "var(--ink)", textAlign: "center", marginBottom: 4 },
+  focusMeta: { fontSize: 12.5, color: "var(--muted2)", textAlign: "center", marginBottom: 16 },
+  focusCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "16px 14px", marginBottom: 14 },
+  focusSetTitle: { fontSize: 13, fontWeight: 700, color: "var(--gold)", marginBottom: 10, textAlign: "center" },
+  oneRepMaxBadge: { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.3)", color: "var(--gold)", borderRadius: 10, padding: "8px 0", fontSize: 12.5, fontWeight: 700, marginBottom: 12 },
+  completeSetBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", border: "none", borderRadius: 12, padding: "13px 0", fontSize: 14.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", background: "var(--gold)", color: "var(--bg)" },
+  restCard: { background: "rgba(95,168,160,0.1)", border: "1.5px solid rgba(95,168,160,0.35)", borderRadius: 16, padding: "18px 14px", marginBottom: 14, textAlign: "center" },
+  restTitle: { fontSize: 12.5, fontWeight: 700, color: "#5FA8A0", marginBottom: 6 },
+  restTime: { fontSize: 34, fontWeight: 700, color: "var(--ink)", direction: "ltr", marginBottom: 10 },
+  skipRestBtn: { display: "inline-flex", alignItems: "center", gap: 6, background: "transparent", border: "1px solid var(--border2)", color: "var(--muted2)", borderRadius: 10, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
+  focusFooterRow: { display: "flex", gap: 8, marginTop: "auto", paddingTop: 12 },
+  nextExerciseBtn: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, border: "1px solid var(--border2)", background: "transparent", color: "var(--ink)", borderRadius: 12, padding: "12px 0", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
+  finishWorkoutBtn: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, border: "none", background: "linear-gradient(135deg, #5FA8A0, #3E7E78)", color: "#fff", borderRadius: 12, padding: "12px 0", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
+  exitFocusBtn: { display: "flex", alignItems: "center", gap: 6, color: "var(--muted2)", fontSize: 12.5, fontWeight: 600, cursor: "pointer", background: "none", border: "none", fontFamily: "inherit", padding: 0, marginBottom: 14 },
+  setsCompletedRow: { display: "flex", justifyContent: "center", gap: 6, marginBottom: 14 },
+  setDot: { width: 10, height: 10, borderRadius: "50%" },
 };
 
 const CARDIO_MOBILITY_ICON = { cardio: HeartPulse, mobility: Wind };
@@ -90,11 +115,12 @@ function DifficultyDots({ difficulty }) {
   );
 }
 
-function ExerciseRow({ exercise, isEn, isLogging, onToggleLog, logWeight, setLogWeight, logReps, setLogReps, logSets, setLogSets, onSubmitPerformance, onSwap, progression, expanded, onToggleExpand, t }) {
+function ExerciseRow({ exercise, isEn, isLogging, onToggleLog, logWeight, setLogWeight, logReps, setLogReps, logSets, setLogSets, onSubmitPerformance, onSwap, onOpenDetail, progression, t }) {
   const gear = GEAR_TYPES.find((g) => g.key === exercise.gear);
   const GearIcon = gear ? ICONS[gear.icon] || Dumbbell : Dumbbell;
   const CardioMobilityIcon = CARDIO_MOBILITY_ICON[exercise.muscle];
   const pattern = MOVEMENT_PATTERNS.find((p) => p.key === exercise.movementPattern);
+  const ForwardChevron = isEn ? ChevronRight : ChevronLeft;
   return (
     <div style={FS.exerciseRow}>
       <div style={FS.exerciseTop}>
@@ -103,7 +129,7 @@ function ExerciseRow({ exercise, isEn, isLogging, onToggleLog, logWeight, setLog
         ) : CardioMobilityIcon ? (
           <div style={FS.genericIconWrap}><CardioMobilityIcon size={18} /></div>
         ) : (
-          <div style={FS.diagramWrap}><MuscleDiagram muscle={exercise.muscle} size={30} /></div>
+          <div style={FS.diagramWrap}><MuscleDiagram muscle={exercise.muscle} secondaryMuscles={exercise.secondaryMuscles} size={30} /></div>
         )}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={FS.exerciseName}>{isEn ? (exercise.nameEn || exercise.name) : exercise.name}</div>
@@ -120,31 +146,9 @@ function ExerciseRow({ exercise, isEn, isLogging, onToggleLog, logWeight, setLog
         </div>
       </div>
 
-      {expanded && (
-        <div style={FS.detailsPanel}>
-          <div style={FS.detailsSectionTitle}>{t("fitness.startingPositionTitle")}</div>
-          <p style={FS.detailsText}>{isEn ? (exercise.startPositionEn || exercise.startPosition) : exercise.startPosition}</p>
-          <div style={FS.detailsSectionTitle}>{t("fitness.stepsTitle")}</div>
-          <ol style={FS.stepsList}>
-            {(isEn ? (exercise.stepsEn || exercise.steps) : exercise.steps || []).map((step, i) => <li key={i}>{step}</li>)}
-          </ol>
-          <div style={FS.detailsSectionTitle}>{t("fitness.commonMistakeTitle")}</div>
-          <p style={FS.detailsText}>{isEn ? (exercise.commonMistakeEn || exercise.commonMistake) : exercise.commonMistake}</p>
-          {exercise.tips && (
-            <>
-              <div style={FS.detailsSectionTitle}>{t("fitness.tipTitle")}</div>
-              <p style={FS.detailsText}>{isEn ? (exercise.tipsEn || exercise.tips) : exercise.tips}</p>
-            </>
-          )}
-          {!exercise.videoUrl && !exercise.animationUrl && (
-            <div style={FS.videoPlaceholder}><Clapperboard size={15} /> {t("fitness.videoComingSoon")}</div>
-          )}
-        </div>
-      )}
-
       <div style={FS.actionsRow}>
-        <button onClick={onToggleExpand} style={FS.smallBtn}>
-          {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />} {expanded ? t("fitness.hideDetailsBtn") : t("fitness.detailsBtn")}
+        <button onClick={onOpenDetail} style={FS.smallBtn}>
+          <ForwardChevron size={12} /> {t("fitness.detailsBtn")}
         </button>
         <button onClick={onSwap} style={{ ...FS.smallBtn, border: "1px solid var(--border2)", background: "transparent", color: "var(--muted2)" }}>
           <Repeat size={12} /> {t("fitness.alternativeBtn")}
@@ -182,9 +186,142 @@ function ExerciseRow({ exercise, isEn, isLogging, onToggleLog, logWeight, setLog
   );
 }
 
+// صفحة تفاصيل تمرين كاملة (نمط "صفحة كاملة + زر رجوع" المستخدَم في
+// DietPlansView.jsx) بدل اللوحة المطوية السابقة - مساحة أكبر لعرض المخطط
+// التشريحي والخطوات بوضوح.
+function ExerciseDetailView({ exercise, isEn, isRtl, onBack, t }) {
+  const BackChevron = isRtl ? ChevronRight : ChevronLeft;
+  const gear = GEAR_TYPES.find((g) => g.key === exercise.gear);
+  const GearIcon = gear ? ICONS[gear.icon] || Dumbbell : Dumbbell;
+  const CardioMobilityIcon = CARDIO_MOBILITY_ICON[exercise.muscle];
+  const pattern = MOVEMENT_PATTERNS.find((p) => p.key === exercise.movementPattern);
+  return (
+    <div style={S.view}>
+      <button onClick={onBack} style={FS.backRow}>
+        <BackChevron size={16} /> {t("fitness.backToProgram")}
+      </button>
+      <div style={FS.detailHero}>
+        {exercise.imageUrl ? (
+          <img src={exercise.imageUrl} alt="" width={70} height={128} style={{ objectFit: "contain" }} />
+        ) : CardioMobilityIcon ? (
+          <div style={{ ...FS.genericIconWrap, width: 70, height: 70 }}><CardioMobilityIcon size={32} /></div>
+        ) : (
+          <MuscleDiagram muscle={exercise.muscle} secondaryMuscles={exercise.secondaryMuscles} size={70} />
+        )}
+        <div style={FS.detailName}>{isEn ? (exercise.nameEn || exercise.name) : exercise.name}</div>
+        <div style={FS.badgeRow}>
+          <span style={FS.badge}><GearIcon size={11} /> {isEn ? gear?.nameEn : gear?.name}</span>
+          <span style={{ ...FS.badge, ...(exercise.type === "compound" ? FS.typeBadgeCompound : exercise.type === "isolation" ? FS.typeBadgeIsolation : {}) }}>
+            {t(`fitness.exerciseTypes.${exercise.type}`)}
+          </span>
+          <span style={FS.badge}><DifficultyDots difficulty={exercise.difficulty} /> {t(`fitness.experienceLevels.${exercise.difficulty}`)}</span>
+          {pattern && <span style={FS.badge}>{isEn ? pattern.nameEn : pattern.name}</span>}
+        </div>
+      </div>
+
+      <div style={FS.detailSectionCard}>
+        <div style={FS.exerciseMeta}>{t("fitness.setsReps", { sets: exercise.sets, reps: exercise.reps })} · {t("fitness.restLabel", { sec: exercise.restSeconds })}</div>
+        <div style={{ ...FS.exerciseMeta, marginTop: 4 }}>{t("fitness.targetMuscle")}: {t(`fitness.muscleGroups.${exercise.muscle}`)}</div>
+      </div>
+
+      <div style={FS.detailSectionCard}>
+        <div style={FS.detailsSectionTitle}>{t("fitness.startingPositionTitle")}</div>
+        <p style={FS.detailsText}>{isEn ? (exercise.startPositionEn || exercise.startPosition) : exercise.startPosition}</p>
+        <div style={FS.detailsSectionTitle}>{t("fitness.stepsTitle")}</div>
+        <ol style={FS.stepsList}>
+          {(isEn ? (exercise.stepsEn || exercise.steps) : exercise.steps || []).map((step, i) => <li key={i}>{step}</li>)}
+        </ol>
+        <div style={FS.detailsSectionTitle}>{t("fitness.commonMistakeTitle")}</div>
+        <p style={FS.detailsText}>{isEn ? (exercise.commonMistakeEn || exercise.commonMistake) : exercise.commonMistake}</p>
+        {exercise.tips && (
+          <>
+            <div style={FS.detailsSectionTitle}>{t("fitness.tipTitle")}</div>
+            <p style={FS.detailsText}>{isEn ? (exercise.tipsEn || exercise.tips) : exercise.tips}</p>
+          </>
+        )}
+        {!exercise.videoUrl && !exercise.animationUrl && (
+          <div style={FS.videoPlaceholder}><Clapperboard size={15} /> {t("fitness.videoComingSoon")}</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// وضع التركيز (Focus Mode): جلسة تمرين نشطة تعرض تمريناً واحداً في كل مرة
+// بملء الشاشة، مع تسجيل كل مجموعة كصف منفصل ومؤقّت راحة يعتمد على وقت
+// مطلق (restEndsAt) لا عدّاد تنازلي بسيط - محسوب دائماً عبر Date.now() حتى
+// لا ينحرف مع تعليق التبويب في الخلفية (نفس مبدأ FocusView في MasarApp.jsx،
+// لكن بلا حفظ للحالة عبر تحديث الصفحة لأن فترات الراحة قصيرة جداً 45-90
+// ثانية بخلاف مؤقّت الدراسة الطويل).
+function FocusModeView({
+  flatExercises, exIndex, isEn, isRtl, t,
+  weight, setWeight, reps, setReps, onCompleteSet, setsDoneForCurrent,
+  restEndsAt, restRemainingMs, onSkipRest, lastOneRepMax,
+  onNextExercise, onFinishWorkout, onExit,
+}) {
+  const exercise = flatExercises[exIndex];
+  const CardioMobilityIcon = CARDIO_MOBILITY_ICON[exercise.muscle];
+  const isLast = exIndex >= flatExercises.length - 1;
+  const resting = restEndsAt != null && restRemainingMs > 0;
+  const restSecondsLeft = Math.ceil(restRemainingMs / 1000);
+  const restTimeLabel = `${Math.floor(restSecondsLeft / 60)}:${String(restSecondsLeft % 60).padStart(2, "0")}`;
+
+  return (
+    <div style={{ ...S.view, ...FS.focusWrap }}>
+      <button onClick={onExit} style={FS.exitFocusBtn}><X size={15} /> {t("fitness.exitWithoutFinishBtn")}</button>
+      <div style={FS.focusProgress}>{t("fitness.exerciseProgress", { current: exIndex + 1, total: flatExercises.length })}</div>
+
+      <div style={FS.focusDiagramWrap}>
+        {exercise.imageUrl ? (
+          <img src={exercise.imageUrl} alt="" width={70} height={128} style={{ objectFit: "contain" }} />
+        ) : CardioMobilityIcon ? (
+          <div style={{ ...FS.genericIconWrap, width: 70, height: 70 }}><CardioMobilityIcon size={32} /></div>
+        ) : (
+          <MuscleDiagram muscle={exercise.muscle} secondaryMuscles={exercise.secondaryMuscles} size={70} />
+        )}
+      </div>
+      <div style={FS.focusExerciseName}>{isEn ? (exercise.nameEn || exercise.name) : exercise.name}</div>
+      <div style={FS.focusMeta}>{t("fitness.setsReps", { sets: exercise.sets, reps: exercise.reps })} · {t("fitness.restLabel", { sec: exercise.restSeconds })}</div>
+
+      {resting ? (
+        <div style={FS.restCard}>
+          <div style={FS.restTitle}>{t("fitness.restingTitle")}</div>
+          <div style={FS.restTime}>{restTimeLabel}</div>
+          <button onClick={onSkipRest} style={FS.skipRestBtn}><SkipForward size={13} /> {t("fitness.skipRestBtn")}</button>
+        </div>
+      ) : (
+        <div style={FS.focusCard}>
+          <div style={FS.focusSetTitle}>{t("fitness.setProgress", { current: Math.min(setsDoneForCurrent + 1, exercise.sets), total: exercise.sets })}</div>
+          <div style={FS.setsCompletedRow}>
+            {Array.from({ length: exercise.sets }).map((_, i) => (
+              <span key={i} style={{ ...FS.setDot, background: i < setsDoneForCurrent ? "#5FA8A0" : "var(--border2)" }} />
+            ))}
+          </div>
+          <label style={{ ...S.label, marginTop: 0 }}>{t("fitness.weightKg")}</label>
+          <input type="number" step="0.5" inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="0" style={{ ...S.input, marginTop: 4, marginBottom: 10 }} />
+          <label style={S.label}>{t("fitness.repsCompleted")}</label>
+          <input type="number" inputMode="numeric" value={reps} onChange={(e) => setReps(e.target.value)} style={{ ...S.input, marginTop: 4 }} />
+          {lastOneRepMax != null && (
+            <div style={FS.oneRepMaxBadge}><TrendingUp size={13} /> {t("fitness.oneRepMaxEstimate", { value: lastOneRepMax })}</div>
+          )}
+          <button onClick={onCompleteSet} style={FS.completeSetBtn}><Check size={16} /> {t("fitness.completeSetBtn")}</button>
+        </div>
+      )}
+
+      <div style={FS.focusFooterRow}>
+        {!isLast && (
+          <button onClick={onNextExercise} style={FS.nextExerciseBtn}>{t("fitness.nextExerciseBtn")} {isRtl ? <ChevronLeft size={15} /> : <ChevronRight size={15} />}</button>
+        )}
+        <button onClick={onFinishWorkout} style={FS.finishWorkoutBtn}><PartyPopper size={15} /> {t("fitness.finishWorkoutBtn")}</button>
+      </div>
+    </div>
+  );
+}
+
 export default function FitnessView({ healthProfile, showToast }) {
   const { t, i18n } = useTranslation();
   const isEn = i18n.language === "en";
+  const isRtl = !isEn;
   const [loaded, setLoaded] = useState(false);
   const [fitnessProfile, setFitnessProfile] = useState({ goal: null, equipment: null, daysPerWeek: null, experience: null, sessionMinutes: null, injuries: [] });
   const [fitnessLog, setFitnessLog] = useState({});
@@ -192,10 +329,35 @@ export default function FitnessView({ healthProfile, showToast }) {
   const [workoutLog, setWorkoutLog] = useState([]);
   const [draft, setDraft] = useState({ goal: null, equipment: null, daysPerWeek: 3, experience: null, sessionMinutes: 45, injuries: [] });
   const [loggingKey, setLoggingKey] = useState(null);
-  const [expandedKey, setExpandedKey] = useState(null);
   const [logWeight, setLogWeight] = useState("");
   const [logReps, setLogReps] = useState("");
   const [logSets, setLogSets] = useState("");
+  const [selectedExercise, setSelectedExercise] = useState(null);
+
+  // ===== وضع التركيز (Focus Mode) =====
+  const [focusDay, setFocusDay] = useState(null); // اليوم النشط بأكمله (day.exercises)
+  const [focusExIndex, setFocusExIndex] = useState(0);
+  const [focusSetsDone, setFocusSetsDone] = useState(0);
+  const [focusWeight, setFocusWeight] = useState("");
+  const [focusReps, setFocusReps] = useState("");
+  const [focusOneRepMax, setFocusOneRepMax] = useState(null);
+  const [restEndsAt, setRestEndsAt] = useState(null);
+  const [nowTick, setNowTick] = useState(Date.now());
+
+  useEffect(() => {
+    if (restEndsAt == null) return undefined;
+    const id = setInterval(() => setNowTick(Date.now()), 250);
+    return () => clearInterval(id);
+  }, [restEndsAt]);
+
+  useEffect(() => {
+    if (restEndsAt == null) return;
+    if (Date.now() >= restEndsAt) {
+      setRestEndsAt(null);
+      playRestEndSound();
+      if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(200);
+    }
+  }, [nowTick, restEndsAt]);
 
   const today = todayKey();
 
@@ -361,6 +523,82 @@ export default function FitnessView({ healthProfile, showToast }) {
     if (next) showToast(t("fitness.workoutLogged"));
   }
 
+  function startFocusWorkout(day) {
+    setFocusDay(day);
+    setFocusExIndex(0);
+    setFocusSetsDone(0);
+    setFocusWeight(""); setFocusReps(""); setFocusOneRepMax(null);
+    setRestEndsAt(null);
+  }
+
+  async function completeFocusSet() {
+    const exercise = focusDay.exercises[focusExIndex];
+    const reps = parseInt(focusReps, 10);
+    const weight = focusWeight.trim() !== "" ? parseFloat(focusWeight) : null;
+    if (!Number.isFinite(reps) || reps <= 0) { showToast(t("fitness.invalidPerformance")); return; }
+    // تُستدعى من داخل ضغطة حقيقية - تهيّئ AudioContext مبكراً حتى يعمل صوت
+    // انتهاء الراحة لاحقاً من المؤقّت (انظر primeAudioContext في sound.js).
+    primeAudioContext();
+    const entry = { id: uid(), date: localDayKey(), exerciseId: exercise.id, weight, reps, setsCompleted: 1 };
+    setWorkoutLog((prev) => [...prev, entry]);
+    const res = await store.addWorkoutLogEntry(entry);
+    if (!res.ok) {
+      setWorkoutLog((prev) => prev.filter((x) => x.id !== entry.id));
+      showToast(t("fitness.performanceSaveFailed"));
+      return;
+    }
+    setFocusOneRepMax(weight != null && weight > 0 ? estimateOneRepMax(weight, reps) : null);
+    setFocusSetsDone((n) => n + 1);
+    setRestEndsAt(Date.now() + (exercise.restSeconds || 60) * 1000);
+  }
+
+  function skipRest() { setRestEndsAt(null); }
+
+  function nextFocusExercise() {
+    setFocusExIndex((i) => i + 1);
+    setFocusSetsDone(0);
+    setFocusWeight(""); setFocusReps(""); setFocusOneRepMax(null);
+    setRestEndsAt(null);
+  }
+
+  async function finishFocusWorkout() {
+    if (!todayDone) {
+      setFitnessLog((prev) => ({ ...prev, [today]: true }));
+      const res = await store.saveFitnessDayCompleted(today, true);
+      if (res.ok) showToast(t("fitness.workoutLogged"));
+    }
+    setFocusDay(null);
+  }
+
+  function exitFocusWithoutFinishing() { setFocusDay(null); }
+
+  if (focusDay) {
+    return (
+      <FocusModeView
+        flatExercises={focusDay.exercises}
+        exIndex={focusExIndex}
+        isEn={isEn}
+        isRtl={isRtl}
+        t={t}
+        weight={focusWeight} setWeight={setFocusWeight}
+        reps={focusReps} setReps={setFocusReps}
+        onCompleteSet={completeFocusSet}
+        setsDoneForCurrent={focusSetsDone}
+        restEndsAt={restEndsAt}
+        restRemainingMs={restEndsAt != null ? Math.max(0, restEndsAt - nowTick) : 0}
+        onSkipRest={skipRest}
+        lastOneRepMax={focusOneRepMax}
+        onNextExercise={nextFocusExercise}
+        onFinishWorkout={finishFocusWorkout}
+        onExit={exitFocusWithoutFinishing}
+      />
+    );
+  }
+
+  if (selectedExercise) {
+    return <ExerciseDetailView exercise={selectedExercise} isEn={isEn} isRtl={isRtl} onBack={() => setSelectedExercise(null)} t={t} />;
+  }
+
   if (editing || !hasProfile) {
     return (
       <div style={S.view}>
@@ -505,8 +743,7 @@ export default function FitnessView({ healthProfile, showToast }) {
                   isEn={isEn}
                   isLogging={loggingKey === key}
                   onToggleLog={() => setLoggingKey(loggingKey === key ? null : key)}
-                  expanded={expandedKey === key}
-                  onToggleExpand={() => setExpandedKey(expandedKey === key ? null : key)}
+                  onOpenDetail={() => setSelectedExercise(ex)}
                   logWeight={logWeight} setLogWeight={setLogWeight}
                   logReps={logReps} setLogReps={setLogReps}
                   logSets={logSets} setLogSets={setLogSets}
@@ -517,6 +754,7 @@ export default function FitnessView({ healthProfile, showToast }) {
                 />
               );
             })}
+            <button onClick={() => startFocusWorkout(day)} style={FS.startWorkoutBtn}><Play size={15} /> {t("fitness.startWorkoutBtn")}</button>
           </div>
         ))}
       </div>

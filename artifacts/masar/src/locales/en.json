@@ -1224,7 +1224,6 @@
     "buildingProgram": "Building your program...",
     "programSaveFailed": "Couldn't save your program, try again",
     "detailsBtn": "Details",
-    "hideDetailsBtn": "Hide details",
     "startingPositionTitle": "Starting position",
     "stepsTitle": "Steps",
     "commonMistakeTitle": "Common mistake",
@@ -1235,7 +1234,18 @@
       "cardio": "Cardio",
       "mobility": "Mobility"
     },
-    "tipTitle": "Performance tip"
+    "tipTitle": "Performance tip",
+    "backToProgram": "Back to program",
+    "startWorkoutBtn": "Start Workout",
+    "exerciseProgress": "Exercise {{current}} of {{total}}",
+    "setProgress": "Set {{current}} of {{total}}",
+    "restingTitle": "Rest time",
+    "skipRestBtn": "Skip rest",
+    "completeSetBtn": "Complete set",
+    "oneRepMaxEstimate": "Estimated 1-rep max: {{value}} kg",
+    "nextExerciseBtn": "Next exercise",
+    "finishWorkoutBtn": "Finish workout",
+    "exitWithoutFinishBtn": "Exit without finishing"
   },
   "mentalHealth": {
     "moodLevels": {

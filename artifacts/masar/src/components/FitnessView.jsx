@@ -3,22 +3,24 @@ import { useTranslation } from "react-i18next";
 import {
   Dumbbell, PersonStanding, Footprints, HeartPulse, Bike, Wind, Flame, Settings2, StretchHorizontal,
   AlertTriangle, Edit3, Check, Repeat, TrendingUp, X, ChevronLeft, ChevronRight,
-  Clapperboard, Circle, Play, SkipForward, PartyPopper,
+  Clapperboard, Circle, Play, SkipForward, PartyPopper, Trophy, Clock, ListChecks, Share2, BarChart3,
 } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { store, getOwner } from "../lib/store";
 import { todayKey, uid } from "../lib/helpers";
 import { localDayKey } from "../lib/tips";
 import {
   FITNESS_GOALS, EQUIPMENT_ENVIRONMENTS, EXPERIENCE_LEVELS, SESSION_DURATIONS,
-  INJURY_AREAS, GEAR_TYPES, MOVEMENT_PATTERNS,
+  INJURY_AREAS, GEAR_TYPES, MOVEMENT_PATTERNS, EXERCISES_BY_ID,
 } from "../lib/exercises-db";
 import {
   buildProgram, pickAlternative, suggestProgression, seedFromOwner, estimateOneRepMax,
   getLastPerformance, computeSessionVolumeByMuscle, estimateSessionCalories, mostRecentLoggedDate,
+  aggregateLogsByDate,
 } from "../lib/fitness-engine";
 import { NO_CONDITION } from "../lib/health";
 import { playRestEndSound, primeAudioContext } from "../lib/sound";
+import { shareAchievementCard } from "../lib/achievementShare";
 import MuscleDiagram from "./MuscleDiagram";
 import { S } from "./styles";
 
@@ -111,6 +113,16 @@ const FS = {
   exitFocusBtn: { display: "flex", alignItems: "center", gap: 6, color: "var(--muted2)", fontSize: 12.5, fontWeight: 600, cursor: "pointer", background: "none", border: "none", fontFamily: "inherit", padding: 0, marginBottom: 14 },
   setsCompletedRow: { display: "flex", justifyContent: "center", gap: 6, marginBottom: 14 },
   setDot: { width: 10, height: 10, borderRadius: "50%" },
+  summaryHeroIcon: { width: 60, height: 60, borderRadius: "50%", background: "linear-gradient(135deg, #5FA8A0, #3E7E78)", display: "flex", alignItems: "center", justifyContent: "center", margin: "10px auto 14px" },
+  summaryTitle: { fontFamily: "'Amiri', serif", fontSize: 22, fontWeight: 700, textAlign: "center", marginBottom: 18 },
+  summaryStatCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "4px 14px", marginBottom: 18 },
+  summaryStatRow: { display: "flex", alignItems: "center", gap: 10, padding: "13px 0", borderBottom: "1px solid var(--line)" },
+  summaryStatLabel: { flex: 1, fontSize: 13, color: "var(--muted2)", fontWeight: 600 },
+  summaryStatValue: { fontSize: 13.5, fontWeight: 700, color: "var(--ink)", textAlign: "end", maxWidth: "55%" },
+  shareBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", border: "none", borderRadius: 12, padding: "13px 0", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", background: "var(--gold)", color: "var(--bg)" },
+  statsToolBar: { display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 },
+  exercisePickChip: { border: "1px solid var(--border2)", borderRadius: 20, padding: "8px 14px", fontSize: 12, color: "var(--ink-soft)", cursor: "pointer", fontFamily: "inherit", background: "transparent", whiteSpace: "nowrap" },
+  exercisePickChipActive: { borderColor: "var(--gold)", background: "rgba(201,162,75,0.12)", color: "var(--gold)", fontWeight: 700 },
 };
 
 const CARDIO_MOBILITY_ICON = { cardio: HeartPulse, mobility: Wind };
@@ -357,6 +369,141 @@ function FocusModeView({
   );
 }
 
+// شاشة إنهاء التمرين: ملخّص الجلسة (مدة/حجم/أفضل رقم/تمارين مكتملة) +
+// بطاقة مشاركة إنجاز عبر Share Sheet القياسي للمتصفح (انظر achievementShare.js).
+function FinishSummaryView({ summary, isEn, t, showToast, onClose }) {
+  const durationMinutes = Math.floor(summary.durationMs / 60000);
+  const durationSeconds = Math.floor((summary.durationMs % 60000) / 1000);
+  const durationText = t("fitness.summaryDurationValue", { minutes: durationMinutes, seconds: durationSeconds });
+  const volumeText = `${Math.round(summary.totalVolume).toLocaleString()} ${t("fitness.volumeUnit")}`;
+  const exercisesText = t("fitness.summaryExercisesValue", { done: summary.exercisesCompleted, total: summary.totalExercisesInDay });
+
+  let bestText = t("fitness.summaryNoBest");
+  if (summary.best) {
+    const exName = summary.bestExercise ? (isEn ? (summary.bestExercise.nameEn || summary.bestExercise.name) : summary.bestExercise.name) : "";
+    bestText = summary.best.type === "weight"
+      ? t("fitness.summaryBestWeightValue", { exercise: exName, weight: summary.best.weight, reps: summary.best.reps })
+      : t("fitness.summaryBestRepsValue", { exercise: exName, reps: summary.best.reps });
+  }
+
+  async function handleShare() {
+    const statLines = [
+      { label: t("fitness.summaryDurationLabel"), value: durationText },
+      { label: t("fitness.summaryVolumeLabel"), value: volumeText },
+      { label: t("fitness.summaryBestLabel"), value: bestText },
+      { label: t("fitness.summaryExercisesLabel"), value: exercisesText },
+    ];
+    const shareText = [t("fitness.shareIntroLine"), ...statLines.map((s) => `${s.label}: ${s.value}`)].join("\n");
+    const result = await shareAchievementCard({
+      brandLabel: "مسار",
+      title: t("fitness.shareCardTitle"),
+      statLines,
+      footer: isEn ? "via Masar" : "عبر تطبيق مسار",
+      shareText,
+      isRtl: !isEn,
+    });
+    if (!result.ok) { showToast(t("fitness.shareFailed")); return; }
+    if (result.method === "clipboard-image") showToast(t("fitness.shareCopiedImage"));
+    else if (result.method === "clipboard-text") showToast(t("fitness.shareCopiedText"));
+    else if (result.method === "download") showToast(t("fitness.shareDownloaded"));
+  }
+
+  return (
+    <div style={S.view}>
+      <div style={FS.summaryHeroIcon}><PartyPopper size={26} color="var(--on-accent)" /></div>
+      <div style={FS.summaryTitle}>{t("fitness.summaryTitle")}</div>
+
+      <div style={FS.summaryStatCard}>
+        <div style={FS.summaryStatRow}>
+          <Clock size={16} color="#5FA8A0" />
+          <span style={FS.summaryStatLabel}>{t("fitness.summaryDurationLabel")}</span>
+          <span style={FS.summaryStatValue}>{durationText}</span>
+        </div>
+        <div style={FS.summaryStatRow}>
+          <BarChart3 size={16} color="#C9A24B" />
+          <span style={FS.summaryStatLabel}>{t("fitness.summaryVolumeLabel")}</span>
+          <span style={FS.summaryStatValue}>{volumeText}</span>
+        </div>
+        <div style={FS.summaryStatRow}>
+          <Trophy size={16} color="#D9B33B" />
+          <span style={FS.summaryStatLabel}>{t("fitness.summaryBestLabel")}</span>
+          <span style={FS.summaryStatValue}>{bestText}</span>
+        </div>
+        <div style={{ ...FS.summaryStatRow, borderBottom: "none" }}>
+          <ListChecks size={16} color="#6FA8DC" />
+          <span style={FS.summaryStatLabel}>{t("fitness.summaryExercisesLabel")}</span>
+          <span style={FS.summaryStatValue}>{exercisesText}</span>
+        </div>
+      </div>
+
+      <button onClick={handleShare} style={FS.shareBtn}><Share2 size={16} /> {t("fitness.shareAchievementBtn")}</button>
+      <button onClick={onClose} style={{ ...S.exportBtn, marginTop: 10 }}>{t("common.buttons.close")}</button>
+    </div>
+  );
+}
+
+// صفحة الإحصائيات: تطوّر حجم التدريب الأسبوعي (نفس بيانات البطاقة الموجودة
+// أصلاً في الشاشة الرئيسية، بلا حساب مكرَّر) + تطوّر الوزن المستخدَم عبر
+// الجلسات لتمرين يختاره المستخدم من قائمة التمارين التي له سجل أداء فيها فعلاً.
+function StatisticsView({ isEn, isRtl, t, progressChartData, exerciseOptions, selectedExerciseId, onSelectExercise, exerciseProgressionData, onBack }) {
+  const BackChevron = isRtl ? ChevronRight : ChevronLeft;
+  return (
+    <div style={S.view}>
+      <button onClick={onBack} style={FS.backRow}><BackChevron size={16} /> {t("fitness.backToProgram")}</button>
+      <div style={{ ...FS.summaryTitle, textAlign: "start" }}>{t("fitness.statisticsTitle")}</div>
+
+      {progressChartData.length > 0 ? (
+        <div style={S.chartCard}>
+          <div style={S.chartTitle}>{t("fitness.progressChartTitle")}</div>
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={progressChartData} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
+              <XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: 10, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} />
+              <YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} />
+              <Bar dataKey="volume" fill="#5FA8A0" radius={[3, 3, 0, 0]} maxBarSize={22} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      ) : (
+        <div style={S.emptyHint}>{t("fitness.noProgressYet")}</div>
+      )}
+
+      {exerciseOptions.length > 0 ? (
+        <>
+          <div style={{ ...S.chartTitle, marginTop: 4 }}>{t("fitness.statisticsWeightChartTitle")}</div>
+          <div style={FS.statsToolBar}>
+            {exerciseOptions.map((ex) => (
+              <button
+                key={ex.id}
+                onClick={() => onSelectExercise(ex.id)}
+                style={{ ...FS.exercisePickChip, ...(ex.id === selectedExerciseId ? FS.exercisePickChipActive : {}) }}
+              >
+                {isEn ? (ex.nameEn || ex.name) : ex.name}
+              </button>
+            ))}
+          </div>
+          {exerciseProgressionData.length > 0 ? (
+            <div style={S.chartCard}>
+              <ResponsiveContainer width="100%" height={180}>
+                <LineChart data={exerciseProgressionData} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
+                  <XAxis dataKey="date" tick={{ fill: "var(--muted)", fontSize: 9, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} />
+                  <YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} />
+                  <Line type="monotone" dataKey="weight" stroke="#C9A24B" strokeWidth={2.5} dot={{ r: 3, fill: "#C9A24B" }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div style={S.emptyHint}>{t("fitness.statisticsNoExerciseData")}</div>
+          )}
+        </>
+      ) : (
+        <div style={S.emptyHint}>{t("fitness.statisticsNoDataAtAll")}</div>
+      )}
+    </div>
+  );
+}
+
 export default function FitnessView({ healthProfile, showToast }) {
   const { t, i18n } = useTranslation();
   const isEn = i18n.language === "en";
@@ -382,6 +529,9 @@ export default function FitnessView({ healthProfile, showToast }) {
   const [focusOneRepMax, setFocusOneRepMax] = useState(null);
   const [restEndsAt, setRestEndsAt] = useState(null);
   const [nowTick, setNowTick] = useState(Date.now());
+  const [focusStartedAt, setFocusStartedAt] = useState(null);
+  const [focusSessionLogs, setFocusSessionLogs] = useState([]); // إدخالات هذه الجلسة فقط (لملخّص الإنهاء)
+  const [finishedSummary, setFinishedSummary] = useState(null);
 
   useEffect(() => {
     if (restEndsAt == null) return undefined;
@@ -482,6 +632,25 @@ export default function FitnessView({ healthProfile, showToast }) {
     const vals = Object.values(lastSessionSummary.volumeByMuscle);
     return vals.length > 0 ? Math.max(...vals) : 0;
   }, [lastSessionSummary]);
+
+  // ===== صفحة الإحصائيات =====
+  const [showStatistics, setShowStatistics] = useState(false);
+  const [selectedStatsExerciseId, setSelectedStatsExerciseId] = useState(null);
+
+  const exerciseOptions = useMemo(() => {
+    const ids = Array.from(new Set(workoutLog.map((l) => l.exerciseId)));
+    return ids.map((id) => EXERCISES_BY_ID[id]).filter(Boolean);
+  }, [workoutLog]);
+
+  const effectiveStatsExerciseId = selectedStatsExerciseId || (exerciseOptions[0]?.id ?? null);
+
+  const exerciseProgressionData = useMemo(() => {
+    if (!effectiveStatsExerciseId) return [];
+    const logs = workoutLog.filter((l) => l.exerciseId === effectiveStatsExerciseId);
+    return aggregateLogsByDate(logs)
+      .filter((a) => a.weight && a.weight > 0)
+      .map((a) => ({ date: a.date.slice(5), weight: a.weight }));
+  }, [workoutLog, effectiveStatsExerciseId]);
 
   function toggleInjury(key) {
     setDraft((d) => ({ ...d, injuries: d.injuries.includes(key) ? d.injuries.filter((x) => x !== key) : [...d.injuries, key] }));
@@ -584,6 +753,8 @@ export default function FitnessView({ healthProfile, showToast }) {
     setFocusSetsDone(0);
     setFocusWeight(""); setFocusReps(""); setFocusOneRepMax(null);
     setRestEndsAt(null);
+    setFocusStartedAt(Date.now());
+    setFocusSessionLogs([]);
   }
 
   async function completeFocusSet() {
@@ -604,6 +775,7 @@ export default function FitnessView({ healthProfile, showToast }) {
     }
     setFocusOneRepMax(weight != null && weight > 0 ? estimateOneRepMax(weight, reps) : null);
     setFocusSetsDone((n) => n + 1);
+    setFocusSessionLogs((prev) => [...prev, entry]);
     setRestEndsAt(Date.now() + (exercise.restSeconds || 60) * 1000);
   }
 
@@ -616,13 +788,40 @@ export default function FitnessView({ healthProfile, showToast }) {
     setRestEndsAt(null);
   }
 
+  // يحسب ملخص الجلسة (مدة/حجم/أفضل رقم/عدد التمارين) من إدخالات هذه الجلسة
+  // فقط (focusSessionLogs) لا من سجل اليوم كاملاً - حتى لا تختلط بجلسة سابقة
+  // منفصلة سُجِّلت في نفس اليوم.
+  function buildSessionSummary(day) {
+    const durationMs = focusStartedAt ? Date.now() - focusStartedAt : 0;
+    let totalVolume = 0;
+    let best = null;
+    for (const log of focusSessionLogs) {
+      if (log.weight && log.weight > 0) {
+        totalVolume += log.weight * (log.reps || 0) * (log.setsCompleted || 0);
+        const orm = estimateOneRepMax(log.weight, log.reps);
+        if (orm != null && (!best || best.type !== "weight" || orm > best.value)) {
+          best = { type: "weight", exerciseId: log.exerciseId, value: orm, weight: log.weight, reps: log.reps };
+        }
+      } else if (!best) {
+        best = { type: "reps", exerciseId: log.exerciseId, reps: log.reps };
+      } else if (best.type === "reps" && (log.reps || 0) > best.reps) {
+        best = { type: "reps", exerciseId: log.exerciseId, reps: log.reps };
+      }
+    }
+    const exercisesCompleted = new Set(focusSessionLogs.map((l) => l.exerciseId)).size;
+    const bestExercise = best ? day.exercises.find((e) => e.id === best.exerciseId) : null;
+    return { durationMs, totalVolume, best, bestExercise, exercisesCompleted, totalExercisesInDay: day.exercises.length, dayType: day.dayType };
+  }
+
   async function finishFocusWorkout() {
+    const summary = buildSessionSummary(focusDay);
     if (!todayDone) {
       setFitnessLog((prev) => ({ ...prev, [today]: true }));
       const res = await store.saveFitnessDayCompleted(today, true);
       if (res.ok) showToast(t("fitness.workoutLogged"));
     }
     setFocusDay(null);
+    setFinishedSummary(summary);
   }
 
   function exitFocusWithoutFinishing() { setFocusDay(null); }
@@ -649,6 +848,34 @@ export default function FitnessView({ healthProfile, showToast }) {
         onNextExercise={nextFocusExercise}
         onFinishWorkout={finishFocusWorkout}
         onExit={exitFocusWithoutFinishing}
+      />
+    );
+  }
+
+  if (finishedSummary) {
+    return (
+      <FinishSummaryView
+        summary={finishedSummary}
+        isEn={isEn}
+        t={t}
+        showToast={showToast}
+        onClose={() => setFinishedSummary(null)}
+      />
+    );
+  }
+
+  if (showStatistics) {
+    return (
+      <StatisticsView
+        isEn={isEn}
+        isRtl={isRtl}
+        t={t}
+        progressChartData={progressChartData}
+        exerciseOptions={exerciseOptions}
+        selectedExerciseId={effectiveStatsExerciseId}
+        onSelectExercise={setSelectedStatsExerciseId}
+        exerciseProgressionData={exerciseProgressionData}
+        onBack={() => setShowStatistics(false)}
       />
     );
   }
@@ -750,6 +977,7 @@ export default function FitnessView({ healthProfile, showToast }) {
 
       <div style={FS.toolsRow}>
         <button onClick={varyProgram} style={FS.toolBtn}><Repeat size={14} /> {t("fitness.varyProgram")}</button>
+        <button onClick={() => setShowStatistics(true)} style={FS.toolBtn}><BarChart3 size={14} /> {t("fitness.statisticsBtn")}</button>
         <select
           value={programEntry?.weekRotationEnabled ? (programEntry.rotationFrequency || "weekly") : ""}
           onChange={(e) => setRotation(e.target.value || null)}

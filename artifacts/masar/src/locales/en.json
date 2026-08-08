@@ -319,7 +319,13 @@
     "macroBreakdown": "Macro breakdown",
     "protein": "Protein",
     "carbs": "Carbs",
-    "fat": "Fat"
+    "fat": "Fat",
+    "mealTypeDistribution": "Calorie distribution by meal",
+    "mealTypeDistributionNote": "Average calories per meal, computed over the full period ({{n}} days) - a short bar means a meal that's often skipped, not just a small one.",
+    "mealLoggedDays": "Logged on {{n}} days",
+    "noBreakfastPattern": "No breakfast was logged on {{count}} of the {{total}} days you logged food this period.",
+    "lowCalorieMealPattern": "{{meal}} is noticeably lower in calories than your other meals on average this period.",
+    "lowProteinMealPattern": "{{meal}} is noticeably lower in protein than your other meals on average this period."
   },
   "pdfReport": {
     "titleWeek": "Masar Weekly Report",

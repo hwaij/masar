@@ -31,7 +31,7 @@ import { requestNotificationPermission, disablePush } from "../lib/push";
 import { ACTIVITY_LEVELS, HEALTH_CONDITIONS, NO_CONDITION, computeHealthMetrics } from "../lib/health";
 import { createGoal, isReviewDue, GOAL_PERIODS, GOAL_POINTS_SUCCESS, GOAL_POINTS_FAILURE } from "../lib/goals";
 import { FITNESS_GOALS } from "../lib/exercises-db";
-import { sumNutritionEntries, waterGoalCups } from "../lib/nutrition";
+import { sumNutritionEntries, waterGoalCups, MEAL_TYPES, analyzeMealPatterns } from "../lib/nutrition";
 import { playSaveSound, playAchievementSound } from "../lib/sound";
 import { getSession, onAuthChange, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut, userFromSession, hasAuth } from "../lib/auth";
 import {
@@ -1677,6 +1677,23 @@ function ReportsView({ entries, categories, focus, profile, healthProfile, sleep
     { name: t("reportsView.fat"), value: Math.round(nutritionTotals.fat), color: "#8A7BD1" },
   ].filter((m) => m.value > 0);
 
+  // توزيع السعرات على الوجبات الأربع - متوسط لكل يوم في كامل الفترة (لا لكل
+  // يوم سُجِّلت فيه هذه الوجبة تحديداً) عمداً، حتى تظهر وجبة مُهمَلة بانتظام
+  // كعمود قصير بصرياً بدل إخفاء الإهمال داخل متوسط "أيام سُجِّلت فيها فقط".
+  const mealTypeChartData = MEAL_TYPES.map((mt) => {
+    const mealEntries = nutritionInRange.filter((e) => e.mealType === mt);
+    const totalCal = mealEntries.reduce((s, e) => s + (e.calories || 0), 0);
+    return {
+      mealType: mt,
+      name: t(`nutrition.mealTypes.${mt}`),
+      avgCalories: days.length > 0 ? Math.round(totalCal / days.length) : 0,
+      daysLogged: new Set(mealEntries.map((e) => e.date)).size,
+    };
+  });
+  // ملاحظات أنماط حقيقية مبنية فقط على ما سُجِّل فعلاً (meal_type) - null إن
+  // كانت البيانات غير كافية لأي استنتاج موثوق (انظر عتبات analyzeMealPatterns).
+  const mealPatterns = useMemo(() => analyzeMealPatterns(nutritionInRange, days), [nutritionInRange, days]);
+
   const rangeEntries = useMemo(() => sleepLog.filter((s) => days.includes(s.date)), [sleepLog, days]);
   const sleepAvgHours = rangeEntries.length ? rangeEntries.reduce((sum, s) => sum + s.hours, 0) / rangeEntries.length : null;
 
@@ -1700,9 +1717,31 @@ function ReportsView({ entries, categories, focus, profile, healthProfile, sleep
       const sleepLine = sleepAvgHours !== null
         ? (isEn ? `- Average sleep: ${sleepAvgHours.toFixed(1)} hours` : `- متوسط ساعات النوم: ${sleepAvgHours.toFixed(1)} ساعة`)
         : "";
-      const nutritionLine = nutritionAvgCalories
+      let nutritionLine = nutritionAvgCalories
         ? (isEn ? `- Average daily calories: ${nutritionAvgCalories} kcal` : `- متوسط السعرات اليومي: ${nutritionAvgCalories} سعرة`)
         : "";
+      // حقائق أنماط وجبات حقيقية (meal_type) - تُضاف فقط إن وُجد نمط فعلي في
+      // البيانات (mealPatterns تُرجع null أو حقولاً فارغة إن لم يوجد دليل
+      // كافٍ) حتى يبني الذكاء الاصطناعي توصيته على أرقام حقيقية لا افتراضات.
+      if (mealPatterns) {
+        if (mealPatterns.daysWithoutBreakfastCount > 0) {
+          nutritionLine += isEn
+            ? `\n- No breakfast logged on ${mealPatterns.daysWithoutBreakfastCount} of ${mealPatterns.loggedDaysCount} days with logged food`
+            : `\n- لم يُسجَّل فطور في ${mealPatterns.daysWithoutBreakfastCount} من ${mealPatterns.loggedDaysCount} يوماً سُجِّل فيها طعام`;
+        }
+        if (mealPatterns.lowCalorieMeal) {
+          const mealLabel = t(`nutrition.mealTypes.${mealPatterns.lowCalorieMeal.mealType}`);
+          nutritionLine += isEn
+            ? `\n- ${mealLabel} is noticeably lower in calories than other meals on average`
+            : `\n- وجبة ${mealLabel} أقل سعرات بشكل ملحوظ من باقي الوجبات في المتوسط`;
+        }
+        if (mealPatterns.lowProteinMeal) {
+          const mealLabel = t(`nutrition.mealTypes.${mealPatterns.lowProteinMeal.mealType}`);
+          nutritionLine += isEn
+            ? `\n- ${mealLabel} is noticeably lower in protein than other meals on average`
+            : `\n- وجبة ${mealLabel} أقل بروتيناً بشكل ملحوظ من باقي الوجبات في المتوسط`;
+        }
+      }
       const promptKey = range === "week" ? "pdfReport.aiPromptWeek" : "pdfReport.aiPromptMonth";
       const prompt = t(promptKey, {
         totalTime: fmtHM(totalMin, language), activeDays, totalDays: days.length,
@@ -1999,6 +2038,46 @@ function ReportsView({ entries, categories, focus, profile, healthProfile, sleep
                     ))}
                   </div>
                 </div>
+              )}
+            </div>
+            <div style={S.chartCard}>
+              <div style={S.chartTitle}>{t("reportsView.mealTypeDistribution")}</div>
+              {nutritionActiveDays === 0 ? <div style={S.emptyHint}>{t("reportsView.noNutritionDataYet")}</div> : (
+                <>
+                  <ResponsiveContainer width="100%" height={170}>
+                    <BarChart data={mealTypeChartData} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="repMealTypeBar" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#8FBFA8" />
+                          <stop offset="100%" stopColor="#3E7E78" />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="2 4" stroke="var(--surface-raised)" vertical={false} />
+                      <XAxis dataKey="name" tick={{ fill: "var(--muted)", fontSize: 11, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} />
+                      <YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <Tooltip
+                        cursor={{ fill: "rgba(95,168,160,0.08)" }}
+                        contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }}
+                        formatter={(v, n, p) => [`${v} ${t("common.units.kcal")} · ${t("reportsView.mealLoggedDays", { n: p.payload.daysLogged })}`, ""]}
+                      />
+                      <Bar dataKey="avgCalories" radius={[3, 3, 3, 3]} fill="url(#repMealTypeBar)" maxBarSize={40} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                  <div style={S.emptyHint}>{t("reportsView.mealTypeDistributionNote", { n: days.length })}</div>
+                  {mealPatterns && (mealPatterns.daysWithoutBreakfastCount > 0 || mealPatterns.lowCalorieMeal || mealPatterns.lowProteinMeal) && (
+                    <div style={{ ...S.tipBox, marginTop: 10, flexDirection: "column", gap: 6, alignItems: "stretch" }}>
+                      {mealPatterns.daysWithoutBreakfastCount > 0 && (
+                        <span>{t("reportsView.noBreakfastPattern", { count: mealPatterns.daysWithoutBreakfastCount, total: mealPatterns.loggedDaysCount })}</span>
+                      )}
+                      {mealPatterns.lowCalorieMeal && (
+                        <span>{t("reportsView.lowCalorieMealPattern", { meal: t(`nutrition.mealTypes.${mealPatterns.lowCalorieMeal.mealType}`) })}</span>
+                      )}
+                      {mealPatterns.lowProteinMeal && (
+                        <span>{t("reportsView.lowProteinMealPattern", { meal: t(`nutrition.mealTypes.${mealPatterns.lowProteinMeal.mealType}`) })}</span>
+                      )}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </>

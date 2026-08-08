@@ -424,6 +424,62 @@ export function sumNutritionEntries(entries) {
   return { ...totals, micronutrients, microApprox };
 }
 
+// ===== تحليل أنماط الوجبات (فطور/غداء/عشاء/سناك) عبر فترة من الأيام =====
+// يعمل حصراً على meal_type المسجَّل فعلياً - لا افتراضات ولا أنماط
+// "متوقَّعة" مبنية على العموميات، فقط ما يظهر بالفعل في سجل هذا المستخدم.
+// entriesInRange: صفوف nutrition_log ضمن الفترة (أي نافذة أسبوع/شهر يحدّدها
+// المستدعي). daysInRange: مصفوفة تواريخ الفترة الكاملة (بما فيها الأيام
+// التي لم يُسجَّل بها شيء إطلاقاً - ضرورية لحساب "متوسط لكل يوم في الفترة"
+// الذي يعكس الإهمال، لا "متوسط لكل يوم سُجِّلت فيه هذه الوجبة" الذي يخفيه).
+//
+// عتبة أدنى (loggedDays.size < 3) قبل أي استنتاج - بيانات يوم أو يومين لا
+// تكفي لوصفها "نمطاً". عتبة "منخفض بشكل ملحوظ" = 60% أو أقل من متوسط بقية
+// الوجبات ذات البيانات الكافية (≥3 أيام لكل وجبة تُقارَن) - عتبة متحفّظة
+// لتفادي استنتاج من فروق عشوائية طبيعية بين الوجبات.
+export function analyzeMealPatterns(entriesInRange, daysInRange) {
+  const loggedDays = new Set(entriesInRange.map((e) => e.date));
+  if (loggedDays.size < 3) return null;
+
+  const daysWithoutBreakfast = Array.from(loggedDays).filter(
+    (day) => !entriesInRange.some((e) => e.date === day && e.mealType === "breakfast"),
+  );
+
+  const perMealStats = MEAL_TYPES.map((mt) => {
+    const mealEntries = entriesInRange.filter((e) => e.mealType === mt);
+    const daysLogged = new Set(mealEntries.map((e) => e.date)).size;
+    const totalCal = mealEntries.reduce((s, e) => s + (e.calories || 0), 0);
+    const totalProtein = mealEntries.reduce((s, e) => s + (e.protein || 0), 0);
+    return {
+      mealType: mt, daysLogged,
+      avgCaloriesPerLoggedDay: daysLogged > 0 ? totalCal / daysLogged : 0,
+      avgProteinPerLoggedDay: daysLogged > 0 ? totalProtein / daysLogged : 0,
+      // متوسط لكل يوم في كامل الفترة (وليس فقط الأيام المسجَّلة لهذه الوجبة
+      // تحديداً) - هذا ما يُستخدم في الرسم البياني ليعكس الإهمال بصرياً.
+      avgCaloriesPerRangeDay: daysInRange.length > 0 ? totalCal / daysInRange.length : 0,
+    };
+  });
+
+  const withEnoughData = perMealStats.filter((m) => m.daysLogged >= 3);
+  let lowCalorieMeal = null;
+  let lowProteinMeal = null;
+  if (withEnoughData.length >= 2) {
+    const avgOfAllCal = withEnoughData.reduce((s, m) => s + m.avgCaloriesPerLoggedDay, 0) / withEnoughData.length;
+    const avgOfAllProtein = withEnoughData.reduce((s, m) => s + m.avgProteinPerLoggedDay, 0) / withEnoughData.length;
+    const lowestCal = [...withEnoughData].sort((a, b) => a.avgCaloriesPerLoggedDay - b.avgCaloriesPerLoggedDay)[0];
+    if (avgOfAllCal > 0 && lowestCal.avgCaloriesPerLoggedDay <= avgOfAllCal * 0.6) lowCalorieMeal = lowestCal;
+    const lowestProtein = [...withEnoughData].sort((a, b) => a.avgProteinPerLoggedDay - b.avgProteinPerLoggedDay)[0];
+    if (avgOfAllProtein > 0 && lowestProtein.avgProteinPerLoggedDay <= avgOfAllProtein * 0.6) lowProteinMeal = lowestProtein;
+  }
+
+  return {
+    loggedDaysCount: loggedDays.size,
+    daysWithoutBreakfastCount: daysWithoutBreakfast.length,
+    perMealStats,
+    lowCalorieMeal,
+    lowProteinMeal,
+  };
+}
+
 // الكاميرا تحتاج سياقاً آمناً (HTTPS) لتعمل في أي متصفح — localhost مستثنى
 // دائماً لأغراض التطوير المحلي.
 export function isSecureContextForCamera() {

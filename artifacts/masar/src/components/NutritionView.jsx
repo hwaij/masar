@@ -1866,16 +1866,28 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
       const foodsList = todayLog
         .map((e) => `${e.foodName} (${Math.round(e.calories)} ${isEn ? "kcal" : "سعرة"})`)
         .join(isEn ? ", " : "، ");
+      // أي وجبات (فطور/غداء/عشاء/سناك) لم تُسجَّل اليوم إطلاقاً - حقيقة فعلية
+      // من meal_type، لا افتراض - تُذكَر للذكاء الاصطناعي فقط إن وُجدت
+      // فعلاً، ليبنيَ عليها فقط إن كانت ذات صلة حقيقية بنمط اليوم.
+      const loggedMealTypes = new Set(todayLog.map((e) => e.mealType).filter(Boolean));
+      const missingMealTypes = MEAL_TYPES.filter((mt) => !loggedMealTypes.has(mt));
+      const missingMealsLine = missingMealTypes.length > 0 && missingMealTypes.length < MEAL_TYPES.length
+        ? (isEn
+          ? `Meals not logged today: ${missingMealTypes.map((mt) => mt).join(", ")}.`
+          : `وجبات لم تُسجَّل اليوم: ${missingMealTypes.map((mt) => t(`nutrition.mealTypes.${mt}`)).join("، ")}.`)
+        : "";
       const prompt = isEn
         ? `You are a nutrition coach writing in clear, natural English with no long dashes. Here is the user's actual nutrition data for today only:
 Logged foods: ${foodsList}
 Totals: ${Math.round(todayTotals.calories)} kcal${tee ? ` out of a ${Math.round(tee)} kcal goal` : ""}, protein ${Math.round(todayTotals.protein)}g, carbs ${Math.round(todayTotals.carbs)}g, fat ${Math.round(todayTotals.fat)}g, fiber ${Math.round(todayTotals.fiber)}g, sugar ${Math.round(todayTotals.sugar)}g, sodium ${Math.round(todayTotals.sodium)}mg.
-Write a short paragraph (two to three sentences) analyzing today's eating pattern based only on these specific real numbers (don't invent anything not mentioned) — for example, good protein but low fiber today. Return only JSON with no other text or markdown:
+${missingMealsLine}
+Write a short paragraph (two to three sentences) analyzing today's eating pattern based only on these specific real numbers (don't invent anything not mentioned) — for example, good protein but low fiber today, or a missing meal if listed above. Return only JSON with no other text or markdown:
 {"analysis":"paragraph here"}`
         : `أنت مدرّب تغذية يكتب بالعربية الفصحى البسيطة بدون أي شرطات طويلة. هذه بيانات تغذية المستخدم الفعلية لهذا اليوم فقط:
 الأطعمة المسجَّلة: ${foodsList}
 الإجمالي: ${Math.round(todayTotals.calories)} سعرة${tee ? ` من أصل هدف ${Math.round(tee)} سعرة` : ""}، بروتين ${Math.round(todayTotals.protein)}غ، كارب ${Math.round(todayTotals.carbs)}غ، دهون ${Math.round(todayTotals.fat)}غ، ألياف ${Math.round(todayTotals.fiber)}غ، سكر ${Math.round(todayTotals.sugar)}غ، صوديوم ${Math.round(todayTotals.sodium)}مغم.
-اكتب فقرة قصيرة (جملتان إلى ثلاث) تحلّل نمط تغذية اليوم بناءً على هذه الأرقام الفعلية فقط تحديداً (مثال: بروتين جيد لكن ألياف منخفضة اليوم) - لا تخترع نمطاً غير موجود في الأرقام أعلاه. أعد فقط JSON بدون أي نص أو markdown:
+${missingMealsLine}
+اكتب فقرة قصيرة (جملتان إلى ثلاث) تحلّل نمط تغذية اليوم بناءً على هذه الأرقام الفعلية فقط تحديداً (مثال: بروتين جيد لكن ألياف منخفضة اليوم، أو وجبة غائبة إن ذُكرت أعلاه) - لا تخترع نمطاً غير موجود في الأرقام أعلاه. أعد فقط JSON بدون أي نص أو markdown:
 {"analysis":"الفقرة هنا"}`;
       const text = await analyze(prompt, 500);
       const parsed = parseJsonLoose(text);

@@ -1227,7 +1227,7 @@
     "startingPositionTitle": "وضعية البداية",
     "stepsTitle": "خطوات الأداء",
     "commonMistakeTitle": "خطأ شائع",
-    "videoComingSoon": "الفيديو التعليمي قريباً",
+    "watchVideoBtn": "شاهد طريقة الأداء",
     "exerciseTypes": {
       "compound": "مركّب",
       "isolation": "عزل",
@@ -1277,7 +1277,19 @@
     "statisticsTitle": "إحصائيات التقدّم",
     "statisticsWeightChartTitle": "تطوّر الوزن المستخدَم عبر الجلسات",
     "statisticsNoExerciseData": "لا بيانات وزن مسجَّلة بعد لهذا التمرين",
-    "statisticsNoDataAtAll": "سجّل أداءك في تمرين واحد على الأقل ليظهر تقدّمك هنا"
+    "statisticsNoDataAtAll": "سجّل أداءك في تمرين واحد على الأقل ليظهر تقدّمك هنا",
+    "summarySetsLabel": "عدد المجموعات",
+    "shareMinimalCaption": "تمارين أكملتها اليوم",
+    "chooseTemplateTitle": "اختر تصميم البطاقة",
+    "shareTemplateFull": "ملخص كامل",
+    "shareTemplateFullDesc": "التمارين والعضلات المستهدفة والمدة والحجم",
+    "shareTemplatePhoto": "صورة شخصية + إنجاز",
+    "shareTemplatePhotoDesc": "صورتك مع تراكب نصي للإنجاز",
+    "shareTemplateMinimal": "بسيط وأنيق",
+    "shareTemplateMinimalDesc": "رقم واحد بارز بلا تفاصيل كثيرة",
+    "shareTemplateStats": "إحصائي",
+    "shareTemplateStatsDesc": "الأرقام في تخطيط شبكي أنيق",
+    "photoOptionalHint": "الصورة اختيارية - اضغط \"صورة شخصية\" واختر صورة، أو اختر تصميماً آخر بلا صورة"
   },
   "mentalHealth": {
     "moodLevels": {

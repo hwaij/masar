@@ -1,17 +1,20 @@
 import React from "react";
 import { MUSCLE_SECONDARY } from "../lib/exercises-db";
+import { FRONT_VIEWBOX, BACK_VIEWBOX, FRONT_REGIONS, FRONT_NEUTRAL, BACK_REGIONS, BACK_NEUTRAL } from "../lib/muscleAnatomyPaths";
 
-// مخطط جسم بشري مبسّط (تخطيطي بحت، غير واقعي) مُنشَأ بالكامل بالكود عبر
-// SVG - لا صورة ولا رسم منسوخ من أي مصدر خارجي. كل منطقة عضلة هي شكل هندسي
-// بسيط (مستطيل/دائرة/بيضاوي) فوق مخطط جسم عام واحد، بنفس أسلوب الرسوم
-// التخطيطية الشائعة في المراجع الطبية/الرياضية العامة (مفهوم عام غير قابل
-// للحماية، لا تصميم شركة بعينه).
+// مخطط جسم بشري تشريحي (لا 3D، ولا نسخ من أي تطبيق) - أشكال العضلات نفسها
+// (مسارات SVG bezier) محوَّلة من مشروع MuscleMap مفتوح المصدر بترخيص MIT
+// (Copyright (c) 2026 Melih Colpan، النص الكامل في THIRD_PARTY_NOTICES.md
+// بجذر المشروع - راجع src/lib/muscleAnatomyPaths.js لتفاصيل ما استُخدِم
+// بالضبط: بيانات الشكل الهندسي فقط، لا كود ولا تصميم واجهة). التلوين
+// والتفاعل الديناميكي (أساسي/ثانوي حسب بيانات كل تمرين) من تصميم مسار
+// الأصلي بالكامل، غير موجود في المصدر المفتوح.
 //
 // كل عضلة مربوطة بمشهد واحد (أمامي أو خلفي) حسب أين تُرى بوضوح أكبر -
 // FRONT_MUSCLES تُعرَض على المخطط الأمامي، BACK_MUSCLES على الخلفي.
-// full_body يُظلَّل بالكامل على المخطط الأمامي بشفافية أخف كإشارة "كل
-// الجسم". cardio/mobility ليستا عضلة محدَّدة فلا مخطط تشريحي لهما - يُستخدَم
-// أيقونة عامة بدلاً منه في مكان الاستدعاء (انظر FitnessView.jsx).
+// full_body يُظلَّل بالكامل (كل الأشكال، عضلات ومحايدة) بشفافية أخف كإشارة
+// "كل الجسم". cardio/mobility ليستا عضلة محدَّدة فلا مخطط تشريحي لهما -
+// تُستخدَم أيقونة عامة بدلاً منه في مكان الاستدعاء (انظر FitnessView.jsx).
 const FRONT_MUSCLES = new Set(["chest", "shoulders", "biceps", "quads", "abs"]);
 const BACK_MUSCLES = new Set(["back", "triceps", "hamstrings", "glutes", "calves"]);
 
@@ -19,79 +22,10 @@ const BACK_MUSCLES = new Set(["back", "triceps", "hamstrings", "glutes", "calves
 // "العضلة المستهدفة بالأحمر")، وذهبي (لون هوية مسار) للعضلة الثانوية -
 // تمييز واضح بين الاثنتين بمجرد النظر.
 const PRIMARY = "#E05252";
-const PRIMARY_SOFT = "rgba(224,82,82,0.35)";
+const PRIMARY_SOFT = "rgba(224,82,82,0.4)";
 const SECONDARY = "#C9A24B";
 const NEUTRAL_FILL = "var(--surface-sunken)";
 const NEUTRAL_STROKE = "var(--border2)";
-
-function Body({ children }) {
-  return (
-    <>
-      {/* الرأس والرقبة */}
-      <circle cx="30" cy="8" r="6" fill={NEUTRAL_FILL} stroke={NEUTRAL_STROKE} strokeWidth="1" />
-      <rect x="27" y="13" width="6" height="6" fill={NEUTRAL_FILL} stroke={NEUTRAL_STROKE} strokeWidth="1" />
-      {/* الساعدان (محايدان دائماً - غير مصنَّفين كعضلة مستهدفة هنا) */}
-      <rect x="8" y="40" width="6" height="16" rx="3" fill={NEUTRAL_FILL} stroke={NEUTRAL_STROKE} strokeWidth="1" />
-      <rect x="46" y="40" width="6" height="16" rx="3" fill={NEUTRAL_FILL} stroke={NEUTRAL_STROKE} strokeWidth="1" />
-      {/* أسفل الساقين (محايد) */}
-      <rect x="21" y="82" width="7" height="19" rx="3.5" fill={NEUTRAL_FILL} stroke={NEUTRAL_STROKE} strokeWidth="1" />
-      <rect x="32" y="82" width="7" height="19" rx="3.5" fill={NEUTRAL_FILL} stroke={NEUTRAL_STROKE} strokeWidth="1" />
-      {/* القدمان */}
-      <ellipse cx="24.5" cy="104" rx="5" ry="3" fill={NEUTRAL_FILL} stroke={NEUTRAL_STROKE} strokeWidth="1" />
-      <ellipse cx="35.5" cy="104" rx="5" ry="3" fill={NEUTRAL_FILL} stroke={NEUTRAL_STROKE} strokeWidth="1" />
-      {children}
-    </>
-  );
-}
-
-// مناطق قابلة للتظليل - كل منطقة دالة تُرجع عنصر SVG بلون مُعطى، حتى تُستخدَم
-// نفس الهندسة سواء بلون محايد (غير مستهدفة) أو ذهبي (أساسية) أو ذهبي فاتح
-// (ثانوية).
-const REGION_SHAPE = {
-  chest: (fill) => <rect x="19" y="18" width="22" height="16" rx="6" fill={fill} stroke={NEUTRAL_STROKE} strokeWidth="1" />,
-  abs: (fill) => <rect x="19.5" y="33" width="21" height="16" rx="6" fill={fill} stroke={NEUTRAL_STROKE} strokeWidth="1" />,
-  back: (fill) => <rect x="19" y="18" width="22" height="31" rx="7" fill={fill} stroke={NEUTRAL_STROKE} strokeWidth="1" />,
-  shoulders: (fill) => (
-    <>
-      <circle cx="15.5" cy="21" r="5.2" fill={fill} stroke={NEUTRAL_STROKE} strokeWidth="1" />
-      <circle cx="44.5" cy="21" r="5.2" fill={fill} stroke={NEUTRAL_STROKE} strokeWidth="1" />
-    </>
-  ),
-  biceps: (fill) => (
-    <>
-      <rect x="8.5" y="24" width="7" height="15" rx="3.5" fill={fill} stroke={NEUTRAL_STROKE} strokeWidth="1" />
-      <rect x="44.5" y="24" width="7" height="15" rx="3.5" fill={fill} stroke={NEUTRAL_STROKE} strokeWidth="1" />
-    </>
-  ),
-  triceps: (fill) => (
-    <>
-      <rect x="8.5" y="24" width="7" height="15" rx="3.5" fill={fill} stroke={NEUTRAL_STROKE} strokeWidth="1" />
-      <rect x="44.5" y="24" width="7" height="15" rx="3.5" fill={fill} stroke={NEUTRAL_STROKE} strokeWidth="1" />
-    </>
-  ),
-  glutes: (fill) => <ellipse cx="30" cy="52" rx="13" ry="7" fill={fill} stroke={NEUTRAL_STROKE} strokeWidth="1" />,
-  quads: (fill) => (
-    <>
-      <rect x="20.5" y="56" width="8.5" height="24" rx="4" fill={fill} stroke={NEUTRAL_STROKE} strokeWidth="1" />
-      <rect x="31" y="56" width="8.5" height="24" rx="4" fill={fill} stroke={NEUTRAL_STROKE} strokeWidth="1" />
-    </>
-  ),
-  hamstrings: (fill) => (
-    <>
-      <rect x="20.5" y="56" width="8.5" height="24" rx="4" fill={fill} stroke={NEUTRAL_STROKE} strokeWidth="1" />
-      <rect x="31" y="56" width="8.5" height="24" rx="4" fill={fill} stroke={NEUTRAL_STROKE} strokeWidth="1" />
-    </>
-  ),
-  calves: (fill) => (
-    <>
-      <rect x="21" y="82" width="7" height="19" rx="3.5" fill={fill} stroke={NEUTRAL_STROKE} strokeWidth="1" />
-      <rect x="32" y="82" width="7" height="19" rx="3.5" fill={fill} stroke={NEUTRAL_STROKE} strokeWidth="1" />
-    </>
-  ),
-};
-
-const FRONT_REGIONS = ["chest", "abs", "shoulders", "biceps", "quads"];
-const BACK_REGIONS = ["back", "triceps", "glutes", "hamstrings", "calves"];
 
 // secondaryMuscles: مصفوفة عضلات ثانوية خاصة بتمرين محدَّد (exercise.
 // secondaryMuscles من exercises-db.js) - إن لم تُمرَّر، يُستخدَم احتياطياً
@@ -102,21 +36,25 @@ export default function MuscleDiagram({ muscle, secondaryMuscles, size = 64 }) {
   const view = isFullBody || FRONT_MUSCLES.has(muscle) ? "front" : BACK_MUSCLES.has(muscle) ? "back" : null;
   if (!view) return null; // كارديو/مرونة: لا مخطط عضلة محدَّدة (تُعرَض أيقونة عامة بدلاً منه في مكان الاستدعاء)
 
+  const viewBox = view === "front" ? FRONT_VIEWBOX : BACK_VIEWBOX;
   const regions = view === "front" ? FRONT_REGIONS : BACK_REGIONS;
+  const neutralPaths = view === "front" ? FRONT_NEUTRAL : BACK_NEUTRAL;
   const secondaryList = isFullBody ? [] : (secondaryMuscles && secondaryMuscles.length > 0 ? secondaryMuscles : MUSCLE_SECONDARY[muscle] || []);
   const secondary = new Set(secondaryList);
+  const neutralFill = isFullBody ? PRIMARY_SOFT : NEUTRAL_FILL;
 
   return (
-    <svg width={size} height={size * (110 / 60)} viewBox="0 0 60 110" fill="none">
-      <Body>
-        {regions.map((region) => {
-          let fill = NEUTRAL_FILL;
-          if (isFullBody) fill = PRIMARY_SOFT;
-          else if (region === muscle) fill = PRIMARY;
-          else if (secondary.has(region)) fill = SECONDARY;
-          return <React.Fragment key={region}>{REGION_SHAPE[region](fill)}</React.Fragment>;
-        })}
-      </Body>
+    <svg width={size} height={size * (viewBox.h / viewBox.w)} viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`} fill="none">
+      {neutralPaths.map((d, i) => (
+        <path key={`n${i}`} d={d} fill={neutralFill} stroke={NEUTRAL_STROKE} strokeWidth={2.5} />
+      ))}
+      {Object.entries(regions).map(([key, paths]) => {
+        let fill = NEUTRAL_FILL;
+        if (isFullBody) fill = PRIMARY_SOFT;
+        else if (key === muscle) fill = PRIMARY;
+        else if (secondary.has(key)) fill = SECONDARY;
+        return paths.map((d, i) => <path key={`${key}${i}`} d={d} fill={fill} stroke={NEUTRAL_STROKE} strokeWidth={2.5} />);
+      })}
     </svg>
   );
 }

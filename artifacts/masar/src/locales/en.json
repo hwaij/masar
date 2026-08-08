@@ -1227,7 +1227,7 @@
     "startingPositionTitle": "Starting position",
     "stepsTitle": "Steps",
     "commonMistakeTitle": "Common mistake",
-    "videoComingSoon": "Tutorial video coming soon",
+    "watchVideoBtn": "Watch proper form",
     "exerciseTypes": {
       "compound": "Compound",
       "isolation": "Isolation",
@@ -1277,7 +1277,19 @@
     "statisticsTitle": "Progress Statistics",
     "statisticsWeightChartTitle": "Weight progression across sessions",
     "statisticsNoExerciseData": "No weight data logged yet for this exercise",
-    "statisticsNoDataAtAll": "Log your performance for at least one exercise to see your progress here"
+    "statisticsNoDataAtAll": "Log your performance for at least one exercise to see your progress here",
+    "summarySetsLabel": "Sets Completed",
+    "shareMinimalCaption": "exercises completed today",
+    "chooseTemplateTitle": "Choose a card design",
+    "shareTemplateFull": "Full summary",
+    "shareTemplateFullDesc": "Exercises, target muscles, duration, and volume",
+    "shareTemplatePhoto": "Photo + achievement",
+    "shareTemplatePhotoDesc": "Your photo with an achievement text overlay",
+    "shareTemplateMinimal": "Minimal & clean",
+    "shareTemplateMinimalDesc": "One bold number, no clutter",
+    "shareTemplateStats": "Stats grid",
+    "shareTemplateStatsDesc": "The numbers in a clean grid layout",
+    "photoOptionalHint": "The photo is optional - tap \"Photo + achievement\" and pick one, or choose another design without a photo"
   },
   "mentalHealth": {
     "moodLevels": {

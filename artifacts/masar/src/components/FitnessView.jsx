@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Dumbbell, PersonStanding, Footprints, HeartPulse, Bike, Wind, Flame, Settings2, StretchHorizontal,
   AlertTriangle, Edit3, Check, Repeat, TrendingUp, X, ChevronLeft, ChevronRight,
-  Clapperboard, Circle, Play, SkipForward, PartyPopper, Trophy, Clock, ListChecks, Share2, BarChart3,
+  Circle, Play, SkipForward, PartyPopper, Trophy, Clock, ListChecks, Share2, BarChart3, Youtube,
+  FileText, Camera, Sparkles, LayoutGrid,
 } from "lucide-react";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { store, getOwner } from "../lib/store";
@@ -74,7 +75,7 @@ const FS = {
   detailsSectionTitle: { fontSize: 11.5, fontWeight: 700, color: "var(--gold)", marginBottom: 4, marginTop: 10 },
   detailsText: { fontSize: 12, color: "var(--ink-soft)", lineHeight: 1.7, margin: 0 },
   stepsList: { margin: "0 0 0 0", paddingInlineStart: 18, fontSize: 12, color: "var(--ink-soft)", lineHeight: 1.9 },
-  videoPlaceholder: { display: "flex", alignItems: "center", gap: 8, background: "var(--panel)", border: "1px dashed var(--border2)", borderRadius: 10, padding: "10px 10px", marginTop: 10, fontSize: 12, color: "var(--muted2)", fontWeight: 600 },
+  watchVideoBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "rgba(224,82,82,0.1)", border: "1px solid rgba(224,82,82,0.35)", borderRadius: 10, padding: "11px 10px", marginTop: 10, fontSize: 13, color: "#E05252", fontWeight: 700, textDecoration: "none", cursor: "pointer", fontFamily: "inherit" },
   videoPlayer: { width: "100%", borderRadius: 10, marginTop: 10, display: "block" },
   actionsRow: { display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" },
   smallBtn: { display: "flex", alignItems: "center", gap: 4, background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.3)", color: "var(--gold)", borderRadius: 10, padding: "6px 10px", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", textDecoration: "none", flexShrink: 0 },
@@ -120,12 +121,27 @@ const FS = {
   summaryStatLabel: { flex: 1, fontSize: 13, color: "var(--muted2)", fontWeight: 600 },
   summaryStatValue: { fontSize: 13.5, fontWeight: 700, color: "var(--ink)", textAlign: "end", maxWidth: "55%" },
   shareBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", border: "none", borderRadius: 12, padding: "13px 0", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", background: "var(--gold)", color: "var(--bg)" },
+  templatePickerCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 12px" },
+  templatePickerTitle: { fontSize: 13.5, fontWeight: 700, color: "var(--ink)", marginBottom: 10 },
+  templateOptionRow: { display: "flex", alignItems: "center", gap: 10, width: "100%", border: "1px solid var(--border2)", background: "transparent", borderRadius: 12, padding: "10px 12px", marginBottom: 8, cursor: "pointer", fontFamily: "inherit", textAlign: "start" },
+  templateOptionIcon: { width: 38, height: 38, borderRadius: 10, background: "rgba(201,162,75,0.12)", color: "var(--gold)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  templateOptionLabel: { fontSize: 13, fontWeight: 700, color: "var(--ink)" },
+  templateOptionDesc: { fontSize: 11, color: "var(--muted2)", marginTop: 2 },
+  templateHint: { fontSize: 11, color: "var(--muted2)", textAlign: "center", marginTop: 4 },
   statsToolBar: { display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 },
   exercisePickChip: { border: "1px solid var(--border2)", borderRadius: 20, padding: "8px 14px", fontSize: 12, color: "var(--ink-soft)", cursor: "pointer", fontFamily: "inherit", background: "transparent", whiteSpace: "nowrap" },
   exercisePickChipActive: { borderColor: "var(--gold)", background: "rgba(201,162,75,0.12)", color: "var(--gold)", fontWeight: 700 },
 };
 
 const CARDIO_MOBILITY_ICON = { cardio: HeartPulse, mobility: Wind };
+
+// رابط بحث يوتيوب ديناميكي (لا رابط فيديو ثابت واحد قد يُحذف أو يكون غير
+// مناسب) - يعمل تلقائياً لكل تمرين بالاعتماد على اسمه الإنجليزي، بلا حاجة
+// لربط فيديو محدَّد يدوياً لكل تمرين من الـ~90 تمرين.
+function youtubeSearchUrl(exercise) {
+  const query = `${exercise.nameEn || exercise.name} exercise proper form`;
+  return `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+}
 
 function DifficultyDots({ difficulty }) {
   const idx = DIFFICULTY_ORDER.indexOf(difficulty);
@@ -267,7 +283,9 @@ function ExerciseDetailView({ exercise, isEn, isRtl, onBack, t }) {
         ) : exercise.animationUrl ? (
           <img src={exercise.animationUrl} alt="" style={FS.videoPlayer} />
         ) : (
-          <div style={FS.videoPlaceholder}><Clapperboard size={15} /> {t("fitness.videoComingSoon")}</div>
+          <a href={youtubeSearchUrl(exercise)} target="_blank" rel="noopener noreferrer" style={FS.watchVideoBtn}>
+            <Youtube size={16} /> {t("fitness.watchVideoBtn")}
+          </a>
         )}
       </div>
     </div>
@@ -371,12 +389,22 @@ function FocusModeView({
 
 // شاشة إنهاء التمرين: ملخّص الجلسة (مدة/حجم/أفضل رقم/تمارين مكتملة) +
 // بطاقة مشاركة إنجاز عبر Share Sheet القياسي للمتصفح (انظر achievementShare.js).
+const SHARE_TEMPLATES = [
+  { key: "full", icon: FileText, labelKey: "shareTemplateFull", descKey: "shareTemplateFullDesc" },
+  { key: "photo", icon: Camera, labelKey: "shareTemplatePhoto", descKey: "shareTemplatePhotoDesc" },
+  { key: "minimal", icon: Sparkles, labelKey: "shareTemplateMinimal", descKey: "shareTemplateMinimalDesc" },
+  { key: "stats", icon: LayoutGrid, labelKey: "shareTemplateStats", descKey: "shareTemplateStatsDesc" },
+];
+
 function FinishSummaryView({ summary, isEn, t, showToast, onClose }) {
+  const [pickingTemplate, setPickingTemplate] = useState(false);
+  const fileInputRef = useRef(null);
   const durationMinutes = Math.floor(summary.durationMs / 60000);
   const durationSeconds = Math.floor((summary.durationMs % 60000) / 1000);
   const durationText = t("fitness.summaryDurationValue", { minutes: durationMinutes, seconds: durationSeconds });
   const volumeText = `${Math.round(summary.totalVolume).toLocaleString()} ${t("fitness.volumeUnit")}`;
   const exercisesText = t("fitness.summaryExercisesValue", { done: summary.exercisesCompleted, total: summary.totalExercisesInDay });
+  const totalSetsText = String(summary.totalSets);
 
   let bestText = t("fitness.summaryNoBest");
   if (summary.best) {
@@ -386,7 +414,8 @@ function FinishSummaryView({ summary, isEn, t, showToast, onClose }) {
       : t("fitness.summaryBestRepsValue", { exercise: exName, reps: summary.best.reps });
   }
 
-  async function handleShare() {
+  async function runShare(template, photoFile) {
+    setPickingTemplate(false);
     const statLines = [
       { label: t("fitness.summaryDurationLabel"), value: durationText },
       { label: t("fitness.summaryVolumeLabel"), value: volumeText },
@@ -395,17 +424,40 @@ function FinishSummaryView({ summary, isEn, t, showToast, onClose }) {
     ];
     const shareText = [t("fitness.shareIntroLine"), ...statLines.map((s) => `${s.label}: ${s.value}`)].join("\n");
     const result = await shareAchievementCard({
+      template,
+      photoFile,
       brandLabel: "مسار",
       title: t("fitness.shareCardTitle"),
-      statLines,
       footer: isEn ? "via Masar" : "عبر تطبيق مسار",
       shareText,
       isRtl: !isEn,
+      durationText,
+      volumeText,
+      exercisesText,
+      totalSetsText,
+      targetMuscles: summary.musclesWorked,
+      heroNumber: summary.exercisesCompleted,
+      heroCaption: t("fitness.shareMinimalCaption"),
+      summaryDurationLabel: t("fitness.summaryDurationLabel"),
+      summaryVolumeLabel: t("fitness.summaryVolumeLabel"),
+      summaryExercisesLabel: t("fitness.summaryExercisesLabel"),
+      summarySetsLabel: t("fitness.summarySetsLabel"),
     });
     if (!result.ok) { showToast(t("fitness.shareFailed")); return; }
     if (result.method === "clipboard-image") showToast(t("fitness.shareCopiedImage"));
     else if (result.method === "clipboard-text") showToast(t("fitness.shareCopiedText"));
     else if (result.method === "download") showToast(t("fitness.shareDownloaded"));
+  }
+
+  function selectTemplate(key) {
+    if (key === "photo") { fileInputRef.current?.click(); return; }
+    runShare(key, null);
+  }
+
+  function onPhotoChosen(e) {
+    const file = e.target.files?.[0] || null;
+    e.target.value = "";
+    if (file) runShare("photo", file);
   }
 
   return (
@@ -436,7 +488,29 @@ function FinishSummaryView({ summary, isEn, t, showToast, onClose }) {
         </div>
       </div>
 
-      <button onClick={handleShare} style={FS.shareBtn}><Share2 size={16} /> {t("fitness.shareAchievementBtn")}</button>
+      <input ref={fileInputRef} type="file" accept="image/*" capture="user" style={{ display: "none" }} onChange={onPhotoChosen} />
+
+      {pickingTemplate ? (
+        <div style={FS.templatePickerCard}>
+          <div style={FS.templatePickerTitle}>{t("fitness.chooseTemplateTitle")}</div>
+          {SHARE_TEMPLATES.map((tpl) => {
+            const Icon = tpl.icon;
+            return (
+              <button key={tpl.key} onClick={() => selectTemplate(tpl.key)} style={FS.templateOptionRow}>
+                <div style={FS.templateOptionIcon}><Icon size={18} /></div>
+                <div style={{ flex: 1, textAlign: "start" }}>
+                  <div style={FS.templateOptionLabel}>{t(`fitness.${tpl.labelKey}`)}</div>
+                  <div style={FS.templateOptionDesc}>{t(`fitness.${tpl.descKey}`)}</div>
+                </div>
+              </button>
+            );
+          })}
+          <div style={FS.templateHint}>{t("fitness.photoOptionalHint")}</div>
+          <button onClick={() => setPickingTemplate(false)} style={{ ...S.exportBtn, marginTop: 8, marginBottom: 0 }}>{t("common.buttons.cancel")}</button>
+        </div>
+      ) : (
+        <button onClick={() => setPickingTemplate(true)} style={FS.shareBtn}><Share2 size={16} /> {t("fitness.shareAchievementBtn")}</button>
+      )}
       <button onClick={onClose} style={{ ...S.exportBtn, marginTop: 10 }}>{t("common.buttons.close")}</button>
     </div>
   );
@@ -808,9 +882,15 @@ export default function FitnessView({ healthProfile, showToast }) {
         best = { type: "reps", exerciseId: log.exerciseId, reps: log.reps };
       }
     }
-    const exercisesCompleted = new Set(focusSessionLogs.map((l) => l.exerciseId)).size;
+    const loggedExerciseIds = new Set(focusSessionLogs.map((l) => l.exerciseId));
+    const exercisesCompleted = loggedExerciseIds.size;
     const bestExercise = best ? day.exercises.find((e) => e.id === best.exerciseId) : null;
-    return { durationMs, totalVolume, best, bestExercise, exercisesCompleted, totalExercisesInDay: day.exercises.length, dayType: day.dayType };
+    const musclesWorked = Array.from(new Set(day.exercises.filter((e) => loggedExerciseIds.has(e.id)).map((e) => e.muscle)));
+    return {
+      durationMs, totalVolume, best, bestExercise, exercisesCompleted,
+      totalExercisesInDay: day.exercises.length, dayType: day.dayType,
+      totalSets: focusSessionLogs.length, musclesWorked,
+    };
   }
 
   async function finishFocusWorkout() {

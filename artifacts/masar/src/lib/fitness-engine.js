@@ -153,10 +153,39 @@ function pickOneForMuscle(muscle, equipment, injuries, experience, usedIds, rng,
   return compoundFirst[0] || shuffled[0];
 }
 
+// ===== فرق عام عند "نقطة الانطلاق الأولى" فقط بين الجنسين (Cold Start) =====
+// لا يمنع أو يقيّد أي مستخدم من أي تمرين أو مستوى شدة إطلاقاً، ولا يغيّر
+// اختيار أي تمرين - يعدّل فقط عدد مجموعات (sets) تمرين مركّب واحد للجزء
+// العلوي في اليوم (حد أقصى مجموعة إضافية واحدة).
+//
+// المرجع العلمي العام (فسيولوجيا تمرين عامة، لا تخصص طبي دقيق): نمط عام
+// متكرر في أدبيات علم التدريب لدى غير المتمرّنين هو أن الفجوة النسبية في
+// القوة القصوى المطلقة بين الجنسين تميل لأن تكون أوسع في حركات الجزء
+// العلوي (دفع/سحب بالذراعين والكتفين والصدر) منها في حركات الجزء السفلي -
+// نمط عام ملاحَظ، لا قاعدة مطلقة تنطبق على كل فرد، ولا يعني أي فرق في
+// القدرة على التطور بالتدريب مع الوقت. الانعكاس العملي المحافظ هنا: مبدأ
+// تدريبي عام مقبول هو منح حجم إضافي بسيط لنقطة الضعف النسبية الأكثر شيوعاً
+// (مجموعة واحدة إضافية على تمرين مركّب واحد لا على الجلسة كاملة) بدل تركها
+// بلا أي أولوية - في الملفات الأنثوية تحديداً. لم نطبّق أي تعديل معاكس على
+// ملفات الذكور لعدم وجود نمط عام موثّق بنفس القوة في الاتجاه المقابل
+// يستحق تفعيله افتراضياً - لا داعي لاختلاق تناظر غير موجود فعلياً في
+// الأدبيات.
+//
+// الأهم: هذا "نقطة انطلاق أولية" فقط - hasPerformanceHistory (أي سجل أداء
+// فعلي واحد على الأقل للمستخدم) يعطّله كلياً فيعود عدد المجموعات المحايد
+// الأصلي لكل التمارين - عندها تتفوّق بيانات المستخدم الحقيقية (تقدّمه
+// المسجَّل ومقارنات الأداء والإحصائيات) على أي متوسط عام. الأوزان
+// والتكرارات نفسها لم تتأثر بهذا إطلاقاً في أي وقت - كانت ولا تزال تُدخَل
+// يدوياً من أداء المستخدم الفعلي فقط، لا من أي افتراض جنسي.
+const UPPER_BODY_MUSCLES = new Set(["chest", "back", "shoulders", "biceps", "triceps"]);
+
 // ===== 3) بناء البرنامج الكامل =====
-// assessment: { goal, experience, daysPerWeek, sessionMinutes, equipment, injuries: [] }
-export function buildProgram(assessment, seed) {
-  const { goal, experience, daysPerWeek, sessionMinutes, equipment, injuries = [] } = assessment;
+// assessment: { goal, experience, daysPerWeek, sessionMinutes, equipment, injuries: [], gender }
+// hasPerformanceHistory: هل يملك المستخدم أي سجل أداء فعلي مسجَّل سابقاً؟
+// (انظر التعليق أعلاه - يعطّل الافتراض الجنسي العام كلياً بمجرد توفّر
+// بيانات حقيقية عن هذا المستخدم تحديداً).
+export function buildProgram(assessment, seed, hasPerformanceHistory = false) {
+  const { goal, experience, daysPerWeek, sessionMinutes, equipment, injuries = [], gender } = assessment;
   const actualSeed = Number.isFinite(seed) ? seed : seedFromOwner("solo");
   const split = pickSplit(daysPerWeek, experience);
   const exerciseCount = EXERCISE_COUNT_BY_DURATION[sessionMinutes] || 5;
@@ -165,6 +194,7 @@ export function buildProgram(assessment, seed) {
 
   const usedThisWeek = new Set();
   const substitutionFlag = { value: false };
+  const genderAdjustedFlag = { value: false };
 
   const days = split.map((dayType, dayIndex) => {
     const muscles = DAY_TYPE_MUSCLES[dayType] || DAY_TYPE_MUSCLES.full_body;
@@ -172,14 +202,18 @@ export function buildProgram(assessment, seed) {
     const picked = [];
     const usedPatternsToday = new Set();
     const addPicked = (ex) => { picked.push(ex); usedThisWeek.add(ex.id); if (ex.movementPattern) usedPatternsToday.add(ex.movementPattern); };
-    // مرحلة أولى: تمرين واحد لكل عضلة مستهدَفة (تغطية متوازنة أولاً).
+    // مرحلة أولى: تمرين واحد لكل عضلة مستهدَفة (تغطية متوازنة أولاً) - بنفس
+    // الترتيب الأصلي المحايد دائماً (لا تأثير جنسي هنا) حتى تبقى تغطية كل
+    // عضلات اليوم الأساسية مضمونة بالتساوي لكل مستخدم بغض النظر عن جنسه.
     for (const muscle of muscles) {
       if (picked.length >= exerciseCount) break;
       const ex = pickOneForMuscle(muscle, equipment, injuries, experience, usedThisWeek, dayRng, substitutionFlag, usedPatternsToday);
       if (ex) addPicked(ex);
     }
     // مرحلة ثانية: إن سمحت مدة الحصة بتمارين إضافية، أضف تمريناً ثانياً
-    // للعضلات الأساسية لليوم (أولوية للعضلات الكبرى) بالدوران عليها.
+    // للعضلات الأساسية لليوم (أولوية للعضلات الكبرى) بالدوران عليها - بنفس
+    // الترتيب المحايد دائماً، بلا أي تأثير جنسي هنا (انظر تعديل المجموعات
+    // أدناه بعد بناء قائمة التمارين النهائية لليوم).
     let round = 0;
     while (picked.length < exerciseCount && round < muscles.length) {
       const muscle = muscles[round % muscles.length];
@@ -201,16 +235,23 @@ export function buildProgram(assessment, seed) {
     const cooldownEx = pickOneForMuscle("mobility", equipment, injuries, experience, usedThisWeek, dayRng, substitutionFlag, usedPatternsToday);
     if (cooldownEx) addPicked(cooldownEx);
 
-    return {
-      dayIndex,
-      dayType,
-      exercises: picked.map((e) => ({
-        ...e,
-        sets: (e.muscle === "cardio" || e.muscle === "mobility") ? 1 : sets,
-        reps: (e.type === "cardio" || e.type === "mobility") ? e.reps : volume.reps,
-        restSeconds: volume.restSeconds,
-      })),
-    };
+    const exercises = picked.map((e) => ({
+      ...e,
+      sets: (e.muscle === "cardio" || e.muscle === "mobility") ? 1 : sets,
+      reps: (e.type === "cardio" || e.type === "mobility") ? e.reps : volume.reps,
+      restSeconds: volume.restSeconds,
+    }));
+
+    // نقطة انطلاق أولية فقط (انظر التعليق العلمي أعلاه UPPER_BODY_MUSCLES) -
+    // مجموعة واحدة إضافية كحد أقصى، على تمرين مركّب واحد للجزء العلوي إن
+    // وُجد في هذا اليوم تحديداً، لملفات الإناث بلا سجل أداء فعلي بعد.
+    if (gender === "female" && !hasPerformanceHistory) {
+      const target = exercises.find((e) => UPPER_BODY_MUSCLES.has(e.muscle) && e.type === "compound")
+        || exercises.find((e) => UPPER_BODY_MUSCLES.has(e.muscle));
+      if (target) { target.sets += 1; genderAdjustedFlag.value = true; }
+    }
+
+    return { dayIndex, dayType, exercises };
   });
 
   return {
@@ -222,6 +263,7 @@ export function buildProgram(assessment, seed) {
     equipment,
     injuries,
     hasInjurySubstitutions: substitutionFlag.value || injuries.length > 0,
+    genderAdjusted: genderAdjustedFlag.value,
     seed: actualSeed,
     generatedAt: new Date().toISOString(),
   };

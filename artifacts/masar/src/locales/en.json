@@ -1155,6 +1155,7 @@
     "conditionWarning": "You have a registered health condition. Please consult your doctor before starting an exercise program, especially if the condition relates to the heart, joints, or blood pressure.",
     "yourProgram": "Your program",
     "programSummary": "{{goal}} · {{equipment}} · {{days}} days/week",
+    "genderAdjustedNote": "A few extra exercise slots in this program were prioritized as a general starting point - once you start logging your real performance, your plan relies on your actual data instead of any general assumption.",
     "editProgram": "Edit my assessment",
     "daysCompletedThisWeek": "Days completed this week",
     "completedTodayCheck": "Workout completed today",

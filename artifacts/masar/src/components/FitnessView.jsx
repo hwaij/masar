@@ -644,10 +644,11 @@ export default function FitnessView({ healthProfile, showToast }) {
       });
 
       const hasFullProfile = !!(fp.goal && fp.equipment && fp.daysPerWeek && fp.experience && fp.sessionMinutes);
+      const hasPerformanceHistory = wl.length > 0;
       let entry = wp;
       if (hasFullProfile && !entry) {
         const seed = seedFromOwner(getOwner());
-        entry = { program: buildProgram(fp, seed), seed, weekRotationEnabled: false, rotationFrequency: null, lastRotatedAt: null };
+        entry = { program: buildProgram({ ...fp, gender }, seed, hasPerformanceHistory), seed, weekRotationEnabled: false, rotationFrequency: null, lastRotatedAt: null };
         await store.saveWorkoutProgram(entry);
       } else if (hasFullProfile && entry && entry.weekRotationEnabled) {
         const msPerWeek = 7 * 24 * 3600 * 1000;
@@ -656,7 +657,7 @@ export default function FitnessView({ healthProfile, showToast }) {
         if (Date.now() - last >= interval) {
           const weekIndex = Math.floor(Date.now() / interval);
           const seed = (seedFromOwner(getOwner()) + weekIndex) >>> 0;
-          entry = { ...entry, program: buildProgram(fp, seed), seed, lastRotatedAt: new Date().toISOString() };
+          entry = { ...entry, program: buildProgram({ ...fp, gender }, seed, hasPerformanceHistory), seed, lastRotatedAt: new Date().toISOString() };
           await store.saveWorkoutProgram(entry);
         }
       }
@@ -746,7 +747,7 @@ export default function FitnessView({ healthProfile, showToast }) {
 
     const seed = Math.floor(Math.random() * 2 ** 31);
     const entry = {
-      program: buildProgram(draft, seed), seed,
+      program: buildProgram({ ...draft, gender }, seed, workoutLog.length > 0), seed,
       weekRotationEnabled: programEntry?.weekRotationEnabled || false,
       rotationFrequency: programEntry?.rotationFrequency || null,
       lastRotatedAt: new Date().toISOString(),
@@ -762,7 +763,7 @@ export default function FitnessView({ healthProfile, showToast }) {
     if (!programEntry) return;
     const prevEntry = programEntry;
     const seed = Math.floor(Math.random() * 2 ** 31);
-    const entry = { ...programEntry, program: buildProgram(fitnessProfile, seed), seed };
+    const entry = { ...programEntry, program: buildProgram({ ...fitnessProfile, gender }, seed, workoutLog.length > 0), seed };
     setProgramEntry(entry);
     const res = await store.saveWorkoutProgram(entry);
     if (!res.ok) { setProgramEntry(prevEntry); showToast(t("common.errors.saveFailed")); return; }
@@ -1057,6 +1058,7 @@ export default function FitnessView({ healthProfile, showToast }) {
         <div>
           <div style={FS.summaryLabel}>{t("fitness.yourProgram")}</div>
           <div style={FS.summaryValue}>{t("fitness.programSummary", { goal: goalLabel, equipment: equipmentLabel, days: fitnessProfile.daysPerWeek })}</div>
+          {programEntry?.program?.genderAdjusted && <p style={FS.noteText}>{t("fitness.genderAdjustedNote")}</p>}
         </div>
         <button onClick={() => setEditing(true)} style={{ ...S.exportBtn, width: "auto", padding: "9px 14px", marginBottom: 0 }}><Edit3 size={14} /> {t("fitness.editProgram")}</button>
       </div>

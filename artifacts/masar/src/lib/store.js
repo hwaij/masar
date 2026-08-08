@@ -681,6 +681,7 @@ export const store = {
         carbs: r.carbs, fat: r.fat, fiber: r.fiber || 0, sugar: r.sugar || 0, sodium: r.sodium || 0,
         servingInfo: r.serving_info || "", source: r.source, unit: r.unit || "g",
         micronutrients: r.micronutrients || {},
+        mealType: r.meal_type || null, microApprox: !!r.micro_approx,
       }));
       lsSet("masar_nutrition_log", items);
       return items;
@@ -696,6 +697,7 @@ export const store = {
       fiber: entry.fiber || 0, sugar: entry.sugar || 0, sodium: entry.sodium || 0,
       serving_info: entry.servingInfo || "", source: entry.source, unit: entry.unit || "g",
       micronutrients: entry.micronutrients || {},
+      meal_type: entry.mealType || null, micro_approx: !!entry.microApprox,
     };
     try {
       const { error } = await supabase.from("nutrition_log").insert(payload);

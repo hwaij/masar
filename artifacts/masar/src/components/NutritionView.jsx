@@ -16,6 +16,7 @@ import {
   labelToPer100Product, DAILY_GUIDELINES,
   UNIT_OPTIONS, unitById, unitToGrams, unitServingSize,
   scaleMicronutrients, MICRONUTRIENT_META, personalizedRDI, compressImageToBlob,
+  MEAL_TYPES, guessMealType,
 } from "../lib/nutrition";
 import { requestNotificationPermission } from "../lib/push";
 import { searchGenericFoods, genericFoodToProduct } from "../lib/generic-foods";
@@ -134,7 +135,19 @@ const NS = {
   ringPercent: { position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12.5, fontWeight: 700, color: "var(--ink)" },
   ringLabel: { fontSize: 11, fontWeight: 700, color: "var(--ink-soft)" },
   ringValueText: { fontSize: 9.5, color: "var(--muted2)" },
+
+  mealTypeRow: { display: "flex", gap: 8, marginBottom: 12 },
+  mealTypeBtn: { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, flex: 1, minHeight: 56, borderRadius: 12, border: "1px solid var(--border2)", background: "var(--surface-sunken)", color: "var(--ink-soft)", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
+  mealTypeBtnActive: { border: "1px solid var(--gold)", background: "rgba(201,162,75,0.14)", color: "var(--gold)" },
+  mealGroupHead: { display: "flex", justifyContent: "space-between", alignItems: "baseline", fontSize: 12.5, fontWeight: 700, color: "var(--ink-soft)", margin: "14px 0 8px" },
+  mealGroupCalories: { fontSize: 12, fontWeight: 700, color: "var(--gold)" },
+  approxBadge: { color: "var(--gold)", cursor: "help", fontWeight: 700 },
 };
+
+// ترتيب عرض مجموعات سجل اليوم: الوجبات الأربع بترتيبها الطبيعي في اليوم،
+// ثم "غير مصنّف" أخيراً لأي إدخال قديم (قبل هذه الميزة) أو من معالج "منتج
+// جديد" (لا يعرض اختيار الوجبة - خارج نطاق طرق الإضافة الخمس المطلوبة).
+const MEAL_GROUPS_ORDER = [...MEAL_TYPES, "unspecified"];
 
 const SUBSCRIBE_URL = "https://www.instagram.com/hjmasar";
 
@@ -439,6 +452,33 @@ function ProductEditForm({ product, onSaved, onCancel, showToast }) {
   );
 }
 
+const MEAL_TYPE_EMOJI = { breakfast: "🌅", lunch: "☀️", dinner: "🌙", snack: "🍎" };
+
+// اختيار تصنيف الوجبة - يظهر في كل شاشة "تأكيد/حفظ" عبر طرق الإضافة الخمس
+// (باركود وبحث ويدوي عبر ConfirmQuantityCard المشتركة، وتصوير الوجبة
+// وتصوير الملصق كل منهما بشاشته الخاصة) بنفس المكوّن الموحّد هذا. القيمة
+// الافتراضية (guessMealType في nutrition.js) مجرد تخمين أولي مريح حسب وقت
+// اليوم الحالي - قابلة للتغيير الفوري، لا قيد على أي اختيار.
+function MealTypeSelector({ value, onChange }) {
+  const { t } = useTranslation();
+  return (
+    <>
+      <label style={S.label}>{t("nutrition.mealTypeLabel")}</label>
+      <div style={NS.mealTypeRow}>
+        {MEAL_TYPES.map((mt) => (
+          <button
+            key={mt} type="button" onClick={() => onChange(mt)}
+            style={{ ...NS.mealTypeBtn, ...(value === mt ? NS.mealTypeBtnActive : {}) }}
+          >
+            <span style={{ fontSize: 17 }}>{MEAL_TYPE_EMOJI[mt]}</span>
+            <span>{t(`nutrition.mealTypes.${mt}`)}</span>
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
 function ConfirmQuantityCard({ product: initialProduct, source, onAdd, onCancel, showToast }) {
   const { t } = useTranslation();
   const [product, setProduct] = useState(initialProduct);
@@ -448,6 +488,7 @@ function ConfirmQuantityCard({ product: initialProduct, source, onAdd, onCancel,
   const [multiplier, setMultiplier] = useState(1);
   const [grams, setGrams] = useState(hasServing ? Math.round(product.servingGrams) : 100);
   const [unitQty, setUnitQty] = useState(1);
+  const [mealType, setMealType] = useState(() => guessMealType());
   // تُطبَّق الحصص (×1/×2/...) على وضع "غرام" فقط عندما يملك المنتج حجم حصة
   // معروفاً (سلوك أصلي محفوظ كما هو). لكل الوحدات الأخرى (مل/لتر/كوب/ملعقة/
   // قطعة/حصة/كيلوغرام...)، "الحصة الواحدة" بهذه الوحدة تُحسب دائماً عبر
@@ -560,6 +601,7 @@ function ConfirmQuantityCard({ product: initialProduct, source, onAdd, onCancel,
         <div style={NS.previewChip}><div style={NS.macroValue}>{preview.sugar}{t("common.units.g")}</div><div style={NS.macroLabel}>{t("common.units.sugar")}</div></div>
         <div style={NS.previewChip}><div style={NS.macroValue}>{preview.sodium}{t("common.units.mg")}</div><div style={NS.macroLabel}>{t("common.units.sodium")}</div></div>
       </div>
+      <MealTypeSelector value={mealType} onChange={setMealType} />
       <button
         onClick={() => onAdd({
           id: uid(), foodName: product.name, ...preview,
@@ -577,7 +619,11 @@ function ConfirmQuantityCard({ product: initialProduct, source, onAdd, onCancel,
                 ? `${multiplier} × ${Math.round(product.servingGrams)}${t("common.units.g")}`
                 : `${grams} ${t("common.units.g")}`)
             : `${fmtQty(unitQty)} ${t(`nutrition.unitOptions.${unit}`)}`,
-          source,
+          source, mealType,
+          // origin==="generic" فقط (أطعمة generic-foods.js التقريبية) تُوسَم
+          // بـmicroApprox=true - بيانات باركود/بحث/USDA الحقيقية الأخرى تبقى
+          // بلا علامة تقريب لأنها دقيقة فعلياً لهذا المنتج بعينه.
+          microApprox: product.origin === "generic",
           micronutrients: scaleMicronutrients(product.micronutrientsPer100g, gramsEquivalent || 0),
         })}
         style={S.saveBtn}
@@ -597,6 +643,7 @@ function ManualEntryForm({ barcode, onSave, onCancel }) {
     calories: "", protein: "", carbs: "", fat: "", fiber: "", sugar: "", sodium: "", imageUrl: "",
   });
   const [multiplier, setMultiplier] = useState(1);
+  const [mealType, setMealType] = useState(() => guessMealType());
   function change(field, val) { setDraft((d) => ({ ...d, [field]: val })); }
   const valid = draft.foodName.trim() && Number(draft.calories) > 0;
   const unitMeta = unitById(draft.unit);
@@ -684,6 +731,7 @@ function ManualEntryForm({ barcode, onSave, onCancel }) {
       </div>
       <label style={S.label}>{t("nutrition.productImageUrlOptional")}</label>
       <input value={draft.imageUrl} onChange={(e) => change("imageUrl", e.target.value)} placeholder="https://..." style={S.input} />
+      <MealTypeSelector value={mealType} onChange={setMealType} />
       <button
         onClick={() => {
           const per100 = {
@@ -703,7 +751,7 @@ function ManualEntryForm({ barcode, onSave, onCancel }) {
             carbs: Math.round(per100.carbs * factor * 10) / 10, fat: Math.round(per100.fat * factor * 10) / 10,
             fiber: Math.round(per100.fiber * factor * 10) / 10, sugar: Math.round(per100.sugar * factor * 10) / 10,
             sodium: Math.round(per100.sodium * factor),
-            unit: draft.unit,
+            unit: draft.unit, mealType,
             servingInfo: draft.servingSizeLabel.trim() || `${draft.qty || grams} ${t(`nutrition.unitOptions.${draft.unit}`)}`, source: "manual", barcode,
             // بيانات المنتج الكاملة (لكل 100غم) - تُحفظ في custom_foods إن
             // كان هناك باركود، حتى تُستخدم صحيحة لأي كمية لاحقة، لا فقط
@@ -1227,6 +1275,7 @@ function AIPhotoPanel({ onSave, onManual }) {
   const [result, setResult] = useState(null); // { items, calories, protein, carbs, fat } - القيم المعروضة/القابلة للتعديل حالياً
   const [baseResult, setBaseResult] = useState(null); // نفس شكل result، لكن ثابت: تقدير الذكاء الاصطناعي الخام لحصة واحدة (١×) كما وصل، يُستخدم أساساً لإعادة حساب عدد الحصص دون تراكم أخطاء تقريب
   const [multiplier, setMultiplier] = useState(1);
+  const [mealType, setMealType] = useState(() => guessMealType());
   const cameraInputRef = useRef(null);
   const galleryInputRef = useRef(null);
 
@@ -1341,6 +1390,7 @@ function AIPhotoPanel({ onSave, onManual }) {
               <input type="number" inputMode="decimal" value={result.fat} onChange={(e) => change("fat", Number(e.target.value))} style={S.input} />
             </div>
           </div>
+          <MealTypeSelector value={mealType} onChange={setMealType} />
           <button
             onClick={() => onSave({
               id: uid(),
@@ -1348,7 +1398,7 @@ function AIPhotoPanel({ onSave, onManual }) {
               calories: Number(result.calories) || 0, protein: Number(result.protein) || 0,
               carbs: Number(result.carbs) || 0, fat: Number(result.fat) || 0,
               fiber: 0, sugar: 0, sodium: 0,
-              servingInfo: multiplier !== 1 ? t("nutrition.aiEstimateTimes", { n: fmtQty(multiplier) }) : t("nutrition.aiEstimate"), source: "ai_photo",
+              servingInfo: multiplier !== 1 ? t("nutrition.aiEstimateTimes", { n: fmtQty(multiplier) }) : t("nutrition.aiEstimate"), source: "ai_photo", mealType,
             })}
             style={S.saveBtn}
           >
@@ -1380,6 +1430,7 @@ function LabelPhotoPanel({ onSave, onManual }) {
   const [multiplier, setMultiplier] = useState(1);
   const [grams, setGrams] = useState(100);
   const [unitQty, setUnitQty] = useState(1);
+  const [mealType, setMealType] = useState(() => guessMealType());
   const cameraInputRef = useRef(null);
   const galleryInputRef = useRef(null);
 
@@ -1563,10 +1614,11 @@ function LabelPhotoPanel({ onSave, onManual }) {
         <div style={NS.previewChip}><div style={NS.macroValue}>{preview2.sugar}{t("common.units.g")}</div><div style={NS.macroLabel}>{t("common.units.sugar")}</div></div>
         <div style={NS.previewChip}><div style={NS.macroValue}>{preview2.sodium}{t("common.units.mg")}</div><div style={NS.macroLabel}>{t("common.units.sodium")}</div></div>
       </div>
+      <MealTypeSelector value={mealType} onChange={setMealType} />
       <button
         onClick={() => onSave({
           id: uid(), foodName: t("nutrition.labelFoodFallback"), ...preview2,
-          unit,
+          unit, mealType,
           servingInfo: unit === "g"
             ? (hasServing ? `${multiplier} × ${Math.round(per100.servingGrams)}${t("common.units.g")}` : `${grams} ${t("common.units.g")}`)
             : `${fmtQty(unitQty)} ${t(`nutrition.unitOptions.${unit}`)}`,
@@ -1645,7 +1697,11 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
     const meta = MICRONUTRIENT_META[key];
     const value = Math.round((totals.micronutrients?.[key] || 0) * 100) / 100;
     const rdi = personalizedRDI(key, healthProfile?.age, healthProfile?.gender) ?? meta.rdi;
-    return { key, label: t(`nutrition.micronutrients.${key}`), unit: meta.unit, rdi, value, pct: Math.min(100, Math.round((value / rdi) * 100)) };
+    // approx: هل ساهم إدخال واحد على الأقل بمصدر "تقدير عام" (أطعمة أساسية
+    // من generic-foods.js) في مجموع هذا العنصر اليوم؟ انظر microApprox في
+    // sumNutritionEntries (nutrition.js) - يُعرض بعلامة "≈" واضحة أدناه.
+    const approx = !!totals.microApprox?.[key];
+    return { key, label: t(`nutrition.micronutrients.${key}`), unit: meta.unit, rdi, value, approx, pct: Math.min(100, Math.round((value / rdi) * 100)) };
   });
   const tee = healthProfile?.tee || null;
   const teePercent = tee ? Math.min(100, Math.round((totals.calories / tee) * 100)) : 0;
@@ -1936,7 +1992,9 @@ Write a short paragraph (two to three sentences) analyzing today's eating patter
           {microRows.map((m) => (
             <div key={m.key} style={NS.guidelineRow}>
               <div style={NS.guidelineHead}>
-                <span><span style={NS.guidelineName}>{m.label}</span> — {m.value}{m.unit}</span>
+                <span>
+                  <span style={NS.guidelineName}>{m.label}</span> — {m.approx && <span style={NS.approxBadge} title={t("nutrition.approxMicroHint")}>≈ </span>}{m.value}{m.unit}
+                </span>
                 <span>{t("nutrition.microPercent", { pct: m.pct, rdi: m.rdi, unit: m.unit })}</span>
               </div>
               <div style={NS.barTrack}><div style={{ ...NS.barFill, width: `${m.pct}%` }} /></div>
@@ -1980,16 +2038,29 @@ Write a short paragraph (two to three sentences) analyzing today's eating patter
       <div style={NS.logHead}>{isViewingToday ? t("nutrition.todayLog") : t("nutrition.selectedDayLog")}</div>
       {loaded && selectedLog.length === 0 && <div style={NS.emptyHint}>{isViewingToday ? t("nutrition.noFoodToday") : t("nutrition.noFoodThisDay")}</div>}
       <div className="stagger-in responsive-card-list">
-      {selectedLog.map((e) => (
-        <div key={e.id} style={NS.logItem}>
-          <div style={{ flex: 1 }}>
-            <div style={NS.logItemName}>{e.foodName}</div>
-            <div style={NS.logItemMeta}>{t("nutrition.servingSummary", { servingInfo: e.servingInfo, p: e.protein, c: e.carbs, f: e.fat })}</div>
+      {MEAL_GROUPS_ORDER.map((mt) => {
+        const items = selectedLog.filter((e) => (e.mealType || "unspecified") === mt);
+        if (items.length === 0) return null;
+        const groupCalories = Math.round(sumNutritionEntries(items).calories);
+        return (
+          <div key={mt}>
+            <div style={NS.mealGroupHead}>
+              <span>{mt === "unspecified" ? t("nutrition.unspecifiedMeal") : `${MEAL_TYPE_EMOJI[mt]} ${t(`nutrition.mealTypes.${mt}`)}`}</span>
+              <span style={NS.mealGroupCalories}>{t("nutrition.calSuffix", { cal: groupCalories })}</span>
+            </div>
+            {items.map((e) => (
+              <div key={e.id} style={NS.logItem}>
+                <div style={{ flex: 1 }}>
+                  <div style={NS.logItemName}>{e.foodName}</div>
+                  <div style={NS.logItemMeta}>{t("nutrition.servingSummary", { servingInfo: e.servingInfo, p: e.protein, c: e.carbs, f: e.fat })}</div>
+                </div>
+                <div style={NS.logItemCalories}>{t("nutrition.calSuffix", { cal: Math.round(e.calories) })}</div>
+                <button onClick={() => removeEntry(e.id)} style={NS.deleteBtn}><Trash2 size={15} /></button>
+              </div>
+            ))}
           </div>
-          <div style={NS.logItemCalories}>{t("nutrition.calSuffix", { cal: Math.round(e.calories) })}</div>
-          <button onClick={() => removeEntry(e.id)} style={NS.deleteBtn}><Trash2 size={15} /></button>
-        </div>
-      ))}
+        );
+      })}
       </div>
 
       {sheet && sheet !== "scan" && (

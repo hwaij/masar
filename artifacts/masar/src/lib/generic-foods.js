@@ -16,11 +16,23 @@
 // أنفسهما تلقائياً - لا حاجة لتكرارهما داخل searchTerms.
 // servingGrams: حجم حصة مرجعي تقريبي شائع (يُستخدم كافتراضي "حصة واحدة" في
 // شاشة تأكيد الكمية، تماماً كـservingGrams القادم من Open Food Facts).
+//
+// micronutrients (اختياري، لكل 100غم): تقدير تقريبي موثوق من مرجعية USDA
+// FoodData Central العامة لذلك الصنف تحديداً - أُضيف فقط لعدد محدود من
+// "الأطعمة الأساسية" الأكثر شهرة/توثيقاً لعنصر معيّن (مثال: بيض=فيتامين
+// د/ب12، سبانخ=حديد/فيتامين أ، موز=بوتاسيوم)، لا لكل صنف في القائمة - أي
+// صنف بلا هذا الحقل يبقى بلا فيتامينات كما كان (لا اختراع رقم غير موثوق).
+// عند وجود تفاوت بين مصادر USDA لنفس الصنف (مثال: فيتامين د في السلمون
+// يختلف كثيراً بين بري/مستزرَع)، اخترنا القيمة الأقرب للحد الأدنى الموثوق
+// عمداً - تفادياً لإيهام المستخدم بتحقيق احتياجه فعلياً. هذه القيم تُعرض
+// دائماً في الواجهة بعلامة "≈ تقريبي" واضحة (انظر microApprox في
+// nutrition.js وgenericFoodToProduct أدناه) تمييزاً كاملاً عن القيم
+// الدقيقة الفعلية القادمة من باركود Open Food Facts أو قراءة ملصق حقيقي.
 import { normalizeSearchTerm } from "./nutrition";
 
 export const GENERIC_FOODS = [
   // ===== بيض — eggs =====
-  { id: "egg_boiled", category: "egg", name: "بيض مسلوق", nameEn: "Boiled egg", searchTerms: ["بيض", "egg", "eggs", "boiled egg"], caloriesPer100g: 155, proteinPer100g: 13, carbsPer100g: 1.1, fatPer100g: 11, fiberPer100g: 0, servingGrams: 50 },
+  { id: "egg_boiled", category: "egg", name: "بيض مسلوق", nameEn: "Boiled egg", searchTerms: ["بيض", "egg", "eggs", "boiled egg"], caloriesPer100g: 155, proteinPer100g: 13, carbsPer100g: 1.1, fatPer100g: 11, fiberPer100g: 0, servingGrams: 50, micronutrients: { vitamin_a: 140, vitamin_d: 2, vitamin_b12: 0.9, iron: 1.2, calcium: 50, potassium: 126, zinc: 1.1 } },
   { id: "egg_fried", category: "egg", name: "بيض مقلي", nameEn: "Fried egg", searchTerms: ["بيض مقلي", "fried egg"], caloriesPer100g: 196, proteinPer100g: 13.6, carbsPer100g: 0.8, fatPer100g: 15, fiberPer100g: 0, servingGrams: 50 },
   { id: "egg_omelette", category: "egg", name: "أومليت", nameEn: "Omelette", searchTerms: ["اومليت", "omelet", "omelette"], caloriesPer100g: 154, proteinPer100g: 10.6, carbsPer100g: 1.6, fatPer100g: 11.7, fiberPer100g: 0, servingGrams: 120 },
   { id: "egg_scrambled", category: "egg", name: "بيض مخفوق", nameEn: "Scrambled egg", searchTerms: ["بيض مخفوق", "scrambled egg", "scrambled eggs"], caloriesPer100g: 149, proteinPer100g: 10, carbsPer100g: 1.6, fatPer100g: 11, fiberPer100g: 0, servingGrams: 110 },
@@ -49,13 +61,13 @@ export const GENERIC_FOODS = [
   // ===== لحوم — meats =====
   { id: "beef_ground_80", category: "meat", name: "لحم بقري مفروم (80% خالٍ من الدهن)", nameEn: "Ground beef (80% lean)", searchTerms: ["لحم مفروم", "لحمة مفرومة", "ground beef", "minced beef"], caloriesPer100g: 254, proteinPer100g: 25.9, carbsPer100g: 0, fatPer100g: 16.4, fiberPer100g: 0, servingGrams: 120 },
   { id: "beef_ground_90", category: "meat", name: "لحم بقري مفروم قليل الدسم (90%)", nameEn: "Ground beef (90% lean)", searchTerms: ["لحم مفروم قليل الدسم", "lean ground beef"], caloriesPer100g: 196, proteinPer100g: 26.8, carbsPer100g: 0, fatPer100g: 9.4, fiberPer100g: 0, servingGrams: 120 },
-  { id: "beef_cooked", category: "meat", name: "لحم بقري مطبوخ", nameEn: "Cooked beef", searchTerms: ["لحم", "لحم بقري", "beef", "meat", "steak"], caloriesPer100g: 250, proteinPer100g: 26, carbsPer100g: 0, fatPer100g: 15, fiberPer100g: 0, servingGrams: 120 },
+  { id: "beef_cooked", category: "meat", name: "لحم بقري مطبوخ", nameEn: "Cooked beef", searchTerms: ["لحم", "لحم بقري", "beef", "meat", "steak"], caloriesPer100g: 250, proteinPer100g: 26, carbsPer100g: 0, fatPer100g: 15, fiberPer100g: 0, servingGrams: 120, micronutrients: { iron: 2.6, zinc: 4.5, vitamin_b12: 2.6 } },
   { id: "lamb_cooked", category: "meat", name: "لحم غنم مطبوخ", nameEn: "Cooked lamb", searchTerms: ["لحم غنم", "لحم خروف", "lamb", "mutton"], caloriesPer100g: 294, proteinPer100g: 25, carbsPer100g: 0, fatPer100g: 21, fiberPer100g: 0, servingGrams: 120 },
 
   // ===== أسماك — fish & seafood =====
   { id: "fish_grilled", category: "fish", name: "سمك مشوي", nameEn: "Grilled fish", searchTerms: ["سمك", "سمك مشوي", "fish", "grilled fish"], caloriesPer100g: 105, proteinPer100g: 23, carbsPer100g: 0, fatPer100g: 1.2, fiberPer100g: 0, servingGrams: 120 },
-  { id: "salmon_grilled", category: "fish", name: "سلمون مشوي", nameEn: "Grilled salmon", searchTerms: ["سلمون", "salmon"], caloriesPer100g: 206, proteinPer100g: 22, carbsPer100g: 0, fatPer100g: 13, fiberPer100g: 0, servingGrams: 120 },
-  { id: "tuna_canned_water", category: "fish", name: "تونة (معلّبة بالماء)", nameEn: "Tuna (canned in water)", searchTerms: ["تونة", "tuna"], caloriesPer100g: 116, proteinPer100g: 26, carbsPer100g: 0, fatPer100g: 1, fiberPer100g: 0, servingGrams: 100 },
+  { id: "salmon_grilled", category: "fish", name: "سلمون مشوي", nameEn: "Grilled salmon", searchTerms: ["سلمون", "salmon"], caloriesPer100g: 206, proteinPer100g: 22, carbsPer100g: 0, fatPer100g: 13, fiberPer100g: 0, servingGrams: 120, micronutrients: { vitamin_d: 8, vitamin_b12: 2.8 } },
+  { id: "tuna_canned_water", category: "fish", name: "تونة (معلّبة بالماء)", nameEn: "Tuna (canned in water)", searchTerms: ["تونة", "tuna"], caloriesPer100g: 116, proteinPer100g: 26, carbsPer100g: 0, fatPer100g: 1, fiberPer100g: 0, servingGrams: 100, micronutrients: { vitamin_b12: 2.2 } },
   { id: "tilapia_grilled", category: "fish", name: "بلطي مشوي", nameEn: "Grilled tilapia", searchTerms: ["بلطي", "تلابيا", "tilapia"], caloriesPer100g: 129, proteinPer100g: 26.2, carbsPer100g: 0, fatPer100g: 2.7, fiberPer100g: 0, servingGrams: 120 },
   { id: "shrimp_cooked", category: "fish", name: "روبيان مطبوخ", nameEn: "Cooked shrimp", searchTerms: ["روبيان", "جمبري", "shrimp", "prawns"], caloriesPer100g: 99, proteinPer100g: 24, carbsPer100g: 0.2, fatPer100g: 0.3, fiberPer100g: 0, servingGrams: 85 },
 
@@ -65,8 +77,8 @@ export const GENERIC_FOODS = [
   { id: "lettuce", category: "vegetable", name: "خس", nameEn: "Lettuce", searchTerms: ["خس", "lettuce"], caloriesPer100g: 15, proteinPer100g: 1.4, carbsPer100g: 2.9, fatPer100g: 0.2, fiberPer100g: 1.3, servingGrams: 50 },
   { id: "carrot", category: "vegetable", name: "جزر", nameEn: "Carrot", searchTerms: ["جزر", "carrot", "carrots"], caloriesPer100g: 41, proteinPer100g: 0.9, carbsPer100g: 10, fatPer100g: 0.2, fiberPer100g: 2.8, servingGrams: 60 },
   { id: "onion", category: "vegetable", name: "بصل", nameEn: "Onion", searchTerms: ["بصل", "onion", "onions"], caloriesPer100g: 40, proteinPer100g: 1.1, carbsPer100g: 9.3, fatPer100g: 0.1, fiberPer100g: 1.7, servingGrams: 110 },
-  { id: "spinach", category: "vegetable", name: "سبانخ", nameEn: "Spinach", searchTerms: ["سبانخ", "spinach"], caloriesPer100g: 23, proteinPer100g: 2.9, carbsPer100g: 3.6, fatPer100g: 0.4, fiberPer100g: 2.2, servingGrams: 30 },
-  { id: "broccoli", category: "vegetable", name: "بروكلي", nameEn: "Broccoli", searchTerms: ["بروكلي", "broccoli"], caloriesPer100g: 34, proteinPer100g: 2.8, carbsPer100g: 6.6, fatPer100g: 0.4, fiberPer100g: 2.6, servingGrams: 90 },
+  { id: "spinach", category: "vegetable", name: "سبانخ", nameEn: "Spinach", searchTerms: ["سبانخ", "spinach"], caloriesPer100g: 23, proteinPer100g: 2.9, carbsPer100g: 3.6, fatPer100g: 0.4, fiberPer100g: 2.2, servingGrams: 30, micronutrients: { vitamin_a: 469, vitamin_c: 28, iron: 2.7, calcium: 99, potassium: 558, magnesium: 79 } },
+  { id: "broccoli", category: "vegetable", name: "بروكلي", nameEn: "Broccoli", searchTerms: ["بروكلي", "broccoli"], caloriesPer100g: 34, proteinPer100g: 2.8, carbsPer100g: 6.6, fatPer100g: 0.4, fiberPer100g: 2.6, servingGrams: 90, micronutrients: { vitamin_c: 89, calcium: 47, potassium: 316 } },
   { id: "bell_pepper", category: "vegetable", name: "فلفل حلو", nameEn: "Bell pepper", searchTerms: ["فلفل", "فلفل حلو", "فلفل رومي", "bell pepper", "capsicum"], caloriesPer100g: 31, proteinPer100g: 1, carbsPer100g: 6, fatPer100g: 0.3, fiberPer100g: 2.1, servingGrams: 120 },
   { id: "potato_boiled", category: "vegetable", name: "بطاطس مسلوقة", nameEn: "Boiled potato", searchTerms: ["بطاطا", "بطاطس", "potato", "potatoes"], caloriesPer100g: 87, proteinPer100g: 1.9, carbsPer100g: 20, fatPer100g: 0.1, fiberPer100g: 1.8, servingGrams: 150 },
   { id: "eggplant", category: "vegetable", name: "باذنجان", nameEn: "Eggplant", searchTerms: ["باذنجان", "eggplant", "aubergine"], caloriesPer100g: 25, proteinPer100g: 1, carbsPer100g: 5.9, fatPer100g: 0.2, fiberPer100g: 3, servingGrams: 80 },
@@ -74,8 +86,8 @@ export const GENERIC_FOODS = [
 
   // ===== فواكه — fruits =====
   { id: "apple", category: "fruit", name: "تفاح", nameEn: "Apple", searchTerms: ["تفاح", "apple", "apples"], caloriesPer100g: 52, proteinPer100g: 0.3, carbsPer100g: 14, fatPer100g: 0.2, fiberPer100g: 2.4, servingGrams: 180 },
-  { id: "banana", category: "fruit", name: "موز", nameEn: "Banana", searchTerms: ["موز", "banana", "bananas"], caloriesPer100g: 89, proteinPer100g: 1.1, carbsPer100g: 23, fatPer100g: 0.3, fiberPer100g: 2.6, servingGrams: 120 },
-  { id: "orange", category: "fruit", name: "برتقال", nameEn: "Orange", searchTerms: ["برتقال", "orange", "oranges"], caloriesPer100g: 47, proteinPer100g: 0.9, carbsPer100g: 12, fatPer100g: 0.1, fiberPer100g: 2.4, servingGrams: 130 },
+  { id: "banana", category: "fruit", name: "موز", nameEn: "Banana", searchTerms: ["موز", "banana", "bananas"], caloriesPer100g: 89, proteinPer100g: 1.1, carbsPer100g: 23, fatPer100g: 0.3, fiberPer100g: 2.6, servingGrams: 120, micronutrients: { potassium: 358, vitamin_c: 8.7 } },
+  { id: "orange", category: "fruit", name: "برتقال", nameEn: "Orange", searchTerms: ["برتقال", "orange", "oranges"], caloriesPer100g: 47, proteinPer100g: 0.9, carbsPer100g: 12, fatPer100g: 0.1, fiberPer100g: 2.4, servingGrams: 130, micronutrients: { vitamin_c: 50, potassium: 181 } },
   { id: "grapes", category: "fruit", name: "عنب", nameEn: "Grapes", searchTerms: ["عنب", "grapes"], caloriesPer100g: 69, proteinPer100g: 0.7, carbsPer100g: 18, fatPer100g: 0.2, fiberPer100g: 0.9, servingGrams: 90 },
   { id: "strawberry", category: "fruit", name: "فراولة", nameEn: "Strawberry", searchTerms: ["فراولة", "strawberry", "strawberries"], caloriesPer100g: 32, proteinPer100g: 0.7, carbsPer100g: 7.7, fatPer100g: 0.3, fiberPer100g: 2, servingGrams: 150 },
   { id: "dates", category: "fruit", name: "تمر", nameEn: "Dates", searchTerms: ["تمر", "دتس", "dates"], caloriesPer100g: 277, proteinPer100g: 1.8, carbsPer100g: 75, fatPer100g: 0.2, fiberPer100g: 6.7, servingGrams: 24 },
@@ -85,22 +97,22 @@ export const GENERIC_FOODS = [
   { id: "kiwi", category: "fruit", name: "كيوي", nameEn: "Kiwi", searchTerms: ["كيوي", "kiwi"], caloriesPer100g: 61, proteinPer100g: 1.1, carbsPer100g: 14.7, fatPer100g: 0.5, fiberPer100g: 3, servingGrams: 75 },
 
   // ===== بقوليات — legumes =====
-  { id: "lentils_cooked", category: "legume", name: "عدس مطبوخ", nameEn: "Lentils, cooked", searchTerms: ["عدس", "lentils", "lentil"], caloriesPer100g: 116, proteinPer100g: 9, carbsPer100g: 20, fatPer100g: 0.4, fiberPer100g: 7.9, servingGrams: 150 },
+  { id: "lentils_cooked", category: "legume", name: "عدس مطبوخ", nameEn: "Lentils, cooked", searchTerms: ["عدس", "lentils", "lentil"], caloriesPer100g: 116, proteinPer100g: 9, carbsPer100g: 20, fatPer100g: 0.4, fiberPer100g: 7.9, servingGrams: 150, micronutrients: { iron: 3.3, potassium: 360, magnesium: 36 } },
   { id: "chickpeas_cooked", category: "legume", name: "حمص مطبوخ", nameEn: "Chickpeas, cooked", searchTerms: ["حمص", "chickpeas", "chickpea", "garbanzo"], caloriesPer100g: 164, proteinPer100g: 8.9, carbsPer100g: 27.4, fatPer100g: 2.6, fiberPer100g: 7.6, servingGrams: 150 },
   { id: "fava_beans_cooked", category: "legume", name: "فول مطبوخ", nameEn: "Fava beans, cooked", searchTerms: ["فول", "fava beans", "broad beans"], caloriesPer100g: 110, proteinPer100g: 7.6, carbsPer100g: 19.7, fatPer100g: 0.4, fiberPer100g: 5.4, servingGrams: 150 },
   { id: "kidney_beans_cooked", category: "legume", name: "فاصوليا حمراء مطبوخة", nameEn: "Kidney beans, cooked", searchTerms: ["فاصوليا", "فاصوليا حمراء", "kidney beans", "beans"], caloriesPer100g: 127, proteinPer100g: 8.7, carbsPer100g: 22.8, fatPer100g: 0.5, fiberPer100g: 6.4, servingGrams: 150 },
 
   // ===== ألبان — dairy =====
-  { id: "milk_whole", category: "dairy", name: "حليب كامل الدسم", nameEn: "Whole milk", searchTerms: ["حليب", "milk", "whole milk"], caloriesPer100g: 61, proteinPer100g: 3.2, carbsPer100g: 4.8, fatPer100g: 3.3, fiberPer100g: 0, servingGrams: 240 },
+  { id: "milk_whole", category: "dairy", name: "حليب كامل الدسم", nameEn: "Whole milk", searchTerms: ["حليب", "milk", "whole milk"], caloriesPer100g: 61, proteinPer100g: 3.2, carbsPer100g: 4.8, fatPer100g: 3.3, fiberPer100g: 0, servingGrams: 240, micronutrients: { calcium: 113, vitamin_d: 1, vitamin_b12: 0.45, potassium: 132 } },
   { id: "milk_skim", category: "dairy", name: "حليب خالي الدسم", nameEn: "Skim milk", searchTerms: ["حليب خالي الدسم", "حليب قليل الدسم", "skim milk", "low fat milk"], caloriesPer100g: 34, proteinPer100g: 3.4, carbsPer100g: 5, fatPer100g: 0.1, fiberPer100g: 0, servingGrams: 240 },
-  { id: "yogurt_plain", category: "dairy", name: "زبادي", nameEn: "Plain yogurt", searchTerms: ["زبادي", "لبن زبادي", "yogurt", "yoghurt"], caloriesPer100g: 61, proteinPer100g: 3.5, carbsPer100g: 4.7, fatPer100g: 3.3, fiberPer100g: 0, servingGrams: 170 },
+  { id: "yogurt_plain", category: "dairy", name: "زبادي", nameEn: "Plain yogurt", searchTerms: ["زبادي", "لبن زبادي", "yogurt", "yoghurt"], caloriesPer100g: 61, proteinPer100g: 3.5, carbsPer100g: 4.7, fatPer100g: 3.3, fiberPer100g: 0, servingGrams: 170, micronutrients: { calcium: 110, vitamin_b12: 0.75, potassium: 141 } },
   { id: "laban", category: "dairy", name: "لبن (رائب)", nameEn: "Buttermilk (laban)", searchTerms: ["لبن", "لبن رائب", "laban", "buttermilk"], caloriesPer100g: 40, proteinPer100g: 3.3, carbsPer100g: 4.8, fatPer100g: 0.9, fiberPer100g: 0, servingGrams: 240 },
   { id: "cheese_white", category: "dairy", name: "جبن أبيض", nameEn: "White cheese (feta-style)", searchTerms: ["جبن أبيض", "جبنة بيضاء", "فيتا", "feta", "white cheese"], caloriesPer100g: 264, proteinPer100g: 14.2, carbsPer100g: 4.1, fatPer100g: 21.3, fiberPer100g: 0, servingGrams: 30 },
-  { id: "cheese_cheddar", category: "dairy", name: "جبن شيدر", nameEn: "Cheddar cheese", searchTerms: ["جبن", "جبنة", "شيدر", "cheese", "cheddar"], caloriesPer100g: 402, proteinPer100g: 25, carbsPer100g: 1.3, fatPer100g: 33, fiberPer100g: 0, servingGrams: 30 },
+  { id: "cheese_cheddar", category: "dairy", name: "جبن شيدر", nameEn: "Cheddar cheese", searchTerms: ["جبن", "جبنة", "شيدر", "cheese", "cheddar"], caloriesPer100g: 402, proteinPer100g: 25, carbsPer100g: 1.3, fatPer100g: 33, fiberPer100g: 0, servingGrams: 30, micronutrients: { calcium: 700 } },
   { id: "cream", category: "dairy", name: "قشطة", nameEn: "Cream", searchTerms: ["قشطة", "كريمة", "cream", "heavy cream"], caloriesPer100g: 340, proteinPer100g: 2.1, carbsPer100g: 2.8, fatPer100g: 36, fiberPer100g: 0, servingGrams: 15 },
 
   // ===== مكسرات — nuts =====
-  { id: "almonds", category: "nut", name: "لوز", nameEn: "Almonds", searchTerms: ["لوز", "almonds", "almond"], caloriesPer100g: 579, proteinPer100g: 21.2, carbsPer100g: 21.6, fatPer100g: 49.9, fiberPer100g: 12.5, servingGrams: 28 },
+  { id: "almonds", category: "nut", name: "لوز", nameEn: "Almonds", searchTerms: ["لوز", "almonds", "almond"], caloriesPer100g: 579, proteinPer100g: 21.2, carbsPer100g: 21.6, fatPer100g: 49.9, fiberPer100g: 12.5, servingGrams: 28, micronutrients: { magnesium: 268, calcium: 264 } },
   { id: "walnuts", category: "nut", name: "جوز", nameEn: "Walnuts", searchTerms: ["جوز", "عين جمل", "walnuts", "walnut"], caloriesPer100g: 654, proteinPer100g: 15.2, carbsPer100g: 13.7, fatPer100g: 65.2, fiberPer100g: 6.7, servingGrams: 28 },
   { id: "pistachios", category: "nut", name: "فستق", nameEn: "Pistachios", searchTerms: ["فستق", "فستق حلبي", "pistachios", "pistachio"], caloriesPer100g: 560, proteinPer100g: 20.2, carbsPer100g: 27.2, fatPer100g: 45.3, fiberPer100g: 10.6, servingGrams: 28 },
   { id: "cashews", category: "nut", name: "كاجو", nameEn: "Cashews", searchTerms: ["كاجو", "cashews", "cashew"], caloriesPer100g: 553, proteinPer100g: 18.2, carbsPer100g: 30.2, fatPer100g: 43.9, fiberPer100g: 3.3, servingGrams: 28 },
@@ -149,8 +161,12 @@ export function searchGenericFoods(normalizedQuery) {
 // ConfirmQuantityCard (نفس حقول XxxPer100g التي تُنتجها normalizeProduct في
 // nutrition.js) - بلا حاجة لأي تعديل في ذلك المكوّن. barcode مصطنع فريد
 // (generic:<id>) لا يصطدم أبداً بباركود Open Food Facts حقيقي. sugar/sodium
-// ومايكرونيوترينتس غير مذكورة في مصدر البيانات هنا فتبقى صفر/فارغة (لا
-// اختراع قيمة غير معروفة فعلياً).
+// تبقى صفراً (غير مذكورة في مصدر البيانات هنا - لا اختراع قيمة غير معروفة
+// فعلياً). micronutrientsPer100g تُؤخذ من حقل food.micronutrients أعلاه إن
+// وُجد (تقدير USDA تقريبي لصنف محدَّد) وإلا كائن فارغ كما كان دائماً.
+// origin: "generic" هو العلامة الوحيدة التي تُستخدم لاحقاً (ConfirmQuantityCard)
+// لوسم أي فيتامين/معدن من هذا المصدر بـmicroApprox=true في سجل التغذية -
+// تمييزاً عن بيانات حقيقية دقيقة من باركود Open Food Facts أو ملصق حقيقي.
 export function genericFoodToProduct(food, isEn) {
   return {
     barcode: `generic:${food.id}`,
@@ -167,7 +183,7 @@ export function genericFoodToProduct(food, isEn) {
     sodiumPer100gMg: 0,
     servingSizeLabel: null,
     servingGrams: food.servingGrams || null,
-    micronutrientsPer100g: {},
+    micronutrientsPer100g: food.micronutrients || {},
     origin: "generic",
     category: food.category,
   };

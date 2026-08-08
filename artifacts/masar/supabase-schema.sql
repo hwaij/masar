@@ -265,6 +265,26 @@ alter table nutrition_log add column if not exists unit text not null default 'g
 -- الإدخال تحديداً، لا صفراً حقيقياً.
 alter table nutrition_log add column if not exists micronutrients jsonb not null default '{}'::jsonb;
 
+-- تصنيف الوجبة (فطور/غداء/عشاء/سناك) - يُختار من 4 أزرار في شاشة تأكيد
+-- الكمية عند كل إضافة (باركود/بحث/يدوي/تصوير/ملصق)، بتخمين أولي حسب وقت
+-- اليوم قابل للتغيير الفوري. null يعني إدخالاً قديماً قبل هذه الميزة (أو من
+-- معالج "إضافة منتج جديد" الذي لا يعرض هذا الاختيار) - يُعرض في مجموعة
+-- "غير مصنّف" منفصلة بدل تعطّل العرض. يفتح الباب لاحقاً لتحليلات لكل وجبة
+-- (مثال: "فطورك دائماً منخفض البروتين") بمجرد تصفية nutrition_log بهذا
+-- العمود، دون أي تعديل بنيوي إضافي.
+alter table nutrition_log add column if not exists meal_type text;
+alter table nutrition_log drop constraint if exists nutrition_log_meal_type_check;
+alter table nutrition_log add constraint nutrition_log_meal_type_check check (meal_type is null or meal_type in ('breakfast', 'lunch', 'dinner', 'snack'));
+
+-- true فقط لإدخالات مصدرها "تقدير عام تقريبي" من قاعدة generic-foods.js
+-- المحلية (أطعمة أساسية شائعة كالبيض والسبانخ، مرجعية USDA للصنف تحديداً -
+-- انظر تعليق micronutrients في generic-foods.js) لا بيانات دقيقة فعلية
+-- لمنتج بعينه (باركود Open Food Facts أو قراءة ملصق حقيقي بالذكاء
+-- الاصطناعي، كلاهما false هنا لأنهما دقيقان فعلاً). تُستخدم لعرض علامة "≈
+-- تقريبي" واضحة في ملخص فيتامينات/معادن اليوم، تمييزاً كاملاً عن القيم
+-- الحقيقية.
+alter table nutrition_log add column if not exists micro_approx boolean not null default false;
+
 -- مفتاحها (owner, barcode) — لو أدخل المستخدم منتجاً يدوياً لباركود غير
 -- موجود في Open Food Facts، يُستخدم هذا الصف تلقائياً في المرة القادمة
 -- لنفس الباركود قبل حتى محاولة الاتصال بالـ API.

@@ -962,6 +962,15 @@
       "zinc": "Zinc",
       "magnesium": "Magnesium"
     },
+    "mealTypes": {
+      "breakfast": "Breakfast",
+      "lunch": "Lunch",
+      "dinner": "Dinner",
+      "snack": "Snack"
+    },
+    "mealTypeLabel": "Meal type",
+    "unspecifiedMeal": "Unspecified",
+    "approxMicroHint": "An approximate reference value from general USDA data for this food, not a precise analysis of this specific food.",
     "heroTitle": "Nutrition",
     "heroSub": "Log what you eat and drink today and compare it to your needs.",
     "cameraHttpsRequired": "The camera requires a secure connection (HTTPS) to work. Make sure you're accessing the site via an https:// link and try again.",

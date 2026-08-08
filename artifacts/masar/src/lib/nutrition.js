@@ -182,6 +182,26 @@ export function normalizeSearchTerm(text) {
     .replace(/\s+/g, " ");
 }
 
+// تصنيف الوجبة (فطور/غداء/عشاء/سناك) - حقل وصفي بسيط يُخزَّن مع كل إدخال
+// (nutrition_log.meal_type) لتجميع سجل اليوم بصرياً تحت عناوين واضحة، ويفتح
+// الباب مستقبلاً لتحليلات لكل وجبة (مثل "فطورك دائماً منخفض البروتين") دون
+// أي تغيير بنيوي إضافي - أي دالة تحليل مستقبلية تُشغَّل ببساطة على مجموعة
+// فرعية من nutrition_log مصفّاة بـmeal_type، بنفس دوال التجميع الموجودة
+// أصلاً (sumNutritionEntries) دون أي منطق جديد.
+export const MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack"];
+
+// تخمين مبدئي بسيط حسب وقت اليوم الحالي - نطاقات عامة شائعة (لا معيار طبي
+// دقيق)، قابلة للتغيير الفوري من المستخدم عبر أزرار الاختيار الأربعة - هذا
+// افتراض أولي مريح فقط، لا قيد. الفترة بين منتصف الليل والفجر (لا فطور ولا
+// غداء ولا عشاء منطقياً) تُصنَّف "سناك" كافتراض محايد معقول.
+export function guessMealType(now = new Date()) {
+  const h = now.getHours();
+  if (h >= 5 && h < 11) return "breakfast";
+  if (h >= 11 && h < 16) return "lunch";
+  if (h >= 16 && h < 21) return "dinner";
+  return "snack";
+}
+
 // إرشادات تقديرية عامة معروفة (ليست دقيقة طبياً لفرد بعينه) لمقارنة
 // الاستهلاك اليومي - مذكورة صراحة كتقديرات عامة في الواجهة، لا كأرقام
 // موصوفة طبياً لحالة المستخدم.
@@ -385,15 +405,23 @@ export function sumNutritionEntries(entries) {
   // متغيّرة (لا كل إدخال يحمل نفس العناصر، أو أياً منها أصلاً) - أي إدخال
   // بلا micronutrients لا يُسهم بشيء، ولا يظهر أي عنصر لم يُساهم فيه ولو
   // إدخال واحد اليوم بقيمة حقيقية.
+  //
+  // microApprox: لكل مفتاح ساهم فيه إدخال واحد على الأقل مصدره "تقدير عام"
+  // (microApprox=true على الإدخال - أطعمة generic-foods.js التقريبية، انظر
+  // genericFoodToProduct)، لا بيانات دقيقة فعلية لمنتج بعينه (باركود/ملصق) -
+  // true تعني "مجموع هذا العنصر لهذا اليوم يشمل قيمة تقريبية واحدة على الأقل"،
+  // فيُعرض بعلامة "≈" في الواجهة بدل الإيحاء بدقة كاملة لكل مساهمة فيه.
   const micronutrients = {};
+  const microApprox = {};
   for (const e of entries) {
     if (!e.micronutrients) continue;
     for (const [key, val] of Object.entries(e.micronutrients)) {
       if (val == null) continue;
       micronutrients[key] = (micronutrients[key] || 0) + Number(val);
+      if (e.microApprox) microApprox[key] = true;
     }
   }
-  return { ...totals, micronutrients };
+  return { ...totals, micronutrients, microApprox };
 }
 
 // الكاميرا تحتاج سياقاً آمناً (HTTPS) لتعمل في أي متصفح — localhost مستثنى

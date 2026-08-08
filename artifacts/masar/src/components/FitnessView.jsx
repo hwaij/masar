@@ -154,7 +154,7 @@ function DifficultyDots({ difficulty }) {
   );
 }
 
-function ExerciseRow({ exercise, isEn, isLogging, onToggleLog, logWeight, setLogWeight, logReps, setLogReps, logSets, setLogSets, onSubmitPerformance, onSwap, onOpenDetail, progression, t }) {
+function ExerciseRow({ exercise, isEn, gender, isLogging, onToggleLog, logWeight, setLogWeight, logReps, setLogReps, logSets, setLogSets, onSubmitPerformance, onSwap, onOpenDetail, progression, t }) {
   const gear = GEAR_TYPES.find((g) => g.key === exercise.gear);
   const GearIcon = gear ? ICONS[gear.icon] || Dumbbell : Dumbbell;
   const CardioMobilityIcon = CARDIO_MOBILITY_ICON[exercise.muscle];
@@ -168,7 +168,7 @@ function ExerciseRow({ exercise, isEn, isLogging, onToggleLog, logWeight, setLog
         ) : CardioMobilityIcon ? (
           <div style={FS.genericIconWrap}><CardioMobilityIcon size={18} /></div>
         ) : (
-          <div style={FS.diagramWrap}><MuscleDiagram muscle={exercise.muscle} secondaryMuscles={exercise.secondaryMuscles} size={30} /></div>
+          <div style={FS.diagramWrap}><MuscleDiagram muscle={exercise.muscle} secondaryMuscles={exercise.secondaryMuscles} gender={gender} size={30} /></div>
         )}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={FS.exerciseName}>{isEn ? (exercise.nameEn || exercise.name) : exercise.name}</div>
@@ -228,7 +228,7 @@ function ExerciseRow({ exercise, isEn, isLogging, onToggleLog, logWeight, setLog
 // صفحة تفاصيل تمرين كاملة (نمط "صفحة كاملة + زر رجوع" المستخدَم في
 // DietPlansView.jsx) بدل اللوحة المطوية السابقة - مساحة أكبر لعرض المخطط
 // التشريحي والخطوات بوضوح.
-function ExerciseDetailView({ exercise, isEn, isRtl, onBack, t }) {
+function ExerciseDetailView({ exercise, isEn, isRtl, gender, onBack, t }) {
   const BackChevron = isRtl ? ChevronRight : ChevronLeft;
   const gear = GEAR_TYPES.find((g) => g.key === exercise.gear);
   const GearIcon = gear ? ICONS[gear.icon] || Dumbbell : Dumbbell;
@@ -245,7 +245,7 @@ function ExerciseDetailView({ exercise, isEn, isRtl, onBack, t }) {
         ) : CardioMobilityIcon ? (
           <div style={{ ...FS.genericIconWrap, width: 70, height: 70 }}><CardioMobilityIcon size={32} /></div>
         ) : (
-          <MuscleDiagram muscle={exercise.muscle} secondaryMuscles={exercise.secondaryMuscles} size={70} />
+          <MuscleDiagram muscle={exercise.muscle} secondaryMuscles={exercise.secondaryMuscles} gender={gender} size={70} />
         )}
         <div style={FS.detailName}>{isEn ? (exercise.nameEn || exercise.name) : exercise.name}</div>
         <div style={FS.badgeRow}>
@@ -299,7 +299,7 @@ function ExerciseDetailView({ exercise, isEn, isRtl, onBack, t }) {
 // لكن بلا حفظ للحالة عبر تحديث الصفحة لأن فترات الراحة قصيرة جداً 45-90
 // ثانية بخلاف مؤقّت الدراسة الطويل).
 function FocusModeView({
-  flatExercises, exIndex, isEn, isRtl, t,
+  flatExercises, exIndex, isEn, isRtl, gender, t,
   weight, setWeight, reps, setReps, onCompleteSet, setsDoneForCurrent,
   restEndsAt, restRemainingMs, onSkipRest, lastOneRepMax, lastPerformance,
   onNextExercise, onFinishWorkout, onExit,
@@ -333,7 +333,7 @@ function FocusModeView({
         ) : CardioMobilityIcon ? (
           <div style={{ ...FS.genericIconWrap, width: 70, height: 70 }}><CardioMobilityIcon size={32} /></div>
         ) : (
-          <MuscleDiagram muscle={exercise.muscle} secondaryMuscles={exercise.secondaryMuscles} size={70} />
+          <MuscleDiagram muscle={exercise.muscle} secondaryMuscles={exercise.secondaryMuscles} gender={gender} size={70} />
         )}
       </div>
       <div style={FS.focusExerciseName}>{isEn ? (exercise.nameEn || exercise.name) : exercise.name}</div>
@@ -396,7 +396,7 @@ const SHARE_TEMPLATES = [
   { key: "stats", icon: LayoutGrid, labelKey: "shareTemplateStats", descKey: "shareTemplateStatsDesc" },
 ];
 
-function FinishSummaryView({ summary, isEn, t, showToast, onClose }) {
+function FinishSummaryView({ summary, isEn, gender, t, showToast, onClose }) {
   const [pickingTemplate, setPickingTemplate] = useState(false);
   const fileInputRef = useRef(null);
   const durationMinutes = Math.floor(summary.durationMs / 60000);
@@ -436,6 +436,7 @@ function FinishSummaryView({ summary, isEn, t, showToast, onClose }) {
       exercisesText,
       totalSetsText,
       targetMuscles: summary.musclesWorked,
+      gender,
       heroNumber: summary.exercisesCompleted,
       heroCaption: t("fitness.shareMinimalCaption"),
       summaryDurationLabel: t("fitness.summaryDurationLabel"),
@@ -582,6 +583,9 @@ export default function FitnessView({ healthProfile, showToast }) {
   const { t, i18n } = useTranslation();
   const isEn = i18n.language === "en";
   const isRtl = !isEn;
+  // مصدر واحد للحقيقة لجنس المستخدم: من ملف "أنت" (health_profile) دون
+  // تكرار السؤال في الرياضة - افتراضي "male" فقط إن لم يُحدَّد بعد هناك.
+  const gender = healthProfile?.gender === "female" ? "female" : "male";
   const [loaded, setLoaded] = useState(false);
   const [fitnessProfile, setFitnessProfile] = useState({ goal: null, equipment: null, daysPerWeek: null, experience: null, sessionMinutes: null, injuries: [] });
   const [fitnessLog, setFitnessLog] = useState({});
@@ -915,6 +919,7 @@ export default function FitnessView({ healthProfile, showToast }) {
         exIndex={focusExIndex}
         isEn={isEn}
         isRtl={isRtl}
+        gender={gender}
         t={t}
         weight={focusWeight} setWeight={setFocusWeight}
         reps={focusReps} setReps={setFocusReps}
@@ -937,6 +942,7 @@ export default function FitnessView({ healthProfile, showToast }) {
       <FinishSummaryView
         summary={finishedSummary}
         isEn={isEn}
+        gender={gender}
         t={t}
         showToast={showToast}
         onClose={() => setFinishedSummary(null)}
@@ -961,7 +967,7 @@ export default function FitnessView({ healthProfile, showToast }) {
   }
 
   if (selectedExercise) {
-    return <ExerciseDetailView exercise={selectedExercise} isEn={isEn} isRtl={isRtl} onBack={() => setSelectedExercise(null)} t={t} />;
+    return <ExerciseDetailView exercise={selectedExercise} isEn={isEn} isRtl={isRtl} gender={gender} onBack={() => setSelectedExercise(null)} t={t} />;
   }
 
   if (editing || !hasProfile) {
@@ -1131,6 +1137,7 @@ export default function FitnessView({ healthProfile, showToast }) {
                   key={`${key}-${ex.id}`}
                   exercise={ex}
                   isEn={isEn}
+                  gender={gender}
                   isLogging={loggingKey === key}
                   onToggleLog={() => setLoggingKey(loggingKey === key ? null : key)}
                   onOpenDetail={() => setSelectedExercise(ex)}

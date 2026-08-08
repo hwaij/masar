@@ -7,7 +7,10 @@
 // المشاركة عبر Share Sheet القياسي للمتصفح (navigator.share) - لا تصميم
 // مخصَّص لمنصة اجتماعية بعينها. عند عدم الدعم: نسخ الصورة للحافظة، ثم نص
 // كبديل ثانٍ، ثم تنزيل الصورة كملف كحل أخير يعمل في كل مكان دائماً.
-import { FRONT_VIEWBOX, BACK_VIEWBOX, FRONT_REGIONS, FRONT_NEUTRAL, BACK_REGIONS, BACK_NEUTRAL } from "./muscleAnatomyPaths";
+import {
+  FRONT_VIEWBOX, BACK_VIEWBOX, FRONT_REGIONS, FRONT_NEUTRAL, BACK_REGIONS, BACK_NEUTRAL,
+  FRONT_VIEWBOX_FEMALE, BACK_VIEWBOX_FEMALE, FRONT_REGIONS_FEMALE, FRONT_NEUTRAL_FEMALE, BACK_REGIONS_FEMALE, BACK_NEUTRAL_FEMALE,
+} from "./muscleAnatomyPaths";
 
 const CARD_WIDTH = 1080;
 const CARD_HEIGHT = 1350;
@@ -105,14 +108,21 @@ function drawFooter(ctx, footer, x, align) {
 // نختار المشهد (أمامي/خلفي) الذي يضم أكبر عدد من العضلات المستهدَفة هذه
 // الجلسة - تبسيط مقصود (بطاقة مشاركة زخرفية، لا مخطط طبي دقيق يلزمه عرض
 // مشهدين معاً).
-function buildBodySvgMarkup(targetMuscles) {
+function buildBodySvgMarkup(targetMuscles, gender) {
   const list = targetMuscles || [];
   const frontCount = list.filter((m) => FRONT_MUSCLES.has(m)).length;
   const backCount = list.filter((m) => BACK_MUSCLES.has(m)).length;
   const view = backCount > frontCount ? "back" : "front";
-  const viewBox = view === "front" ? FRONT_VIEWBOX : BACK_VIEWBOX;
-  const regions = view === "front" ? FRONT_REGIONS : BACK_REGIONS;
-  const neutral = view === "front" ? FRONT_NEUTRAL : BACK_NEUTRAL;
+  const isFemale = gender === "female";
+  const viewBox = isFemale
+    ? (view === "front" ? FRONT_VIEWBOX_FEMALE : BACK_VIEWBOX_FEMALE)
+    : (view === "front" ? FRONT_VIEWBOX : BACK_VIEWBOX);
+  const regions = isFemale
+    ? (view === "front" ? FRONT_REGIONS_FEMALE : BACK_REGIONS_FEMALE)
+    : (view === "front" ? FRONT_REGIONS : BACK_REGIONS);
+  const neutral = isFemale
+    ? (view === "front" ? FRONT_NEUTRAL_FEMALE : BACK_NEUTRAL_FEMALE)
+    : (view === "front" ? FRONT_NEUTRAL : BACK_NEUTRAL);
   const targetSet = new Set(list);
   const parts = [];
   for (const d of neutral) parts.push(`<path d="${d}" fill="#33302A" stroke="#4A4438" stroke-width="3"/>`);
@@ -146,7 +156,7 @@ function loadImageFromFile(file) {
 
 // 1) ملخّص كامل: التمارين المنجزة، مخطط مصغَّر للعضلات المستهدَفة، المدة، الحجم.
 async function drawFullSummary(ctx, opts) {
-  const { brandLabel, title, footer, isRtl, durationText, volumeText, exercisesText, targetMuscles } = opts;
+  const { brandLabel, title, footer, isRtl, durationText, volumeText, exercisesText, targetMuscles, gender } = opts;
   drawBackground(ctx);
   drawGoldGlow(ctx, isRtl ? CARD_WIDTH - 60 : 60, 100, 300);
   const align = isRtl ? "right" : "left";
@@ -174,7 +184,7 @@ async function drawFullSummary(ctx, opts) {
   }
 
   try {
-    const svgMarkup = buildBodySvgMarkup(targetMuscles);
+    const svgMarkup = buildBodySvgMarkup(targetMuscles, gender);
     const img = await loadImageFromSvgMarkup(svgMarkup);
     const boxH = 480;
     const boxW = boxH * (img.width / img.height);

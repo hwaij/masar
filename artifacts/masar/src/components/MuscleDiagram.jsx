@@ -1,6 +1,9 @@
 import React from "react";
 import { MUSCLE_SECONDARY } from "../lib/exercises-db";
-import { FRONT_VIEWBOX, BACK_VIEWBOX, FRONT_REGIONS, FRONT_NEUTRAL, BACK_REGIONS, BACK_NEUTRAL } from "../lib/muscleAnatomyPaths";
+import {
+  FRONT_VIEWBOX, BACK_VIEWBOX, FRONT_REGIONS, FRONT_NEUTRAL, BACK_REGIONS, BACK_NEUTRAL,
+  FRONT_VIEWBOX_FEMALE, BACK_VIEWBOX_FEMALE, FRONT_REGIONS_FEMALE, FRONT_NEUTRAL_FEMALE, BACK_REGIONS_FEMALE, BACK_NEUTRAL_FEMALE,
+} from "../lib/muscleAnatomyPaths";
 
 // مخطط جسم بشري تشريحي (لا 3D، ولا نسخ من أي تطبيق) - أشكال العضلات نفسها
 // (مسارات SVG bezier) محوَّلة من مشروع MuscleMap مفتوح المصدر بترخيص MIT
@@ -31,14 +34,26 @@ const NEUTRAL_STROKE = "var(--border2)";
 // secondaryMuscles من exercises-db.js) - إن لم تُمرَّر، يُستخدَم احتياطياً
 // المتوسط العام لكل مجموعة عضلية (MUSCLE_SECONDARY) حتى تبقى الدالة تعمل
 // دون هذا الطرف الاختياري (توافق خلفي).
-export default function MuscleDiagram({ muscle, secondaryMuscles, size = 64 }) {
+//
+// gender: "male" (افتراضي) أو "female" - يُقرأ من healthProfile.gender في
+// "أنت" (مصدر واحد للحقيقة، لا تكرار للسؤال) ويحدِّد أي من مجموعتَي بيانات
+// MuscleMap (ذكر/أنثى، نفس المصدر والترخيص) تُستخدَم - التلوين والمنطق
+// نفسه تماماً لكلتا المجموعتين.
+export default function MuscleDiagram({ muscle, secondaryMuscles, gender = "male", size = 64 }) {
   const isFullBody = muscle === "full_body";
   const view = isFullBody || FRONT_MUSCLES.has(muscle) ? "front" : BACK_MUSCLES.has(muscle) ? "back" : null;
   if (!view) return null; // كارديو/مرونة: لا مخطط عضلة محدَّدة (تُعرَض أيقونة عامة بدلاً منه في مكان الاستدعاء)
 
-  const viewBox = view === "front" ? FRONT_VIEWBOX : BACK_VIEWBOX;
-  const regions = view === "front" ? FRONT_REGIONS : BACK_REGIONS;
-  const neutralPaths = view === "front" ? FRONT_NEUTRAL : BACK_NEUTRAL;
+  const isFemale = gender === "female";
+  const viewBox = isFemale
+    ? (view === "front" ? FRONT_VIEWBOX_FEMALE : BACK_VIEWBOX_FEMALE)
+    : (view === "front" ? FRONT_VIEWBOX : BACK_VIEWBOX);
+  const regions = isFemale
+    ? (view === "front" ? FRONT_REGIONS_FEMALE : BACK_REGIONS_FEMALE)
+    : (view === "front" ? FRONT_REGIONS : BACK_REGIONS);
+  const neutralPaths = isFemale
+    ? (view === "front" ? FRONT_NEUTRAL_FEMALE : BACK_NEUTRAL_FEMALE)
+    : (view === "front" ? FRONT_NEUTRAL : BACK_NEUTRAL);
   const secondaryList = isFullBody ? [] : (secondaryMuscles && secondaryMuscles.length > 0 ? secondaryMuscles : MUSCLE_SECONDARY[muscle] || []);
   const secondary = new Set(secondaryList);
   const neutralFill = isFullBody ? PRIMARY_SOFT : NEUTRAL_FILL;

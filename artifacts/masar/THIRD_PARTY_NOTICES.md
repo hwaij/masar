@@ -15,12 +15,17 @@ describing the geometric outline of muscle-group and body-part shapes
 (chest, abs, biceps, deltoids, quadriceps, trapezius/upper-back/lower-back,
 triceps, gluteal, hamstring, calves, neck, forearm, hands, feet, knees,
 tibialis, ankles, head, hair), converted from the original Swift source
-files (`Sources/MuscleMap/Data/MaleFrontPaths.swift` and
-`MaleBackPaths.swift`) into a plain JavaScript module
-(`src/lib/muscleAnatomyPaths.js`). No Swift code, no rendering logic, and no
-other part of the MuscleMap SDK is used — only the path geometry itself,
-rendered through Masar's own original `MuscleDiagram.jsx` component with
-Masar's own coloring, layout, and interaction logic.
+files into a plain JavaScript module (`src/lib/muscleAnatomyPaths.js`). No
+Swift code, no rendering logic, and no other part of the MuscleMap SDK is
+used — only the path geometry itself, rendered through Masar's own original
+`MuscleDiagram.jsx` component with Masar's own coloring, layout, and
+interaction logic.
+
+Both the male and female body datasets provided by MuscleMap were used
+(`Sources/MuscleMap/Data/MaleFrontPaths.swift`, `MaleBackPaths.swift`,
+`FemaleFrontPaths.swift`, `FemaleBackPaths.swift`), under the same MIT
+license from the same author/repository — no separate source or license
+was needed for the female body diagram.
 
 **License text:**
 

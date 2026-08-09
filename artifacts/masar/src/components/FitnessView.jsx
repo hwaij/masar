@@ -16,7 +16,7 @@ import {
   INJURY_AREAS, GEAR_TYPES, MOVEMENT_PATTERNS, EXERCISES_BY_ID,
 } from "../lib/exercises-db";
 import {
-  buildProgram, pickAlternative, suggestProgression, seedFromOwner, estimateOneRepMax,
+  buildProgram, pickAlternatives, suggestProgression, seedFromOwner, estimateOneRepMax,
   getLastPerformance, computeSessionVolumeByMuscle, estimateSessionCalories, mostRecentLoggedDate,
   aggregateLogsByDate,
 } from "../lib/fitness-engine";
@@ -83,6 +83,10 @@ const FS = {
   actionsRow: { display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" },
   smallBtn: { display: "flex", alignItems: "center", gap: 4, background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.3)", color: "var(--gold)", borderRadius: 10, padding: "6px 10px", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", textDecoration: "none", flexShrink: 0 },
   progressionBadge: { display: "flex", alignItems: "center", gap: 4, background: "rgba(95,168,160,0.12)", color: "#5FA8A0", border: "1px solid rgba(95,168,160,0.35)", borderRadius: 10, padding: "6px 10px", fontSize: 11.5, fontWeight: 700, marginTop: 8 },
+  alternativesPanel: { marginTop: 8, background: "var(--surface-sunken)", borderRadius: 10, padding: "10px 10px" },
+  alternativesTitle: { fontSize: 12, fontWeight: 700, color: "var(--gold)", marginBottom: 8 },
+  alternativeOptionRow: { display: "flex", alignItems: "center", gap: 8, width: "100%", border: "1px solid var(--border2)", background: "var(--panel)", borderRadius: 10, padding: "8px 10px", marginBottom: 6, cursor: "pointer", fontFamily: "inherit" },
+  alternativeOptionName: { fontSize: 12.5, fontWeight: 700, color: "var(--ink)" },
   logForm: { marginTop: 8, background: "var(--surface-sunken)", borderRadius: 10, padding: "10px 10px" },
   logRow: { display: "flex", gap: 6, marginTop: 6 },
   logInput: { flex: 1, background: "var(--panel)", border: "1px solid var(--border2)", borderRadius: 8, padding: "8px 10px", color: "var(--ink)", fontSize: 13, fontFamily: "inherit", minWidth: 0 },
@@ -164,7 +168,7 @@ function DifficultyDots({ difficulty }) {
   );
 }
 
-function ExerciseRow({ exercise, isEn, gender, isLogging, onToggleLog, logWeight, setLogWeight, logReps, setLogReps, logSets, setLogSets, onSubmitPerformance, onSwap, onAdjustRest, onOpenDetail, progression, t }) {
+function ExerciseRow({ exercise, isEn, gender, isLogging, onToggleLog, logWeight, setLogWeight, logReps, setLogReps, logSets, setLogSets, onSubmitPerformance, isSwapping, onToggleSwap, alternatives, onSelectAlternative, onAdjustRest, onOpenDetail, progression, t }) {
   const gear = GEAR_TYPES.find((g) => g.key === exercise.gear);
   const GearIcon = gear ? ICONS[gear.icon] || Dumbbell : Dumbbell;
   const CardioMobilityIcon = CARDIO_MOBILITY_ICON[exercise.muscle];
@@ -207,13 +211,41 @@ function ExerciseRow({ exercise, isEn, gender, isLogging, onToggleLog, logWeight
         <button onClick={onOpenDetail} style={FS.smallBtn}>
           <ForwardChevron size={12} /> {t("fitness.detailsBtn")}
         </button>
-        <button onClick={onSwap} style={{ ...FS.smallBtn, border: "1px solid var(--border2)", background: "transparent", color: "var(--muted2)" }}>
+        <button onClick={onToggleSwap} style={{ ...FS.smallBtn, border: "1px solid var(--border2)", background: "transparent", color: "var(--muted2)" }}>
           <Repeat size={12} /> {t("fitness.alternativeBtn")}
         </button>
         <button onClick={onToggleLog} style={FS.smallBtn}>
           <TrendingUp size={12} /> {t("fitness.logPerformance")}
         </button>
       </div>
+      {isSwapping && (
+        <div style={FS.alternativesPanel}>
+          <div style={FS.alternativesTitle}>{t("fitness.chooseAlternativeTitle")}</div>
+          {alternatives.length === 0 ? (
+            <p style={FS.noteText}>{t("fitness.alternativeNotFound")}</p>
+          ) : (
+            alternatives.map((alt) => {
+              const altGear = GEAR_TYPES.find((g) => g.key === alt.gear);
+              const AltGearIcon = altGear ? ICONS[altGear.icon] || Dumbbell : Dumbbell;
+              return (
+                <button key={alt.id} onClick={() => onSelectAlternative(alt)} style={FS.alternativeOptionRow}>
+                  <div style={{ flex: 1, minWidth: 0, textAlign: "start" }}>
+                    <div style={FS.alternativeOptionName}>{isEn ? (alt.nameEn || alt.name) : alt.name}</div>
+                    <div style={FS.badgeRow}>
+                      <span style={FS.badge}><AltGearIcon size={10} /> {isEn ? altGear?.nameEn : altGear?.name}</span>
+                      <span style={{ ...FS.badge, ...(alt.type === "compound" ? FS.typeBadgeCompound : alt.type === "isolation" ? FS.typeBadgeIsolation : {}) }}>
+                        {t(`fitness.exerciseTypes.${alt.type}`)}
+                      </span>
+                    </div>
+                  </div>
+                  <ForwardChevron size={14} color="var(--muted2)" />
+                </button>
+              );
+            })
+          )}
+          <button onClick={onToggleSwap} style={{ ...S.exportBtn, marginTop: 8, marginBottom: 0 }}>{t("common.buttons.cancel")}</button>
+        </div>
+      )}
       {progression && (
         <div style={FS.progressionBadge}>
           <TrendingUp size={13} />
@@ -629,6 +661,7 @@ export default function FitnessView({ healthProfile, showToast }) {
   const [workoutLog, setWorkoutLog] = useState([]);
   const [draft, setDraft] = useState({ goal: null, equipment: null, daysPerWeek: 3, experience: null, sessionMinutes: 45, injuries: [] });
   const [loggingKey, setLoggingKey] = useState(null);
+  const [swappingKey, setSwappingKey] = useState(null);
   const [logWeight, setLogWeight] = useState("");
   const [logReps, setLogReps] = useState("");
   const [logSets, setLogSets] = useState("");
@@ -823,17 +856,19 @@ export default function FitnessView({ healthProfile, showToast }) {
     if (!res.ok) { setProgramEntry(prevEntry); showToast(t("common.errors.saveFailed")); }
   }
 
-  async function swapExercise(dayIndex, exIndex) {
+  // Priority 3: بدائل ذكية وكافية - بدل استبدال فوري ببديل عشوائي واحد،
+  // "بديل" يفتح لائحة مرتّبة (pickAlternatives في fitness-engine.js تطبّق
+  // نفس فلاتر المعدات/الإصابات/الخبرة المستخدَمة في بناء البرنامج نفسه)
+  // ويختار المستخدم منها صراحة.
+  async function applySwap(dayIndex, exIndex, alt) {
     if (!programEntry) return;
     const exercise = programEntry.program.days[dayIndex].exercises[exIndex];
-    const usedIds = programEntry.program.days.flatMap((d) => d.exercises.map((e) => e.id));
-    const alt = pickAlternative(exercise, fitnessProfile, usedIds);
-    if (!alt) { showToast(t("fitness.alternativeNotFound")); return; }
     const prevEntry = programEntry;
     const newExercise = { ...alt, sets: exercise.sets, reps: exercise.reps, restSeconds: exercise.restSeconds };
     const newDays = programEntry.program.days.map((d, di) => (di !== dayIndex ? d : { ...d, exercises: d.exercises.map((e, ei) => (ei !== exIndex ? e : newExercise)) }));
     const entry = { ...programEntry, program: { ...programEntry.program, days: newDays } };
     setProgramEntry(entry);
+    setSwappingKey(null);
     const res = await store.saveWorkoutProgram(entry);
     if (!res.ok) { setProgramEntry(prevEntry); showToast(t("common.errors.saveFailed")); return; }
     showToast(t("fitness.alternativeApplied"));
@@ -1254,6 +1289,10 @@ export default function FitnessView({ healthProfile, showToast }) {
             {day.exercises.map((ex, exIndex) => {
               const key = `${day.dayIndex}-${exIndex}`;
               const progression = suggestProgression(ex, workoutLog.filter((l) => l.exerciseId === ex.id));
+              const isSwapping = swappingKey === key;
+              const alternatives = isSwapping
+                ? pickAlternatives(ex, fitnessProfile, programEntry.program.days.flatMap((d) => d.exercises.map((e) => e.id)), 10)
+                : [];
               return (
                 <ExerciseRow
                   key={`${key}-${ex.id}`}
@@ -1267,7 +1306,10 @@ export default function FitnessView({ healthProfile, showToast }) {
                   logReps={logReps} setLogReps={setLogReps}
                   logSets={logSets} setLogSets={setLogSets}
                   onSubmitPerformance={() => submitPerformance(ex)}
-                  onSwap={() => swapExercise(day.dayIndex, exIndex)}
+                  isSwapping={isSwapping}
+                  onToggleSwap={() => setSwappingKey(isSwapping ? null : key)}
+                  alternatives={alternatives}
+                  onSelectAlternative={(alt) => applySwap(day.dayIndex, exIndex, alt)}
                   onAdjustRest={(delta) => adjustExerciseRest(day.dayIndex, exIndex, delta)}
                   progression={progression}
                   t={t}

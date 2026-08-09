@@ -1220,6 +1220,7 @@
     "rotationBiweekly": "أسبوعين",
     "rotationOff": "بلا تدوير",
     "alternativeBtn": "بديل",
+    "chooseAlternativeTitle": "اختر بديلاً",
     "alternativeApplied": "تم استبدال التمرين ببديل مكافئ",
     "alternativeNotFound": "لا يوجد بديل متاح حالياً بمعداتك المتاحة",
     "targetMuscle": "العضلة المستهدفة",

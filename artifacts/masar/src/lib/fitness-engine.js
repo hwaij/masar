@@ -284,9 +284,32 @@ export function buildProgram(assessment, seed, hasPerformanceHistory = false) {
   };
 }
 
-// ===== 4) استبدال تمرين واحد ("بديل") - نفس العضلة، معدات/إصابات متوافقة =====
-export function pickAlternative(exercise, assessment, excludeIds = []) {
-  const { equipment, injuries = [], experience } = assessment;
+// ===== 4) بدائل تمرين مرتّبة بالأولوية (Priority 3: بدائل ذكية وكافية) =====
+// نفس الفلاتر الصارمة المستخدَمة في محرّك بناء البرنامج نفسه (معدات/إصابات/
+// مستوى خبرة - انظر candidatesFor أعلاه) تُطبَّق هنا حرفياً: أي بديل يظهر في
+// القائمة كان سيُقبل أصلاً لو بُني برنامج المستخدم من الصفر بنفس شروطه
+// بالضبط. الترتيب بعد الفلترة الصارمة (لا عشوائي) حسب معايير علمية عامة
+// معروفة في تصميم برامج التمارين: تشابه نمط الحركة أولاً (أهم إشارة على
+// أن البديل يخدم نفس الغرض التدريبي)، ثم توافق نوع التمرين (مركّب/عزل) مع
+// نوع التمرين الأصلي وهدف المستخدم (المركّب عموماً أنسب لأهداف بناء العضل/
+// خسارة الوزن)، ثم تطابق مستوى الصعوبة مع مستوى خبرة المستخدم نفسه تحديداً
+// (لا فقط ضمن النطاق المسموح به عموماً)، وأخيراً تفضيل عتاد مختلف عن
+// التمرين الأصلي (أكثر سبب واقعي لطلب بديل: المعدة الحالية مشغولة/غير
+// متاحة). لا حد أدنى مُجبَر على عدد النتائج - الجودة أهم من الكمية: إن لم
+// توجد بدائل كافية عالية الجودة (عضلة نادرة أو بيئة معدات محدودة)، تُعاد
+// كل البدائل الصالحة المتوفرة فعلياً مهما قلّ عددها، بدل حشو القائمة.
+function scoreAlternative(candidate, original, goal, experience) {
+  let score = 0;
+  if (candidate.movementPattern && candidate.movementPattern === original.movementPattern) score += 3;
+  if (candidate.type === original.type) score += 2;
+  if ((goal === "build_muscle" || goal === "lose_weight") && candidate.type === "compound") score += 1;
+  if (candidate.difficulty === experience) score += 1;
+  if (candidate.gear !== original.gear) score += 1;
+  return score;
+}
+
+export function pickAlternatives(exercise, assessment, excludeIds = [], limit = 10) {
+  const { equipment, injuries = [], experience, goal } = assessment;
   const allowedDifficulties = DIFFICULTY_ALLOWED[experience] || DIFFICULTY_ALLOWED.beginner;
   const pool = EXERCISES.filter((e) =>
     e.id !== exercise.id &&
@@ -296,16 +319,11 @@ export function pickAlternative(exercise, assessment, excludeIds = []) {
     allowedDifficulties.includes(e.difficulty) &&
     !e.joints.some((j) => injuries.includes(j)),
   );
-  if (pool.length === 0) return null;
-  const sameType = pool.filter((e) => e.type === exercise.type);
-  const candidates = sameType.length > 0 ? sameType : pool;
-  // أكثر سبب واقعي لضغط "بديل" هو أن المعدة الحالية مشغولة أو غير متاحة
-  // فعلياً، لا مجرد رغبة بتنويع عشوائي - لذا نفضّل بديلاً بعتاد مختلف
-  // (exercise.gear) عن التمرين الحالي إن وُجد، مع التراجع لكل المرشحين
-  // المتوافقين إن لم يوجد خيار بعتاد مختلف.
-  const differentGear = candidates.filter((e) => e.gear !== exercise.gear);
-  const finalPool = differentGear.length > 0 ? differentGear : candidates;
-  return finalPool[Math.floor(Math.random() * finalPool.length)];
+  return pool
+    .map((e) => ({ e, score: scoreAlternative(e, exercise, goal, experience) }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((s) => s.e);
 }
 
 // ===== 5) التطوّر التلقائي (Progressive Overload) =====

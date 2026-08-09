@@ -1220,6 +1220,7 @@
     "rotationBiweekly": "2 weeks",
     "rotationOff": "No rotation",
     "alternativeBtn": "Swap",
+    "chooseAlternativeTitle": "Choose an alternative",
     "alternativeApplied": "Exercise swapped for an equivalent alternative",
     "alternativeNotFound": "No alternative available with your current equipment",
     "targetMuscle": "Target muscle",

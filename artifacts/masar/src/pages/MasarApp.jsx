@@ -8,7 +8,7 @@ import {
   Tooltip, LineChart, Line, CartesianGrid,
 } from "recharts";
 import {
-  Sparkles, Clock, TrendingUp, ListChecks, Settings, ChevronLeft, ChevronRight,
+  Sparkles, Clock, TrendingUp, TrendingDown, Minus, ListChecks, Settings, ChevronLeft, ChevronRight,
   Loader2, Plus, X, Trash2, Check, Flame, Star, Edit3,
   Sun, Target, Palette, Cloud, CloudOff,
   Rocket, BookOpen, User, Trophy, ChevronDown, ExternalLink,
@@ -31,11 +31,11 @@ import { requestNotificationPermission, disablePush } from "../lib/push";
 import { ACTIVITY_LEVELS, HEALTH_CONDITIONS, NO_CONDITION, computeHealthMetrics } from "../lib/health";
 import { createGoal, isReviewDue, GOAL_PERIODS, GOAL_POINTS_SUCCESS, GOAL_POINTS_FAILURE } from "../lib/goals";
 import { FITNESS_GOALS } from "../lib/exercises-db";
-import { sumNutritionEntries, waterGoalCups, MEAL_TYPES, analyzeMealPatterns } from "../lib/nutrition";
+import { sumNutritionEntries, waterGoalCups, MEAL_TYPES, analyzeMealPatterns, MICRONUTRIENT_META } from "../lib/nutrition";
 import { playSaveSound, playAchievementSound } from "../lib/sound";
 import { getSession, onAuthChange, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut, userFromSession, hasAuth } from "../lib/auth";
 import {
-  todayKey, fmtHM, uid, diffMinutes, arabicDate, computeStreak, escapeHtml,
+  todayKey, fmtHM, uid, diffMinutes, arabicDate, computeStreak, longestStreak, escapeHtml,
   COLOR_CHOICES, BADGES, analyze, parseJsonLoose,
   localAchieveSuggestions, localCoachReply,
   getLevel, addMinutesToTime, nowHHMM, autoClassify, withTimeout,
@@ -707,7 +707,7 @@ export default function MasarApp() {
         {view === "achieve" && (isSub ? <AchieveView achieve={achieve} setAchieve={setAchieve} profile={profile} focus={focus} tasks={tasks} prayerLog={prayerLog} religious={religious} addPoints={addPoints} showToast={showToast} setView={setView} /> : (
           <div style={S.view}><UpsellCard icon={Rocket} title={i18n.language === "en" ? "Achieve is waiting for you in Masar Premium" : "أنجز ينتظرك في مسار الكامل"} message={i18n.language === "en" ? "Achieve knows your hobbies and suggests challenges, projects, and learning paths made specifically for you." : "أنجز يعرف هواياتك ويقترح لك تحديات ومشاريع ومسارات تعلّم تناسبك أنت تحديداً."} /></div>
         ))}
-        {view === "reports" && (isSub ? <ReportsView entries={entries} categories={categories} focus={focus} profile={profile} healthProfile={healthProfile} sleepLog={sleepLog} setSleepLog={setSleepLog} showToast={showToast} /> : (
+        {view === "reports" && (isSub ? <ReportsView entries={entries} categories={categories} focus={focus} profile={profile} healthProfile={healthProfile} sleepLog={sleepLog} setSleepLog={setSleepLog} showToast={showToast} tasks={tasks} goals={goals} /> : (
           <div style={S.view}><UpsellCard icon={TrendingUp} title={i18n.language === "en" ? "Your detailed reports in Masar Premium" : "تقاريرك التفصيلية في مسار الكامل"} message={i18n.language === "en" ? "See your progress with clear numbers and analysis, and track your sleep and rest pattern across days." : "شاهد تقدّمك بأرقام وتحليلات واضحة، وتتبّع نومك ونمط راحتك عبر الأيام."} /></div>
         ))}
         {view === "assistant" && (isSub ? <AssistantView entries={entries} tasks={tasks} categories={categories} focus={focus} prayerLog={prayerLog} religious={religious} profile={profile} stats={stats} setView={setView} healthProfile={healthProfile} goals={goals} showToast={showToast} /> : (
@@ -1607,20 +1607,72 @@ function buildReportBarSvg(data, { width = 620, height = 190, colorStart = "#E0B
 }
 
 const REPORT_SUB_TABS = [
+  { id: "comprehensive", labelKey: "reportsView.tabs.comprehensive", icon: Sparkles },
   { id: "overview", labelKey: "reportsView.tabs.overview", icon: TrendingUp },
   { id: "study", labelKey: "reportsView.tabs.study", icon: BookOpen },
   { id: "health", labelKey: "reportsView.tabs.health", icon: Heart },
   { id: "nutrition", labelKey: "reportsView.tabs.nutrition", icon: Utensils },
+  { id: "allTime", labelKey: "reportsView.tabs.allTime", icon: Trophy },
 ];
 
-function ReportsView({ entries, categories, focus, profile, healthProfile, sleepLog, setSleepLog, showToast }) {
+// ===== Priority 4: التقرير الشامل - أنماط بصرية مخصَّصة لهذا القسم فقط
+// (نفس اتفاقية أنماط FS/NS/GS المستخدمة أصلاً لكل قسم في هذا الملف) =====
+const RS = {
+  sectionBlock: { marginBottom: 18 },
+  sectionHeading: { display: "flex", alignItems: "center", gap: 6, fontSize: 13.5, fontWeight: 700, color: "var(--gold)", marginBottom: 10 },
+  miniStatGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 },
+  miniStatCard: { background: "var(--surface-sunken)", borderRadius: 10, padding: "10px 10px" },
+  miniStatLabel: { fontSize: 11, color: "var(--muted2)" },
+  miniStatValue: { fontSize: 16, fontWeight: 700, color: "var(--ink)", marginTop: 3 },
+  trendRow: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderBottom: "1px solid var(--line)" },
+  trendLabel: { fontSize: 12.5, color: "var(--ink-soft)" },
+  trendBadge: { display: "flex", alignItems: "center", gap: 3, fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "3px 9px", direction: "ltr" },
+  trendUp: { background: "rgba(95,168,160,0.15)", color: "#5FA8A0" },
+  trendDown: { background: "rgba(224,82,82,0.12)", color: "#E05252" },
+  trendFlat: { background: "var(--surface-sunken)", color: "var(--muted2)" },
+  streakGrid: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 },
+  streakCard: { background: "var(--surface-sunken)", borderRadius: 10, padding: "10px 6px", textAlign: "center" },
+  streakValue: { fontSize: 17, fontWeight: 700, color: "var(--gold)" },
+  streakLabel: { fontSize: 10, color: "var(--muted2)", marginTop: 3 },
+  goalsProgressTrack: { width: "100%", height: 8, borderRadius: 20, background: "var(--surface-sunken)", marginTop: 8, overflow: "hidden" },
+  goalsProgressFill: { height: "100%", borderRadius: 20, background: "#5FA8A0" },
+  microChipRow: { display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 },
+  microChip: { fontSize: 11, color: "var(--ink-soft)", background: "var(--surface-sunken)", borderRadius: 20, padding: "4px 10px" },
+  insightCard: { background: "linear-gradient(160deg, var(--warm-tint), var(--panel))", border: "1px solid var(--warm-border)", borderRadius: 14, padding: "16px 14px", marginTop: 4 },
+  insightHead: { display: "flex", alignItems: "center", gap: 8, marginBottom: 10 },
+  insightIcon: { width: 32, height: 32, borderRadius: 10, background: "radial-gradient(circle at 32% 28%, #E7C378, #C9A24B 65%, #A9822F)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  insightTitle: { fontSize: 13.5, fontWeight: 700, color: "var(--ink)" },
+  insightText: { fontSize: 13, lineHeight: 1.8, color: "var(--ink)", margin: 0 },
+  journeyHero: { textAlign: "center", marginBottom: 18 },
+  journeyHeroValue: { fontFamily: "'Amiri', serif", fontSize: 30, fontWeight: 700, color: "var(--gold)" },
+  journeyHeroLabel: { fontSize: 12.5, color: "var(--muted2)", marginTop: 4 },
+  journeyGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 },
+  journeyCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 12px", textAlign: "center" },
+  journeyCardValue: { fontSize: 20, fontWeight: 700, color: "var(--ink)" },
+  journeyCardLabel: { fontSize: 11, color: "var(--muted2)", marginTop: 4 },
+};
+
+function ReportsView({ entries, categories, focus, profile, healthProfile, sleepLog, setSleepLog, showToast, tasks, goals }) {
   const { t, i18n } = useTranslation();
   const language = i18n.language;
   const [range, setRange] = useState("week");
+  // رؤية Masar السابقة تُبنى على أرقام فترة محدَّدة (أسبوع/شهر) - تغيير
+  // الفترة يُبطلها فوراً حتى لا تُعرض رؤية عن فترة مختلفة عن المعروضة حالياً.
+  useEffect(() => { setInsightText(""); setInsightError(false); }, [range]);
   const [subTab, setSubTab] = useState("overview");
   const [exporting, setExporting] = useState(false);
   const [nutritionLog, setNutritionLog] = useState([]);
   const [nutritionLoaded, setNutritionLoaded] = useState(false);
+  // بيانات إضافية خاصة بـ"التقرير الشامل" (Priority 4) - نفس نمط "العرض
+  // المستقل" أعلاه بالضبط لسجل التغذية. tasks/goals لا تُجلَب هنا لأنها
+  // محمَّلة أصلاً في MasarApp نفسه وتُمرَّر كخصائص جاهزة - لا داعي لجلب مكرَّر.
+  const [workoutLog, setWorkoutLog] = useState([]);
+  const [fitnessLog, setFitnessLog] = useState({});
+  const [waterLog, setWaterLog] = useState({});
+  const [comprehensiveLoaded, setComprehensiveLoaded] = useState(false);
+  const [insightText, setInsightText] = useState("");
+  const [insightLoading, setInsightLoading] = useState(false);
+  const [insightError, setInsightError] = useState(false);
 
   // سجل التغذية ليس محمَّلاً مركزياً في MasarApp (نفس نمط "العرض المستقل"
   // المستخدم في NutritionView وAssistantView) - يُجلب مرة واحدة هنا فقط
@@ -1631,11 +1683,28 @@ function ReportsView({ entries, categories, focus, profile, healthProfile, sleep
     return () => { active = false; };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    Promise.all([store.loadWorkoutLog(), store.loadFitnessLog(), store.loadWaterLog()]).then(([wl, fl, wat]) => {
+      if (!active) return;
+      setWorkoutLog(wl); setFitnessLog(fl); setWaterLog(wat); setComprehensiveLoaded(true);
+    });
+    return () => { active = false; };
+  }, []);
+
   const catMap = useMemo(() => Object.fromEntries(categories.map((c) => [c.id, c])), [categories]);
   const span = range === "week" ? 7 : 30;
   const days = useMemo(() => {
     const arr = []; const today = new Date();
     for (let i = span - 1; i >= 0; i--) { const d = new Date(today); d.setDate(d.getDate() - i); arr.push(todayKey(d)); }
+    return arr;
+  }, [span]);
+  // نافذة الفترة السابقة مباشرة (نفس عدد الأيام قبل بداية الفترة الحالية) -
+  // أساس مقارنة "هذا الأسبوع مقابل الماضي" في قسم الاتجاهات (Priority 4)،
+  // بنفس منطق بناء days تماماً لكن مُزاحاً بمقدار span يوماً للخلف.
+  const prevDays = useMemo(() => {
+    const arr = []; const today = new Date();
+    for (let i = span * 2 - 1; i >= span; i--) { const d = new Date(today); d.setDate(d.getDate() - i); arr.push(todayKey(d)); }
     return arr;
   }, [span]);
   const barData = days.map((day) => ({
@@ -1674,6 +1743,10 @@ function ReportsView({ entries, categories, focus, profile, healthProfile, sleep
   const nutritionTotals = sumNutritionEntries(nutritionInRange);
   const nutritionActiveDays = new Set(nutritionInRange.map((e) => e.date)).size;
   const nutritionAvgCalories = nutritionActiveDays ? Math.round(nutritionTotals.calories / nutritionActiveDays) : 0;
+  const nutritionAvgProtein = nutritionActiveDays ? Math.round(nutritionTotals.protein / nutritionActiveDays) : 0;
+  const nutritionAvgCarbs = nutritionActiveDays ? Math.round(nutritionTotals.carbs / nutritionActiveDays) : 0;
+  const nutritionAvgFat = nutritionActiveDays ? Math.round(nutritionTotals.fat / nutritionActiveDays) : 0;
+  const nutritionAvgFiber = nutritionActiveDays ? Math.round(nutritionTotals.fiber / nutritionActiveDays) : 0;
   const macroData = [
     { name: t("reportsView.protein"), value: Math.round(nutritionTotals.protein), color: "#5FA8A0" },
     { name: t("reportsView.carbs"), value: Math.round(nutritionTotals.carbs), color: "#C9A24B" },
@@ -1699,6 +1772,150 @@ function ReportsView({ entries, categories, focus, profile, healthProfile, sleep
 
   const rangeEntries = useMemo(() => sleepLog.filter((s) => days.includes(s.date)), [sleepLog, days]);
   const sleepAvgHours = rangeEntries.length ? rangeEntries.reduce((sum, s) => sum + s.hours, 0) / rangeEntries.length : null;
+
+  // ===== Priority 4: التقرير الشامل - تجميع أرقام حقيقية من كل الأقسام
+  // الموجودة فعلاً (لا بيانات مخترعة) لنفس نافذة days الحالية، بالإضافة
+  // لنافذة prevDays للمقارنة الاتجاهية "هذا الأسبوع مقابل الماضي". =====
+  const prevTotalMin = useMemo(() => entries.filter((e) => prevDays.includes(e.date)).reduce((s, e) => s + diffMinutes(e.start, e.end), 0), [entries, prevDays]);
+  const nutritionPrevInRange = useMemo(() => nutritionLog.filter((e) => prevDays.includes(e.date)), [nutritionLog, prevDays]);
+  const nutritionPrevActiveDays = new Set(nutritionPrevInRange.map((e) => e.date)).size;
+
+  const fitnessDaysInRange = useMemo(() => days.filter((d) => fitnessLog[d]), [days, fitnessLog]);
+  const fitnessDaysInPrevRange = useMemo(() => prevDays.filter((d) => fitnessLog[d]), [prevDays, fitnessLog]);
+  const workoutLogInRange = useMemo(() => workoutLog.filter((l) => days.includes(l.date)), [workoutLog, days]);
+  const workoutLogInPrevRange = useMemo(() => workoutLog.filter((l) => prevDays.includes(l.date)), [workoutLog, prevDays]);
+  const volumeOf = (log) => log.reduce((s, l) => s + (l.weight || 0) * (l.reps || 0) * (l.setsCompleted || 0), 0);
+  const totalTrainingVolume = volumeOf(workoutLogInRange);
+  const prevTrainingVolume = volumeOf(workoutLogInPrevRange);
+  const distinctExercisesTrained = new Set(workoutLogInRange.map((l) => l.exerciseId)).size;
+  const workoutStreak = useMemo(() => computeStreak(Object.keys(fitnessLog).filter((d) => fitnessLog[d])), [fitnessLog]);
+
+  const tasksInRange = useMemo(() => (tasks || []).filter((tk) => tk.due && days.includes(tk.due)), [tasks, days]);
+  const tasksPrevInRange = useMemo(() => (tasks || []).filter((tk) => tk.due && prevDays.includes(tk.due)), [tasks, prevDays]);
+  const tasksCompletedCount = tasksInRange.filter((tk) => tk.done).length;
+  const tasksMissedCount = tasksInRange.filter((tk) => !tk.done && tk.due < todayKey()).length;
+  const tasksPrevCompletedCount = tasksPrevInRange.filter((tk) => tk.done).length;
+
+  const nutritionLoggingStreak = useMemo(() => computeStreak(Array.from(new Set(nutritionLog.map((e) => e.date)))), [nutritionLog]);
+  const taskCompletionStreak = useMemo(() => computeStreak((tasks || []).filter((tk) => tk.done && tk.due).map((tk) => tk.due)), [tasks]);
+
+  const goalsDoneCount = (goals || []).filter((g) => g.status === "done").length;
+  const goalsFailedCount = (goals || []).filter((g) => g.status === "failed").length;
+  const goalsActiveCount = (goals || []).filter((g) => g.status === "active").length;
+  const goalsResolvedCount = goalsDoneCount + goalsFailedCount;
+  const goalsProgressPct = goalsResolvedCount > 0 ? Math.round((goalsDoneCount / goalsResolvedCount) * 100) : null;
+
+  const waterDaysLogged = days.filter((d) => waterLog[d] != null).length;
+  const avgWaterCups = waterDaysLogged > 0 ? days.reduce((s, d) => s + (waterLog[d] || 0), 0) / waterDaysLogged : 0;
+
+  // أهم 3 فيتامينات/معادن (بأعلى نسبة تغطية من الاحتياج اليومي المرجعي)
+  // ممن تتوفر لها بيانات فعلية في الفترة فقط - لا قائمة ثابتة، فقط ما ساهم
+  // فيه طعام حقيقي واحد على الأقل (انظر micronutrients في sumNutritionEntries).
+  const topMicronutrients = useMemo(() => {
+    const daysCount = Math.max(1, nutritionActiveDays);
+    return Object.entries(nutritionTotals.micronutrients || {})
+      .map(([key, total]) => {
+        const meta = MICRONUTRIENT_META[key];
+        if (!meta) return null;
+        const avgPerDay = total / daysCount;
+        return { key, avgPerDay: Math.round(avgPerDay * 10) / 10, unit: meta.unit === "مكغ" ? "mcg" : "mg", pct: Math.round((avgPerDay / meta.rdi) * 100), approx: !!nutritionTotals.microApprox?.[key] };
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.pct - a.pct)
+      .slice(0, 3);
+  }, [nutritionTotals, nutritionActiveDays]);
+
+  // مقارنة اتجاه عامة: نسبة تغيّر آمنة من القسمة على صفر - إن كانت القيمة
+  // السابقة صفراً وأصبحت الحالية أكبر منها يُعتبر اتجاهاً "جديداً" (isNew)
+  // بدل نسبة مئوية بلا معنى (∞%)؛ تساوي القيمتين (بما فيهما صفر=صفر) يعني
+  // اتجاهاً مستقراً (flat) بلا سهم.
+  function computeTrend(current, previous) {
+    if (current === previous) return { direction: "flat", pct: 0, isNew: false };
+    if (previous === 0) return { direction: "up", pct: null, isNew: true };
+    const pct = Math.round(((current - previous) / previous) * 100);
+    return { direction: pct > 0 ? "up" : "down", pct: Math.abs(pct), isNew: false };
+  }
+
+  const trends = [
+    { key: "fitness", labelKey: "reportsView.comprehensive.trendFitness", current: fitnessDaysInRange.length, previous: fitnessDaysInPrevRange.length, ...computeTrend(fitnessDaysInRange.length, fitnessDaysInPrevRange.length) },
+    { key: "time", labelKey: "reportsView.comprehensive.trendTime", current: totalMin, previous: prevTotalMin, ...computeTrend(totalMin, prevTotalMin) },
+    { key: "nutrition", labelKey: "reportsView.comprehensive.trendNutrition", current: nutritionActiveDays, previous: nutritionPrevActiveDays, ...computeTrend(nutritionActiveDays, nutritionPrevActiveDays) },
+    { key: "tasks", labelKey: "reportsView.comprehensive.trendTasks", current: tasksCompletedCount, previous: tasksPrevCompletedCount, ...computeTrend(tasksCompletedCount, tasksPrevCompletedCount) },
+  ];
+
+  // ===== "الرحلة الكاملة" (All-Time، Priority 4 البند 4) - رحلة المستخدم
+  // منذ أول استخدام. workoutLog/fitnessLog/tasks بلا سقف زمني من جهة
+  // الخادم (انظر store.js) فتمثّل التاريخ الكامل فعلياً. nutritionLog وحده
+  // مُقيَّد بـ90 يوماً من جهة الخادم (نفس القيد المذكور أعلى الملف) فلا
+  // يمكن ادّعاء أنه يمثّل كل الوجبات منذ أول استخدام - يُعرض بعلامة نطاقه
+  // الحقيقي صراحة بدل الإيحاء بأنه إجمالي مطلق. حساب واحد بسيط O(n) على
+  // بيانات محمَّلة أصلاً بالفعل - لا استعلامات إضافية، ولا يعاد حسابه إلا
+  // عند تغيّر البيانات المصدرية فعلياً (useMemo).
+  const allTimeStats = useMemo(() => {
+    const totalWorkouts = Object.values(fitnessLog).filter(Boolean).length;
+    const activeDaysAllTime = new Set([...entries.map((e) => e.date), ...focus.map((f) => f.date)]).size;
+    const totalTasksCompleted = (tasks || []).filter((tk) => tk.done).length;
+    const longestWorkoutStreak = longestStreak(Object.keys(fitnessLog).filter((d) => fitnessLog[d]));
+
+    let bestWeek = null;
+    if (workoutLog.length > 0) {
+      const weekMs = 7 * 24 * 3600 * 1000;
+      const weeks = {};
+      for (const log of workoutLog) {
+        const d = new Date(`${log.date}T00:00:00`);
+        if (Number.isNaN(d.getTime())) continue;
+        const weekIndex = Math.floor(d.getTime() / weekMs);
+        const vol = (log.weight || 1) * (log.reps || 0) * (log.setsCompleted || 0);
+        weeks[weekIndex] = (weeks[weekIndex] || 0) + vol;
+      }
+      const [topWeekIndex, topVolume] = Object.entries(weeks).sort((a, b) => b[1] - a[1])[0] || [null, 0];
+      if (topWeekIndex != null && topVolume > 0) {
+        const weekStart = new Date(Number(topWeekIndex) * weekMs);
+        bestWeek = { start: todayKey(weekStart), volume: Math.round(topVolume) };
+      }
+    }
+    return { totalWorkouts, activeDaysAllTime, totalTasksCompleted, longestWorkoutStreak, bestWeek, totalMealsLogged: nutritionLog.length };
+  }, [fitnessLog, entries, focus, tasks, workoutLog, nutritionLog]);
+
+  // ===== "Masar Insight": فقرة قصيرة من Gemini مبنية حصراً على الأرقام
+  // الحقيقية المحسوبة أعلاه لهذه الفترة بالذات - بلا أي افتراض أو رقم غير
+  // موجود فعلاً، بنفس مبدأ توصية PDF الذكية الموجودة أصلاً أدناه (exportPdf)
+  // لكن بمدخلات أوسع تغطي كل الأقسام، وتُعرض داخل التطبيق مباشرة لا فقط
+  // في ملف PDF مُصدَّر. مولَّدة عند الطلب (زر) لا تلقائياً، لضبط تكلفة
+  // الاستدعاء - نفس نمط "اقتراحات الوجبات"/"نصيحة اليوم" في NutritionPlanView.
+  const isEnLang = language === "en";
+  async function generateInsight() {
+    setInsightLoading(true);
+    setInsightError(false);
+    try {
+      const rangeWord = range === "week" ? (isEnLang ? "week" : "الأسبوع") : (isEnLang ? "month" : "الشهر");
+      const lines = [
+        `${isEnLang ? "Workouts completed" : "تمارين مكتملة"}: ${fitnessDaysInRange.length}`,
+        `${isEnLang ? "Total tracked time" : "إجمالي الوقت المتتبَّع"}: ${fmtHM(totalMin, language)}`,
+        `${isEnLang ? "Study/focus time" : "وقت الدراسة/التركيز"}: ${fmtHM(studyTotalMin, language)}`,
+        `${isEnLang ? "Days with nutrition logged" : "أيام سُجِّلت فيها التغذية"}: ${nutritionActiveDays} / ${days.length}`,
+        nutritionActiveDays > 0 ? `${isEnLang ? "Average daily calories" : "متوسط السعرات اليومي"}: ${nutritionAvgCalories} kcal` : "",
+        `${isEnLang ? "Tasks completed" : "مهام مكتملة"}: ${tasksCompletedCount}`,
+        `${isEnLang ? "Tasks missed" : "مهام فائتة"}: ${tasksMissedCount}`,
+        `${isEnLang ? "Goals: done/active/failed" : "الأهداف: مكتملة/قيد التقدّم/فائتة"}: ${goalsDoneCount}/${goalsActiveCount}/${goalsFailedCount}`,
+        `${isEnLang ? "Workout streak" : "سلسلة الرياضة"}: ${workoutStreak} ${isEnLang ? "days" : "يوم"}`,
+        `${isEnLang ? "Fitness trend vs previous " + rangeWord : "اتجاه الرياضة مقابل " + rangeWord + " الماضي"}: ${fitnessDaysInRange.length} ${isEnLang ? "vs" : "مقابل"} ${fitnessDaysInPrevRange.length}`,
+        `${isEnLang ? "Task-completion trend vs previous " + rangeWord : "اتجاه إنجاز المهام مقابل " + rangeWord + " الماضي"}: ${tasksCompletedCount} ${isEnLang ? "vs" : "مقابل"} ${tasksPrevCompletedCount}`,
+      ].filter(Boolean).join("\n");
+
+      const prompt = isEnLang
+        ? `You are a personal-development coach. Using ONLY the real numbers below for the user's ${rangeWord}, write a short (4-6 sentences), clear, practical analysis of their ${rangeWord} across fitness, nutrition, tasks and goals, then end with exactly ONE concrete, specific improvement opportunity for next ${rangeWord}. Do NOT invent any number, event, or pattern not stated below. Keep numbers clearly separated (don't stack more than two back to back in one clause).\n\n${lines}`
+        : `أنت مدرّب تطوير شخصي. باستخدام الأرقام الحقيقية أدناه فقط عن ${rangeWord} المستخدم، اكتب تحليلاً قصيراً (4-6 جمل) واضحاً وعملياً عن ${rangeWord}ه عبر الرياضة والتغذية والمهام والأهداف، ثم اختم بفرصة تحسّن واحدة ملموسة ومحدَّدة لـ${rangeWord} القادم. لا تخترع أي رقم أو حدث أو نمط غير مذكور أدناه. حافظ على وضوح فصل الأرقام (لا تحشر أكثر من رقمين متتاليين في نفس الجملة).\n\n${lines}`;
+
+      const text = (await analyze(prompt, 400)).trim();
+      setInsightText(text);
+    } catch (err) {
+      console.error("[ReportsView] generateInsight failed:", err);
+      setInsightError(true);
+    } finally {
+      setInsightLoading(false);
+    }
+  }
 
   async function exportPdf() {
     if (exporting) return;
@@ -1864,14 +2081,23 @@ function ReportsView({ entries, categories, focus, profile, healthProfile, sleep
     setTimeout(() => { w.focus(); w.print(); }, 600);
   }
 
+  function renderTrendBadge(trend) {
+    if (trend.isNew) return <span style={{ ...RS.trendBadge, ...RS.trendUp }}><TrendingUp size={12} /> {t("reportsView.comprehensive.trendNew")}</span>;
+    if (trend.direction === "flat") return <span style={{ ...RS.trendBadge, ...RS.trendFlat }}><Minus size={12} /> {t("reportsView.comprehensive.trendFlat")}</span>;
+    const Icon = trend.direction === "up" ? TrendingUp : TrendingDown;
+    return <span style={{ ...RS.trendBadge, ...(trend.direction === "up" ? RS.trendUp : RS.trendDown) }}><Icon size={12} /> <NumericValue value={trend.pct} unit="%" /></span>;
+  }
+
   return (
     <div style={S.view}>
       <div style={S.reportsHead}>
         <div style={S.sectionTitle}>{t("reportsView.title")}</div>
-        <div style={S.rangeToggle}>
-          <button onClick={() => setRange("week")} style={{ ...S.rangeBtn, ...(range === "week" ? S.rangeBtnActive : {}) }}>{t("reportsView.rangeWeek")}</button>
-          <button onClick={() => setRange("month")} style={{ ...S.rangeBtn, ...(range === "month" ? S.rangeBtnActive : {}) }}>{t("reportsView.rangeMonth")}</button>
-        </div>
+        {subTab !== "allTime" && (
+          <div style={S.rangeToggle}>
+            <button onClick={() => setRange("week")} style={{ ...S.rangeBtn, ...(range === "week" ? S.rangeBtnActive : {}) }}>{t("reportsView.rangeWeek")}</button>
+            <button onClick={() => setRange("month")} style={{ ...S.rangeBtn, ...(range === "month" ? S.rangeBtnActive : {}) }}>{t("reportsView.rangeMonth")}</button>
+          </div>
+        )}
       </div>
 
       <button onClick={exportPdf} disabled={exporting} style={S.exportBtn}>
@@ -1888,6 +2114,132 @@ function ReportsView({ entries, categories, focus, profile, healthProfile, sleep
           );
         })}
       </div>
+
+      {subTab === "comprehensive" && (
+        !(nutritionLoaded && comprehensiveLoaded) ? (
+          <div style={{ display: "flex", justifyContent: "center", padding: 30 }}><Loader2 size={20} className="spin" color="#C9A24B" /></div>
+        ) : (
+          <>
+            <div style={RS.sectionBlock}>
+              <div style={RS.sectionHeading}><Dumbbell size={14} /> {t("reportsView.comprehensive.fitnessTitle")}</div>
+              <div style={RS.miniStatGrid}>
+                <div style={RS.miniStatCard}><div style={RS.miniStatLabel}>{t("reportsView.comprehensive.workoutsCompleted")}</div><div style={RS.miniStatValue}><NumericValue value={fitnessDaysInRange.length} /></div></div>
+                <div style={RS.miniStatCard}><div style={RS.miniStatLabel}>{t("reportsView.comprehensive.exercisesTrained")}</div><div style={RS.miniStatValue}><NumericValue value={distinctExercisesTrained} /></div></div>
+                <div style={RS.miniStatCard}><div style={RS.miniStatLabel}>{t("reportsView.comprehensive.setsLogged")}</div><div style={RS.miniStatValue}><NumericValue value={workoutLogInRange.length} /></div></div>
+                <div style={RS.miniStatCard}><div style={RS.miniStatLabel}>{t("reportsView.comprehensive.trainingVolume")}</div><div style={RS.miniStatValue}>{totalTrainingVolume > 0 ? isolateNumbers(`${formatNumberLatin(Math.round(totalTrainingVolume), language)} ${t("fitness.volumeUnit")}`) : "—"}</div></div>
+              </div>
+            </div>
+
+            <div style={RS.sectionBlock}>
+              <div style={RS.sectionHeading}><Utensils size={14} /> {t("reportsView.comprehensive.nutritionTitle")}</div>
+              {nutritionActiveDays === 0 ? <div style={S.emptyHint}>{t("reportsView.noNutritionDataYet")}</div> : (
+                <>
+                  <div style={RS.miniStatGrid}>
+                    <div style={RS.miniStatCard}><div style={RS.miniStatLabel}>{t("reportsView.averageCalories")}</div><div style={RS.miniStatValue}><NumericValue value={nutritionAvgCalories} unit="kcal" /></div></div>
+                    <div style={RS.miniStatCard}><div style={RS.miniStatLabel}>{t("reportsView.protein")}</div><div style={RS.miniStatValue}><NumericValue value={nutritionAvgProtein} unit="g" /></div></div>
+                    <div style={RS.miniStatCard}><div style={RS.miniStatLabel}>{t("reportsView.carbs")}</div><div style={RS.miniStatValue}><NumericValue value={nutritionAvgCarbs} unit="g" /></div></div>
+                    <div style={RS.miniStatCard}><div style={RS.miniStatLabel}>{t("reportsView.fat")}</div><div style={RS.miniStatValue}><NumericValue value={nutritionAvgFat} unit="g" /></div></div>
+                    <div style={RS.miniStatCard}><div style={RS.miniStatLabel}>{t("common.units.fiber")}</div><div style={RS.miniStatValue}><NumericValue value={nutritionAvgFiber} unit="g" /></div></div>
+                    <div style={RS.miniStatCard}><div style={RS.miniStatLabel}>{t("reportsView.comprehensive.avgWater")}</div><div style={RS.miniStatValue}>{waterDaysLogged > 0 ? <NumericValue value={Math.round(avgWaterCups * 10) / 10} unit={t("nutrition.unitOptions.cup")} /> : "—"}</div></div>
+                  </div>
+                  {topMicronutrients.length > 0 && (
+                    <div style={RS.microChipRow}>
+                      {topMicronutrients.map((m) => (
+                        <span key={m.key} style={RS.microChip}>{m.approx ? "≈ " : ""}{t(`nutrition.micronutrients.${m.key}`)}: <NumericValue value={m.avgPerDay} unit={t(`common.units.${m.unit}`)} /></span>
+                      ))}
+                    </div>
+                  )}
+                  {mealPatterns && (mealPatterns.daysWithoutBreakfastCount > 0 || mealPatterns.lowCalorieMeal || mealPatterns.lowProteinMeal) && (
+                    <div style={{ ...S.tipBox, marginTop: 10, flexDirection: "column", gap: 6, alignItems: "stretch" }}>
+                      {mealPatterns.daysWithoutBreakfastCount > 0 && (
+                        <span>{isolateNumbers(t("reportsView.noBreakfastPattern", { count: mealPatterns.daysWithoutBreakfastCount, total: mealPatterns.loggedDaysCount }))}</span>
+                      )}
+                      {mealPatterns.lowCalorieMeal && (
+                        <span>{t("reportsView.lowCalorieMealPattern", { meal: t(`nutrition.mealTypes.${mealPatterns.lowCalorieMeal.mealType}`) })}</span>
+                      )}
+                      {mealPatterns.lowProteinMeal && (
+                        <span>{t("reportsView.lowProteinMealPattern", { meal: t(`nutrition.mealTypes.${mealPatterns.lowProteinMeal.mealType}`) })}</span>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            <div style={RS.sectionBlock}>
+              <div style={RS.sectionHeading}><Clock size={14} /> {t("reportsView.comprehensive.timeTitle")}</div>
+              <div style={RS.miniStatGrid}>
+                <div style={RS.miniStatCard}><div style={RS.miniStatLabel}>{t("reportsView.total")}</div><div style={RS.miniStatValue}>{isolateNumbers(fmtHM(totalMin, language))}</div></div>
+                <div style={RS.miniStatCard}><div style={RS.miniStatLabel}>{t("reportsView.totalStudyTime")}</div><div style={RS.miniStatValue}>{isolateNumbers(fmtHM(studyTotalMin, language))}</div></div>
+                <div style={RS.miniStatCard}><div style={RS.miniStatLabel}>{t("reportsView.comprehensive.tasksCompleted")}</div><div style={RS.miniStatValue}><NumericValue value={tasksCompletedCount} /></div></div>
+                <div style={RS.miniStatCard}><div style={RS.miniStatLabel}>{t("reportsView.comprehensive.tasksMissed")}</div><div style={RS.miniStatValue}><NumericValue value={tasksMissedCount} /></div></div>
+              </div>
+            </div>
+
+            <div style={RS.sectionBlock}>
+              <div style={RS.sectionHeading}><Target size={14} /> {t("reportsView.comprehensive.goalsTitle")}</div>
+              <div style={RS.miniStatGrid}>
+                <div style={RS.miniStatCard}><div style={RS.miniStatLabel}>{t("goals.achievedBadge")}</div><div style={RS.miniStatValue}><NumericValue value={goalsDoneCount} /></div></div>
+                <div style={RS.miniStatCard}><div style={RS.miniStatLabel}>{t("reportsView.comprehensive.goalsActive")}</div><div style={RS.miniStatValue}><NumericValue value={goalsActiveCount} /></div></div>
+              </div>
+              {goalsProgressPct != null ? (
+                <>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10, fontSize: 12.5, color: "var(--ink-soft)" }}>
+                    <span>{t("reportsView.comprehensive.goalsProgress")}</span>
+                    <NumericValue value={goalsProgressPct} unit="%" />
+                  </div>
+                  <div style={RS.goalsProgressTrack}><div style={{ ...RS.goalsProgressFill, width: `${goalsProgressPct}%` }} /></div>
+                </>
+              ) : (
+                <div style={S.emptyHint}>{t("reportsView.comprehensive.noGoalsResolved")}</div>
+              )}
+            </div>
+
+            <div style={RS.sectionBlock}>
+              <div style={RS.sectionHeading}><Flame size={14} /> {t("reportsView.comprehensive.consistencyTitle")}</div>
+              <div style={{ ...S.kpiRow, marginBottom: 10 }}>
+                <div style={S.kpiCard}><div style={S.kpiValue}><NumericValue value={activeDays} /></div><div style={S.kpiLabel}>{t("reportsView.activeDays")}</div></div>
+              </div>
+              <div style={RS.streakGrid}>
+                <div style={RS.streakCard}><div style={RS.streakValue}><NumericValue value={workoutStreak} /></div><div style={RS.streakLabel}>{t("reportsView.comprehensive.workoutStreak")}</div></div>
+                <div style={RS.streakCard}><div style={RS.streakValue}><NumericValue value={nutritionLoggingStreak} /></div><div style={RS.streakLabel}>{t("reportsView.comprehensive.nutritionStreak")}</div></div>
+                <div style={RS.streakCard}><div style={RS.streakValue}><NumericValue value={taskCompletionStreak} /></div><div style={RS.streakLabel}>{t("reportsView.comprehensive.taskStreak")}</div></div>
+              </div>
+            </div>
+
+            <div style={RS.sectionBlock}>
+              <div style={RS.sectionHeading}><TrendingUp size={14} /> {t("reportsView.comprehensive.trendsTitle")}</div>
+              <div style={S.chartCard}>
+                {trends.map((tr) => (
+                  <div key={tr.key} style={RS.trendRow}>
+                    <span style={RS.trendLabel}>{t(tr.labelKey)}</span>
+                    {renderTrendBadge(tr)}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={RS.sectionBlock}>
+              <div style={RS.insightCard}>
+                <div style={RS.insightHead}>
+                  <div style={RS.insightIcon}><Sparkles size={16} color="var(--on-accent)" /></div>
+                  <div style={RS.insightTitle}>{t("reportsView.comprehensive.insightTitle")}</div>
+                </div>
+                {insightLoading ? (
+                  <p style={{ ...RS.insightText, color: "var(--muted2)" }}><Loader2 size={14} className="spin" style={{ marginInlineEnd: 6 }} />{t("reportsView.comprehensive.insightLoading")}</p>
+                ) : insightText ? (
+                  <p style={RS.insightText}>{isolateNumbers(insightText)}</p>
+                ) : (
+                  <p style={{ ...RS.insightText, color: "var(--muted2)" }}>{insightError ? t("reportsView.comprehensive.insightFailed") : t("reportsView.comprehensive.insightEmpty")}</p>
+                )}
+                <button onClick={generateInsight} disabled={insightLoading} style={{ ...S.saveBtn, marginTop: 12, marginBottom: 0 }}>
+                  <Sparkles size={14} /> {insightText ? t("reportsView.comprehensive.refreshInsightBtn") : t("reportsView.comprehensive.getInsightBtn")}
+                </button>
+              </div>
+            </div>
+          </>
+        )
+      )}
 
       {subTab === "overview" && (
         <>
@@ -2083,6 +2435,44 @@ function ReportsView({ entries, categories, focus, profile, healthProfile, sleep
                 </>
               )}
             </div>
+          </>
+        )
+      )}
+
+      {subTab === "allTime" && (
+        !comprehensiveLoaded ? (
+          <div style={{ display: "flex", justifyContent: "center", padding: 30 }}><Loader2 size={20} className="spin" color="#C9A24B" /></div>
+        ) : (
+          <>
+            <div style={RS.journeyHero}>
+              <Trophy size={28} color="var(--gold)" />
+              <div style={{ ...RS.journeyHeroValue, marginTop: 8 }}><NumericValue value={allTimeStats.longestWorkoutStreak} unit={t("reportsView.comprehensive.daysUnit")} /></div>
+              <div style={RS.journeyHeroLabel}>{t("reportsView.allTime.longestStreak")}</div>
+            </div>
+
+            <div style={RS.journeyGrid}>
+              <div style={RS.journeyCard}><div style={RS.journeyCardValue}><NumericValue value={allTimeStats.totalWorkouts} /></div><div style={RS.journeyCardLabel}>{t("reportsView.allTime.totalWorkouts")}</div></div>
+              <div style={RS.journeyCard}><div style={RS.journeyCardValue}><NumericValue value={allTimeStats.activeDaysAllTime} /></div><div style={RS.journeyCardLabel}>{t("reportsView.allTime.totalActiveDays")}</div></div>
+              <div style={RS.journeyCard}><div style={RS.journeyCardValue}><NumericValue value={allTimeStats.totalTasksCompleted} /></div><div style={RS.journeyCardLabel}>{t("reportsView.allTime.totalTasksCompleted")}</div></div>
+              <div style={RS.journeyCard}><div style={RS.journeyCardValue}><NumericValue value={allTimeStats.totalMealsLogged} /></div><div style={RS.journeyCardLabel}>{t("reportsView.allTime.totalMealsLogged")}</div></div>
+            </div>
+
+            <div style={{ ...S.chartCard, marginTop: 14 }}>
+              <div style={S.chartTitle}>{t("reportsView.allTime.bestWeekTitle")}</div>
+              {allTimeStats.bestWeek ? (
+                <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>
+                  {isolateNumbers(t("reportsView.allTime.bestWeekValue", {
+                    date: arabicDate(allTimeStats.bestWeek.start, { day: "numeric", month: "long" }, language === "en" ? "en-US" : undefined),
+                    volume: formatNumberLatin(allTimeStats.bestWeek.volume, language),
+                    unit: t("fitness.volumeUnit"),
+                  }))}
+                </div>
+              ) : (
+                <div style={S.emptyHint}>{t("common.states.noDataYet")}</div>
+              )}
+            </div>
+
+            <p style={{ fontSize: 11, color: "var(--muted2)", lineHeight: 1.6, marginTop: 4 }}>{t("reportsView.allTime.mealsScopeNote")}</p>
           </>
         )
       )}

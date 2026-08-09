@@ -84,6 +84,30 @@ export function computeStreak(dates) {
   return streak;
 }
 
+// أطول سلسلة تاريخية (لا الحالية فقط كما في computeStreak أعلاه) - تُستخدَم
+// في "التقرير الشامل" (Priority 4، القسم الكلي/All-Time) لعرض أفضل إنجاز
+// اتساق حقّقه المستخدم عبر كامل تاريخه، لا سلسلته الجارية فقط. تعمل بفرز
+// التواريخ الفريدة زمنياً ثم عدّ أطول تتابع أيام متلاصقة.
+export function longestStreak(dates) {
+  if (!dates.length) return 0;
+  const uniqueDays = Array.from(new Set(dates.map((d) => (typeof d === "string" ? d : d.date)))).sort();
+  let longest = 1;
+  let current = 1;
+  for (let i = 1; i < uniqueDays.length; i++) {
+    const prev = parseLocalDateKey(uniqueDays[i - 1]);
+    const curr = parseLocalDateKey(uniqueDays[i]);
+    const diffDays = Math.round((curr - prev) / 86400000);
+    current = diffDays === 1 ? current + 1 : 1;
+    if (current > longest) longest = current;
+  }
+  return longest;
+}
+
+function parseLocalDateKey(key) {
+  const [y, m, d] = key.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
 // lang معامل اختياري (افتراضياً العربي) — أُضيف فقط لدعم شارة المستوى
 // في الشريط العلوي ثنائي اللغة؛ النداء الوحيد القائم (بدون هذا المعامل)
 // يستمر يعمل بالضبط كالسابق.

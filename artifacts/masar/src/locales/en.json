@@ -286,10 +286,12 @@
   },
   "reportsView": {
     "tabs": {
+      "comprehensive": "Summary",
       "overview": "Overview",
       "study": "Study",
       "health": "Health",
-      "nutrition": "Nutrition"
+      "nutrition": "Nutrition",
+      "allTime": "Journey"
     },
     "unspecified": "Unspecified",
     "title": "Your Reports",
@@ -325,7 +327,51 @@
     "mealLoggedDays": "Logged on {{n}} days",
     "noBreakfastPattern": "No breakfast was logged on {{count}} of the {{total}} days you logged food this period.",
     "lowCalorieMealPattern": "{{meal}} is noticeably lower in calories than your other meals on average this period.",
-    "lowProteinMealPattern": "{{meal}} is noticeably lower in protein than your other meals on average this period."
+    "lowProteinMealPattern": "{{meal}} is noticeably lower in protein than your other meals on average this period.",
+    "comprehensive": {
+      "fitnessTitle": "Fitness Activity",
+      "workoutsCompleted": "Workouts completed",
+      "exercisesTrained": "Exercises trained",
+      "setsLogged": "Sets logged",
+      "trainingVolume": "Training volume",
+      "nutritionTitle": "Nutrition",
+      "avgWater": "Average water",
+      "timeTitle": "Time Management",
+      "tasksCompleted": "Tasks completed",
+      "tasksMissed": "Tasks missed",
+      "goalsTitle": "Goals",
+      "goalsActive": "In progress",
+      "goalsProgress": "Completion rate",
+      "noGoalsResolved": "No resolved goals (achieved or missed) yet",
+      "consistencyTitle": "Consistency",
+      "workoutStreak": "Workout streak",
+      "nutritionStreak": "Nutrition streak",
+      "taskStreak": "Task streak",
+      "trendsTitle": "Trends vs previous period",
+      "trendFitness": "Fitness activity",
+      "trendTime": "Total tracked time",
+      "trendNutrition": "Nutrition logging consistency",
+      "trendTasks": "Task completion",
+      "trendNew": "New",
+      "trendFlat": "No change",
+      "insightTitle": "Masar Insight for the week",
+      "insightLoading": "Analyzing your week...",
+      "insightFailed": "Couldn't analyze this week right now, try again later.",
+      "insightEmpty": "Get a short analysis of your week based on your real numbers, with one concrete improvement opportunity for next week.",
+      "getInsightBtn": "Get this week's insight",
+      "refreshInsightBtn": "Refresh insight",
+      "daysUnit": "days"
+    },
+    "allTime": {
+      "longestStreak": "Longest workout streak",
+      "totalWorkouts": "Total workouts",
+      "totalActiveDays": "Total active days",
+      "totalTasksCompleted": "Total tasks completed",
+      "totalMealsLogged": "Meals logged",
+      "bestWeekTitle": "Best training week",
+      "bestWeekValue": "Week of {{date}}: {{volume}} {{unit}} training volume",
+      "mealsScopeNote": "Meals logged shows only the last 90 days (the nutrition log's available range) - the other numbers cover your full history in Masar."
+    }
   },
   "pdfReport": {
     "titleWeek": "Masar Weekly Report",

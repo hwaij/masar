@@ -286,10 +286,12 @@
   },
   "reportsView": {
     "tabs": {
+      "comprehensive": "الشامل",
       "overview": "نظرة عامة",
       "study": "الدراسة",
       "health": "الصحة",
-      "nutrition": "التغذية"
+      "nutrition": "التغذية",
+      "allTime": "الرحلة"
     },
     "unspecified": "غير محدد",
     "title": "تقاريرك",
@@ -325,7 +327,51 @@
     "mealLoggedDays": "سُجِّلت في {{n}} يوم",
     "noBreakfastPattern": "لم تُسجَّل وجبة فطور في {{count}} من أصل {{total}} يوماً سجّلت فيها طعاماً هذه الفترة.",
     "lowCalorieMealPattern": "وجبة {{meal}} أقل سعرات بشكل ملحوظ من باقي وجباتك في المتوسط هذه الفترة.",
-    "lowProteinMealPattern": "وجبة {{meal}} أقل بروتيناً بشكل ملحوظ من باقي وجباتك في المتوسط هذه الفترة."
+    "lowProteinMealPattern": "وجبة {{meal}} أقل بروتيناً بشكل ملحوظ من باقي وجباتك في المتوسط هذه الفترة.",
+    "comprehensive": {
+      "fitnessTitle": "النشاط الرياضي",
+      "workoutsCompleted": "تمارين مكتملة",
+      "exercisesTrained": "تمارين مختلفة",
+      "setsLogged": "مجموعات مسجَّلة",
+      "trainingVolume": "حجم التدريب",
+      "nutritionTitle": "التغذية",
+      "avgWater": "متوسط الماء",
+      "timeTitle": "إدارة الوقت",
+      "tasksCompleted": "مهام مكتملة",
+      "tasksMissed": "مهام فائتة",
+      "goalsTitle": "الأهداف",
+      "goalsActive": "قيد التقدّم",
+      "goalsProgress": "نسبة الإنجاز",
+      "noGoalsResolved": "لا توجد أهداف محسومة (منجزة أو فائتة) بعد",
+      "consistencyTitle": "الاتساق",
+      "workoutStreak": "سلسلة الرياضة",
+      "nutritionStreak": "سلسلة التغذية",
+      "taskStreak": "سلسلة المهام",
+      "trendsTitle": "الاتجاهات مقابل الفترة الماضية",
+      "trendFitness": "النشاط الرياضي",
+      "trendTime": "إجمالي الوقت المتتبَّع",
+      "trendNutrition": "اتساق تسجيل التغذية",
+      "trendTasks": "إنجاز المهام",
+      "trendNew": "جديد",
+      "trendFlat": "بلا تغيّر",
+      "insightTitle": "رؤية مسار للأسبوع",
+      "insightLoading": "جارٍ تحليل أسبوعك...",
+      "insightFailed": "تعذّر تحليل الأسبوع الآن، حاول لاحقاً.",
+      "insightEmpty": "احصل على تحليل قصير لأسبوعك مبني على أرقامك الفعلية، مع فرصة تحسّن واحدة للأسبوع القادم.",
+      "getInsightBtn": "احصل على رؤية الأسبوع",
+      "refreshInsightBtn": "تحديث الرؤية",
+      "daysUnit": "يوم"
+    },
+    "allTime": {
+      "longestStreak": "أطول سلسلة رياضية",
+      "totalWorkouts": "إجمالي التمارين",
+      "totalActiveDays": "إجمالي الأيام النشطة",
+      "totalTasksCompleted": "إجمالي المهام المكتملة",
+      "totalMealsLogged": "الوجبات المسجَّلة",
+      "bestWeekTitle": "أفضل أسبوع تدريبي",
+      "bestWeekValue": "أسبوع {{date}}: حجم تدريبي {{volume}} {{unit}}",
+      "mealsScopeNote": "الوجبات المسجَّلة تعرض آخر 90 يوماً فقط (نطاق سجل التغذية المتاح) - بقية الأرقام تغطي تاريخك الكامل في مسار."
+    }
   },
   "pdfReport": {
     "titleWeek": "تقرير مسار الأسبوعي",

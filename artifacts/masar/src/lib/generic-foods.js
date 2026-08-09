@@ -164,6 +164,7 @@ export function searchGenericFoods(normalizedQuery) {
 // تبقى صفراً (غير مذكورة في مصدر البيانات هنا - لا اختراع قيمة غير معروفة
 // فعلياً). micronutrientsPer100g تُؤخذ من حقل food.micronutrients أعلاه إن
 // وُجد (تقدير USDA تقريبي لصنف محدَّد) وإلا كائن فارغ كما كان دائماً.
+// نفس المبدأ ينطبق على الكوليسترول (يبقى صفراً هنا لنفس السبب).
 // origin: "generic" هو العلامة الوحيدة التي تُستخدم لاحقاً (ConfirmQuantityCard)
 // لوسم أي فيتامين/معدن من هذا المصدر بـmicroApprox=true في سجل التغذية -
 // تمييزاً عن بيانات حقيقية دقيقة من باركود Open Food Facts أو ملصق حقيقي.
@@ -181,6 +182,7 @@ export function genericFoodToProduct(food, isEn) {
     fiberPer100g: food.fiberPer100g,
     sugarPer100g: 0,
     sodiumPer100gMg: 0,
+    cholesterolPer100gMg: 0,
     servingSizeLabel: null,
     servingGrams: food.servingGrams || null,
     micronutrientsPer100g: food.micronutrients || {},

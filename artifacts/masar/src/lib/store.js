@@ -679,9 +679,14 @@ export const store = {
       const items = (data || []).map((r) => ({
         id: r.id, date: r.date, foodName: r.food_name, calories: r.calories, protein: r.protein,
         carbs: r.carbs, fat: r.fat, fiber: r.fiber || 0, sugar: r.sugar || 0, sodium: r.sodium || 0,
+        cholesterol: r.cholesterol || 0,
         servingInfo: r.serving_info || "", source: r.source, unit: r.unit || "g",
         micronutrients: r.micronutrients || {},
         mealType: r.meal_type || null, microApprox: !!r.micro_approx,
+        // وقت التسجيل الفعلي (لا وقت الأكل - غير معروف) - يُستخدَم فقط
+        // لبناء "الوقت المعتاد" التقديري لكل نوع وجبة من نمط تسجيل المستخدم
+        // الحقيقي (Priority 5)، بلا أي دور في حسابات الماكروز/التغذية نفسها.
+        createdAt: r.created_at || null,
       }));
       lsSet("masar_nutrition_log", items);
       return items;
@@ -695,6 +700,7 @@ export const store = {
       id: entry.id, owner: CURRENT_OWNER, date: entry.date, food_name: entry.foodName,
       calories: entry.calories, protein: entry.protein, carbs: entry.carbs, fat: entry.fat,
       fiber: entry.fiber || 0, sugar: entry.sugar || 0, sodium: entry.sodium || 0,
+      cholesterol: entry.cholesterol || 0,
       serving_info: entry.servingInfo || "", source: entry.source, unit: entry.unit || "g",
       micronutrients: entry.micronutrients || {},
       meal_type: entry.mealType || null, micro_approx: !!entry.microApprox,
@@ -719,6 +725,35 @@ export const store = {
       console.error("[addNutritionEntry] write failed:", e);
       lsSet("masar_nutrition_log", local);
       return { ok: false, error: String(e), code: null, details: null, hint: null };
+    }
+  },
+  // تعديل سريع لإدخال مُسجَّل بالفعل (Priority 5 - بطاقات الوجبات) - نفس
+  // نمط addNutritionEntry بالضبط (تفاؤلي محلياً أولاً، تراجع عند فشل
+  // الحفظ السحابي) لكن update بدل insert. لا يغيّر id/date/source/mealType
+  // (تلك تُدار من مسارات أخرى)، فقط القيم الغذائية القابلة للتصحيح اليدوي.
+  async updateNutritionEntry(entry) {
+    const local = lsGet("masar_nutrition_log", []);
+    const prevEntry = local.find((e) => e.id === entry.id);
+    lsSet("masar_nutrition_log", local.map((e) => (e.id === entry.id ? entry : e)));
+    if (!useCloud()) return { ok: true };
+    const payload = {
+      food_name: entry.foodName, calories: entry.calories, protein: entry.protein,
+      carbs: entry.carbs, fat: entry.fat, fiber: entry.fiber || 0, sugar: entry.sugar || 0,
+      sodium: entry.sodium || 0, cholesterol: entry.cholesterol || 0,
+      serving_info: entry.servingInfo || "",
+    };
+    try {
+      const { error } = await supabase.from("nutrition_log").update(payload).eq("id", entry.id).eq("owner", CURRENT_OWNER);
+      if (error) {
+        console.error("[updateNutritionEntry] Supabase error:", error.message);
+        if (prevEntry) lsSet("masar_nutrition_log", local.map((e) => (e.id === entry.id ? prevEntry : e)));
+        return { ok: false, error: error.message };
+      }
+      return { ok: true };
+    } catch (e) {
+      console.error("[updateNutritionEntry] write failed:", e);
+      if (prevEntry) lsSet("masar_nutrition_log", local.map((e) => (e.id === entry.id ? prevEntry : e)));
+      return { ok: false, error: String(e) };
     }
   },
   async deleteNutritionEntry(id) {
@@ -746,6 +781,7 @@ export const store = {
       const food = {
         barcode: data.barcode, foodName: data.food_name, calories: data.calories, protein: data.protein,
         carbs: data.carbs, fat: data.fat, fiber: data.fiber || 0, sugar: data.sugar || 0, sodium: data.sodium || 0,
+        cholesterol: data.cholesterol || 0,
         brand: data.brand || "", country: data.country || "", servingSizeLabel: data.serving_size_label || "",
         servingGrams: data.serving_grams || null, imageUrl: data.image_url || "", micronutrients: data.micronutrients || {},
       };
@@ -772,6 +808,7 @@ export const store = {
       return (data || []).map((d) => ({
         barcode: d.barcode, foodName: d.food_name, calories: d.calories, protein: d.protein,
         carbs: d.carbs, fat: d.fat, fiber: d.fiber || 0, sugar: d.sugar || 0, sodium: d.sodium || 0,
+        cholesterol: d.cholesterol || 0,
         brand: d.brand || "", country: d.country || "", servingSizeLabel: d.serving_size_label || "",
         servingGrams: d.serving_grams || null, imageUrl: d.image_url || "", micronutrients: d.micronutrients || {},
       }));
@@ -790,6 +827,7 @@ export const store = {
           owner: CURRENT_OWNER, barcode: food.barcode, food_name: food.foodName,
           calories: food.calories, protein: food.protein, carbs: food.carbs, fat: food.fat,
           fiber: food.fiber || 0, sugar: food.sugar || 0, sodium: food.sodium || 0,
+          cholesterol: food.cholesterol || 0,
           brand: food.brand || "", country: food.country || "", serving_size_label: food.servingSizeLabel || "",
           serving_grams: food.servingGrams || null, image_url: food.imageUrl || "",
           micronutrients: food.micronutrients || {}, updated_at: new Date().toISOString(),

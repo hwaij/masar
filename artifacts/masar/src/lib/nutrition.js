@@ -151,6 +151,11 @@ function normalizeProduct(p, barcode) {
   // بالميليغرام - نحوّله هنا مرة واحدة حتى يبقى كل الصوديوم في هذا الملف
   // بالميليغرام دائماً (المعيار المعروف عالمياً لعرضه: أقل من 2300مغم يومياً).
   const sodiumGramsPer100g = n["sodium_100g"] ?? null;
+  // Open Food Facts تُخزّن الكوليسترول بالغرام لكل 100غم أيضاً (نفس وحدة
+  // الصوديوم) - نحوّله لميليغرام هنا لنفس السبب، وبنفس معاملة الصوديوم
+  // تماماً (حقل رقمي أساسي افتراضه صفر عند الغياب، لا معاملة "قيمة غائبة"
+  // كما في الفيتامينات/المعادن المرنة أدناه).
+  const cholesterolGramsPer100g = n["cholesterol_100g"] ?? null;
   return {
     barcode: p.code || barcode || "",
     name: p.product_name || p.generic_name || "منتج بلا اسم",
@@ -164,6 +169,7 @@ function normalizeProduct(p, barcode) {
     fiberPer100g: n["fiber_100g"] ?? 0,
     sugarPer100g: n["sugars_100g"] ?? 0,
     sodiumPer100gMg: sodiumGramsPer100g != null ? Math.round(sodiumGramsPer100g * 1000) : 0,
+    cholesterolPer100gMg: cholesterolGramsPer100g != null ? Math.round(cholesterolGramsPer100g * 1000) : 0,
     servingSizeLabel: p.serving_size || null,
     servingGrams: servingGrams && servingGrams > 0 ? servingGrams : null,
     micronutrientsPer100g: extractMicronutrients(n),
@@ -210,6 +216,11 @@ export const DAILY_GUIDELINES = {
   fiberMaxG: 30,
   sugarMaxG: 50,
   sodiumMaxMg: 2300,
+  // إرشاد عام شائع (لا احتياج شخصي محسوب) - يُعرض دائماً بصياغة "حد
+  // إرشادي عام" صريحة في الواجهة، بتمييز بصري مختلف عن بطاقات الماكروز
+  // الأساسية (بروتين/كارب/دهون) المحسوبة فعلياً من بيانات المستخدم
+  // الشخصية (TEE/وزن) - حتى لا يخلط المستخدم بين النوعين (Priority 6/7).
+  cholesterolMaxMg: 300,
 };
 
 // يُرجع { found: true, product } أو { found: false, error? } — لا يرمي
@@ -278,6 +289,7 @@ function normalizeUsdaProduct(p) {
     fiberPer100g: p.fiberPer100g ?? 0,
     sugarPer100g: p.sugarPer100g ?? 0,
     sodiumPer100gMg: p.sodiumPer100gMg ?? 0,
+    cholesterolPer100gMg: p.cholesterolPer100gMg ?? 0,
     servingSizeLabel: null,
     servingGrams: null,
     micronutrientsPer100g: p.micronutrientsPer100g || {},
@@ -370,6 +382,7 @@ export function scaleNutrients(product, grams) {
     fiber: Math.round((product.fiberPer100g || 0) * factor * 10) / 10,
     sugar: Math.round((product.sugarPer100g || 0) * factor * 10) / 10,
     sodium: Math.round((product.sodiumPer100gMg || 0) * factor),
+    cholesterol: Math.round((product.cholesterolPer100gMg || 0) * factor),
   };
 }
 
@@ -398,8 +411,9 @@ export function sumNutritionEntries(entries) {
       fiber: acc.fiber + (e.fiber || 0),
       sugar: acc.sugar + (e.sugar || 0),
       sodium: acc.sodium + (e.sodium || 0),
+      cholesterol: acc.cholesterol + (e.cholesterol || 0),
     }),
-    { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sugar: 0, sodium: 0 },
+    { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sugar: 0, sodium: 0, cholesterol: 0 },
   );
   // تُجمَع الفيتامينات/المعادن بمعزل عن الأربعة الأساسية أعلاه لأن مفاتيحها
   // متغيّرة (لا كل إدخال يحمل نفس العناصر، أو أياً منها أصلاً) - أي إدخال
@@ -684,25 +698,27 @@ export async function readNutritionLabel(imageFile, lang = "ar") {
     const { base64, mimeType } = await compressImageToBase64(imageFile);
     const prompt = lang === "en"
       ? `Analyze this printed "Nutrition Facts" label photo. Read only the numbers actually printed on the label — don't invent or estimate any number that isn't written. Return only valid JSON with no extra text or markdown, in exactly this shape:
-{"basis":"100g or 100ml or serving","servingGrams":number or null,"calories":number,"protein":number,"carbs":number,"fat":number,"fiber":number,"sugar":number,"sodium":number,"micronutrients":{},"productName":string or null}
+{"basis":"100g or 100ml or serving","servingGrams":number or null,"calories":number,"protein":number,"carbs":number,"fat":number,"fiber":number,"sugar":number,"sodium":number,"cholesterol":number,"micronutrients":{},"productName":string or null}
 
 Where:
 - "basis": the actual reference basis printed on the label for these specific values — "100g" if per 100 grams, "100ml" if per 100 milliliters, or "serving" if per single serving only with no other 100g/100ml column. If both are shown, choose "100g" or "100ml" (always more precise) rather than "serving".
 - "servingGrams": only if basis="serving", the serving size in grams as written or computed (e.g. Serving Size 30g → 30, or 240ml → 240). Null if basis is "100g" or "100ml".
 - calories/protein/carbs/fat/fiber/sugar: numbers exactly as printed relative to the basis. Set to 0 only if not mentioned at all — never invent a missing number.
-- "sodium": in milligrams (mg) as printed, or converted from grams if needed.
+- "sodium": in milligrams (mg) as printed, or converted from grams if needed. 0 if not mentioned.
+- "cholesterol": in milligrams (mg) as printed, or converted from grams if needed. 0 if not mentioned at all on the label.
 - "micronutrients": a JSON object containing only vitamins/minerals actually mentioned on the label from this list (exact keys): vitamin_d (mcg), vitamin_c (mg), vitamin_a (mcg), vitamin_b12 (mcg), iron (mg), calcium (mg), potassium (mg), zinc (mg), magnesium (mg). Convert units as needed. Return {} if none mentioned.
 - "productName": only if clearly written and legible in the same photo; null if no clear name appears, don't guess.
 
 If the label can't be read clearly enough, return exactly: {"error":"unreadable"}`
       : `حلّل صورة "جدول القيم الغذائية" (Nutrition Facts label) المطبوع هذا. اقرأ الأرقام المطبوعة فعلياً على الملصق فقط، ولا تخترع أو تقدّر أي رقم غير مكتوب. أرجع فقط JSON صالحاً بدون أي نص أو markdown إضافي، بهذا الشكل بالضبط:
-{"basis":"100g أو 100ml أو serving","servingGrams":رقم أو null,"calories":رقم,"protein":رقم,"carbs":رقم,"fat":رقم,"fiber":رقم,"sugar":رقم,"sodium":رقم,"micronutrients":{},"productName":نص أو null}
+{"basis":"100g أو 100ml أو serving","servingGrams":رقم أو null,"calories":رقم,"protein":رقم,"carbs":رقم,"fat":رقم,"fiber":رقم,"sugar":رقم,"sodium":رقم,"cholesterol":رقم,"micronutrients":{},"productName":نص أو null}
 
 حيث:
 - "basis": الأساس المرجعي الفعلي المكتوب على الملصق لهذه القيم تحديداً - "100g" إن كانت القيم لكل 100 غرام، "100ml" إن كانت لكل 100 مليلتر، أو "serving" إن كانت لكل حصة واحدة (Per Serving) فقط بدون أي عمود آخر لكل 100g/100ml. إن ذُكر كلاهما معاً على نفس الملصق (شائع جداً)، اختر "100g" أو "100ml" (الأدق دائماً) لا "serving".
 - "servingGrams": فقط إن كان basis="serving"، حجم الحصة الواحدة بالغرام كما هو مكتوب أو محسوب من الملصق (مثال: Serving Size 30g → 30، أو 240ml → 240). اجعلها null دائماً إن كان basis="100g" أو "100ml".
 - calories/protein/carbs/fat/fiber/sugar: أرقام كما هي مطبوعة تماماً بالنسبة للأساس المرجعي basis (سعرات، وبروتين/كارب/دهون/ألياف/سكر بالغرام). اجعل القيمة 0 فقط إن كانت غير مذكورة إطلاقاً على الملصق - لا تخترع رقماً غائباً.
-- "sodium": بالميليغرام (mg) كما هو مطبوع، أو محسوباً من غرام إلى ميليغرام إن كُتب بالغرام على الملصق.
+- "sodium": بالميليغرام (mg) كما هو مطبوع، أو محسوباً من غرام إلى ميليغرام إن كُتب بالغرام على الملصق. 0 إن كان غير مذكور.
+- "cholesterol": بالميليغرام (mg) كما هو مطبوع (يُكتب غالباً "Cholesterol")، أو محسوباً من غرام إلى ميليغرام إن لزم. 0 فقط إن كان غير مذكور إطلاقاً على الملصق.
 - "micronutrients": كائن JSON يحوي فقط الفيتامينات/المعادن المذكورة فعلياً على نفس الملصق من هذه القائمة تحديداً (بنفس هذه المفاتيح بالضبط): vitamin_d (فيتامين د بالميكروغرام mcg)، vitamin_c (فيتامين ج بالميليغرام mg)، vitamin_a (فيتامين أ بالميكروغرام mcg)، vitamin_b12 (فيتامين ب12 بالميكروغرام mcg)، iron (الحديد بالميليغرام mg)، calcium (الكالسيوم بالميليغرام mg)، potassium (البوتاسيوم بالميليغرام mg)، zinc (الزنك بالميليغرام mg)، magnesium (المغنيسيوم بالميليغرام mg). حوّل الوحدة إلى ما ذُكر أعلاه إن كانت مختلفة على الملصق (مثال: إن كُتب الحديد بالغرام حوّله لميليغرام). لا تُضف مفتاحاً لعنصر غير مذكور إطلاقاً على الملصق - أرجع كائناً فارغاً {} إن لم يُذكر أي منها.
 - "productName": اسم المنتج فقط إن كان مكتوباً بوضوح وقابلاً للقراءة في نفس الصورة (على العبوة/الملصق نفسه، لا مجرد جدول القيم الغذائية وحده) - أرجع null إن لم يظهر اسم واضح في الصورة، لا تخمّن اسماً.
 
@@ -736,6 +752,7 @@ If the label can't be read clearly enough, return exactly: {"error":"unreadable"
       fiber: Number(parsed.fiber) || 0,
       sugar: Number(parsed.sugar) || 0,
       sodium: Number(parsed.sodium) || 0,
+      cholesterol: Number(parsed.cholesterol) || 0,
       micronutrients,
       productName,
     };
@@ -771,6 +788,7 @@ export function labelToPer100Product(label) {
     fiberPer100g: (label.fiber || 0) * factor,
     sugarPer100g: (label.sugar || 0) * factor,
     sodiumPer100gMg: (label.sodium || 0) * factor,
+    cholesterolPer100gMg: (label.cholesterol || 0) * factor,
     servingGrams: label.basis === "serving" ? servingGrams : null,
     micronutrientsPer100g,
   };

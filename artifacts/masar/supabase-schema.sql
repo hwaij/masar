@@ -285,6 +285,14 @@ alter table nutrition_log add constraint nutrition_log_meal_type_check check (me
 -- الحقيقية.
 alter table nutrition_log add column if not exists micro_approx boolean not null default false;
 
+-- الكوليسترول (Priority 6) - نفس معاملة الصوديوم بالضبط (عمود numeric
+-- صريح بالميليغرام، لا micronutrients jsonb، لأنه معروض في كل مكان تُعرض
+-- فيه الماكروز الأساسية لا كفيتامين/معدن ثانوي). يُستخرَج فقط من مصادر
+-- توفّره فعلياً (باركود Open Food Facts، قراءة ملصق بالذكاء الاصطناعي،
+-- USDA) - صفر افتراضي يعني "غير متوفر من هذا المصدر" لا "صفر حقيقي مؤكَّد"،
+-- تماماً كصفر الصوديوم الافتراضي أعلاه.
+alter table nutrition_log add column if not exists cholesterol numeric not null default 0;
+
 -- مفتاحها (owner, barcode) — لو أدخل المستخدم منتجاً يدوياً لباركود غير
 -- موجود في Open Food Facts، يُستخدم هذا الصف تلقائياً في المرة القادمة
 -- لنفس الباركود قبل حتى محاولة الاتصال بالـ API.
@@ -314,6 +322,7 @@ alter table custom_foods add column if not exists serving_grams numeric;
 alter table custom_foods add column if not exists fiber numeric not null default 0;
 alter table custom_foods add column if not exists sugar numeric not null default 0;
 alter table custom_foods add column if not exists sodium numeric not null default 0;
+alter table custom_foods add column if not exists cholesterol numeric not null default 0;
 alter table custom_foods add column if not exists image_url text default '';
 alter table custom_foods add column if not exists micronutrients jsonb not null default '{}'::jsonb;
 

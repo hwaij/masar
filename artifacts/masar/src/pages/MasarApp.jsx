@@ -1747,6 +1747,8 @@ function ReportsView({ entries, categories, focus, profile, healthProfile, sleep
   const nutritionAvgCarbs = nutritionActiveDays ? Math.round(nutritionTotals.carbs / nutritionActiveDays) : 0;
   const nutritionAvgFat = nutritionActiveDays ? Math.round(nutritionTotals.fat / nutritionActiveDays) : 0;
   const nutritionAvgFiber = nutritionActiveDays ? Math.round(nutritionTotals.fiber / nutritionActiveDays) : 0;
+  const nutritionAvgSodium = nutritionActiveDays ? Math.round(nutritionTotals.sodium / nutritionActiveDays) : 0;
+  const nutritionAvgCholesterol = nutritionActiveDays ? Math.round(nutritionTotals.cholesterol / nutritionActiveDays) : 0;
   const macroData = [
     { name: t("reportsView.protein"), value: Math.round(nutritionTotals.protein), color: "#5FA8A0" },
     { name: t("reportsView.carbs"), value: Math.round(nutritionTotals.carbs), color: "#C9A24B" },
@@ -2141,7 +2143,14 @@ function ReportsView({ entries, categories, focus, profile, healthProfile, sleep
                     <div style={RS.miniStatCard}><div style={RS.miniStatLabel}>{t("reportsView.fat")}</div><div style={RS.miniStatValue}><NumericValue value={nutritionAvgFat} unit="g" /></div></div>
                     <div style={RS.miniStatCard}><div style={RS.miniStatLabel}>{t("common.units.fiber")}</div><div style={RS.miniStatValue}><NumericValue value={nutritionAvgFiber} unit="g" /></div></div>
                     <div style={RS.miniStatCard}><div style={RS.miniStatLabel}>{t("reportsView.comprehensive.avgWater")}</div><div style={RS.miniStatValue}>{waterDaysLogged > 0 ? <NumericValue value={Math.round(avgWaterCups * 10) / 10} unit={t("nutrition.unitOptions.cup")} /> : "—"}</div></div>
+                    <div style={RS.miniStatCard}><div style={RS.miniStatLabel}>{t("reportsView.avgSodium")}</div><div style={RS.miniStatValue}><NumericValue value={nutritionAvgSodium} unit="mg" /></div></div>
+                    <div style={RS.miniStatCard}><div style={RS.miniStatLabel}>{t("reportsView.avgCholesterol")}</div><div style={RS.miniStatValue}><NumericValue value={nutritionAvgCholesterol} unit="mg" /></div></div>
                   </div>
+                  {(nutritionAvgSodium > 0 || nutritionAvgCholesterol > 0) && (
+                    <div style={{ fontSize: 10.5, color: "var(--muted2)", marginTop: 8, lineHeight: 1.5 }}>
+                      {t("reportsView.sodiumCholesterolNote")}
+                    </div>
+                  )}
                   {topMicronutrients.length > 0 && (
                     <div style={RS.microChipRow}>
                       {topMicronutrients.map((m) => (

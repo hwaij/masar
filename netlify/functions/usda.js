@@ -25,6 +25,7 @@ const NUTRIENT_MAP = {
   1079: "fiberPer100g",
   2000: "sugarPer100g",
   1093: "sodiumPer100gMg",
+  1253: "cholesterolPer100gMg",
 };
 // نفس مفاتيح MICRONUTRIENT_META في src/lib/nutrition.js - تطابق مباشر
 // بلا أي تحويل وحدة إضافي (USDA يُبلغ عنها بنفس الوحدات: مكغ للفيتامينات

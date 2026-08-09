@@ -56,6 +56,18 @@ export function arabicDate(key, opts, locale = "ar-KW-u-nu-latn") {
   return new Date(key).toLocaleDateString(locale, opts);
 }
 
+// خلل حقيقي وُجد وأُصلح: toLocaleString("ar-SA") على رقم (لا تاريخ) يُحوّل
+// الأرقام فعلياً لأرقام هندية (١٬٢٣٤ بدل 1,234) - نفس المخاطرة التي
+// arabicDate أعلاه تحاشتها عمداً عبر "ar-KW-u-nu-latn" لكن لم تُطبَّق يومها
+// على عدّاد الاستغفار (الاستثناء الوحيد الفعلي في التطبيق). هذه الدالة
+// تُنسّق أي رقم بفواصل الآلاف مع ضمان أرقام إنجليزية دائماً بغضّ النظر عن
+// اللغة الحالية - نفس منطقة "ar-KW" المستخدَمة في arabicDate تحديداً
+// (لا "ar-SA") توحيداً للسلوك بين كل دوال هذا الملف.
+export function formatNumberLatin(n, lang = "ar") {
+  const locale = lang === "en" ? "en-US" : "ar-KW-u-nu-latn";
+  return Number(n).toLocaleString(locale);
+}
+
 export function computeStreak(dates) {
   if (!dates.length) return 0;
   const days = new Set(dates.map((d) => (typeof d === "string" ? d : d.date)));

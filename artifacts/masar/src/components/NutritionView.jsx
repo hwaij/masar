@@ -20,6 +20,8 @@ import {
 } from "../lib/nutrition";
 import { requestNotificationPermission } from "../lib/push";
 import { searchGenericFoods, genericFoodToProduct } from "../lib/generic-foods";
+import { isolateNumbers } from "../lib/bidi";
+import NumericValue from "./NumericValue";
 import { S } from "./styles";
 
 const NS = {
@@ -309,10 +311,10 @@ function ProgressRing({ percent, color, label, valueText, size = 64, strokeWidth
             style={{ transition: "stroke-dashoffset 0.9s cubic-bezier(.4,0,.2,1)" }}
           />
         </svg>
-        <div style={NS.ringPercent}>{displayPercent}%</div>
+        <div style={NS.ringPercent}><NumericValue value={displayPercent} unit="%" /></div>
       </div>
       <div style={NS.ringLabel}>{label}</div>
-      <div style={NS.ringValueText}>{valueText}</div>
+      <div style={NS.ringValueText}>{isolateNumbers(valueText)}</div>
     </div>
   );
 }
@@ -591,15 +593,15 @@ function ConfirmQuantityCard({ product: initialProduct, source, onAdd, onCancel,
         </>
       )}
       <div style={NS.previewGrid}>
-        <div style={NS.previewChip}><div style={NS.macroValue}>{preview.calories}</div><div style={NS.macroLabel}>{t("common.units.kcal")}</div></div>
-        <div style={NS.previewChip}><div style={NS.macroValue}>{preview.protein}{t("common.units.g")}</div><div style={NS.macroLabel}>{t("common.units.protein")}</div></div>
-        <div style={NS.previewChip}><div style={NS.macroValue}>{preview.carbs}{t("common.units.g")}</div><div style={NS.macroLabel}>{t("common.units.carbs")}</div></div>
-        <div style={NS.previewChip}><div style={NS.macroValue}>{preview.fat}{t("common.units.g")}</div><div style={NS.macroLabel}>{t("common.units.fat")}</div></div>
+        <div style={NS.previewChip}><div style={NS.macroValue}><NumericValue value={preview.calories} /></div><div style={NS.macroLabel}>{t("common.units.kcal")}</div></div>
+        <div style={NS.previewChip}><div style={NS.macroValue}><NumericValue value={preview.protein} unit={t("common.units.g")} /></div><div style={NS.macroLabel}>{t("common.units.protein")}</div></div>
+        <div style={NS.previewChip}><div style={NS.macroValue}><NumericValue value={preview.carbs} unit={t("common.units.g")} /></div><div style={NS.macroLabel}>{t("common.units.carbs")}</div></div>
+        <div style={NS.previewChip}><div style={NS.macroValue}><NumericValue value={preview.fat} unit={t("common.units.g")} /></div><div style={NS.macroLabel}>{t("common.units.fat")}</div></div>
       </div>
       <div style={NS.previewGrid}>
-        <div style={NS.previewChip}><div style={NS.macroValue}>{preview.fiber}{t("common.units.g")}</div><div style={NS.macroLabel}>{t("common.units.fiber")}</div></div>
-        <div style={NS.previewChip}><div style={NS.macroValue}>{preview.sugar}{t("common.units.g")}</div><div style={NS.macroLabel}>{t("common.units.sugar")}</div></div>
-        <div style={NS.previewChip}><div style={NS.macroValue}>{preview.sodium}{t("common.units.mg")}</div><div style={NS.macroLabel}>{t("common.units.sodium")}</div></div>
+        <div style={NS.previewChip}><div style={NS.macroValue}><NumericValue value={preview.fiber} unit={t("common.units.g")} /></div><div style={NS.macroLabel}>{t("common.units.fiber")}</div></div>
+        <div style={NS.previewChip}><div style={NS.macroValue}><NumericValue value={preview.sugar} unit={t("common.units.g")} /></div><div style={NS.macroLabel}>{t("common.units.sugar")}</div></div>
+        <div style={NS.previewChip}><div style={NS.macroValue}><NumericValue value={preview.sodium} unit={t("common.units.mg")} /></div><div style={NS.macroLabel}>{t("common.units.sodium")}</div></div>
       </div>
       <MealTypeSelector value={mealType} onChange={setMealType} />
       <button
@@ -1053,10 +1055,10 @@ function AddProductWizard({ initialBarcode, onSave, onManual, showToast }) {
               )}
               {qtyPreview && (
                 <div style={NS.previewGrid}>
-                  <div style={NS.previewChip}><div style={NS.macroValue}>{qtyPreview.calories}</div><div style={NS.macroLabel}>{t("common.units.kcal")}</div></div>
-                  <div style={NS.previewChip}><div style={NS.macroValue}>{qtyPreview.protein}{t("common.units.g")}</div><div style={NS.macroLabel}>{t("common.units.protein")}</div></div>
-                  <div style={NS.previewChip}><div style={NS.macroValue}>{qtyPreview.carbs}{t("common.units.g")}</div><div style={NS.macroLabel}>{t("common.units.carbs")}</div></div>
-                  <div style={NS.previewChip}><div style={NS.macroValue}>{qtyPreview.fat}{t("common.units.g")}</div><div style={NS.macroLabel}>{t("common.units.fat")}</div></div>
+                  <div style={NS.previewChip}><div style={NS.macroValue}><NumericValue value={qtyPreview.calories} /></div><div style={NS.macroLabel}>{t("common.units.kcal")}</div></div>
+                  <div style={NS.previewChip}><div style={NS.macroValue}><NumericValue value={qtyPreview.protein} unit={t("common.units.g")} /></div><div style={NS.macroLabel}>{t("common.units.protein")}</div></div>
+                  <div style={NS.previewChip}><div style={NS.macroValue}><NumericValue value={qtyPreview.carbs} unit={t("common.units.g")} /></div><div style={NS.macroLabel}>{t("common.units.carbs")}</div></div>
+                  <div style={NS.previewChip}><div style={NS.macroValue}><NumericValue value={qtyPreview.fat} unit={t("common.units.g")} /></div><div style={NS.macroLabel}>{t("common.units.fat")}</div></div>
                 </div>
               )}
             </>
@@ -1616,15 +1618,15 @@ function LabelPhotoPanel({ onSave, onManual }) {
       )}
 
       <div style={NS.previewGrid}>
-        <div style={NS.previewChip}><div style={NS.macroValue}>{preview2.calories}</div><div style={NS.macroLabel}>{t("common.units.kcal")}</div></div>
-        <div style={NS.previewChip}><div style={NS.macroValue}>{preview2.protein}{t("common.units.g")}</div><div style={NS.macroLabel}>{t("common.units.protein")}</div></div>
-        <div style={NS.previewChip}><div style={NS.macroValue}>{preview2.carbs}{t("common.units.g")}</div><div style={NS.macroLabel}>{t("common.units.carbs")}</div></div>
-        <div style={NS.previewChip}><div style={NS.macroValue}>{preview2.fat}{t("common.units.g")}</div><div style={NS.macroLabel}>{t("common.units.fat")}</div></div>
+        <div style={NS.previewChip}><div style={NS.macroValue}><NumericValue value={preview2.calories} /></div><div style={NS.macroLabel}>{t("common.units.kcal")}</div></div>
+        <div style={NS.previewChip}><div style={NS.macroValue}><NumericValue value={preview2.protein} unit={t("common.units.g")} /></div><div style={NS.macroLabel}>{t("common.units.protein")}</div></div>
+        <div style={NS.previewChip}><div style={NS.macroValue}><NumericValue value={preview2.carbs} unit={t("common.units.g")} /></div><div style={NS.macroLabel}>{t("common.units.carbs")}</div></div>
+        <div style={NS.previewChip}><div style={NS.macroValue}><NumericValue value={preview2.fat} unit={t("common.units.g")} /></div><div style={NS.macroLabel}>{t("common.units.fat")}</div></div>
       </div>
       <div style={NS.previewGrid}>
-        <div style={NS.previewChip}><div style={NS.macroValue}>{preview2.fiber}{t("common.units.g")}</div><div style={NS.macroLabel}>{t("common.units.fiber")}</div></div>
-        <div style={NS.previewChip}><div style={NS.macroValue}>{preview2.sugar}{t("common.units.g")}</div><div style={NS.macroLabel}>{t("common.units.sugar")}</div></div>
-        <div style={NS.previewChip}><div style={NS.macroValue}>{preview2.sodium}{t("common.units.mg")}</div><div style={NS.macroLabel}>{t("common.units.sodium")}</div></div>
+        <div style={NS.previewChip}><div style={NS.macroValue}><NumericValue value={preview2.fiber} unit={t("common.units.g")} /></div><div style={NS.macroLabel}>{t("common.units.fiber")}</div></div>
+        <div style={NS.previewChip}><div style={NS.macroValue}><NumericValue value={preview2.sugar} unit={t("common.units.g")} /></div><div style={NS.macroLabel}>{t("common.units.sugar")}</div></div>
+        <div style={NS.previewChip}><div style={NS.macroValue}><NumericValue value={preview2.sodium} unit={t("common.units.mg")} /></div><div style={NS.macroLabel}>{t("common.units.sodium")}</div></div>
       </div>
       <MealTypeSelector value={mealType} onChange={setMealType} />
       <button
@@ -1893,13 +1895,13 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
 Logged foods: ${foodsList}
 Totals: ${Math.round(todayTotals.calories)} kcal${tee ? ` out of a ${Math.round(tee)} kcal goal` : ""}, protein ${Math.round(todayTotals.protein)}g, carbs ${Math.round(todayTotals.carbs)}g, fat ${Math.round(todayTotals.fat)}g, fiber ${Math.round(todayTotals.fiber)}g, sugar ${Math.round(todayTotals.sugar)}g, sodium ${Math.round(todayTotals.sodium)}mg.
 ${missingMealsLine}
-Write a short paragraph (two to three sentences) analyzing today's eating pattern based only on these specific real numbers (don't invent anything not mentioned) — for example, good protein but low fiber today, or a missing meal if listed above. Return only JSON with no other text or markdown:
+Write a short paragraph (two to three sentences) analyzing today's eating pattern based only on these specific real numbers (don't invent anything not mentioned) — for example, good protein but low fiber today, or a missing meal if listed above. Keep numbers clearly separated (don't stack more than two back to back in one clause). Return only JSON with no other text or markdown:
 {"analysis":"paragraph here"}`
         : `أنت مدرّب تغذية يكتب بالعربية الفصحى البسيطة بدون أي شرطات طويلة. هذه بيانات تغذية المستخدم الفعلية لهذا اليوم فقط:
 الأطعمة المسجَّلة: ${foodsList}
 الإجمالي: ${Math.round(todayTotals.calories)} سعرة${tee ? ` من أصل هدف ${Math.round(tee)} سعرة` : ""}، بروتين ${Math.round(todayTotals.protein)}غ، كارب ${Math.round(todayTotals.carbs)}غ، دهون ${Math.round(todayTotals.fat)}غ، ألياف ${Math.round(todayTotals.fiber)}غ، سكر ${Math.round(todayTotals.sugar)}غ، صوديوم ${Math.round(todayTotals.sodium)}مغم.
 ${missingMealsLine}
-اكتب فقرة قصيرة (جملتان إلى ثلاث) تحلّل نمط تغذية اليوم بناءً على هذه الأرقام الفعلية فقط تحديداً (مثال: بروتين جيد لكن ألياف منخفضة اليوم، أو وجبة غائبة إن ذُكرت أعلاه) - لا تخترع نمطاً غير موجود في الأرقام أعلاه. أعد فقط JSON بدون أي نص أو markdown:
+اكتب فقرة قصيرة (جملتان إلى ثلاث) تحلّل نمط تغذية اليوم بناءً على هذه الأرقام الفعلية فقط تحديداً (مثال: بروتين جيد لكن ألياف منخفضة اليوم، أو وجبة غائبة إن ذُكرت أعلاه) - لا تخترع نمطاً غير موجود في الأرقام أعلاه. حافظ على وضوح فصل الأرقام (لا تحشر أكثر من رقمين متتاليين في نفس الجملة). أعد فقط JSON بدون أي نص أو markdown:
 {"analysis":"الفقرة هنا"}`;
       const text = await analyze(prompt, 500);
       const parsed = parseJsonLoose(text);
@@ -1966,21 +1968,21 @@ ${missingMealsLine}
 
       <div style={NS.summaryCard}>
         <div style={NS.summaryTop}>
-          <span style={NS.summaryCalories}>{Math.round(totals.calories)} <span style={{ fontSize: 13, color: "var(--muted2)" }}>{t("common.units.kcal")}</span></span>
-          {tee ? <span style={NS.summaryTee}>{t("nutrition.dailyGoal", { tee })}</span> : <span style={NS.summaryTee}>{t("nutrition.completeYourProfile")}</span>}
+          <span style={NS.summaryCalories}><NumericValue value={Math.round(totals.calories)} /> <span style={{ fontSize: 13, color: "var(--muted2)" }}>{t("common.units.kcal")}</span></span>
+          {tee ? <span style={NS.summaryTee}>{isolateNumbers(t("nutrition.dailyGoal", { tee }))}</span> : <span style={NS.summaryTee}>{t("nutrition.completeYourProfile")}</span>}
         </div>
         {tee && (
           <>
             <div style={NS.barTrack}><div style={{ ...NS.barFill, width: `${teePercent}%` }} /></div>
             <div style={{ ...NS.summaryTee, marginBottom: 12 }}>
-              {totals.calories <= tee ? t("nutrition.remainingToday", { n: Math.round(tee - totals.calories) }) : t("nutrition.exceededGoal", { n: Math.round(totals.calories - tee) })}
+              {isolateNumbers(totals.calories <= tee ? t("nutrition.remainingToday", { n: Math.round(tee - totals.calories) }) : t("nutrition.exceededGoal", { n: Math.round(totals.calories - tee) }))}
             </div>
           </>
         )}
         <div style={NS.macrosRow}>
-          <div style={NS.macroChip}><div style={NS.macroValue}>{Math.round(totals.protein * 10) / 10}{t("common.units.g")}</div><div style={NS.macroLabel}>{t("common.units.protein")}</div></div>
-          <div style={NS.macroChip}><div style={NS.macroValue}>{Math.round(totals.carbs * 10) / 10}{t("common.units.g")}</div><div style={NS.macroLabel}>{t("common.units.carbs")}</div></div>
-          <div style={NS.macroChip}><div style={NS.macroValue}>{Math.round(totals.fat * 10) / 10}{t("common.units.g")}</div><div style={NS.macroLabel}>{t("common.units.fat")}</div></div>
+          <div style={NS.macroChip}><div style={NS.macroValue}><NumericValue value={Math.round(totals.protein * 10) / 10} unit={t("common.units.g")} /></div><div style={NS.macroLabel}>{t("common.units.protein")}</div></div>
+          <div style={NS.macroChip}><div style={NS.macroValue}><NumericValue value={Math.round(totals.carbs * 10) / 10} unit={t("common.units.g")} /></div><div style={NS.macroLabel}>{t("common.units.carbs")}</div></div>
+          <div style={NS.macroChip}><div style={NS.macroValue}><NumericValue value={Math.round(totals.fat * 10) / 10} unit={t("common.units.g")} /></div><div style={NS.macroLabel}>{t("common.units.fat")}</div></div>
         </div>
 
         <MacroRings totals={totals} macroTargets={macroTargets} />
@@ -1995,8 +1997,8 @@ ${missingMealsLine}
             return (
               <div key={g.key} style={NS.guidelineRow}>
                 <div style={NS.guidelineHead}>
-                  <span><span style={NS.guidelineName}>{g.label}</span> — {Math.round(g.value * 10) / 10}{g.unit}</span>
-                  <span>{g.goalLabel}</span>
+                  <span><span style={NS.guidelineName}>{g.label}</span> — <NumericValue value={Math.round(g.value * 10) / 10} unit={g.unit} /></span>
+                  <span>{isolateNumbers(g.goalLabel)}</span>
                 </div>
                 <div style={NS.barTrack}><div style={{ ...NS.barFill, width: `${pct}%`, background: g.color }} /></div>
               </div>
@@ -2017,9 +2019,9 @@ ${missingMealsLine}
             <div key={m.key} style={NS.guidelineRow}>
               <div style={NS.guidelineHead}>
                 <span>
-                  <span style={NS.guidelineName}>{m.label}</span> — {m.approx && <span style={NS.approxBadge} title={t("nutrition.approxMicroHint")}>≈ </span>}{m.value}{m.unit}
+                  <span style={NS.guidelineName}>{m.label}</span> — {m.approx && <span style={NS.approxBadge} title={t("nutrition.approxMicroHint")}>≈ </span>}<NumericValue value={m.value} unit={m.unit} />
                 </span>
-                <span>{t("nutrition.microPercent", { pct: m.pct, rdi: m.rdi, unit: m.unit })}</span>
+                <span>{isolateNumbers(t("nutrition.microPercent", { pct: m.pct, rdi: m.rdi, unit: m.unit }))}</span>
               </div>
               <div style={NS.barTrack}><div style={{ ...NS.barFill, width: `${m.pct}%` }} /></div>
             </div>
@@ -2050,7 +2052,7 @@ ${missingMealsLine}
           <>
             {!dailyAnalysis && <div style={NS.emptyHint}>{t("nutrition.analysisRequestNote")}</div>}
             {dailyAnalysis?.error && <div style={NS.emptyHint}>{dailyAnalysis.error}</div>}
-            {dailyAnalysis?.text && <p style={NS.aiAnalysisText}>{dailyAnalysis.text}</p>}
+            {dailyAnalysis?.text && <p style={NS.aiAnalysisText}>{isolateNumbers(dailyAnalysis.text)}</p>}
           </>
         ) : (
           <MiniUpsell title={t("nutrition.upsellAnalysisTitle")} message={t("nutrition.upsellAnalysisMessage")} />
@@ -2070,15 +2072,15 @@ ${missingMealsLine}
           <div key={mt}>
             <div style={NS.mealGroupHead}>
               <span>{mt === "unspecified" ? t("nutrition.unspecifiedMeal") : `${MEAL_TYPE_EMOJI[mt]} ${t(`nutrition.mealTypes.${mt}`)}`}</span>
-              <span style={NS.mealGroupCalories}>{t("nutrition.calSuffix", { cal: groupCalories })}</span>
+              <span style={NS.mealGroupCalories}>{isolateNumbers(t("nutrition.calSuffix", { cal: groupCalories }))}</span>
             </div>
             {items.map((e) => (
               <div key={e.id} style={NS.logItem}>
                 <div style={{ flex: 1 }}>
                   <div style={NS.logItemName}>{e.foodName}</div>
-                  <div style={NS.logItemMeta}>{t("nutrition.servingSummary", { servingInfo: e.servingInfo, p: e.protein, c: e.carbs, f: e.fat })}</div>
+                  <div style={NS.logItemMeta}>{isolateNumbers(t("nutrition.servingSummary", { servingInfo: e.servingInfo, p: e.protein, c: e.carbs, f: e.fat }))}</div>
                 </div>
-                <div style={NS.logItemCalories}>{t("nutrition.calSuffix", { cal: Math.round(e.calories) })}</div>
+                <div style={NS.logItemCalories}>{isolateNumbers(t("nutrition.calSuffix", { cal: Math.round(e.calories) }))}</div>
                 <button onClick={() => removeEntry(e.id)} style={NS.deleteBtn}><Trash2 size={15} /></button>
               </div>
             ))}

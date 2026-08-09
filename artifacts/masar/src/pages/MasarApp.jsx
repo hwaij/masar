@@ -40,8 +40,11 @@ import {
   localAchieveSuggestions, localCoachReply,
   getLevel, addMinutesToTime, nowHHMM, autoClassify, withTimeout,
   MANDATORY_TASKS, AZKAR_MORNING, AZKAR_EVENING, coachChat,
+  formatNumberLatin,
 } from "../lib/helpers";
+import { isolateNumbers } from "../lib/bidi";
 import { S } from "../components/styles";
+import NumericValue from "../components/NumericValue";
 import DayWheel from "../components/DayWheel";
 // محمَّلة عند الطلب فقط (React.lazy) لا مع الحزمة الرئيسية: هذه أقسام
 // أقل زيارة من "اليوم"/"المهام"، وNutritionView وMentalHealthView تسحبان
@@ -1412,7 +1415,7 @@ function DailyEvolution({ date, dayEntries, catMap, report, aiHistory, onSave, s
         <div>
           {local.mood && <span style={S.moodPill}>{local.mood}</span>}
           <p style={S.evolutionSummary}>{local.summary}</p>
-          {local.tip && <div style={S.tipBox}><Target size={13} color="#5FA8A0" /><span>{local.tip}</span></div>}
+          {local.tip && <div style={S.tipBox}><Target size={13} color="#5FA8A0" /><span>{isolateNumbers(local.tip)}</span></div>}
         </div>
       )}
     </div>
@@ -1801,7 +1804,7 @@ function ReportsView({ entries, categories, focus, profile, healthProfile, sleep
         ${sleepAvgHours !== null ? `<div class="kpi"><div class="v">${sleepAvgHours.toFixed(1)} س</div><div class="l">متوسط النوم</div></div>` : ""}
         ${nutritionActiveDays > 0 ? `<div class="kpi"><div class="v">${nutritionAvgCalories}</div><div class="l">متوسط السعرات اليومي</div></div>` : ""}
       </div>` : ""}
-      ${smartTip ? `<h2>توصية مسار الذكية</h2><div class="smart-box">${escapeHtml(smartTip)}</div>` : ""}
+      ${smartTip ? `<h2>توصية مسار الذكية</h2><div class="smart-box">${escapeHtml(isolateNumbers(smartTip))}</div>` : ""}
       <div class="footer">مسار · أداتك الشخصية للوقت وتطوير الذات · صدر بتاريخ ${arabicDate(todayKey(), { day: "numeric", month: "long", year: "numeric" })}</div>
       </body></html>`;
     // فرع إنجليزي مواز كامل - نفس البنية والـCSS تماماً لكن بخصائص منطقية
@@ -1850,7 +1853,7 @@ function ReportsView({ entries, categories, focus, profile, healthProfile, sleep
         ${sleepAvgHours !== null ? `<div class="kpi"><div class="v">${sleepAvgHours.toFixed(1)} ${t("common.units.hours")}</div><div class="l">${t("pdfReport.averageSleep")}</div></div>` : ""}
         ${nutritionActiveDays > 0 ? `<div class="kpi"><div class="v">${nutritionAvgCalories}</div><div class="l">${t("pdfReport.averageDailyCalories")}</div></div>` : ""}
       </div>` : ""}
-      ${smartTip ? `<h2>${t("pdfReport.smartRecommendation")}</h2><div class="smart-box">${escapeHtml(smartTip)}</div>` : ""}
+      ${smartTip ? `<h2>${t("pdfReport.smartRecommendation")}</h2><div class="smart-box">${escapeHtml(isolateNumbers(smartTip))}</div>` : ""}
       <div class="footer">${t("pdfReport.footer", { date: arabicDate(todayKey(), { day: "numeric", month: "long", year: "numeric" }, "en-US") })}</div>
       </body></html>`;
     const html = isEn ? htmlEn : htmlAr;
@@ -1889,9 +1892,9 @@ function ReportsView({ entries, categories, focus, profile, healthProfile, sleep
       {subTab === "overview" && (
         <>
           <div style={S.kpiRow}>
-            <div style={S.kpiCard}><div style={S.kpiValue}>{fmtHM(totalMin, language)}</div><div style={S.kpiLabel}>{t("reportsView.total")}</div></div>
-            <div style={S.kpiCard}><div style={S.kpiValue}>{activeDays}</div><div style={S.kpiLabel}>{t("reportsView.activeDays")}</div></div>
-            <div style={S.kpiCard}><div style={S.kpiValue}>{fmtHM(avgPerActiveDay, language)}</div><div style={S.kpiLabel}>{t("reportsView.dailyAverage")}</div></div>
+            <div style={S.kpiCard}><div style={S.kpiValue}>{isolateNumbers(fmtHM(totalMin, language))}</div><div style={S.kpiLabel}>{t("reportsView.total")}</div></div>
+            <div style={S.kpiCard}><div style={S.kpiValue}><NumericValue value={activeDays} /></div><div style={S.kpiLabel}>{t("reportsView.activeDays")}</div></div>
+            <div style={S.kpiCard}><div style={S.kpiValue}>{isolateNumbers(fmtHM(avgPerActiveDay, language))}</div><div style={S.kpiLabel}>{t("reportsView.dailyAverage")}</div></div>
           </div>
           <div style={S.chartCard}>
             <div style={S.chartTitle}>{range === "week" ? t("reportsView.dailyHours") : t("reportsView.hoursThisMonth")}</div>
@@ -1959,9 +1962,9 @@ function ReportsView({ entries, categories, focus, profile, healthProfile, sleep
       {subTab === "study" && (
         <>
           <div style={S.kpiRow}>
-            <div style={S.kpiCard}><div style={S.kpiValue}>{fmtHM(studyTotalMin, language)}</div><div style={S.kpiLabel}>{t("reportsView.totalStudyTime")}</div></div>
-            <div style={S.kpiCard}><div style={S.kpiValue}>{studySessions}</div><div style={S.kpiLabel}>{t("reportsView.sessions")}</div></div>
-            <div style={S.kpiCard}><div style={S.kpiValue}>{fmtHM(studyAvgPerActiveDay, language)}</div><div style={S.kpiLabel}>{t("reportsView.dailyAverage")}</div></div>
+            <div style={S.kpiCard}><div style={S.kpiValue}>{isolateNumbers(fmtHM(studyTotalMin, language))}</div><div style={S.kpiLabel}>{t("reportsView.totalStudyTime")}</div></div>
+            <div style={S.kpiCard}><div style={S.kpiValue}><NumericValue value={studySessions} /></div><div style={S.kpiLabel}>{t("reportsView.sessions")}</div></div>
+            <div style={S.kpiCard}><div style={S.kpiValue}>{isolateNumbers(fmtHM(studyAvgPerActiveDay, language))}</div><div style={S.kpiLabel}>{t("reportsView.dailyAverage")}</div></div>
           </div>
           <div style={S.chartCard}>
             <div style={S.chartTitle}>{range === "week" ? t("reportsView.dailyStudyMinutes") : t("reportsView.studyMinutesThisMonth")}</div>
@@ -1996,9 +1999,9 @@ function ReportsView({ entries, categories, focus, profile, healthProfile, sleep
         ) : (
           <>
             <div style={S.kpiRow}>
-              <div style={S.kpiCard}><div style={S.kpiValue}>{nutritionAvgCalories || "—"}</div><div style={S.kpiLabel}>{t("reportsView.averageCalories")}</div></div>
-              <div style={S.kpiCard}><div style={S.kpiValue}>{nutritionActiveDays}</div><div style={S.kpiLabel}>{t("reportsView.loggedDays")}</div></div>
-              <div style={S.kpiCard}><div style={S.kpiValue}>{healthProfile?.tee ? Math.round(healthProfile.tee) : "—"}</div><div style={S.kpiLabel}>{t("reportsView.dailyGoalTee")}</div></div>
+              <div style={S.kpiCard}><div style={S.kpiValue}>{nutritionAvgCalories ? <NumericValue value={nutritionAvgCalories} /> : "—"}</div><div style={S.kpiLabel}>{t("reportsView.averageCalories")}</div></div>
+              <div style={S.kpiCard}><div style={S.kpiValue}><NumericValue value={nutritionActiveDays} /></div><div style={S.kpiLabel}>{t("reportsView.loggedDays")}</div></div>
+              <div style={S.kpiCard}><div style={S.kpiValue}>{healthProfile?.tee ? <NumericValue value={Math.round(healthProfile.tee)} /> : "—"}</div><div style={S.kpiLabel}>{t("reportsView.dailyGoalTee")}</div></div>
             </div>
             <div style={S.chartCard}>
               <div style={S.chartTitle}>{range === "week" ? t("reportsView.dailyCalories") : t("reportsView.caloriesThisMonth")}</div>
@@ -2058,16 +2061,16 @@ function ReportsView({ entries, categories, focus, profile, healthProfile, sleep
                       <Tooltip
                         cursor={{ fill: "rgba(95,168,160,0.08)" }}
                         contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }}
-                        formatter={(v, n, p) => [`${v} ${t("common.units.kcal")} · ${t("reportsView.mealLoggedDays", { n: p.payload.daysLogged })}`, ""]}
+                        formatter={(v, n, p) => [isolateNumbers(`${v} ${t("common.units.kcal")} · ${t("reportsView.mealLoggedDays", { n: p.payload.daysLogged })}`), ""]}
                       />
                       <Bar dataKey="avgCalories" radius={[3, 3, 3, 3]} fill="url(#repMealTypeBar)" maxBarSize={40} />
                     </BarChart>
                   </ResponsiveContainer>
-                  <div style={S.emptyHint}>{t("reportsView.mealTypeDistributionNote", { n: days.length })}</div>
+                  <div style={S.emptyHint}>{isolateNumbers(t("reportsView.mealTypeDistributionNote", { n: days.length }))}</div>
                   {mealPatterns && (mealPatterns.daysWithoutBreakfastCount > 0 || mealPatterns.lowCalorieMeal || mealPatterns.lowProteinMeal) && (
                     <div style={{ ...S.tipBox, marginTop: 10, flexDirection: "column", gap: 6, alignItems: "stretch" }}>
                       {mealPatterns.daysWithoutBreakfastCount > 0 && (
-                        <span>{t("reportsView.noBreakfastPattern", { count: mealPatterns.daysWithoutBreakfastCount, total: mealPatterns.loggedDaysCount })}</span>
+                        <span>{isolateNumbers(t("reportsView.noBreakfastPattern", { count: mealPatterns.daysWithoutBreakfastCount, total: mealPatterns.loggedDaysCount }))}</span>
                       )}
                       {mealPatterns.lowCalorieMeal && (
                         <span>{t("reportsView.lowCalorieMealPattern", { meal: t(`nutrition.mealTypes.${mealPatterns.lowCalorieMeal.mealType}`) })}</span>
@@ -2171,11 +2174,11 @@ function SleepSection({ sleepLog, setSleepLog, days, range, showToast }) {
 
       <div style={{ ...S.kpiRow, marginTop: 16 }}>
         <div style={S.kpiCard}>
-          <div style={S.kpiValue}>{avgHours === null ? "—" : `${avgHours.toFixed(1)} ${t("common.units.hours")}`}</div>
+          <div style={S.kpiValue}>{avgHours === null ? "—" : isolateNumbers(`${avgHours.toFixed(1)} ${t("common.units.hours")}`)}</div>
           <div style={S.kpiLabel}>{t("sleep.averageSleep")}</div>
         </div>
         <div style={S.kpiCard}>
-          <div style={S.kpiValue}>{typicalBedtime ? to12h(typicalBedtime) : "—"}</div>
+          <div style={S.kpiValue}>{typicalBedtime ? isolateNumbers(to12h(typicalBedtime)) : "—"}</div>
           <div style={S.kpiLabel}>{t("sleep.usualBedtime")}</div>
         </div>
         <div style={S.kpiCard}>
@@ -2442,7 +2445,7 @@ function AssistantView({ entries, tasks, categories, focus, prayerLog, religious
               <div style={HS.msgBot}>{t("assistant.emptyWelcome")}</div>
             )}
             {messages.map((m) => (
-              <div key={m.id} style={m.role === "user" ? HS.msgUser : HS.msgBot}>{m.content}</div>
+              <div key={m.id} style={m.role === "user" ? HS.msgUser : HS.msgBot}>{isolateNumbers(m.content)}</div>
             ))}
             {sending && (
               <div style={{ ...HS.msgBot, color: "var(--muted2)", display: "flex", alignItems: "center", gap: 6 }}>
@@ -2765,7 +2768,7 @@ function PrayerView({
         <div style={PS.essSectionHead}>
           <span style={{ fontSize: 16 }}>🤲</span>
           <span style={PS.essSectionTitle}>{t("prayer.istighfarCounter")}</span>
-          <span style={PS.essProgressBadge}>{todayIstighfar === 0 ? t("prayer.istighfarCompleteCheck") : t("prayer.istighfarRemaining", { count: todayIstighfar })}</span>
+          <span style={PS.essProgressBadge}>{todayIstighfar === 0 ? t("prayer.istighfarCompleteCheck") : isolateNumbers(t("prayer.istighfarRemaining", { count: todayIstighfar }))}</span>
         </div>
         <div style={{ marginBottom: 10 }}>
           <div style={{ height: 6, background: "var(--surface-raised)", borderRadius: 3, overflow: "hidden" }}>
@@ -2773,9 +2776,9 @@ function PrayerView({
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
             <span style={{ fontSize: 11, color: "var(--muted2)" }}>
-              {todayIstighfar === 0 ? t("prayer.istighfarDoneToday") : t("prayer.istighfarProgress", { done: (ISTIGHFAR_TARGET - todayIstighfar).toLocaleString(language === "en" ? "en-US" : "ar-SA"), target: ISTIGHFAR_TARGET })}
+              {todayIstighfar === 0 ? t("prayer.istighfarDoneToday") : isolateNumbers(t("prayer.istighfarProgress", { done: formatNumberLatin(ISTIGHFAR_TARGET - todayIstighfar, language), target: ISTIGHFAR_TARGET }))}
             </span>
-            <span style={{ fontSize: 11, color: "var(--muted2)" }}>{t("prayer.istighfarTotal", { total: (istighfar.total || 0).toLocaleString(language === "en" ? "en-US" : "ar-SA") })}</span>
+            <span style={{ fontSize: 11, color: "var(--muted2)" }}>{isolateNumbers(t("prayer.istighfarTotal", { total: formatNumberLatin(istighfar.total || 0, language) }))}</span>
           </div>
         </div>
         {todayIstighfar === 0 ? (
@@ -4309,9 +4312,9 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
         {coachLoading && <div style={S.coachLoading}><Loader2 size={15} className="spin" /> {t("achieve.thinking")}</div>}
         {coachReply && !coachReply.error && (
           <div style={S.coachReply}>
-            <div style={S.coachMessage}>{coachReply.message}</div>
-            <div style={S.coachActivity}><Rocket size={14} color="#C9A24B" /> {coachReply.activity}</div>
-            {coachReply.why && <div style={S.coachWhy}>{coachReply.why}</div>}
+            <div style={S.coachMessage}>{isolateNumbers(coachReply.message)}</div>
+            <div style={S.coachActivity}><Rocket size={14} color="#C9A24B" /> {isolateNumbers(coachReply.activity)}</div>
+            {coachReply.why && <div style={S.coachWhy}>{isolateNumbers(coachReply.why)}</div>}
           </div>
         )}
       </div>

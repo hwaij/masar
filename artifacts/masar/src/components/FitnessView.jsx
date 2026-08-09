@@ -8,7 +8,8 @@ import {
 } from "lucide-react";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { store, getOwner } from "../lib/store";
-import { todayKey, uid } from "../lib/helpers";
+import { todayKey, uid, formatNumberLatin } from "../lib/helpers";
+import { isolateNumbers } from "../lib/bidi";
 import { localDayKey } from "../lib/tips";
 import {
   FITNESS_GOALS, EQUIPMENT_ENVIRONMENTS, EXPERIENCE_LEVELS, SESSION_DURATIONS,
@@ -172,7 +173,7 @@ function ExerciseRow({ exercise, isEn, gender, isLogging, onToggleLog, logWeight
         )}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={FS.exerciseName}>{isEn ? (exercise.nameEn || exercise.name) : exercise.name}</div>
-          <div style={FS.exerciseMeta}>{t("fitness.setsReps", { sets: exercise.sets, reps: exercise.reps })} · {t("fitness.restLabel", { sec: exercise.restSeconds })}</div>
+          <div style={FS.exerciseMeta}>{isolateNumbers(t("fitness.setsReps", { sets: exercise.sets, reps: isEn ? (exercise.repsEn || exercise.reps) : exercise.reps }))} · {isolateNumbers(t("fitness.restLabel", { sec: exercise.restSeconds }))}</div>
           <div style={FS.exerciseMeta}>{t("fitness.targetMuscle")}: {t(`fitness.muscleGroups.${exercise.muscle}`)}</div>
           <div style={FS.badgeRow}>
             <span style={FS.badge}><GearIcon size={11} /> {isEn ? gear?.nameEn : gear?.name}</span>
@@ -199,9 +200,9 @@ function ExerciseRow({ exercise, isEn, gender, isLogging, onToggleLog, logWeight
       {progression && (
         <div style={FS.progressionBadge}>
           <TrendingUp size={13} />
-          {progression.type === "weight"
+          {isolateNumbers(progression.type === "weight"
             ? t("fitness.progressionWeight", { weight: progression.suggestedWeight })
-            : t("fitness.progressionReps", { reps: progression.suggestedReps })}
+            : t("fitness.progressionReps", { reps: progression.suggestedReps }))}
         </div>
       )}
       {isLogging && (
@@ -259,7 +260,7 @@ function ExerciseDetailView({ exercise, isEn, isRtl, gender, onBack, t }) {
       </div>
 
       <div style={FS.detailSectionCard}>
-        <div style={FS.exerciseMeta}>{t("fitness.setsReps", { sets: exercise.sets, reps: exercise.reps })} · {t("fitness.restLabel", { sec: exercise.restSeconds })}</div>
+        <div style={FS.exerciseMeta}>{isolateNumbers(t("fitness.setsReps", { sets: exercise.sets, reps: isEn ? (exercise.repsEn || exercise.reps) : exercise.reps }))} · {isolateNumbers(t("fitness.restLabel", { sec: exercise.restSeconds }))}</div>
         <div style={{ ...FS.exerciseMeta, marginTop: 4 }}>{t("fitness.targetMuscle")}: {t(`fitness.muscleGroups.${exercise.muscle}`)}</div>
       </div>
 
@@ -317,15 +318,15 @@ function FocusModeView({
   let weightComparison = null;
   if (lastPerformance && lastPerformance.weight > 0 && weight.trim() !== "" && Number.isFinite(currentWeightNum)) {
     const diff = Math.round((currentWeightNum - lastPerformance.weight) * 100) / 100;
-    if (diff > 0) weightComparison = { text: t("fitness.comparisonHeavier", { diff }), tone: "up" };
-    else if (diff < 0) weightComparison = { text: t("fitness.comparisonLighter", { diff: Math.abs(diff) }), tone: "down" };
+    if (diff > 0) weightComparison = { text: isolateNumbers(t("fitness.comparisonHeavier", { diff })), tone: "up" };
+    else if (diff < 0) weightComparison = { text: isolateNumbers(t("fitness.comparisonLighter", { diff: Math.abs(diff) })), tone: "down" };
     else weightComparison = { text: t("fitness.comparisonSame"), tone: "same" };
   }
 
   return (
     <div style={{ ...S.view, ...FS.focusWrap }}>
       <button onClick={onExit} style={FS.exitFocusBtn}><X size={15} /> {t("fitness.exitWithoutFinishBtn")}</button>
-      <div style={FS.focusProgress}>{t("fitness.exerciseProgress", { current: exIndex + 1, total: flatExercises.length })}</div>
+      <div style={FS.focusProgress}>{isolateNumbers(t("fitness.exerciseProgress", { current: exIndex + 1, total: flatExercises.length }))}</div>
 
       <div style={FS.focusDiagramWrap}>
         {exercise.imageUrl ? (
@@ -337,7 +338,7 @@ function FocusModeView({
         )}
       </div>
       <div style={FS.focusExerciseName}>{isEn ? (exercise.nameEn || exercise.name) : exercise.name}</div>
-      <div style={FS.focusMeta}>{t("fitness.setsReps", { sets: exercise.sets, reps: exercise.reps })} · {t("fitness.restLabel", { sec: exercise.restSeconds })}</div>
+      <div style={FS.focusMeta}>{isolateNumbers(t("fitness.setsReps", { sets: exercise.sets, reps: isEn ? (exercise.repsEn || exercise.reps) : exercise.reps }))} · {isolateNumbers(t("fitness.restLabel", { sec: exercise.restSeconds }))}</div>
 
       {resting ? (
         <div style={FS.restCard}>
@@ -347,7 +348,7 @@ function FocusModeView({
         </div>
       ) : (
         <div style={FS.focusCard}>
-          <div style={FS.focusSetTitle}>{t("fitness.setProgress", { current: Math.min(setsDoneForCurrent + 1, exercise.sets), total: exercise.sets })}</div>
+          <div style={FS.focusSetTitle}>{isolateNumbers(t("fitness.setProgress", { current: Math.min(setsDoneForCurrent + 1, exercise.sets), total: exercise.sets }))}</div>
           <div style={FS.setsCompletedRow}>
             {Array.from({ length: exercise.sets }).map((_, i) => (
               <span key={i} style={{ ...FS.setDot, background: i < setsDoneForCurrent ? "#5FA8A0" : "var(--border2)" }} />
@@ -356,9 +357,9 @@ function FocusModeView({
           {lastPerformance && (
             <div style={FS.lastPerformanceRow}>
               <TrendingUp size={12} />
-              {lastPerformance.weight > 0
+              {isolateNumbers(lastPerformance.weight > 0
                 ? t("fitness.lastTimeWeightReps", { weight: lastPerformance.weight, reps: lastPerformance.reps })
-                : t("fitness.lastTimeRepsOnly", { reps: lastPerformance.reps })}
+                : t("fitness.lastTimeRepsOnly", { reps: lastPerformance.reps }))}
             </div>
           )}
           <label style={{ ...S.label, marginTop: 0 }}>{t("fitness.weightKg")}</label>
@@ -371,7 +372,7 @@ function FocusModeView({
           <label style={{ ...S.label, marginTop: weightComparison ? 6 : 10 }}>{t("fitness.repsCompleted")}</label>
           <input type="number" inputMode="numeric" value={reps} onChange={(e) => setReps(e.target.value)} style={{ ...S.input, marginTop: 4 }} />
           {lastOneRepMax != null && (
-            <div style={FS.oneRepMaxBadge}><TrendingUp size={13} /> {t("fitness.oneRepMaxEstimate", { value: lastOneRepMax })}</div>
+            <div style={FS.oneRepMaxBadge}><TrendingUp size={13} /> {isolateNumbers(t("fitness.oneRepMaxEstimate", { value: lastOneRepMax }))}</div>
           )}
           <button onClick={onCompleteSet} style={FS.completeSetBtn}><Check size={16} /> {t("fitness.completeSetBtn")}</button>
         </div>
@@ -402,7 +403,10 @@ function FinishSummaryView({ summary, isEn, gender, t, showToast, onClose }) {
   const durationMinutes = Math.floor(summary.durationMs / 60000);
   const durationSeconds = Math.floor((summary.durationMs % 60000) / 1000);
   const durationText = t("fitness.summaryDurationValue", { minutes: durationMinutes, seconds: durationSeconds });
-  const volumeText = `${Math.round(summary.totalVolume).toLocaleString()} ${t("fitness.volumeUnit")}`;
+  // خلل حقيقي وُجد وأُصلح: toLocaleString() بلا معامل لغة صريح يعتمد على
+  // لغة المتصفح/النظام الفعلية - لو كانت عربية قد يُنتج أرقاماً هندية
+  // (١٬٢٣٤) بدل إنجليزية، نفس خطورة عدّاد الاستغفار المُصلَح أدناه.
+  const volumeText = `${formatNumberLatin(Math.round(summary.totalVolume), isEn ? "en" : "ar")} ${t("fitness.volumeUnit")}`;
   const exercisesText = t("fitness.summaryExercisesValue", { done: summary.exercisesCompleted, total: summary.totalExercisesInDay });
   const totalSetsText = String(summary.totalSets);
 
@@ -470,22 +474,22 @@ function FinishSummaryView({ summary, isEn, gender, t, showToast, onClose }) {
         <div style={FS.summaryStatRow}>
           <Clock size={16} color="#5FA8A0" />
           <span style={FS.summaryStatLabel}>{t("fitness.summaryDurationLabel")}</span>
-          <span style={FS.summaryStatValue}>{durationText}</span>
+          <span style={FS.summaryStatValue}>{isolateNumbers(durationText)}</span>
         </div>
         <div style={FS.summaryStatRow}>
           <BarChart3 size={16} color="#C9A24B" />
           <span style={FS.summaryStatLabel}>{t("fitness.summaryVolumeLabel")}</span>
-          <span style={FS.summaryStatValue}>{volumeText}</span>
+          <span style={FS.summaryStatValue}>{isolateNumbers(volumeText)}</span>
         </div>
         <div style={FS.summaryStatRow}>
           <Trophy size={16} color="#D9B33B" />
           <span style={FS.summaryStatLabel}>{t("fitness.summaryBestLabel")}</span>
-          <span style={FS.summaryStatValue}>{bestText}</span>
+          <span style={FS.summaryStatValue}>{isolateNumbers(bestText)}</span>
         </div>
         <div style={{ ...FS.summaryStatRow, borderBottom: "none" }}>
           <ListChecks size={16} color="#6FA8DC" />
           <span style={FS.summaryStatLabel}>{t("fitness.summaryExercisesLabel")}</span>
-          <span style={FS.summaryStatValue}>{exercisesText}</span>
+          <span style={FS.summaryStatValue}>{isolateNumbers(exercisesText)}</span>
         </div>
       </div>
 
@@ -1004,7 +1008,7 @@ export default function FitnessView({ healthProfile, showToast }) {
           <label style={S.label}>{t("fitness.sessionMinutesLabel")}</label>
           <div style={FS.daysRow}>
             {SESSION_DURATIONS.map((m) => (
-              <button key={m} onClick={() => setDraft((d) => ({ ...d, sessionMinutes: m }))} style={{ ...FS.dayChip, ...(draft.sessionMinutes === m ? FS.dayChipActive : {}) }}>{t("fitness.minutesShort", { n: m })}</button>
+              <button key={m} onClick={() => setDraft((d) => ({ ...d, sessionMinutes: m }))} style={{ ...FS.dayChip, ...(draft.sessionMinutes === m ? FS.dayChipActive : {}) }}>{isolateNumbers(t("fitness.minutesShort", { n: m }))}</button>
             ))}
           </div>
           <label style={S.label}>{t("fitness.availableEquipment")}</label>
@@ -1057,7 +1061,7 @@ export default function FitnessView({ healthProfile, showToast }) {
       <div style={FS.summaryCard}>
         <div>
           <div style={FS.summaryLabel}>{t("fitness.yourProgram")}</div>
-          <div style={FS.summaryValue}>{t("fitness.programSummary", { goal: goalLabel, equipment: equipmentLabel, days: fitnessProfile.daysPerWeek })}</div>
+          <div style={FS.summaryValue}>{isolateNumbers(t("fitness.programSummary", { goal: goalLabel, equipment: equipmentLabel, days: fitnessProfile.daysPerWeek }))}</div>
           {programEntry?.program?.genderAdjusted && <p style={FS.noteText}>{t("fitness.genderAdjustedNote")}</p>}
         </div>
         <button onClick={() => setEditing(true)} style={{ ...S.exportBtn, width: "auto", padding: "9px 14px", marginBottom: 0 }}><Edit3 size={14} /> {t("fitness.editProgram")}</button>
@@ -1120,7 +1124,7 @@ export default function FitnessView({ healthProfile, showToast }) {
             <p style={FS.noteText}>{t("fitness.noWeightedVolumeNote")}</p>
           )}
           {lastSessionSummary.calories != null ? (
-            <div style={FS.caloriesRow}><Flame size={14} color="#D17B5F" /> {t("fitness.estimatedCaloriesValue", { value: lastSessionSummary.calories })}</div>
+            <div style={FS.caloriesRow}><Flame size={14} color="#D17B5F" /> {isolateNumbers(t("fitness.estimatedCaloriesValue", { value: lastSessionSummary.calories }))}</div>
           ) : (
             <div style={FS.caloriesRow}><Flame size={14} color="var(--muted2)" /> {t("fitness.estimatedCaloriesNeedWeight")}</div>
           )}
@@ -1130,7 +1134,7 @@ export default function FitnessView({ healthProfile, showToast }) {
       <div className="stagger-in responsive-card-list">
         {programEntry?.program.days.map((day) => (
           <div key={day.dayIndex} style={FS.dayCard}>
-            <div style={FS.dayCardHead}>{t("fitness.dayLabel", { n: day.dayIndex + 1, dayLabel: t(`fitness.dayTypes.${day.dayType}`) })}</div>
+            <div style={FS.dayCardHead}>{isolateNumbers(t("fitness.dayLabel", { n: day.dayIndex + 1, dayLabel: t(`fitness.dayTypes.${day.dayType}`) }))}</div>
             {day.exercises.map((ex, exIndex) => {
               const key = `${day.dayIndex}-${exIndex}`;
               const progression = suggestProgression(ex, workoutLog.filter((l) => l.exerciseId === ex.id));

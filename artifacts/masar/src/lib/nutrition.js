@@ -628,14 +628,25 @@ export async function recognizeMealFromImage(imageFile, lang = "ar") {
     const { base64, mimeType } = await compressImageToBase64(imageFile);
     const prompt = lang === "en"
       ? `Analyze this meal photo. Return only valid JSON with no extra text or markdown, in exactly this shape:
-{"items":["first food item name","second food item name"],"calories":number,"protein":number,"carbs":number,"fat":number}
-Where items is a list of the food types visible in the photo in English, and the other values are an approximate total estimate for the entire meal as it appears in the photo (calories, protein, carbs, and fat in grams). Estimate as best you can based on the apparent portion size, and don't return default zeros if food is clearly visible in the image.`
+{"items":["first food item name","second food item name"],"calories":number,"protein":number,"carbs":number,"fat":number,"micronutrients":{}}
+Where items is a list of the food types visible in the photo in English, and calories/protein/carbs/fat are an approximate total estimate for the entire meal as it appears in the photo (calories, protein, carbs, and fat in grams). Estimate as best you can based on the apparent portion size, and don't return default zeros if food is clearly visible in the image.
+"micronutrients": a JSON object with an approximate total estimate for the whole meal, using only these exact keys where relevant: vitamin_d (mcg), vitamin_c (mg), vitamin_a (mcg), vitamin_b12 (mcg), iron (mg), calcium (mg), potassium (mg), zinc (mg), magnesium (mg). This is a rough estimate based on your general knowledge of the visible ingredients' typical composition, not a lab analysis — only include a key if you have reasonable confidence in it based on a specific ingredient clearly visible in the photo (e.g. eggs, spinach, citrus fruit). Never invent a precise-looking number for an ingredient you can't identify with confidence — omit that key instead. Return {} if you aren't reasonably confident about any of them.`
       : `حلّل صورة الوجبة هذه. أرجع فقط JSON صالحاً بدون أي نص أو markdown إضافي، بهذا الشكل بالضبط:
-{"items":["اسم نوع الطعام الأول","اسم نوع الطعام الثاني"],"calories":رقم,"protein":رقم,"carbs":رقم,"fat":رقم}
-حيث items قائمة بأنواع الطعام الظاهرة في الصورة بالعربية، والقيم الأخرى تقدير إجمالي تقريبي للوجبة كاملة كما تبدو في الصورة (سعرات حرارية، بروتين وكارب ودهون بالغرام). قدّر بأفضل ما تستطيع بناءً على الحجم الظاهر، ولا تُرجع أصفاراً افتراضية إن كان هناك طعام واضح في الصورة.`;
+{"items":["اسم نوع الطعام الأول","اسم نوع الطعام الثاني"],"calories":رقم,"protein":رقم,"carbs":رقم,"fat":رقم,"micronutrients":{}}
+حيث items قائمة بأنواع الطعام الظاهرة في الصورة بالعربية، وcalories/protein/carbs/fat تقدير إجمالي تقريبي للوجبة كاملة كما تبدو في الصورة (سعرات حرارية، بروتين وكارب ودهون بالغرام). قدّر بأفضل ما تستطيع بناءً على الحجم الظاهر، ولا تُرجع أصفاراً افتراضية إن كان هناك طعام واضح في الصورة.
+"micronutrients": كائن JSON بتقدير إجمالي تقريبي للوجبة كاملة، بهذه المفاتيح فقط حيث تكون ذات صلة: vitamin_d (بالميكروغرام mcg)، vitamin_c (بالميليغرام mg)، vitamin_a (بالميكروغرام mcg)، vitamin_b12 (بالميكروغرام mcg)، iron (بالميليغرام mg)، calcium (بالميليغرام mg)، potassium (بالميليغرام mg)، zinc (بالميليغرام mg)، magnesium (بالميليغرام mg). هذا تقدير تقريبي بناءً على معرفتك العامة بالتركيب النموذجي للمكوّنات الظاهرة، لا تحليل مخبري - أضف مفتاحاً فقط إن كنت واثقاً بشكل معقول منه بناءً على مكوّن واضح في الصورة (مثل بيض، سبانخ، حمضيات). لا تخترع أبداً رقماً دقيق المظهر لمكوّن لا تستطيع تمييزه بثقة - احذف ذلك المفتاح بدلاً من ذلك. أرجع {} إن لم تكن واثقاً بشكل معقول من أي منها.`;
     const { geminiAnalyzeImage } = await import("./gemini.js");
-    const text = await geminiAnalyzeImage(prompt, base64, mimeType, 500);
+    const text = await geminiAnalyzeImage(prompt, base64, mimeType, 650);
     const parsed = parseJsonLoose(text);
+    // نفس مبدأ "لا اختراع قيم" في readNutritionLabel أدناه - فقط المفاتيح
+    // المعروفة (MICRONUTRIENT_META) وقيمها رقمية فعلاً تُقبَل، أي شيء آخر
+    // (مفتاح غريب، قيمة غير رقمية) يُتجاهَل بصمت بدل رميه للواجهة كما هو.
+    const rawMicros = parsed.micronutrients && typeof parsed.micronutrients === "object" ? parsed.micronutrients : {};
+    const micronutrients = {};
+    for (const key of Object.keys(MICRONUTRIENT_META)) {
+      const v = rawMicros[key];
+      if (v != null && !Number.isNaN(Number(v))) micronutrients[key] = Number(v);
+    }
     return {
       ok: true,
       items: Array.isArray(parsed.items) ? parsed.items : [],
@@ -643,6 +654,7 @@ Where items is a list of the food types visible in the photo in English, and the
       protein: Number(parsed.protein) || 0,
       carbs: Number(parsed.carbs) || 0,
       fat: Number(parsed.fat) || 0,
+      micronutrients,
     };
   } catch (e) {
     console.error("[nutrition] recognizeMealFromImage failed:", e);

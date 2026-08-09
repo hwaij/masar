@@ -1291,7 +1291,7 @@ function AIPhotoPanel({ onSave, onManual }) {
     const res = await recognizeMealFromImage(file, i18n.language);
     setAnalyzing(false);
     if (!res.ok) { setError(i18n.language === "en" ? (res.errorEn || res.error) : res.error); return; }
-    const initial = { items: res.items, calories: res.calories, protein: res.protein, carbs: res.carbs, fat: res.fat };
+    const initial = { items: res.items, calories: res.calories, protein: res.protein, carbs: res.carbs, fat: res.fat, micronutrients: res.micronutrients || {} };
     setResult(initial);
     setBaseResult(initial);
   }
@@ -1302,15 +1302,22 @@ function AIPhotoPanel({ onSave, onManual }) {
   // قيمها الأربع بعدد الحصص المختار، بنفس سهولة أزرار ×1..×5 في باقي طرق
   // الإضافة. يُعاد الحساب دائماً من baseResult (تقدير الحصة الواحدة الأصلي)
   // لا من القيم المعروضة حالياً، تفادياً لتراكم أخطاء تقريب عبر ضغطات متكررة.
+  // الفيتامينات المقدَّرة (micronutrients) تُضرَب بنفس عدد الحصص أيضاً، بنفس
+  // منطق الأربعة الأساسية تماماً.
   function applyMultiplier(n) {
     setMultiplier(n);
     if (!baseResult) return;
+    const scaledMicros = {};
+    for (const [key, val] of Object.entries(baseResult.micronutrients || {})) {
+      scaledMicros[key] = Math.round(val * n * 100) / 100;
+    }
     setResult({
       items: baseResult.items,
       calories: Math.round((baseResult.calories || 0) * n),
       protein: Math.round((baseResult.protein || 0) * n * 10) / 10,
       carbs: Math.round((baseResult.carbs || 0) * n * 10) / 10,
       fat: Math.round((baseResult.fat || 0) * n * 10) / 10,
+      micronutrients: scaledMicros,
     });
   }
 
@@ -1399,6 +1406,11 @@ function AIPhotoPanel({ onSave, onManual }) {
               carbs: Number(result.carbs) || 0, fat: Number(result.fat) || 0,
               fiber: 0, sugar: 0, sodium: 0,
               servingInfo: multiplier !== 1 ? t("nutrition.aiEstimateTimes", { n: fmtQty(multiplier) }) : t("nutrition.aiEstimate"), source: "ai_photo", mealType,
+              // نفس علامة "≈ تقريبي" الموحّدة المستخدَمة لأطعمة generic-foods.js -
+              // لا تمييز إضافي بين المصدرين من منظور المستخدم، كلاهما تقدير
+              // عام لا تحليل دقيق لهذا الطعام بعينه.
+              micronutrients: result.micronutrients || {},
+              microApprox: Object.keys(result.micronutrients || {}).length > 0,
             })}
             style={S.saveBtn}
           >

@@ -10,6 +10,8 @@ import { computeDailyTargets, distributeMeals, computeLiveStatus } from "../lib/
 import { FITNESS_GOALS } from "../lib/exercises-db";
 import { isActiveSubscriber } from "../lib/subscription";
 import { S } from "./styles";
+import NumericValue from "./NumericValue";
+import { isolateNumbers } from "../lib/bidi";
 
 const SUBSCRIBE_INSTAGRAM_URL = "https://www.instagram.com/hjmasar";
 
@@ -41,7 +43,7 @@ const NS = {
   adherenceBarTrack: { width: "100%", height: 8, borderRadius: 20, background: "var(--surface-sunken)", marginTop: 10, overflow: "hidden" },
   adherenceBarFill: { height: "100%", borderRadius: 20, background: "var(--gold)" },
   waterRow: { display: "flex", alignItems: "center", justifyContent: "space-between" },
-  waterCupsLabel: { fontSize: 15, fontWeight: 700, color: "var(--ink)", direction: "ltr" },
+  waterCupsLabel: { fontSize: 15, fontWeight: 700, color: "var(--ink)" },
   addCupBtn: { display: "flex", alignItems: "center", gap: 6, background: "var(--gold)", color: "var(--bg)", border: "none", borderRadius: 10, padding: "8px 14px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
   upsellCard: { background: "linear-gradient(160deg, var(--warm-tint), var(--panel))", border: "1px solid var(--warm-border)", borderRadius: 16, padding: "20px 16px", textAlign: "center", marginBottom: 16 },
   upsellIcon: { width: 48, height: 48, borderRadius: "50%", background: "radial-gradient(circle at 32% 28%, #E7C378, #C9A24B 65%, #A9822F)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 10px" },
@@ -167,9 +169,9 @@ export default function NutritionPlanView({ healthProfile, showToast, subscripti
     ].filter(Boolean).join("\n");
 
     if (isEn) {
-      return `You are a nutrition-plan assistant. The exact calorie/macro targets below were already calculated mathematically and are FIXED - do not change them, just suggest realistic food items that fit each meal's numbers as closely as possible.\n\nMeals:\n${mealLines}\n\nUser preferences:\n${prefLines || "No additional preferences given."}\n\nFor each meal, suggest 1-2 concrete, practical food combinations available in the user's country/budget that roughly fit its calorie/macro numbers. Keep it concise (a few lines per meal). End with one sentence stating this is general guidance, not professional medical or nutrition advice.`;
+      return `You are a nutrition-plan assistant. The exact calorie/macro targets below were already calculated mathematically and are FIXED - do not change them, just suggest realistic food items that fit each meal's numbers as closely as possible.\n\nMeals:\n${mealLines}\n\nUser preferences:\n${prefLines || "No additional preferences given."}\n\nFor each meal, suggest 1-2 concrete, practical food combinations available in the user's country/budget that roughly fit its calorie/macro numbers. Keep it concise (a few lines per meal), and avoid stacking more than two numbers back to back in one sentence when it could instead be a short list. End with one sentence stating this is general guidance, not professional medical or nutrition advice.`;
     }
-    return `أنت مساعد لبناء خطط غذائية. الأرقام (السعرات/الماكروز) أدناه محسوبة حسابياً مسبقاً وثابتة - لا تغيّرها، فقط اقترح أصنافاً واقعية تناسب أرقام كل وجبة قدر الإمكان.\n\nالوجبات:\n${mealLines}\n\nتفضيلات المستخدم:\n${prefLines || "لا تفضيلات إضافية."}\n\nلكل وجبة، اقترح صنفاً أو صنفين عمليين متوفرين في دولة المستخدم وميزانيته يناسبان أرقام السعرات/الماكروز تقريباً. اجعلها مختصرة (بضعة أسطر لكل وجبة). اختم بجملة واحدة توضّح أن هذا إرشاد عام لا نصيحة طبية أو غذائية احترافية.`;
+    return `أنت مساعد لبناء خطط غذائية. الأرقام (السعرات/الماكروز) أدناه محسوبة حسابياً مسبقاً وثابتة - لا تغيّرها، فقط اقترح أصنافاً واقعية تناسب أرقام كل وجبة قدر الإمكان.\n\nالوجبات:\n${mealLines}\n\nتفضيلات المستخدم:\n${prefLines || "لا تفضيلات إضافية."}\n\nلكل وجبة، اقترح صنفاً أو صنفين عمليين متوفرين في دولة المستخدم وميزانيته يناسبان أرقام السعرات/الماكروز تقريباً. اجعلها مختصرة (بضعة أسطر لكل وجبة)، ولا تحشر أكثر من رقمين متتاليين في نفس الجملة إن أمكن جعلها نقاطاً قصيرة بدلاً من ذلك. اختم بجملة واحدة توضّح أن هذا إرشاد عام لا نصيحة طبية أو غذائية احترافية.`;
   }
 
   async function buildPlan() {
@@ -263,8 +265,8 @@ export default function NutritionPlanView({ healthProfile, showToast, subscripti
       ].join("\n");
 
       const prompt = isEn
-        ? `You are a nutrition coach. Using ONLY the real calculated data below, give 2-4 short, specific, practical observations/tips in a specialist's tone (like "your protein has been low the last 3 days" or "you're close to your fiber goal"). Do NOT invent any pattern, number, or event not stated below. If data is too sparse for a pattern, just comment on today's numbers instead.\n\n${dataLines}\n\nEnd with one sentence stating this is general guidance, not a substitute for a licensed nutrition specialist.`
-        : `أنت مستشار تغذية. باستخدام الأرقام الحقيقية المحسوبة أدناه فقط، أعطِ 2-4 ملاحظات/نصائح قصيرة وعملية ومحدَّدة بأسلوب أخصائي (مثل "بروتينك منخفض آخر 3 أيام" أو "أنت قريب من هدف الألياف"). لا تخترع أي نمط أو رقم أو حدث غير مذكور أدناه. إن كانت البيانات قليلة جداً لاستنتاج نمط، علّق على أرقام اليوم فقط.\n\n${dataLines}\n\nاختم بجملة واحدة توضّح أن هذا إرشاد عام ولا يغني عن استشارة أخصائي تغذية مرخّص.`;
+        ? `You are a nutrition coach. Using ONLY the real calculated data below, give 2-4 short, specific, practical observations/tips in a specialist's tone (like "your protein has been low the last 3 days" or "you're close to your fiber goal"). Do NOT invent any pattern, number, or event not stated below. If data is too sparse for a pattern, just comment on today's numbers instead. Keep numbers clearly separated (don't stack more than two back to back in one clause).\n\n${dataLines}\n\nEnd with one sentence stating this is general guidance, not a substitute for a licensed nutrition specialist.`
+        : `أنت مستشار تغذية. باستخدام الأرقام الحقيقية المحسوبة أدناه فقط، أعطِ 2-4 ملاحظات/نصائح قصيرة وعملية ومحدَّدة بأسلوب أخصائي (مثل "بروتينك منخفض آخر 3 أيام" أو "أنت قريب من هدف الألياف"). لا تخترع أي نمط أو رقم أو حدث غير مذكور أدناه. إن كانت البيانات قليلة جداً لاستنتاج نمط، علّق على أرقام اليوم فقط. حافظ على وضوح فصل الأرقام (لا تحشر أكثر من رقمين متتاليين في نفس الجملة).\n\n${dataLines}\n\nاختم بجملة واحدة توضّح أن هذا إرشاد عام ولا يغني عن استشارة أخصائي تغذية مرخّص.`;
 
       const text = await analyze(prompt, 500);
       const updated = { ...plan, lastAdviceText: text.trim(), lastAdviceDate: today };
@@ -301,8 +303,10 @@ export default function NutritionPlanView({ healthProfile, showToast, subscripti
     return (
       <div style={NS.statBox}>
         <div style={NS.statLabel}>{t(`nutritionPlan.${labelKey}`)}</div>
-        <div style={{ ...NS.statValue, ...(over ? NS.statValueOver : {}) }}>
-          {over ? t("nutritionPlan.exceededBy", { amount: `${Math.abs(remaining)}${unit}` }) : `${remaining}${unit}`}
+        <div style={{ ...NS.statValue, ...(over ? { direction: "inherit", ...NS.statValueOver } : {}) }}>
+          {over
+            ? isolateNumbers(t("nutritionPlan.exceededBy", { amount: `${Math.abs(remaining)}${unit}` }))
+            : <NumericValue value={remaining} unit={unit} />}
         </div>
       </div>
     );
@@ -416,10 +420,10 @@ export default function NutritionPlanView({ healthProfile, showToast, subscripti
       <div style={NS.sectionCard}>
         <div style={NS.sectionTitle}>{t("nutritionPlan.targetsTitle")}</div>
         <div style={NS.grid2}>
-          <div style={NS.statBox}><div style={NS.statLabel}>{t("nutritionPlan.dailyCalories")}</div><div style={NS.statValue}>{targets.dailyCalories}</div></div>
-          <div style={NS.statBox}><div style={NS.statLabel}>{t("nutritionPlan.protein")}</div><div style={NS.statValue}>{targets.proteinG}g</div></div>
-          <div style={NS.statBox}><div style={NS.statLabel}>{t("nutritionPlan.carbs")}</div><div style={NS.statValue}>{targets.carbsG}g</div></div>
-          <div style={NS.statBox}><div style={NS.statLabel}>{t("nutritionPlan.fat")}</div><div style={NS.statValue}>{targets.fatG}g</div></div>
+          <div style={NS.statBox}><div style={NS.statLabel}>{t("nutritionPlan.dailyCalories")}</div><div style={NS.statValue}><NumericValue value={targets.dailyCalories} /></div></div>
+          <div style={NS.statBox}><div style={NS.statLabel}>{t("nutritionPlan.protein")}</div><div style={NS.statValue}><NumericValue value={targets.proteinG} unit="g" /></div></div>
+          <div style={NS.statBox}><div style={NS.statLabel}>{t("nutritionPlan.carbs")}</div><div style={NS.statValue}><NumericValue value={targets.carbsG} unit="g" /></div></div>
+          <div style={NS.statBox}><div style={NS.statLabel}>{t("nutritionPlan.fat")}</div><div style={NS.statValue}><NumericValue value={targets.fatG} unit="g" /></div></div>
         </div>
       </div>
 
@@ -427,7 +431,7 @@ export default function NutritionPlanView({ healthProfile, showToast, subscripti
         <div style={NS.sectionTitle}>{t("nutritionPlan.liveStatusTitle")}</div>
         <div style={NS.adherenceRow}>
           <span style={NS.sectionText}>{t("nutritionPlan.adherenceLabel")}</span>
-          <span style={NS.adherenceValue}>{liveStatus.adherencePct}%</span>
+          <span style={NS.adherenceValue}><NumericValue value={liveStatus.adherencePct} unit="%" /></span>
         </div>
         <div style={NS.adherenceBarTrack}><div style={{ ...NS.adherenceBarFill, width: `${adherencePct}%` }} /></div>
 
@@ -444,7 +448,7 @@ export default function NutritionPlanView({ healthProfile, showToast, subscripti
         <div style={{ marginTop: 10 }}>
           <div style={NS.statBox}>
             <div style={NS.statLabel}>{t("nutritionPlan.fiberConsumed")}</div>
-            <div style={NS.statValue}>{liveStatus.consumed.fiber}g / {targets.fiberG}g</div>
+            <div style={NS.statValue}><NumericValue value={liveStatus.consumed.fiber} unit="g" /> / <NumericValue value={targets.fiberG} unit="g" /></div>
           </div>
         </div>
       </div>
@@ -455,9 +459,9 @@ export default function NutritionPlanView({ healthProfile, showToast, subscripti
           <div key={m.key} style={NS.mealRow}>
             <div>
               <div style={NS.mealName}>{t(`nutritionPlan.mealNames.${m.key}`)}</div>
-              <div style={NS.mealMacros}>{m.proteinG}g P · {m.carbsG}g C · {m.fatG}g F</div>
+              <div style={NS.mealMacros}><NumericValue value={m.proteinG} unit="g P" /> · <NumericValue value={m.carbsG} unit="g C" /> · <NumericValue value={m.fatG} unit="g F" /></div>
             </div>
-            <div style={NS.mealCalories}>{m.calories} kcal</div>
+            <div style={NS.mealCalories}><NumericValue value={m.calories} unit="kcal" /></div>
           </div>
         ))}
 
@@ -470,7 +474,7 @@ export default function NutritionPlanView({ healthProfile, showToast, subscripti
             </button>
             {plan.mealSuggestionsText && (
               <>
-                <div style={{ ...NS.planBox, marginTop: 10 }}>{plan.mealSuggestionsText}</div>
+                <div style={{ ...NS.planBox, marginTop: 10 }}>{isolateNumbers(plan.mealSuggestionsText)}</div>
                 <p style={{ ...NS.sectionText, fontSize: 11, color: "var(--muted2)", marginTop: 6 }}>{t("nutritionPlan.mealSuggestionsDisclaimer")}</p>
               </>
             )}
@@ -485,7 +489,7 @@ export default function NutritionPlanView({ healthProfile, showToast, subscripti
             <p style={{ ...NS.sectionText, color: "var(--muted2)" }}><Loader2 size={14} className="spin" style={{ marginInlineEnd: 6 }} />{t("nutritionPlan.gettingAdvice")}</p>
           ) : plan.lastAdviceText ? (
             <>
-              <div style={NS.planBox}>{plan.lastAdviceText}</div>
+              <div style={NS.planBox}>{isolateNumbers(plan.lastAdviceText)}</div>
               <p style={{ ...NS.sectionText, fontSize: 11, color: "var(--muted2)", marginTop: 6 }}>{t("nutritionPlan.adviceDisclaimer")}</p>
             </>
           ) : (
@@ -503,7 +507,7 @@ export default function NutritionPlanView({ healthProfile, showToast, subscripti
           <div style={NS.waterRow}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <Droplet size={18} color="#6FA8DC" />
-              <span style={NS.waterCupsLabel}>{t("nutritionPlan.waterCups", { count: todayCups, goal: waterGoal })}</span>
+              <span style={NS.waterCupsLabel}>{isolateNumbers(t("nutritionPlan.waterCups", { count: todayCups, goal: waterGoal }))}</span>
             </div>
             <button onClick={addCup} style={NS.addCupBtn}><Plus size={14} /> {t("nutritionPlan.addCupBtn")}</button>
           </div>

@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import {
   Dumbbell, PersonStanding, Footprints, HeartPulse, Bike, Wind, Flame, Settings2, StretchHorizontal,
   AlertTriangle, Edit3, Check, Repeat, TrendingUp, X, ChevronLeft, ChevronRight,
-  Circle, Play, SkipForward, PartyPopper, Trophy, Clock, ListChecks, Share2, BarChart3, Youtube,
+  Circle, Play, Pause, SkipForward, PartyPopper, Trophy, Clock, ListChecks, Share2, BarChart3, Youtube,
   FileText, Camera, Sparkles, LayoutGrid,
 } from "lucide-react";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
@@ -68,6 +68,8 @@ const FS = {
   genericIconWrap: { width: 40, height: 40, borderRadius: 10, background: "var(--surface-sunken)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--gold)", flexShrink: 0 },
   exerciseName: { fontSize: 13.5, fontWeight: 700, color: "var(--ink)" },
   exerciseMeta: { fontSize: 11.5, color: "var(--muted2)", marginTop: 2 },
+  restEditGroup: { display: "inline-flex", alignItems: "center", gap: 4, marginInlineStart: 6, verticalAlign: "middle" },
+  restAdjustBtn: { width: 18, height: 18, lineHeight: "16px", padding: 0, textAlign: "center", borderRadius: 6, border: "1px solid var(--border2)", background: "var(--surface-sunken)", color: "var(--ink-soft)", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
   badgeRow: { display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 },
   badge: { display: "flex", alignItems: "center", gap: 3, fontSize: 10.5, fontWeight: 700, borderRadius: 20, padding: "3px 8px", background: "var(--surface-sunken)", color: "var(--muted2)", border: "1px solid var(--border2)" },
   typeBadgeCompound: { background: "rgba(201,162,75,0.12)", color: "var(--gold)", border: "1px solid rgba(201,162,75,0.3)" },
@@ -107,7 +109,14 @@ const FS = {
   completeSetBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", border: "none", borderRadius: 12, padding: "13px 0", fontSize: 14.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", background: "var(--gold)", color: "var(--bg)" },
   restCard: { background: "rgba(95,168,160,0.1)", border: "1.5px solid rgba(95,168,160,0.35)", borderRadius: 16, padding: "18px 14px", marginBottom: 14, textAlign: "center" },
   restTitle: { fontSize: 12.5, fontWeight: 700, color: "#5FA8A0", marginBottom: 6 },
+  restSetProgress: { fontSize: 11.5, fontWeight: 600, color: "var(--muted2)", marginBottom: 8 },
   restTime: { fontSize: 34, fontWeight: 700, color: "var(--ink)", direction: "ltr", marginBottom: 10 },
+  restProgressTrack: { width: "100%", height: 6, borderRadius: 20, background: "rgba(95,168,160,0.18)", overflow: "hidden", marginBottom: 14 },
+  restProgressFill: { height: "100%", borderRadius: 20, background: "#5FA8A0", transition: "width 0.25s linear" },
+  restControlsRow: { display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 12 },
+  restAdjustSecBtn: { minWidth: 46, padding: "8px 0", borderRadius: 10, border: "1px solid rgba(95,168,160,0.4)", background: "var(--panel)", color: "#5FA8A0", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
+  restPauseBtn: { display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 10, border: "none", background: "#5FA8A0", color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
+  restNextUp: { fontSize: 11.5, color: "var(--muted2)", marginBottom: 10 },
   skipRestBtn: { display: "inline-flex", alignItems: "center", gap: 6, background: "transparent", border: "1px solid var(--border2)", color: "var(--muted2)", borderRadius: 10, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
   focusFooterRow: { display: "flex", gap: 8, marginTop: "auto", paddingTop: 12 },
   nextExerciseBtn: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, border: "1px solid var(--border2)", background: "transparent", color: "var(--ink)", borderRadius: 12, padding: "12px 0", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
@@ -155,7 +164,7 @@ function DifficultyDots({ difficulty }) {
   );
 }
 
-function ExerciseRow({ exercise, isEn, gender, isLogging, onToggleLog, logWeight, setLogWeight, logReps, setLogReps, logSets, setLogSets, onSubmitPerformance, onSwap, onOpenDetail, progression, t }) {
+function ExerciseRow({ exercise, isEn, gender, isLogging, onToggleLog, logWeight, setLogWeight, logReps, setLogReps, logSets, setLogSets, onSubmitPerformance, onSwap, onAdjustRest, onOpenDetail, progression, t }) {
   const gear = GEAR_TYPES.find((g) => g.key === exercise.gear);
   const GearIcon = gear ? ICONS[gear.icon] || Dumbbell : Dumbbell;
   const CardioMobilityIcon = CARDIO_MOBILITY_ICON[exercise.muscle];
@@ -173,7 +182,15 @@ function ExerciseRow({ exercise, isEn, gender, isLogging, onToggleLog, logWeight
         )}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={FS.exerciseName}>{isEn ? (exercise.nameEn || exercise.name) : exercise.name}</div>
-          <div style={FS.exerciseMeta}>{isolateNumbers(t("fitness.setsReps", { sets: exercise.sets, reps: isEn ? (exercise.repsEn || exercise.reps) : exercise.reps }))} · {isolateNumbers(t("fitness.restLabel", { sec: exercise.restSeconds }))}</div>
+          <div style={FS.exerciseMeta}>
+            {isolateNumbers(t("fitness.setsReps", { sets: exercise.sets, reps: isEn ? (exercise.repsEn || exercise.reps) : exercise.reps }))} · {isolateNumbers(t("fitness.restLabel", { sec: exercise.restSeconds }))}
+            {onAdjustRest && (
+              <span style={FS.restEditGroup}>
+                <button type="button" onClick={() => onAdjustRest(-5)} style={FS.restAdjustBtn} aria-label={t("fitness.decreaseRestBtn")}>−</button>
+                <button type="button" onClick={() => onAdjustRest(5)} style={FS.restAdjustBtn} aria-label={t("fitness.increaseRestBtn")}>+</button>
+              </span>
+            )}
+          </div>
           <div style={FS.exerciseMeta}>{t("fitness.targetMuscle")}: {t(`fitness.muscleGroups.${exercise.muscle}`)}</div>
           <div style={FS.badgeRow}>
             <span style={FS.badge}><GearIcon size={11} /> {isEn ? gear?.nameEn : gear?.name}</span>
@@ -302,15 +319,18 @@ function ExerciseDetailView({ exercise, isEn, isRtl, gender, onBack, t }) {
 function FocusModeView({
   flatExercises, exIndex, isEn, isRtl, gender, t,
   weight, setWeight, reps, setReps, onCompleteSet, setsDoneForCurrent,
-  restEndsAt, restRemainingMs, onSkipRest, lastOneRepMax, lastPerformance,
+  restEndsAt, restRemainingMs, restTotalMs, restPaused, onSkipRest, onPauseRest, onResumeRest, onAdjustRest,
+  lastOneRepMax, lastPerformance,
   onNextExercise, onFinishWorkout, onExit,
 }) {
   const exercise = flatExercises[exIndex];
+  const nextExercise = flatExercises[exIndex + 1] || null;
   const CardioMobilityIcon = CARDIO_MOBILITY_ICON[exercise.muscle];
   const isLast = exIndex >= flatExercises.length - 1;
-  const resting = restEndsAt != null && restRemainingMs > 0;
+  const resting = (restEndsAt != null && restRemainingMs > 0) || restPaused;
   const restSecondsLeft = Math.ceil(restRemainingMs / 1000);
   const restTimeLabel = `${Math.floor(restSecondsLeft / 60)}:${String(restSecondsLeft % 60).padStart(2, "0")}`;
+  const restProgressPct = restTotalMs > 0 ? Math.max(0, Math.min(100, (restRemainingMs / restTotalMs) * 100)) : 0;
 
   // مقارنة الوزن المُدخَل حالياً بآخر أداء مسجَّل لنفس التمرين (جلسة سابقة
   // فعلية، لا مجموعات اليوم نفسه - انظر getLastPerformance في fitness-engine.js).
@@ -342,8 +362,20 @@ function FocusModeView({
 
       {resting ? (
         <div style={FS.restCard}>
-          <div style={FS.restTitle}>{t("fitness.restingTitle")}</div>
+          <div style={FS.restTitle}>{restPaused ? t("fitness.restPausedTitle") : t("fitness.restingTitle")}</div>
+          <div style={FS.restSetProgress}>{isolateNumbers(t("fitness.setProgress", { current: Math.min(setsDoneForCurrent + 1, exercise.sets), total: exercise.sets }))}</div>
           <div style={FS.restTime}>{restTimeLabel}</div>
+          <div style={FS.restProgressTrack}><div style={{ ...FS.restProgressFill, width: `${restProgressPct}%` }} /></div>
+          <div style={FS.restControlsRow}>
+            <button onClick={() => onAdjustRest(-10)} style={FS.restAdjustSecBtn}><bdi dir="ltr" style={{ unicodeBidi: "isolate" }}>−10s</bdi></button>
+            <button onClick={restPaused ? onResumeRest : onPauseRest} style={FS.restPauseBtn}>
+              {restPaused ? <Play size={14} /> : <Pause size={14} />} {restPaused ? t("fitness.resumeBtn") : t("fitness.pauseBtn")}
+            </button>
+            <button onClick={() => onAdjustRest(10)} style={FS.restAdjustSecBtn}><bdi dir="ltr" style={{ unicodeBidi: "isolate" }}>+10s</bdi></button>
+          </div>
+          {nextExercise && (
+            <div style={FS.restNextUp}>{t("fitness.nextUpLabel")}: {isEn ? (nextExercise.nameEn || nextExercise.name) : nextExercise.name}</div>
+          )}
           <button onClick={onSkipRest} style={FS.skipRestBtn}><SkipForward size={13} /> {t("fitness.skipRestBtn")}</button>
         </div>
       ) : (
@@ -610,6 +642,8 @@ export default function FitnessView({ healthProfile, showToast }) {
   const [focusReps, setFocusReps] = useState("");
   const [focusOneRepMax, setFocusOneRepMax] = useState(null);
   const [restEndsAt, setRestEndsAt] = useState(null);
+  const [restTotalMs, setRestTotalMs] = useState(0);
+  const [restPausedRemainingMs, setRestPausedRemainingMs] = useState(null);
   const [nowTick, setNowTick] = useState(Date.now());
   const [focusStartedAt, setFocusStartedAt] = useState(null);
   const [focusSessionLogs, setFocusSessionLogs] = useState([]); // إدخالات هذه الجلسة فقط (لملخّص الإنهاء)
@@ -621,13 +655,16 @@ export default function FitnessView({ healthProfile, showToast }) {
     return () => clearInterval(id);
   }, [restEndsAt]);
 
+  // انتهاء الراحة الطبيعي (وصول العدّ التنازلي للصفر) فقط - التخطي اليدوي
+  // (skipRest) يمرّ عبر نفس completeRest أدناه بلا صوت/اهتزاز، حتى يتصرّف
+  // كلاهما بنفس منطق "تدفّق التمرين التلقائي" (الانتقال للتمرين التالي إن
+  // كانت هذه آخر مجموعة في التمرين الحالي - انظر completeRest).
   useEffect(() => {
     if (restEndsAt == null) return;
     if (Date.now() >= restEndsAt) {
-      setRestEndsAt(null);
-      playRestEndSound();
-      if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(200);
+      completeRest(true);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nowTick, restEndsAt]);
 
   const today = todayKey();
@@ -802,6 +839,23 @@ export default function FitnessView({ healthProfile, showToast }) {
     showToast(t("fitness.alternativeApplied"));
   }
 
+  // تعديل يدوي لمدة راحة تمرين واحد من شاشة البرنامج (Priority 2: مؤقّت
+  // ذكي) - القيمة المقترحة تلقائياً حسب نوع التمرين (مركّب/عزل/كارديو/
+  // مرونة، انظر restSecondsForType في fitness-engine.js) هي مجرّد بداية،
+  // وهذا التعديل يُستخدَم فوراً في وضع التركيز بعد الحفظ.
+  async function adjustExerciseRest(dayIndex, exIndex, deltaSeconds) {
+    if (!programEntry) return;
+    const exercise = programEntry.program.days[dayIndex].exercises[exIndex];
+    const nextRest = Math.max(10, Math.min(300, (exercise.restSeconds || 60) + deltaSeconds));
+    if (nextRest === exercise.restSeconds) return;
+    const prevEntry = programEntry;
+    const newDays = programEntry.program.days.map((d, di) => (di !== dayIndex ? d : { ...d, exercises: d.exercises.map((e, ei) => (ei !== exIndex ? e : { ...e, restSeconds: nextRest })) }));
+    const entry = { ...programEntry, program: { ...programEntry.program, days: newDays } };
+    setProgramEntry(entry);
+    const res = await store.saveWorkoutProgram(entry);
+    if (!res.ok) setProgramEntry(prevEntry);
+  }
+
   async function submitPerformance(exercise) {
     const reps = parseInt(logReps, 10);
     const sets = parseInt(logSets, 10);
@@ -835,7 +889,7 @@ export default function FitnessView({ healthProfile, showToast }) {
     setFocusExIndex(0);
     setFocusSetsDone(0);
     setFocusWeight(""); setFocusReps(""); setFocusOneRepMax(null);
-    setRestEndsAt(null);
+    setRestEndsAt(null); setRestPausedRemainingMs(null); setRestTotalMs(0);
     setFocusStartedAt(Date.now());
     setFocusSessionLogs([]);
   }
@@ -859,16 +913,67 @@ export default function FitnessView({ healthProfile, showToast }) {
     setFocusOneRepMax(weight != null && weight > 0 ? estimateOneRepMax(weight, reps) : null);
     setFocusSetsDone((n) => n + 1);
     setFocusSessionLogs((prev) => [...prev, entry]);
-    setRestEndsAt(Date.now() + (exercise.restSeconds || 60) * 1000);
+    // مؤقّت الراحة يبدأ تلقائياً بلا أي تدخل من المستخدم فور تسجيل المجموعة
+    // (Priority 2: مؤقّت التمرين الذكي) - يعتمد على وقت مطلق (restEndsAt)
+    // لا عدّاد بسيط، حتى لا ينحرف مع تعليق الشاشة.
+    const totalMs = (exercise.restSeconds || 60) * 1000;
+    setRestTotalMs(totalMs);
+    setRestPausedRemainingMs(null);
+    setRestEndsAt(Date.now() + totalMs);
   }
 
-  function skipRest() { setRestEndsAt(null); }
+  // انتهاء الراحة (طبيعياً بعد وصول العدّ للصفر، أو يدوياً عبر تخطّيها) -
+  // مسار مركزي واحد لكليهما حتى يتصرّف التخطي اليدوي بنفس منطق "الانتقال
+  // التلقائي للتمرين التالي" أدناه تماماً كالانتهاء الطبيعي (Priority 2،
+  // البند 6: تدفّق كامل تلقائي لا يديره المستخدم يدوياً).
+  function completeRest(playFeedback) {
+    setRestEndsAt(null);
+    setRestPausedRemainingMs(null);
+    setRestTotalMs(0);
+    if (!focusDay) return; // خرج المستخدم من وضع التركيز أو أنهى الجلسة أثناء الراحة
+    if (playFeedback) {
+      playRestEndSound();
+      if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(200);
+    }
+    const exercise = focusDay.exercises[focusExIndex];
+    const wasLastSet = focusSetsDone >= exercise.sets;
+    const hasNextExercise = focusExIndex < focusDay.exercises.length - 1;
+    if (wasLastSet && hasNextExercise) nextFocusExercise();
+  }
+
+  function skipRest() { completeRest(false); }
+
+  function pauseRest() {
+    if (restEndsAt == null) return;
+    setRestPausedRemainingMs(Math.max(0, restEndsAt - Date.now()));
+    setRestEndsAt(null);
+  }
+
+  function resumeRest() {
+    if (restPausedRemainingMs == null) return;
+    setRestEndsAt(Date.now() + restPausedRemainingMs);
+    setRestPausedRemainingMs(null);
+  }
+
+  // تعديل حي لمدة الراحة المتبقية (±10 ثانية) بلا إعادة ضبط المؤقّت بالكامل
+  // - يُعدَّل الإجمالي (restTotalMs) بنفس المقدار حتى يبقى شريط التقدّم
+  // البصري متّسقاً بدل أن يتجاوز 100% أو يصبح سالباً.
+  function adjustRest(deltaSeconds) {
+    const deltaMs = deltaSeconds * 1000;
+    setRestTotalMs((ms) => Math.max(5000, ms + deltaMs));
+    if (restPausedRemainingMs != null) {
+      setRestPausedRemainingMs((ms) => Math.max(0, ms + deltaMs));
+      return;
+    }
+    if (restEndsAt == null) return;
+    setRestEndsAt((prev) => Math.max(Date.now(), prev + deltaMs));
+  }
 
   function nextFocusExercise() {
     setFocusExIndex((i) => i + 1);
     setFocusSetsDone(0);
     setFocusWeight(""); setFocusReps(""); setFocusOneRepMax(null);
-    setRestEndsAt(null);
+    setRestEndsAt(null); setRestPausedRemainingMs(null); setRestTotalMs(0);
   }
 
   // يحسب ملخص الجلسة (مدة/حجم/أفضل رقم/عدد التمارين) من إدخالات هذه الجلسة
@@ -909,11 +1014,17 @@ export default function FitnessView({ healthProfile, showToast }) {
       const res = await store.saveFitnessDayCompleted(today, true);
       if (res.ok) showToast(t("fitness.workoutLogged"));
     }
+    setRestEndsAt(null); setRestPausedRemainingMs(null); setRestTotalMs(0);
     setFocusDay(null);
     setFinishedSummary(summary);
   }
 
-  function exitFocusWithoutFinishing() { setFocusDay(null); }
+  // إيقاف أي مؤقّت راحة نشط عند الخروج - وإلا يستمر يعمل في الخلفية ويصدر
+  // صوتاً/اهتزازاً لجلسة غادرها المستخدم بالفعل.
+  function exitFocusWithoutFinishing() {
+    setRestEndsAt(null); setRestPausedRemainingMs(null); setRestTotalMs(0);
+    setFocusDay(null);
+  }
 
   if (focusDay) {
     const currentFocusExercise = focusDay.exercises[focusExIndex];
@@ -931,8 +1042,13 @@ export default function FitnessView({ healthProfile, showToast }) {
         onCompleteSet={completeFocusSet}
         setsDoneForCurrent={focusSetsDone}
         restEndsAt={restEndsAt}
-        restRemainingMs={restEndsAt != null ? Math.max(0, restEndsAt - nowTick) : 0}
+        restRemainingMs={restPausedRemainingMs != null ? restPausedRemainingMs : (restEndsAt != null ? Math.max(0, restEndsAt - nowTick) : 0)}
+        restTotalMs={restTotalMs}
+        restPaused={restPausedRemainingMs != null}
         onSkipRest={skipRest}
+        onPauseRest={pauseRest}
+        onResumeRest={resumeRest}
+        onAdjustRest={adjustRest}
         lastOneRepMax={focusOneRepMax}
         lastPerformance={lastPerformance}
         onNextExercise={nextFocusExercise}
@@ -1152,6 +1268,7 @@ export default function FitnessView({ healthProfile, showToast }) {
                   logSets={logSets} setLogSets={setLogSets}
                   onSubmitPerformance={() => submitPerformance(ex)}
                   onSwap={() => swapExercise(day.dayIndex, exIndex)}
+                  onAdjustRest={(delta) => adjustExerciseRest(day.dayIndex, exIndex, delta)}
                   progression={progression}
                   t={t}
                 />

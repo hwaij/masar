@@ -58,6 +58,21 @@ const VOLUME_BY_GOAL = {
   maintain_weight: { sets: 3, reps: "10-12", restSeconds: 60 },
 };
 
+// مبدأ علمي عام معروف في تصميم برامج التمارين: التمارين المركّبة (تشغّل
+// عدة مفاصل/عضلات كبرى معاً) تحتاج راحة أطول للتعافي العصبي-عضلي الكافي
+// قبل المجموعة التالية، بينما تمارين العزل (عضلة واحدة صغيرة) تحتاج راحة
+// أقصر. الكارديو/المرونة أصلاً تعتمد مددًا زمنية لا مجموعات ثقيلة فتكفيها
+// راحة قصيرة جداً بين الجولات. هذا مجرّد اقتراح ابتدائي - المستخدم يمكنه
+// تعديل راحة أي تمرين يدوياً من شاشة البرنامج (انظر adjustExerciseRest في
+// FitnessView.jsx) وتعديله يُحفَظ ويُستخدَم بدل هذا الافتراض من حينها.
+function restSecondsForType(baseRest, type) {
+  if (type === "compound") return baseRest + 15;
+  if (type === "isolation") return Math.max(30, baseRest - 15);
+  if (type === "cardio") return 20;
+  if (type === "mobility") return 15;
+  return baseRest;
+}
+
 // المبتدئ يبدأ بحجم أقل (إتقان الأداء أولاً)، المتقدم يتحمّل حجماً أعلى.
 const SETS_ADJUST_BY_EXPERIENCE = { beginner: -1, intermediate: 0, advanced: 1 };
 
@@ -239,7 +254,7 @@ export function buildProgram(assessment, seed, hasPerformanceHistory = false) {
       ...e,
       sets: (e.muscle === "cardio" || e.muscle === "mobility") ? 1 : sets,
       reps: (e.type === "cardio" || e.type === "mobility") ? e.reps : volume.reps,
-      restSeconds: volume.restSeconds,
+      restSeconds: restSecondsForType(volume.restSeconds, e.type),
     }));
 
     // نقطة انطلاق أولية فقط (انظر التعليق العلمي أعلاه UPPER_BODY_MUSCLES) -

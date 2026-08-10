@@ -363,7 +363,7 @@ export default function GroupsView({ showToast }) {
       {loadingGroups ? (
         <div style={{ display: "flex", justifyContent: "center", padding: 30 }}><Loader2 size={22} className="spin" color="#8A7BD1" /></div>
       ) : myGroups.length === 0 ? (
-        <div style={GS.card}>
+        <div style={GS.card} data-tour="groups-create-card">
           <div style={GS.cardTitle}>{t("groups.createFirstGroup")}</div>
           <div style={GS.createRow}>
             <input value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleCreate()} placeholder={t("groups.groupNamePlaceholder")} style={GS.createInput} />

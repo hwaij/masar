@@ -884,6 +884,29 @@ const JOURNEY_STAGES = [
       { view: "reports", moduleHandoff: "reports", requiresSub: true, neverLast: true },
     ],
   },
+  {
+    id: "stage4",
+    // "والأخيرة" عمداً: هذه فعلياً آخر مرحلة تغطّي كل قسم أساسي حقيقي في
+    // مسار حسب الـAudit المعتمد - إكمالها هو إكمال الرحلة كلها، لا مجرد
+    // مرحلة وسيطة، رغم أن آلية "أكمل الآن/لاحقاً" العامة نفسها (المصمَّمة
+    // أصلاً لتمتد لمراحل مستقبلية) تبقى بلا تخصيص إضافي لهذه الحالة.
+    titleKey: "onboarding.stage4.title",
+    steps: [
+      // 0: المجموعات - مقفل بالاشتراك، بلا جولة سياقية جاهزة.
+      { view: "groups", target: '[data-tour="groups-create-card"]', requiresSub: true },
+      // 1: المساعد الذكي - مقفل بالاشتراك ويحتاج أيضاً بيانات هوية
+      // (هوايات/نبذة) قبل أن تظهر واجهة المحادثة الحقيقية أصلاً - تسليم
+      // لجولته السياقية الموجودة فقط إن اجتاز الشرطين معاً.
+      { view: "assistant", moduleHandoff: "ai", requiresSub: true, requiresIdentity: true },
+      // 2: أنجز - نفس شرطي المساعد (اشتراك + هوية)، بلا جولة سياقية جاهزة.
+      { view: "achieve", target: '[data-tour="achieve-coach-card"]', requiresSub: true, requiresIdentity: true },
+      // 3: الإعدادات - حرة بالكامل، وهنا تحديداً تُملأ الهوية التي تفتح
+      // المساعد وأنجز الحقيقيين. نفس نمط waitFor المُثبت في "أنت": يُخفي
+      // الـSpotlight تماماً بعد "املأها الآن" ليتفاعل المستخدم مع البطاقة
+      // الحقيقية بحرية، ويُكمل تلقائياً بمجرد حفظ هوية حقيقية.
+      { view: "settings", waitFor: "settings-identity", allowLater: true },
+    ],
+  },
 ];
 
 // فهرس كل خطوة يُعطَّل "السابق" عندها لأن الخطوة قبلها تضمّنت تنقّلاً
@@ -901,6 +924,10 @@ const STAGE_BACK_BLOCKED = [
   // بطاقة ترقية لغيره، كلاهما محظور رجوعاً للتناسق والبساطة)، وبعد فتح
   // نموذج الخزنة الحقيقي (3 - حالة داخلية لصفحة منفصلة يستحيل إعادة بنائها).
   { 2: true, 3: true, 4: true },
+  // stage4: بعد المساعد (1 - تسليم محتمل للمشترك المكتمل الهوية، نفس
+  // منطق stage3 مع الأهداف). المجموعات(0) وأنجز(2) مجرد Observe بلا حالة
+  // داخلية تُكسَر بالرجوع، فلا حظر بعدهما.
+  { 2: true },
 ];
 
 // (stageIndex → { stepIndexAfter: stepIndexOfRealActionStep }) لكل حالة لا
@@ -942,16 +969,26 @@ function MasarJourney({ view, setView, profile, healthProfile, isSub, resumeStag
   const backBlocked = STAGE_BACK_BLOCKED[stageIndex] || {};
 
   // requiresSub: خطوة مبنية أصلاً حول جولة/فعل حقيقي داخل قسم مقفل
-  // بالاشتراك (الأهداف/الخزنة/التقارير). للمشترك تعمل كما هي بالضبط
-  // (moduleHandoff أو target حقيقي). لغير المشترك، الشاشة الحقيقية هي
-  // بطاقة الترقية (UpsellCard) فقط - فتتحوّل هذه الخطوة تلقائياً لبطاقة
-  // تعريفية صادقة تُسلّط الضوء على تلك البطاقة الحقيقية نفسها (لا بطاقة
-  // منفصلة مختلقة)، بلا أي تفاعل مطلوب أو مُتاح، ثم تكمل عادياً بـ"التالي" -
-  // بلا محاولة إجبار اشتراك أو محاكاة وظيفة غير موجودة فعلياً للمستخدم.
+  // بالاشتراك (الأهداف/الخزنة/التقارير/المجموعات/المساعد/أنجز). للمشترك
+  // تعمل كما هي بالضبط (moduleHandoff أو target حقيقي). لغير المشترك،
+  // الشاشة الحقيقية هي بطاقة الترقية (UpsellCard) فقط - فتتحوّل هذه
+  // الخطوة تلقائياً لبطاقة تعريفية صادقة تُسلّط الضوء على تلك البطاقة
+  // الحقيقية نفسها (لا بطاقة منفصلة مختلقة)، بلا أي تفاعل مطلوب أو
+  // مُتاح، ثم تكمل عادياً بـ"التالي" - بلا محاولة إجبار اشتراك أو محاكاة
+  // وظيفة غير موجودة فعلياً للمستخدم.
+  //
+  // requiresIdentity: المساعد وأنجز يحتاجان أيضاً بيانات هوية (هوايات/نبذة
+  // من الإعدادات) قبل أن تُتاح وظيفتهما الحقيقية فعلياً - يُفحص هذا فقط
+  // بعد اجتياز شرط الاشتراك (إن وُجد)، وإلا فبطاقة الترقية أولى بالعرض
+  // أصلاً بما أن الصفحة الحقيقية لن تُحمَّل إطلاقاً لغير المشترك.
+  const hasIdentity = !!(profile?.hobbies?.trim() || profile?.about?.trim());
   const rawCurrentStep = steps[stepIndex];
-  const isLockedForFree = !!(rawCurrentStep?.requiresSub && !isSub);
+  const failsSub = !!(rawCurrentStep?.requiresSub && !isSub);
+  const failsIdentity = !!(rawCurrentStep?.requiresIdentity && !hasIdentity && !failsSub);
+  const isLockedForFree = failsSub || failsIdentity;
+  const lockedTarget = failsSub ? '[data-tour="upsell-card"]' : '[data-tour="identity-setup-card"]';
   const currentStep = isLockedForFree
-    ? { view: rawCurrentStep.view, title: rawCurrentStep.title, body: rawCurrentStep.body, neverLast: rawCurrentStep.neverLast, target: '[data-tour="upsell-card"]' }
+    ? { view: rawCurrentStep.view, title: rawCurrentStep.title, body: rawCurrentStep.body, neverLast: rawCurrentStep.neverLast, target: lockedTarget }
     : rawCurrentStep;
   const displaySteps = steps.map((s, i) => (i === stepIndex ? currentStep : s));
 
@@ -981,13 +1018,18 @@ function MasarJourney({ view, setView, profile, healthProfile, isSub, resumeStag
   }, [stepIndex, stageIndex, atStageComplete, showResumeBanner, profile?.tourProgress, currentStep]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // مراقبة اكتمال الفعل الحقيقي أثناء "الانتظار" (بعد اختيار "املأها
-  // الآن") - حالياً معرَّف فقط لـ"you-save" (بيانات "أنت" الأساسية)؛ أي
-  // waitFor مستقبلي جديد يضيف شرطه هنا فقط.
+  // الآن") - معرَّفة لـ"you-save" (بيانات "أنت" الأساسية) و"settings-
+  // identity" (هوايات/نبذة الإعدادات)؛ أي waitFor مستقبلي جديد يضيف
+  // شرطه هنا فقط.
   useEffect(() => {
     if (activeWait !== "you-save") return;
     const hasHealthData = !!(healthProfile?.heightCm && healthProfile?.weightKg && healthProfile?.age && healthProfile?.gender && healthProfile?.activityLevel);
     if (hasHealthData) { setActiveWait(null); goNext(); }
   }, [activeWait, healthProfile]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (activeWait !== "settings-identity") return;
+    if (hasIdentity) { setActiveWait(null); goNext(); }
+  }, [activeWait, hasIdentity]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function goNext() {
     setStepIndex((cur) => {
@@ -3163,7 +3205,7 @@ function AssistantView({ entries, tasks, categories, focus, prayerLog, religious
         </div>
 
         {!hasIdentity && (
-          <div style={S.setupCard}>
+          <div style={S.setupCard} data-tour="identity-setup-card">
             <User size={16} color="#5FA8A0" style={{ flexShrink: 0, marginTop: 2 }} />
             <div style={S.setupText}>
               {t("assistant.setupNudge")}
@@ -5176,7 +5218,7 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
         <div style={S.smartBanner}><Zap size={14} color="#C9A24B" /><span>{t("achieve.smartModeUnavailable")}</span></div>
       )}
       {!hasIdentity && (
-        <div style={S.setupCard}>
+        <div style={S.setupCard} data-tour="identity-setup-card">
           <User size={16} color="#5FA8A0" style={{ flexShrink: 0, marginTop: 2 }} />
           <div style={S.setupText}>
             {IDENTITY_NUDGE}
@@ -5187,7 +5229,7 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
         </div>
       )}
       {hasIdentity && (
-      <div style={S.coachCard}>
+      <div style={S.coachCard} data-tour="achieve-coach-card">
         <div style={S.coachTitleRow}><Sparkles size={15} color="#C9A24B" /><span style={S.coachTitle}>{t("achieve.moodCardTitle")}</span></div>
         <p style={S.profileHint}>{t("achieve.moodCardSub")}</p>
         <div style={S.moodRow}>

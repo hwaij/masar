@@ -399,6 +399,27 @@
           "body": "Comprehensive reports bringing your nutrition, fitness, tasks, and goals together in one place."
         }
       ]
+    },
+    "stage4": {
+      "title": "Stage 4 (final): Community, AI & Account",
+      "steps": [
+        {
+          "title": "Groups",
+          "body": "Create a study group with your friends and compete on study hours and workout completion."
+        },
+        {
+          "title": "AI Assistant",
+          "body": "A personal coach who analyzes your real data and suggests practical steps - needs a subscription and your identity filled in Settings."
+        },
+        {
+          "title": "Achieve",
+          "body": "AI-suggested challenges, projects, and learning paths based on your hobbies."
+        },
+        {
+          "title": "Complete your identity",
+          "body": "Add your hobbies and a short bio here - this unlocks the Assistant and Achieve, and makes every Masar suggestion more accurate. Fill it in now, or continue the tour and come back to it later."
+        }
+      ]
     }
   },
   "help": {

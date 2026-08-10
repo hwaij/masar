@@ -186,8 +186,8 @@ function BreathingExercise() {
       <div style={MHS.breathTitle}><Wind size={16} color="#7FAEEE" /> {t("mentalHealth.breathingExercise")}</div>
       {!running ? (
         <div style={MHS.breathDurationRow}>
-          {BREATHING_DURATIONS.map((d) => (
-            <button key={d.minutes} onClick={() => start(d.minutes)} style={MHS.breathDurationBtn}>{t(`mentalHealth.breathingDurations.${breathingDurationKey(d.minutes)}`)}</button>
+          {BREATHING_DURATIONS.map((d, dIdx) => (
+            <button key={d.minutes} onClick={() => start(d.minutes)} style={MHS.breathDurationBtn} data-tour={dIdx === 0 ? "mental-breathing-start" : undefined}>{t(`mentalHealth.breathingDurations.${breathingDurationKey(d.minutes)}`)}</button>
           ))}
         </div>
       ) : (
@@ -318,7 +318,7 @@ export default function MentalHealthView({ setView, showToast }) {
         </div>
       </div>
 
-      <div style={MHS.trackCard}>
+      <div style={MHS.trackCard} data-tour="mental-mood-card">
         <div style={MHS.trackLabel}>{t("mentalHealth.howsMoodToday")}</div>
         <div style={MHS.moodRow}>
           {MOOD_LEVELS.map((m) => {

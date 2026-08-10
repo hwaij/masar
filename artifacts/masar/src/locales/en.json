@@ -273,6 +273,7 @@
       "step6Body": "Here's your summary — duration, volume, and best set. Tap Share to turn it into an achievement card."
     },
     "later": "Later",
+    "fillNow": "Fill it in now",
     "welcomeBack": {
       "title": "👋 Continue where we left off?",
       "body": "Let's pick your tour back up right where you paused it.",
@@ -338,6 +339,39 @@
         {
           "title": "The daily wisdom",
           "body": "A new tip every day — your very first day is completely free, and a subscription is needed to keep seeing it daily after that."
+        }
+      ]
+    },
+    "stage2": {
+      "title": "Stage 2: Health",
+      "steps": [
+        {
+          "title": "Your basic data",
+          "body": "Your height, weight, and age here are the foundation of every nutrition and fitness calculation. Fill it in and save now, or continue the tour and come back to it later."
+        },
+        {
+          "title": "Nutrition",
+          "body": "We'll walk you through logging a meal step by step now."
+        },
+        {
+          "title": "Nutrition Plan",
+          "body": "If you've completed your data in \"You\", Masar calculates precise calorie, protein, carb, and fat targets here, with live tracking of how you're doing today."
+        },
+        {
+          "title": "Diet Plans",
+          "body": "Ready-made diet systems (like DASH) — Masar checks their suitability for your health conditions before suggesting anything."
+        },
+        {
+          "title": "Fitness",
+          "body": "We'll build you a complete workout program now."
+        },
+        {
+          "title": "Your mood today",
+          "body": "Log your mood, stress, and energy daily — Masar suggests a fitting activity based on them."
+        },
+        {
+          "title": "The breathing exercise",
+          "body": "Try a guided breathing exercise to calm your nerves in minutes — tap any duration to start."
         }
       ]
     }

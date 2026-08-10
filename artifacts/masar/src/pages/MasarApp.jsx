@@ -769,7 +769,7 @@ export default function MasarApp() {
       {toast && <div style={S.toast}>{toast}</div>}
       {tourOpen && (
         <MasarJourney
-          view={view} setView={setView}
+          view={view} setView={setView} profile={profile} healthProfile={healthProfile}
           resumeStage={typeof profile.tourProgress?.core?.stage === "number" ? profile.tourProgress.core.stage : 1}
           resumeStep={typeof profile.tourProgress?.core?.stage === "number" ? profile.tourProgress.core.step : 0}
           onStepChange={advanceJourneyStep}
@@ -824,20 +824,63 @@ const JOURNEY_STAGES = [
       { view: "tips", target: '[data-tour="tips-hero"]', neverLast: true },
     ],
   },
+  {
+    id: "stage2",
+    titleKey: "onboarding.stage2.title",
+    steps: [
+      // 0: "أنت" - أساس التغذية والرياضة، فعل حقيقي مع خيار لاحقاً. بلا
+      // هدف مباشر عمداً: تسليط الضوء على زر "احفظ" وحده كان سيُعتّم بقية
+      // حقول النموذج (الطول/الوزن/العمر/الجنس...) فيمنع تعبئتها - نفس خلل
+      // Phase G في خطوة الرياضة الأولى. الحل هنا مطابق: waitFor يُخفي كل
+      // Spotlight تماماً بعد اختيار "املأها الآن" ليتفاعل المستخدم مع
+      // النموذج الحقيقي كاملاً بحرية، وتراقب MasarJourney حفظاً حقيقياً
+      // لتكمل تلقائياً (تماماً كنمط "الانتظار" المُثبت في التغذية/الرياضة).
+      { view: "you", waitFor: "you-save", allowLater: true },
+      // 1: تسليم كامل لجولة التغذية السياقية الموجودة والمُختبرة مسبقاً (5
+      // خطوات حقيقية) - المنسّق لا يرسم شيئاً بنفسه هنا، فقط ينقل المستخدم
+      // للقسم وينتظر modules.nutrition.done (راجع منطق moduleHandoff أدناه).
+      { view: "nutrition", moduleHandoff: "nutrition" },
+      // 2: خطة التغذية - بطاقة تعريفية بلا هدف عمداً (محتوى الصفحة يتفرّع
+      // حسب اكتمال بيانات "أنت" من عدمه - آمن لكل الحالات دون تخمين).
+      { view: "nutritionPlan" },
+      // 3: الأنظمة الغذائية - نفس مبدأ خطة التغذية.
+      { view: "dietPlans" },
+      // 4: تسليم كامل لجولة الرياضة السياقية الموجودة والمُختبرة مسبقاً (6
+      // خطوات).
+      { view: "fitness", moduleHandoff: "fitness" },
+      // 5: الصحة النفسية - تسجيل المزاج (Observe؛ الحفظ يتطلب اختيار
+      // الثلاثة معاً فلا يصلح كخطوة ضغطة واحدة تفاعلية).
+      { view: "mental", target: '[data-tour="mental-mood-card"]' },
+      // 6: تمرين التنفّس - فعل حقيقي لكن بلا بيانات محفوظة (حالة عرض مؤقتة
+      // فقط)، فلا حاجة لخيار "لاحقاً" هنا.
+      { view: "mental", target: '[data-tour="mental-breathing-start"]', interactive: true, neverLast: true },
+    ],
+  },
 ];
 
 // فهرس كل خطوة يُعطَّل "السابق" عندها لأن الخطوة قبلها تضمّنت تنقّلاً
 // حقيقياً بين الأقسام أو حالة داخلية للصفحة (مثل فتح القائمة تلقائياً أو
-// اختيار فئة أذكار داخلياً) يستحيل على المنسّق إعادة بنائها بمجرد الرجوع
-// برقم الخطوة - توسيع طفيف ومتعمَّد لقاعدة "السابق يُعطَّل بعد فعل بيانات
-// حقيقي" ليشمل هذه الحالة المكافئة في الخطورة. الفهرس 9 (بعد خطوة تسجيل
-// الصلاة رقم 8) معطَّل ديناميكياً فقط إن نُفِّذ الفعل الحقيقي فعلاً (لا
-// "لاحقاً") - يُحسَب داخل المكوّن، ليس هنا.
+// اختيار فئة أذكار داخلياً، أو تسليماً كاملاً لجولة سياقية منتهية بالفعل)
+// يستحيل على المنسّق إعادة بنائها بمجرد الرجوع برقم الخطوة - توسيع طفيف
+// ومتعمَّد لقاعدة "السابق يُعطَّل بعد فعل بيانات حقيقي" ليشمل هذه الحالة
+// المكافئة في الخطورة. بعض الفهارس معطَّلة ديناميكياً فقط إن نُفِّذ الفعل
+// الحقيقي فعلاً (لا "لاحقاً") - تُحسَب داخل المكوّن عبر DYNAMIC_BACK_BLOCK،
+// ليس هنا.
 const STAGE_BACK_BLOCKED = [
   { 7: true, 10: true, 11: true, 12: true }, // stage1
+  { 2: true, 5: true }, // stage2: بعد تسليم التغذية (1) وبعد تسليم الرياضة (4)
 ];
 
-function MasarJourney({ view, setView, resumeStage, resumeStep, onStepChange, onPause, onFinishAll }) {
+// (stageIndex → { stepIndexAfter: stepIndexOfRealActionStep }) لكل حالة لا
+// يمكن التعبير عنها كفهرس ثابت لأن حظرها يعتمد على تنفيذ الفعل فعلاً لا
+// تخطّيه (لا حاجة لإدخال هنا إن كانت الخطوة التالية أصلاً محظورة ثابتاً
+// أو تسليماً كاملاً بلا واجهة "سابق" من المنسّق، كحال "أنت" في المرحلة
+// الثانية - تسليم التغذية بعدها محظور ثابتاً بصرف النظر عن هذا الفعل).
+const DYNAMIC_BACK_BLOCK = [
+  { 9: 8 }, // stage1: خطوة 9 تُحظَر إن نُفِّذ فعل خطوة 8 (تسجيل الصلاة) فعلاً
+];
+
+function MasarJourney({ view, setView, profile, healthProfile, resumeStage, resumeStep, onStepChange, onPause, onFinishAll }) {
   const { t } = useTranslation();
   const initialStageIdx = Math.min(Math.max((Number(resumeStage) || 1) - 1, 0), JOURNEY_STAGES.length - 1);
   const stageForInit = JOURNEY_STAGES[initialStageIdx];
@@ -850,6 +893,14 @@ function MasarJourney({ view, setView, resumeStage, resumeStep, onStepChange, on
   // تُحسب مرة واحدة عند التركيب فقط، لا تُعاد حسابها لاحقاً.
   const [resuming] = useState(() => initialStageIdx > 0 || initialStepRaw > 0);
   const [showResumeBanner, setShowResumeBanner] = useState(resuming);
+  // waitFor: يشبه moduleHandoff لكن للحالات التي ليس لها جولة سياقية
+  // مستقلة قائمة (مثل "أنت") - بطاقة تعريفية أولاً بخيارين [املأها الآن]
+  // (يُخفي كل Spotlight تماماً كي يتفاعل المستخدم مع النموذج الحقيقي
+  // بحرية كاملة) و[لاحقاً]، ثم مراقبة اكتمال الفعل الحقيقي فعلياً لإكمال
+  // الرحلة تلقائياً - بلا تسليط ضوء مباشر على أي عنصر واحد فيه، لأن ذلك
+  // كان سيُعتّم بقية الحقول (نفس خلل Phase G في خطوة الرياضة الأولى).
+  const [activeWait, setActiveWait] = useState(null);
+  useEffect(() => { setActiveWait(null); }, [stepIndex, stageIndex]);
 
   const stage = JOURNEY_STAGES[stageIndex];
   const stepsKey = stage.titleKey.replace(".title", ".steps");
@@ -866,6 +917,32 @@ function MasarJourney({ view, setView, resumeStage, resumeStep, onStepChange, on
     const wantedView = steps[stepIndex]?.view;
     if (wantedView && wantedView !== view) setView(wantedView);
   }, [stepIndex, stageIndex, atStageComplete, showResumeBanner, view]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // moduleHandoff: خطوة "تسليم كامل" لجولة سياقية موجودة ومُختبرة مسبقاً
+  // (التغذية/الرياضة) - المنسّق هنا لا يرسم أي Spotlight خاص به (راجع
+  // return null أدناه)، فقط ينقل المستخدم للقسم (بالأثر أعلاه) ويراقب
+  // اكتمال تلك الجولة المحلية (tourProgress.modules.<name>.done) ليكمل
+  // الرحلة تلقائياً بعدها - سواء اكتملت بالفعل الحقيقي أو بضغطة "تخطّي"
+  // المحلية الخاصة بتلك الصفحة (وكلتاهما تُعلّمان done=true فعلاً في
+  // الكود الحالي لتينك الجولتين). إن كانت الجولة المحلية مكتملة أصلاً قبل
+  // الوصول لهذه الخطوة (مستخدم أنهاها سابقاً بشكل مستقل)، نكمل فوراً بلا
+  // انتظار - لا شيء يتغيّر لتنتظره.
+  useEffect(() => {
+    if (showResumeBanner || atStageComplete) return;
+    const s = steps[stepIndex];
+    if (!s?.moduleHandoff) return;
+    const done = !!profile?.tourProgress?.modules?.[s.moduleHandoff]?.done;
+    if (done) goNext();
+  }, [stepIndex, stageIndex, atStageComplete, showResumeBanner, profile?.tourProgress]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // مراقبة اكتمال الفعل الحقيقي أثناء "الانتظار" (بعد اختيار "املأها
+  // الآن") - حالياً معرَّف فقط لـ"you-save" (بيانات "أنت" الأساسية)؛ أي
+  // waitFor مستقبلي جديد يضيف شرطه هنا فقط.
+  useEffect(() => {
+    if (activeWait !== "you-save") return;
+    const hasHealthData = !!(healthProfile?.heightCm && healthProfile?.weightKg && healthProfile?.age && healthProfile?.gender && healthProfile?.activityLevel);
+    if (hasHealthData) { setActiveWait(null); goNext(); }
+  }, [activeWait, healthProfile]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function goNext() {
     setStepIndex((cur) => {
@@ -892,7 +969,9 @@ function MasarJourney({ view, setView, resumeStage, resumeStep, onStepChange, on
   function canGoBack() {
     if (stepIndex <= 0) return false;
     if (backBlocked[stepIndex]) return false;
-    if (stepIndex === 9 && realActionTaken[8]) return false;
+    const dynamicRule = DYNAMIC_BACK_BLOCK[stageIndex];
+    const requiredStep = dynamicRule?.[stepIndex];
+    if (requiredStep !== undefined && realActionTaken[requiredStep]) return false;
     return true;
   }
   function handleContinueNow() {
@@ -926,6 +1005,26 @@ function MasarJourney({ view, setView, resumeStage, resumeStep, onStepChange, on
     );
   }
 
+  if (!atStageComplete && steps[stepIndex]?.waitFor) {
+    const s = steps[stepIndex];
+    if (activeWait === s.waitFor) return null; // بانتظار الفعل الحقيقي - الصفحة الحقيقية وحدها تُعرض
+    return (
+      <div style={TourStyles.root}>
+        <div style={TourStyles.fullDim} />
+        <div style={TourStyles.centerWrap}>
+          <div style={TourStyles.centeredCard}>
+            <div style={TourStyles.title}>{s.title}</div>
+            <p style={TourStyles.body}>{s.body}</p>
+            <div style={TourStyles.actions}>
+              <button onClick={goLater} style={TourStyles.skipBtn}>{t("onboarding.later")}</button>
+              <button onClick={() => setActiveWait(s.waitFor)} style={{ ...TourStyles.nextBtn, ...TourStyles.nextBtnLast }}>{t("onboarding.fillNow")}</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (atStageComplete) {
     return (
       <div style={TourStyles.root}>
@@ -943,6 +1042,11 @@ function MasarJourney({ view, setView, resumeStage, resumeStep, onStepChange, on
       </div>
     );
   }
+
+  // خطوة تسليم: لا Spotlight من المنسّق هنا إطلاقاً - الصفحة الحقيقية
+  // (وجولتها السياقية المحلية إن لم تكتمل بعد) هي كل ما يُعرض، حتى تتطابق
+  // تجربتها تماماً مع فتحها المستقل خارج هذه الرحلة.
+  if (steps[stepIndex]?.moduleHandoff) return null;
 
   return (
     <SpotlightTour
@@ -5613,7 +5717,7 @@ function YouView({ healthProfile, setHealthProfile, showToast }) {
             <button onClick={() => toggleCondition(NO_CONDITION)} style={{ ...YS.chip, ...(draft.conditions.includes(NO_CONDITION) ? YS.chipActive : {}) }}>{t("you.healthConditions.none", NO_CONDITION)}</button>
           </div>
           {/* "missing locale key": you.saveAndCalculate */}
-          <button onClick={save} style={S.saveBtn}>{language === "en" ? "Save and calculate" : "احفظ واحسب"}</button>
+          <button onClick={save} style={S.saveBtn} data-tour="you-save-btn">{language === "en" ? "Save and calculate" : "احفظ واحسب"}</button>
         </div>
       </div>
     );

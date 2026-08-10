@@ -4,10 +4,6 @@ import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import i18n from "../i18n";
 import {
-  PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, ResponsiveContainer,
-  Tooltip, LineChart, Line, CartesianGrid,
-} from "recharts";
-import {
   Sparkles, Clock, TrendingUp, TrendingDown, Minus, ListChecks, Settings, ChevronLeft, ChevronRight,
   Loader2, Plus, X, Trash2, Check, Flame, Star, Edit3,
   Sun, Target, Palette, Cloud, CloudOff,
@@ -57,6 +53,26 @@ const GroupsView = lazy(() => import("../components/GroupsView"));
 const VaultView = lazy(() => import("../components/VaultView"));
 const DietPlansView = lazy(() => import("../components/DietPlansView"));
 const NutritionPlanView = lazy(() => import("../components/NutritionPlanView"));
+
+// recharts (~114kB gzip) كانت تُستورَد ثابتاً هنا رغم أن استخدامها الوحيد في
+// هذا الملف محصور بثلاث دوال (التقارير/النوم/تقرير التركيز) - ما يعني
+// تحميلها ضمن الحزمة الرئيسية لكل مستخدم حتى لو لم يفتح تلك الأقسام
+// إطلاقاً. dynamic import() هنا (مرة واحدة، مُخزَّنة بالذاكرة) يؤجّل ذلك
+// لحظة فتح أحد تلك الأقسام فعلاً بدل لحظة إقلاع التطبيق.
+let rechartsModulePromise = null;
+function useRecharts() {
+  const [mod, setMod] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    if (!rechartsModulePromise) rechartsModulePromise = import("recharts");
+    rechartsModulePromise.then((m) => { if (alive) setMod(m); });
+    return () => { alive = false; };
+  }, []);
+  return mod;
+}
+function ChartLoading() {
+  return <div style={{ display: "flex", justifyContent: "center", padding: 24 }}><Loader2 size={20} className="spin" color="#C9A24B" /></div>;
+}
 
 // حاجز أخطاء محلي حول كل قسم مُقسَّم بالكسل (React.lazy): إن فشل تحميل
 // جزء (chunk) هذا القسم تحديداً - مثلاً بعد نشر جديد يجعل اسم الملف القديم
@@ -1975,6 +1991,7 @@ const RS = {
 function ReportsView({ entries, categories, focus, profile, setProfile, healthProfile, sleepLog, setSleepLog, showToast, tasks, goals, journeyActive }) {
   const { t, i18n } = useTranslation();
   const language = i18n.language;
+  const RC = useRecharts();
   const [range, setRange] = useState("week");
   // رؤية Masar السابقة تُبنى على أرقام فترة محدَّدة (أسبوع/شهر) - تغيير
   // الفترة يُبطلها فوراً حتى لا تُعرض رؤية عن فترة مختلفة عن المعروضة حالياً.
@@ -2584,36 +2601,36 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
           </div>
           <div style={S.chartCard}>
             <div style={S.chartTitle}>{range === "week" ? t("reportsView.dailyHours") : t("reportsView.hoursThisMonth")}</div>
-            {totalMin === 0 ? <div style={S.emptyHint}>{t("common.states.noDataYet")}</div> : (
-              <ResponsiveContainer width="100%" height={190}>
-                <BarChart data={barData} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
+            {!RC ? <ChartLoading /> : totalMin === 0 ? <div style={S.emptyHint}>{t("common.states.noDataYet")}</div> : (
+              <RC.ResponsiveContainer width="100%" height={190}>
+                <RC.BarChart data={barData} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
                   <defs>
                     <linearGradient id="repOverviewBar" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#E0B868" />
                       <stop offset="100%" stopColor="#9A7529" />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="2 4" stroke="var(--surface-raised)" vertical={false} />
-                  <XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: range === "week" ? 11 : 8, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} interval={range === "week" ? 0 : 3} />
-                  <YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <Tooltip cursor={{ fill: "rgba(201,162,75,0.08)" }} contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [`${v} ${t("common.units.hours")}`, ""]} />
-                  <Bar dataKey="hours" radius={[3, 3, 3, 3]} fill="url(#repOverviewBar)" maxBarSize={range === "week" ? 28 : 12} />
-                </BarChart>
-              </ResponsiveContainer>
+                  <RC.CartesianGrid strokeDasharray="2 4" stroke="var(--surface-raised)" vertical={false} />
+                  <RC.XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: range === "week" ? 11 : 8, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} interval={range === "week" ? 0 : 3} />
+                  <RC.YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <RC.Tooltip cursor={{ fill: "rgba(201,162,75,0.08)" }} contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [`${v} ${t("common.units.hours")}`, ""]} />
+                  <RC.Bar dataKey="hours" radius={[3, 3, 3, 3]} fill="url(#repOverviewBar)" maxBarSize={range === "week" ? 28 : 12} />
+                </RC.BarChart>
+              </RC.ResponsiveContainer>
             )}
           </div>
           <div style={S.chartCard}>
             <div style={S.chartTitle}>{t("reportsView.activityBreakdown")}</div>
-            {catTotals.length === 0 ? <div style={S.emptyHint}>{t("common.states.noDataYet")}</div> : (
+            {!RC ? <ChartLoading /> : catTotals.length === 0 ? <div style={S.emptyHint}>{t("common.states.noDataYet")}</div> : (
               <div style={S.pieRow}>
-                <ResponsiveContainer width={140} height={140}>
-                  <PieChart>
-                    <Pie data={catTotals} dataKey="value" nameKey="name" innerRadius={38} outerRadius={62} paddingAngle={2} stroke="none">
-                      {catTotals.map((c, i) => <Cell key={i} fill={c.color} />)}
-                    </Pie>
-                    <Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v, n) => [fmtHM(v, language), n]} />
-                  </PieChart>
-                </ResponsiveContainer>
+                <RC.ResponsiveContainer width={140} height={140}>
+                  <RC.PieChart>
+                    <RC.Pie data={catTotals} dataKey="value" nameKey="name" innerRadius={38} outerRadius={62} paddingAngle={2} stroke="none">
+                      {catTotals.map((c, i) => <RC.Cell key={i} fill={c.color} />)}
+                    </RC.Pie>
+                    <RC.Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v, n) => [fmtHM(v, language), n]} />
+                  </RC.PieChart>
+                </RC.ResponsiveContainer>
                 <div style={S.pieLegend}>
                   {catTotals.map((c, i) => (
                     <div key={i} style={S.legendChip}><span style={{ ...S.legendDot, background: c.color }} /><span>{c.name}</span><span style={S.legendMins}>{fmtHM(c.value, language)}</span></div>
@@ -2624,22 +2641,22 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
           </div>
           <div style={S.chartCard}>
             <div style={S.chartTitle}>{t("reportsView.productivityTrend")}</div>
-            {totalMin === 0 ? <div style={S.emptyHint}>{t("common.states.noDataYet")}</div> : (
-              <ResponsiveContainer width="100%" height={150}>
-                <LineChart data={barData} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
+            {!RC ? <ChartLoading /> : totalMin === 0 ? <div style={S.emptyHint}>{t("common.states.noDataYet")}</div> : (
+              <RC.ResponsiveContainer width="100%" height={150}>
+                <RC.LineChart data={barData} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
                   <defs>
                     <linearGradient id="repTrendLine" x1="0" y1="0" x2="1" y2="0">
                       <stop offset="0%" stopColor="#9A7529" />
                       <stop offset="100%" stopColor="#E0B868" />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="2 4" stroke="var(--surface-raised)" vertical={false} />
-                  <XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: range === "week" ? 11 : 8, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} interval={range === "week" ? 0 : 3} />
-                  <YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <Tooltip cursor={{ stroke: "var(--border2)" }} contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [`${v} ${t("common.units.hours")}`, ""]} />
-                  <Line type="monotone" dataKey="hours" stroke="url(#repTrendLine)" strokeWidth={2.5} dot={{ fill: "#C9A24B", r: range === "week" ? 3 : 0 }} />
-                </LineChart>
-              </ResponsiveContainer>
+                  <RC.CartesianGrid strokeDasharray="2 4" stroke="var(--surface-raised)" vertical={false} />
+                  <RC.XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: range === "week" ? 11 : 8, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} interval={range === "week" ? 0 : 3} />
+                  <RC.YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <RC.Tooltip cursor={{ stroke: "var(--border2)" }} contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [`${v} ${t("common.units.hours")}`, ""]} />
+                  <RC.Line type="monotone" dataKey="hours" stroke="url(#repTrendLine)" strokeWidth={2.5} dot={{ fill: "#C9A24B", r: range === "week" ? 3 : 0 }} />
+                </RC.LineChart>
+              </RC.ResponsiveContainer>
             )}
           </div>
         </>
@@ -2654,22 +2671,22 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
           </div>
           <div style={S.chartCard}>
             <div style={S.chartTitle}>{range === "week" ? t("reportsView.dailyStudyMinutes") : t("reportsView.studyMinutesThisMonth")}</div>
-            {studyTotalMin === 0 ? <div style={S.emptyHint}>{t("reportsView.noStudyDataYet")}</div> : (
-              <ResponsiveContainer width="100%" height={190}>
-                <BarChart data={studyBarData} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
+            {!RC ? <ChartLoading /> : studyTotalMin === 0 ? <div style={S.emptyHint}>{t("reportsView.noStudyDataYet")}</div> : (
+              <RC.ResponsiveContainer width="100%" height={190}>
+                <RC.BarChart data={studyBarData} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
                   <defs>
                     <linearGradient id="repStudyBar" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#7FC4BC" />
                       <stop offset="100%" stopColor="#1B3A3A" />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="2 4" stroke="var(--surface-raised)" vertical={false} />
-                  <XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: range === "week" ? 11 : 8, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} interval={range === "week" ? 0 : 3} />
-                  <YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <Tooltip cursor={{ fill: "rgba(95,168,160,0.08)" }} contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [fmtHM(v, language), ""]} />
-                  <Bar dataKey="minutes" radius={[3, 3, 3, 3]} fill="url(#repStudyBar)" maxBarSize={range === "week" ? 28 : 12} />
-                </BarChart>
-              </ResponsiveContainer>
+                  <RC.CartesianGrid strokeDasharray="2 4" stroke="var(--surface-raised)" vertical={false} />
+                  <RC.XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: range === "week" ? 11 : 8, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} interval={range === "week" ? 0 : 3} />
+                  <RC.YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <RC.Tooltip cursor={{ fill: "rgba(95,168,160,0.08)" }} contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [fmtHM(v, language), ""]} />
+                  <RC.Bar dataKey="minutes" radius={[3, 3, 3, 3]} fill="url(#repStudyBar)" maxBarSize={range === "week" ? 28 : 12} />
+                </RC.BarChart>
+              </RC.ResponsiveContainer>
             )}
           </div>
         </>
@@ -2691,36 +2708,36 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
             </div>
             <div style={S.chartCard}>
               <div style={S.chartTitle}>{range === "week" ? t("reportsView.dailyCalories") : t("reportsView.caloriesThisMonth")}</div>
-              {nutritionActiveDays === 0 ? <div style={S.emptyHint}>{t("reportsView.noNutritionDataYet")}</div> : (
-                <ResponsiveContainer width="100%" height={190}>
-                  <BarChart data={nutritionByDay} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
+              {!RC ? <ChartLoading /> : nutritionActiveDays === 0 ? <div style={S.emptyHint}>{t("reportsView.noNutritionDataYet")}</div> : (
+                <RC.ResponsiveContainer width="100%" height={190}>
+                  <RC.BarChart data={nutritionByDay} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
                     <defs>
                       <linearGradient id="repNutritionBar" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="#E0B868" />
                         <stop offset="100%" stopColor="#9A7529" />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="2 4" stroke="var(--surface-raised)" vertical={false} />
-                    <XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: range === "week" ? 11 : 8, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} interval={range === "week" ? 0 : 3} />
-                    <YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
-                    <Tooltip cursor={{ fill: "rgba(201,162,75,0.08)" }} contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [`${v} ${t("common.units.kcal")}`, ""]} />
-                    <Bar dataKey="calories" radius={[3, 3, 3, 3]} fill="url(#repNutritionBar)" maxBarSize={range === "week" ? 28 : 12} />
-                  </BarChart>
-                </ResponsiveContainer>
+                    <RC.CartesianGrid strokeDasharray="2 4" stroke="var(--surface-raised)" vertical={false} />
+                    <RC.XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: range === "week" ? 11 : 8, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} interval={range === "week" ? 0 : 3} />
+                    <RC.YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <RC.Tooltip cursor={{ fill: "rgba(201,162,75,0.08)" }} contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [`${v} ${t("common.units.kcal")}`, ""]} />
+                    <RC.Bar dataKey="calories" radius={[3, 3, 3, 3]} fill="url(#repNutritionBar)" maxBarSize={range === "week" ? 28 : 12} />
+                  </RC.BarChart>
+                </RC.ResponsiveContainer>
               )}
             </div>
             <div style={S.chartCard}>
               <div style={S.chartTitle}>{t("reportsView.macroBreakdown")}</div>
-              {macroData.length === 0 ? <div style={S.emptyHint}>{t("common.states.noDataYet")}</div> : (
+              {!RC ? <ChartLoading /> : macroData.length === 0 ? <div style={S.emptyHint}>{t("common.states.noDataYet")}</div> : (
                 <div style={S.pieRow}>
-                  <ResponsiveContainer width={140} height={140}>
-                    <PieChart>
-                      <Pie data={macroData} dataKey="value" nameKey="name" innerRadius={38} outerRadius={62} paddingAngle={2} stroke="none">
-                        {macroData.map((c, i) => <Cell key={i} fill={c.color} />)}
-                      </Pie>
-                      <Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v, n) => [`${v}${t("common.units.g")}`, n]} />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  <RC.ResponsiveContainer width={140} height={140}>
+                    <RC.PieChart>
+                      <RC.Pie data={macroData} dataKey="value" nameKey="name" innerRadius={38} outerRadius={62} paddingAngle={2} stroke="none">
+                        {macroData.map((c, i) => <RC.Cell key={i} fill={c.color} />)}
+                      </RC.Pie>
+                      <RC.Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v, n) => [`${v}${t("common.units.g")}`, n]} />
+                    </RC.PieChart>
+                  </RC.ResponsiveContainer>
                   <div style={S.pieLegend}>
                     {macroData.map((c, i) => (
                       <div key={i} style={S.legendChip}><span style={{ ...S.legendDot, background: c.color }} /><span>{c.name}</span><span style={S.legendMins}>{c.value}{t("common.units.g")}</span></div>
@@ -2731,27 +2748,27 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
             </div>
             <div style={S.chartCard}>
               <div style={S.chartTitle}>{t("reportsView.mealTypeDistribution")}</div>
-              {nutritionActiveDays === 0 ? <div style={S.emptyHint}>{t("reportsView.noNutritionDataYet")}</div> : (
+              {!RC ? <ChartLoading /> : nutritionActiveDays === 0 ? <div style={S.emptyHint}>{t("reportsView.noNutritionDataYet")}</div> : (
                 <>
-                  <ResponsiveContainer width="100%" height={170}>
-                    <BarChart data={mealTypeChartData} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
+                  <RC.ResponsiveContainer width="100%" height={170}>
+                    <RC.BarChart data={mealTypeChartData} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
                       <defs>
                         <linearGradient id="repMealTypeBar" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="0%" stopColor="#8FBFA8" />
                           <stop offset="100%" stopColor="#3E7E78" />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="2 4" stroke="var(--surface-raised)" vertical={false} />
-                      <XAxis dataKey="name" tick={{ fill: "var(--muted)", fontSize: 11, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} />
-                      <YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
-                      <Tooltip
+                      <RC.CartesianGrid strokeDasharray="2 4" stroke="var(--surface-raised)" vertical={false} />
+                      <RC.XAxis dataKey="name" tick={{ fill: "var(--muted)", fontSize: 11, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} />
+                      <RC.YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <RC.Tooltip
                         cursor={{ fill: "rgba(95,168,160,0.08)" }}
                         contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }}
                         formatter={(v, n, p) => [isolateNumbers(`${v} ${t("common.units.kcal")} · ${t("reportsView.mealLoggedDays", { n: p.payload.daysLogged })}`), ""]}
                       />
-                      <Bar dataKey="avgCalories" radius={[3, 3, 3, 3]} fill="url(#repMealTypeBar)" maxBarSize={40} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                      <RC.Bar dataKey="avgCalories" radius={[3, 3, 3, 3]} fill="url(#repMealTypeBar)" maxBarSize={40} />
+                    </RC.BarChart>
+                  </RC.ResponsiveContainer>
                   <div style={S.emptyHint}>{isolateNumbers(t("reportsView.mealTypeDistributionNote", { n: days.length }))}</div>
                   {mealPatterns && (mealPatterns.daysWithoutBreakfastCount > 0 || mealPatterns.lowCalorieMeal || mealPatterns.lowProteinMeal) && (
                     <div style={{ ...S.tipBox, marginTop: 10, flexDirection: "column", gap: 6, alignItems: "stretch" }}>
@@ -2828,6 +2845,7 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
 function SleepSection({ sleepLog, setSleepLog, days, range, showToast }) {
   const { t, i18n } = useTranslation();
   const language = i18n.language;
+  const RC = useRecharts();
   const [mode, setMode] = useState("hours"); // 'hours' | 'times'
   const [sleepTime, setSleepTime] = useState("23:00");
   const [wakeTime, setWakeTime] = useState("07:00");
@@ -2922,15 +2940,17 @@ function SleepSection({ sleepLog, setSleepLog, days, range, showToast }) {
         </div>
       </div>
 
-      <ResponsiveContainer width="100%" height={150}>
-        <BarChart data={chartData} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="2 4" stroke="var(--surface-raised)" vertical={false} />
-          <XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: range === "week" ? 11 : 8, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} interval={range === "week" ? 0 : 3} />
-          <YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
-          <Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [`${v} ${t("common.units.hours")}`, ""]} />
-          <Bar dataKey="hours" radius={[3, 3, 3, 3]} fill="#5FA8A0" maxBarSize={range === "week" ? 28 : 12} />
-        </BarChart>
-      </ResponsiveContainer>
+      {!RC ? <ChartLoading /> : (
+        <RC.ResponsiveContainer width="100%" height={150}>
+          <RC.BarChart data={chartData} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
+            <RC.CartesianGrid strokeDasharray="2 4" stroke="var(--surface-raised)" vertical={false} />
+            <RC.XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: range === "week" ? 11 : 8, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} interval={range === "week" ? 0 : 3} />
+            <RC.YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
+            <RC.Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [`${v} ${t("common.units.hours")}`, ""]} />
+            <RC.Bar dataKey="hours" radius={[3, 3, 3, 3]} fill="#5FA8A0" maxBarSize={range === "week" ? 28 : 12} />
+          </RC.BarChart>
+        </RC.ResponsiveContainer>
+      )}
     </div>
   );
 }
@@ -4733,6 +4753,7 @@ function FocusView({ focus, setFocus, commitments, setCommitments, categories, e
 function FocusReport({ focus, title, color, emptyMsg, studyEntries }) {
   const { t, i18n } = useTranslation();
   const language = i18n.language;
+  const RC = useRecharts();
   const entryMinutes = (studyEntries || []).reduce((s, e) => s + diffMinutes(e.start, e.end), 0);
   const totalMin = focus.reduce((s, f) => s + f.minutes, 0) + entryMinutes;
   const todayEntryMin = (studyEntries || []).filter((e) => e.date === todayKey()).reduce((s, e) => s + diffMinutes(e.start, e.end), 0);
@@ -4771,16 +4792,16 @@ function FocusReport({ focus, title, color, emptyMsg, studyEntries }) {
       </div>
       <div style={S.chartCard}>
         <div style={S.chartTitle}>{t("focus.report.last14Days")}</div>
-        {!hasAny ? <div style={S.emptyHint}>{emptyMsg}</div> : (
-          <ResponsiveContainer width="100%" height={160}>
-            <BarChart data={last14} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="2 4" stroke="var(--surface-raised)" vertical={false} />
-              <XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: 9, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} interval={1} />
-              <YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [`${v} ${t("common.units.minutes")}`, ""]} />
-              <Bar dataKey="mins" radius={[3, 3, 3, 3]} fill={color} maxBarSize={18} />
-            </BarChart>
-          </ResponsiveContainer>
+        {!RC ? <ChartLoading /> : !hasAny ? <div style={S.emptyHint}>{emptyMsg}</div> : (
+          <RC.ResponsiveContainer width="100%" height={160}>
+            <RC.BarChart data={last14} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
+              <RC.CartesianGrid strokeDasharray="2 4" stroke="var(--surface-raised)" vertical={false} />
+              <RC.XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: 9, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} interval={1} />
+              <RC.YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
+              <RC.Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [`${v} ${t("common.units.minutes")}`, ""]} />
+              <RC.Bar dataKey="mins" radius={[3, 3, 3, 3]} fill={color} maxBarSize={18} />
+            </RC.BarChart>
+          </RC.ResponsiveContainer>
         )}
       </div>
       {hasAny && (

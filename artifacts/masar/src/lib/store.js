@@ -54,6 +54,25 @@ function lsSet(key, value) {
   }
 }
 
+// أقسام Nutrition/Fitness/Vault/... تُحمَّل بـReact.lazy وتُفكَّك من الشجرة
+// عند مغادرتها (تبديل view في MasarApp) - أي رجوع لنفس القسم خلال نفس
+// الجلسة يُعيد تركيبها من الصفر، فيُعاد استدعاء Supabase لنفس البيانات
+// التي جُلبت قبل ثوانٍ فقط بلا أي تغيّر حقيقي فيها. هذا الكاش القصير
+// يتجاوز فقط طلب الشبكة المكرر خلال نافذة زمنية قصيرة، ويعيد بيانات
+// localStorage الفورية بدلاً منه - وهي دائماً محدَّثة بنفس قدر بيانات
+// الخادم على الأقل لأن كل عملية حفظ/تعديل/حذف تكتب لـlocalStorage فوراً
+// (تفاؤلياً) بغضّ النظر عن هذا الكاش. لا حاجة لإبطال الكاش يدوياً لهذا
+// السبب بالذات - لا يُعاد أبداً أي شيء أقدم مما هو موجود محلياً فعلاً.
+const CLOUD_FETCH_CACHE_MS = 20000;
+const _cloudFetchTimestamps = new Map();
+function cloudFetchIsFresh(key) {
+  const ts = _cloudFetchTimestamps.get(`${CURRENT_OWNER}::${key}`);
+  return !!ts && Date.now() - ts < CLOUD_FETCH_CACHE_MS;
+}
+function markCloudFetched(key) {
+  _cloudFetchTimestamps.set(`${CURRENT_OWNER}::${key}`, Date.now());
+}
+
 // تاريخ "قبل n يوماً" بصيغة YYYY-MM-DD (توقيت محلي)، يُستخدم لتقييد جلب
 // السجلات التي تُستهلك دائماً ضمن نافذة زمنية محدودة فقط في الواجهة (لا
 // ميزة تصفّح تاريخي أو حساب سلسلة/streak تعتمد عليها بالكامل)، بدل جلب كل
@@ -435,6 +454,7 @@ export const store = {
   async loadFitnessProfile() {
     const local = lsGet("masar_fitness_profile", { goal: null, equipment: null, daysPerWeek: null, experience: null, sessionMinutes: null, injuries: [] });
     if (!useCloud()) return local;
+    if (cloudFetchIsFresh("masar_fitness_profile")) return local;
     try {
       const { data, error } = await supabase.from("fitness_profile").select("*").eq("owner", CURRENT_OWNER).maybeSingle();
       if (error || !data) return local;
@@ -443,6 +463,7 @@ export const store = {
         experience: data.experience, sessionMinutes: data.session_minutes, injuries: data.injuries || [],
       };
       lsSet("masar_fitness_profile", result);
+      markCloudFetched("masar_fitness_profile");
       return result;
     } catch (e) { console.error("[loadFitnessProfile] read failed:", e); return local; }
   },
@@ -465,6 +486,7 @@ export const store = {
   async loadWorkoutProgram() {
     const local = lsGet("masar_workout_program", null);
     if (!useCloud()) return local;
+    if (cloudFetchIsFresh("masar_workout_program")) return local;
     try {
       const { data, error } = await supabase.from("workout_program").select("*").eq("owner", CURRENT_OWNER).maybeSingle();
       if (error) { console.error("[loadWorkoutProgram] Supabase error:", error.message); return local; }
@@ -475,6 +497,7 @@ export const store = {
         lastRotatedAt: data.last_rotated_at,
       };
       lsSet("masar_workout_program", result);
+      markCloudFetched("masar_workout_program");
       return result;
     } catch (e) { console.error("[loadWorkoutProgram] read failed:", e); return local; }
   },
@@ -498,12 +521,14 @@ export const store = {
   async loadWorkoutLog() {
     const local = lsGet("masar_workout_log", []);
     if (!useCloud()) return local;
+    if (cloudFetchIsFresh("masar_workout_log")) return local;
     try {
       const { data, error } = await supabase.from("workout_log").select("*").eq("owner", CURRENT_OWNER).order("date", { ascending: true });
       if (error) { console.error("[loadWorkoutLog] Supabase error:", error.message); return local; }
       if (!data) return local;
       const items = data.map((r) => ({ id: r.id, date: r.date, exerciseId: r.exercise_id, weight: r.weight != null ? Number(r.weight) : null, reps: r.reps, setsCompleted: r.sets_completed }));
       lsSet("masar_workout_log", items);
+      markCloudFetched("masar_workout_log");
       return items;
     } catch (e) { console.error("[loadWorkoutLog] read failed:", e); return local; }
   },
@@ -526,12 +551,14 @@ export const store = {
   async loadDietPlan() {
     const local = lsGet("masar_diet_plan", null);
     if (!useCloud()) return local;
+    if (cloudFetchIsFresh("masar_diet_plan")) return local;
     try {
       const { data, error } = await supabase.from("user_diet_plan").select("*").eq("owner", CURRENT_OWNER).maybeSingle();
       if (error) { console.error("[loadDietPlan] Supabase error:", error.message); return local; }
       if (!data) return local;
       const result = { systemId: data.system_id, planText: data.plan_text, assessment: data.assessment || {}, generatedAt: data.generated_at };
       lsSet("masar_diet_plan", result);
+      markCloudFetched("masar_diet_plan");
       return result;
     } catch (e) { console.error("[loadDietPlan] read failed:", e); return local; }
   },
@@ -566,6 +593,7 @@ export const store = {
   async loadNutritionPlan() {
     const local = lsGet("masar_nutrition_plan", null);
     if (!useCloud()) return local;
+    if (cloudFetchIsFresh("masar_nutrition_plan")) return local;
     try {
       const { data, error } = await supabase.from("user_nutrition_plan").select("*").eq("owner", CURRENT_OWNER).maybeSingle();
       if (error) { console.error("[loadNutritionPlan] Supabase error:", error.message); return local; }
@@ -579,6 +607,7 @@ export const store = {
         generatedAt: data.generated_at,
       };
       lsSet("masar_nutrition_plan", result);
+      markCloudFetched("masar_nutrition_plan");
       return result;
     } catch (e) { console.error("[loadNutritionPlan] read failed:", e); return local; }
   },
@@ -615,12 +644,14 @@ export const store = {
   async loadFitnessLog() {
     const local = lsGet("masar_fitness_log", {});
     if (!useCloud()) return local;
+    if (cloudFetchIsFresh("masar_fitness_log")) return local;
     try {
       const { data, error } = await supabase.from("fitness_log").select("*").eq("owner", CURRENT_OWNER);
       if (error || !data) return local;
       const log = {};
       data.forEach((r) => { log[r.date] = !!r.day_completed; });
       lsSet("masar_fitness_log", log);
+      markCloudFetched("masar_fitness_log");
       return log;
     } catch (e) { console.error("[loadFitnessLog] read failed:", e); return local; }
   },
@@ -644,6 +675,7 @@ export const store = {
   async loadMentalHealthLog() {
     const local = lsGet("masar_mental_health_log", {});
     if (!useCloud()) return local;
+    if (cloudFetchIsFresh("masar_mental_health_log")) return local;
     try {
       const { data, error } = await supabase.from("mental_health_log").select("*").eq("owner", CURRENT_OWNER);
       if (error || !data) return local;
@@ -652,6 +684,7 @@ export const store = {
         log[r.date] = { mood: r.mood, stress: r.stress, energy: r.energy, note: r.note || "", flaggedRisk: !!r.flagged_risk };
       });
       lsSet("masar_mental_health_log", log);
+      markCloudFetched("masar_mental_health_log");
       return log;
     } catch (e) { console.error("[loadMentalHealthLog] read failed:", e); return local; }
   },
@@ -695,6 +728,7 @@ export const store = {
   async loadNutritionLog() {
     const local = lsGet("masar_nutrition_log", []);
     if (!useCloud()) return local;
+    if (cloudFetchIsFresh("masar_nutrition_log")) return local;
     try {
       const { data, error } = await supabase.from("nutrition_log").select("*").eq("owner", CURRENT_OWNER).gte("date", isoDateDaysAgo(90)).order("created_at", { ascending: false });
       if (error) { console.error("[loadNutritionLog] Supabase error:", error.message); return local; }
@@ -711,6 +745,7 @@ export const store = {
         createdAt: r.created_at || null,
       }));
       lsSet("masar_nutrition_log", items);
+      markCloudFetched("masar_nutrition_log");
       return items;
     } catch (e) { console.error("[loadNutritionLog] read failed:", e); return local; }
   },
@@ -900,12 +935,14 @@ export const store = {
   async loadWaterLog() {
     const local = lsGet("masar_water_log", {});
     if (!useCloud()) return local;
+    if (cloudFetchIsFresh("masar_water_log")) return local;
     try {
       const { data, error } = await supabase.from("water_log").select("*").eq("owner", CURRENT_OWNER);
       if (error || !data) return local;
       const log = {};
       data.forEach((r) => { log[r.date] = r.cups_count; });
       lsSet("masar_water_log", log);
+      markCloudFetched("masar_water_log");
       return log;
     } catch (e) { console.error("[loadWaterLog] read failed:", e); return local; }
   },
@@ -1383,18 +1420,21 @@ export const store = {
   async loadVault() {
     const local = lsGet("masar_vault", null);
     if (!useCloud()) return local;
+    if (cloudFetchIsFresh("masar_vault")) return local;
     try {
       const { data, error } = await supabase.from("vault").select("*").eq("owner", CURRENT_OWNER).maybeSingle();
       if (error) { console.error("[loadVault] Supabase error:", error.message); return local; }
       if (!data) return local;
       const v = { balance: Number(data.balance) || 0, currency: data.currency || "KWD" };
       lsSet("masar_vault", v);
+      markCloudFetched("masar_vault");
       return v;
     } catch (e) { console.error("[loadVault] read failed:", e); return local; }
   },
   async loadVaultTransactions() {
     const local = lsGet("masar_vault_transactions", []);
     if (!useCloud()) return local;
+    if (cloudFetchIsFresh("masar_vault_transactions")) return local;
     try {
       const { data, error } = await supabase.from("vault_transactions").select("*").eq("owner", CURRENT_OWNER).order("created_at", { ascending: false });
       if (error) { console.error("[loadVaultTransactions] Supabase error:", error.message); return local; }
@@ -1405,6 +1445,7 @@ export const store = {
         isRecurring: !!r.is_recurring, recurringFrequency: r.recurring_frequency || null, recurringSourceId: r.recurring_source_id || null,
       }));
       lsSet("masar_vault_transactions", items);
+      markCloudFetched("masar_vault_transactions");
       return items;
     } catch (e) { console.error("[loadVaultTransactions] read failed:", e); return local; }
   },
@@ -1452,12 +1493,14 @@ export const store = {
   async loadVaultAccounts() {
     const local = lsGet("masar_vault_accounts", []);
     if (!useCloud()) return local;
+    if (cloudFetchIsFresh("masar_vault_accounts")) return local;
     try {
       const { data, error } = await supabase.from("vault_accounts").select("*").eq("owner", CURRENT_OWNER).order("created_at", { ascending: true });
       if (error) { console.error("[loadVaultAccounts] Supabase error:", error.message); return local; }
       if (!data) return local;
       const items = data.map((r) => ({ id: r.id, name: r.name, type: r.type, balance: Number(r.balance) || 0, currency: r.currency }));
       lsSet("masar_vault_accounts", items);
+      markCloudFetched("masar_vault_accounts");
       return items;
     } catch (e) { console.error("[loadVaultAccounts] read failed:", e); return local; }
   },
@@ -1494,12 +1537,14 @@ export const store = {
   async loadBudgetCategories() {
     const local = lsGet("masar_budget_categories", []);
     if (!useCloud()) return local;
+    if (cloudFetchIsFresh("masar_budget_categories")) return local;
     try {
       const { data, error } = await supabase.from("budget_categories").select("*").eq("owner", CURRENT_OWNER).order("created_at", { ascending: true });
       if (error) { console.error("[loadBudgetCategories] Supabase error:", error.message); return local; }
       if (!data) return local;
       const items = data.map((r) => ({ id: r.id, name: r.name, icon: r.icon, color: r.color }));
       lsSet("masar_budget_categories", items);
+      markCloudFetched("masar_budget_categories");
       return items;
     } catch (e) { console.error("[loadBudgetCategories] read failed:", e); return local; }
   },
@@ -1534,12 +1579,14 @@ export const store = {
   async loadHiddenBudgetCategories() {
     const local = lsGet("masar_hidden_budget_categories", []);
     if (!useCloud()) return local;
+    if (cloudFetchIsFresh("masar_hidden_budget_categories")) return local;
     try {
       const { data, error } = await supabase.from("hidden_budget_categories").select("category_id").eq("owner", CURRENT_OWNER);
       if (error) { console.error("[loadHiddenBudgetCategories] Supabase error:", error.message); return local; }
       if (!data) return local;
       const items = data.map((r) => r.category_id);
       lsSet("masar_hidden_budget_categories", items);
+      markCloudFetched("masar_hidden_budget_categories");
       return items;
     } catch (e) { console.error("[loadHiddenBudgetCategories] read failed:", e); return local; }
   },
@@ -1618,6 +1665,7 @@ export const store = {
   async loadBudgets() {
     const local = lsGet("masar_budgets", []);
     if (!useCloud()) return local;
+    if (cloudFetchIsFresh("masar_budgets")) return local;
     try {
       const cutoff = isoDateDaysAgo(365).slice(0, 7);
       const { data, error } = await supabase.from("budgets").select("*").eq("owner", CURRENT_OWNER).gte("month", cutoff);
@@ -1625,6 +1673,7 @@ export const store = {
       if (!data) return local;
       const items = data.map((r) => ({ categoryId: r.category_id, month: r.month, amount: Number(r.amount) || 0 }));
       lsSet("masar_budgets", items);
+      markCloudFetched("masar_budgets");
       return items;
     } catch (e) { console.error("[loadBudgets] read failed:", e); return local; }
   },
@@ -1650,12 +1699,14 @@ export const store = {
   async loadSavingsGoals() {
     const local = lsGet("masar_savings_goals", []);
     if (!useCloud()) return local;
+    if (cloudFetchIsFresh("masar_savings_goals")) return local;
     try {
       const { data, error } = await supabase.from("savings_goals").select("*").eq("owner", CURRENT_OWNER).order("created_at", { ascending: true });
       if (error) { console.error("[loadSavingsGoals] Supabase error:", error.message); return local; }
       if (!data) return local;
       const items = data.map((r) => ({ id: r.id, name: r.name, targetAmount: Number(r.target_amount) || 0, currentAmount: Number(r.current_amount) || 0, currency: r.currency }));
       lsSet("masar_savings_goals", items);
+      markCloudFetched("masar_savings_goals");
       return items;
     } catch (e) { console.error("[loadSavingsGoals] read failed:", e); return local; }
   },
@@ -1689,6 +1740,7 @@ export const store = {
   async loadBills() {
     const local = lsGet("masar_bills", []);
     if (!useCloud()) return local;
+    if (cloudFetchIsFresh("masar_bills")) return local;
     try {
       const { data, error } = await supabase.from("bills").select("*").eq("owner", CURRENT_OWNER).order("next_due_date", { ascending: true });
       if (error) { console.error("[loadBills] Supabase error:", error.message); return local; }
@@ -1699,6 +1751,7 @@ export const store = {
         dueDate: r.due_date, customIntervalDays: r.custom_interval_days, nextDueDate: r.next_due_date, isActive: !!r.is_active,
       }));
       lsSet("masar_bills", items);
+      markCloudFetched("masar_bills");
       return items;
     } catch (e) { console.error("[loadBills] read failed:", e); return local; }
   },
@@ -1732,6 +1785,7 @@ export const store = {
   async loadBillPayments() {
     const local = lsGet("masar_bill_payments", []);
     if (!useCloud()) return local;
+    if (cloudFetchIsFresh("masar_bill_payments")) return local;
     try {
       const { data, error } = await supabase.from("bill_payments").select("*").eq("owner", CURRENT_OWNER).order("paid_date", { ascending: false });
       if (error) { console.error("[loadBillPayments] Supabase error:", error.message); return local; }
@@ -1741,6 +1795,7 @@ export const store = {
         paidDate: r.paid_date, transactionId: r.transaction_id,
       }));
       lsSet("masar_bill_payments", items);
+      markCloudFetched("masar_bill_payments");
       return items;
     } catch (e) { console.error("[loadBillPayments] read failed:", e); return local; }
   },

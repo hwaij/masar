@@ -65,7 +65,6 @@ export default defineConfig({
         // هذا الجزء مخزَّناً في ذاكرة تخزين المتصفح المؤقتة عبر التحديثات
         // المتكررة لكود التطبيق (هذه المكتبات تتغيّر بتكرار أقل بكثير).
         manualChunks: {
-          "vendor-charts": ["recharts"],
           "vendor-motion": ["framer-motion"],
           "vendor-supabase": ["@supabase/supabase-js"],
         },

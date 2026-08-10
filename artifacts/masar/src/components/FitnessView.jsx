@@ -170,14 +170,14 @@ function DifficultyDots({ difficulty }) {
   );
 }
 
-function ExerciseRow({ exercise, isEn, gender, isLogging, onToggleLog, logWeight, setLogWeight, logReps, setLogReps, logSets, setLogSets, onSubmitPerformance, isSwapping, onToggleSwap, alternatives, onSelectAlternative, onAdjustRest, onOpenDetail, progression, t }) {
+function ExerciseRow({ exercise, isEn, gender, isLogging, onToggleLog, logWeight, setLogWeight, logReps, setLogReps, logSets, setLogSets, onSubmitPerformance, isSwapping, onToggleSwap, alternatives, onSelectAlternative, onAdjustRest, onOpenDetail, progression, t, dataTour }) {
   const gear = GEAR_TYPES.find((g) => g.key === exercise.gear);
   const GearIcon = gear ? ICONS[gear.icon] || Dumbbell : Dumbbell;
   const CardioMobilityIcon = CARDIO_MOBILITY_ICON[exercise.muscle];
   const pattern = MOVEMENT_PATTERNS.find((p) => p.key === exercise.movementPattern);
   const ForwardChevron = isEn ? ChevronRight : ChevronLeft;
   return (
-    <div style={FS.exerciseRow}>
+    <div style={FS.exerciseRow} data-tour={dataTour}>
       <div style={FS.exerciseTop}>
         {exercise.imageUrl ? (
           <div style={FS.diagramWrap}><img src={exercise.imageUrl} alt="" width={30} height={55} style={{ objectFit: "contain" }} /></div>
@@ -747,23 +747,38 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
   const [editing, setEditing] = useState(false);
   useEffect(() => { if (loaded && !hasProfile) setEditing(true); }, [loaded, hasProfile]);
 
-  // جولة الرياضة السياقية (Onboarding - Phase D): خطوة 1 تفاعلية على زر
-  // "حفظ وإنشاء الخطة" (تنتظر إما الضغطة الحقيقية أو نجاح إنشاء الملف
-  // فعلياً - أيهما أسبق)، ثم خطوة 2 تفاعلية على زر "ابدأ التمرين" لأول يوم.
-  // شرح المؤقّت التلقائي وأزرار +10/-10 مدمج نصياً في تلميح الخطوة 2 نفسها
-  // بدل خطوة Spotlight ثالثة منفصلة داخل وضع التركيز - وضع التركيز يستبدل
-  // الشاشة بالكامل بمكوّن مختلف (FocusModeView) وحالة الراحة (resting) لا
-  // تبدأ إلا بعد إنهاء أول مجموعة فعلياً، فمزامنة Spotlight حي معه هناك
-  // معقّدة وهشة مقارنة بفائدتها؛ النص كافٍ لتجهيز المستخدم لما سيراه.
+  // جولة الرياضة السياقية (Onboarding - Phase D، وُسِّعت في Phase G من
+  // خطوتين إلى 6): 1) بطاقة معلوماتية بلا هدف محدَّد (لا Spotlight حي) عن
+  // نموذج الإعداد (أو تُتخطّى مباشرة لمن لديه خطة من قبل) → 2) شرح صف
+  // التمرين (تسجيل/تبديل/تفاصيل) → 3) شرح زر الإحصائيات → 4) تفاعلية على
+  // "ابدأ التمرين" لأول يوم → "waiting" بانتظار إنهاء التمرين فعلياً (زر
+  // "إنهاء التمرين" متاح في أي وقت داخل وضع التركيز، لا يتطلب إكمال كل
+  // المجموعات) → 6) تلميح على شاشة ملخّص الإنجاز.
+  //
+  // ملاحظة مهمة (خلل حقيقي وُجد وأُصلح في Phase G): الخطوة 1 كانت أصلاً
+  // Spotlight تفاعلياً حياً على زر "حفظ وإنشاء الخطة" - لكن هذا الزر يقع
+  // في أسفل نموذج طويل (هدف/خبرة/أيام/مدة/معدات/إصابات)، فتقنية "القص"
+  // المستخدمة في SpotlightTour (تعتيم كل ما هو خارج حدود العنصر المستهدَف)
+  // تُغطّي وتمنع الضغط على كل حقول النموذج الواقعة أعلى الزر بمجرد ظهور
+  // هذه الخطوة - يمنع المستخدم فعلياً من تعبئة النموذج! التصحيح: خطوة 1
+  // أصبحت بطاقة معلوماتية مركزية بلا هدف (تُغلَق بضغطة واحدة قبل أن يبدأ
+  // المستخدم التعبئة فعلياً)، بدل بقاء Spotlight معلَّقاً فوق نموذج طويل.
+  //
+  // شرح المؤقّت التلقائي وأزرار +10/-10 يبقى نصياً في تلميح الخطوة 4 نفسها
+  // بدل Spotlight حي داخل وضع التركيز - لنفس سبب الهشاشة الموثَّق سابقاً.
   const fitnessTour = useModuleTour("fitness", profile, setProfile, { active: loaded });
   useEffect(() => {
     if (fitnessTour.step === 1 && hasProfile) fitnessTour.setStep(2);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fitnessTour.step, hasProfile]);
   useEffect(() => {
-    if (fitnessTour.step === 2 && focusDay !== null) fitnessTour.finish();
+    if (fitnessTour.step === 4 && focusDay !== null) fitnessTour.setStep("waiting");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fitnessTour.step, focusDay]);
+  useEffect(() => {
+    if (fitnessTour.step === "waiting" && finishedSummary) fitnessTour.setStep(6);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fitnessTour.step, finishedSummary]);
 
   const weekCompletedCount = useMemo(() => {
     const days = [];
@@ -1115,14 +1130,26 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
 
   if (finishedSummary) {
     return (
-      <FinishSummaryView
-        summary={finishedSummary}
-        isEn={isEn}
-        gender={gender}
-        t={t}
-        showToast={showToast}
-        onClose={() => setFinishedSummary(null)}
-      />
+      <>
+        <FinishSummaryView
+          summary={finishedSummary}
+          isEn={isEn}
+          gender={gender}
+          t={t}
+          showToast={showToast}
+          onClose={() => setFinishedSummary(null)}
+        />
+        {fitnessTour.step === 6 && (
+          <SpotlightTour
+            steps={[{ title: t("onboarding.fitnessTour.step6Title"), body: t("onboarding.fitnessTour.step6Body") }]}
+            stepIndex={0}
+            onNext={fitnessTour.finish}
+            onSkip={fitnessTour.finish}
+            onFinish={fitnessTour.finish}
+            labels={{ skip: t("onboarding.skip"), next: t("onboarding.next"), start: t("common.buttons.ok"), tapHere: t("onboarding.tapHere") }}
+          />
+        )}
+      </>
     );
   }
 
@@ -1201,11 +1228,11 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
         </div>
         {fitnessTour.step === 1 && (
           <SpotlightTour
-            steps={[{ target: '[data-tour="fitness-save-profile"]', interactive: true, title: t("onboarding.fitnessTour.step1Title"), body: t("onboarding.fitnessTour.step1Body") }]}
+            steps={[{ title: t("onboarding.fitnessTour.step1Title"), body: t("onboarding.fitnessTour.step1Body") }]}
             stepIndex={0}
             onNext={() => fitnessTour.setStep(2)}
             onSkip={fitnessTour.finish}
-            onFinish={fitnessTour.finish}
+            onFinish={() => fitnessTour.setStep(2)}
             labels={{ skip: t("onboarding.skip"), next: t("onboarding.next"), start: t("common.buttons.ok"), tapHere: t("onboarding.tapHere") }}
           />
         )}
@@ -1250,7 +1277,7 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
 
       <div style={FS.toolsRow}>
         <button onClick={varyProgram} style={FS.toolBtn}><Repeat size={14} /> {t("fitness.varyProgram")}</button>
-        <button onClick={() => setShowStatistics(true)} style={FS.toolBtn}><BarChart3 size={14} /> {t("fitness.statisticsBtn")}</button>
+        <button onClick={() => setShowStatistics(true)} style={FS.toolBtn} data-tour="fitness-statistics-btn"><BarChart3 size={14} /> {t("fitness.statisticsBtn")}</button>
         <select
           value={programEntry?.weekRotationEnabled ? (programEntry.rotationFrequency || "weekly") : ""}
           onChange={(e) => setRotation(e.target.value || null)}
@@ -1326,6 +1353,7 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
               return (
                 <ExerciseRow
                   key={`${key}-${ex.id}`}
+                  dataTour={day.dayIndex === 0 && exIndex === 0 ? "fitness-exercise-row" : undefined}
                   exercise={ex}
                   isEn={isEn}
                   gender={gender}
@@ -1351,14 +1379,22 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
         ))}
       </div>
 
-      {fitnessTour.step === 2 && (
+      {(fitnessTour.step === 2 || fitnessTour.step === 3 || fitnessTour.step === 4) && (
         <SpotlightTour
-          steps={[{ target: '[data-tour="fitness-start-workout"]', interactive: true, title: t("onboarding.fitnessTour.step2Title"), body: t("onboarding.fitnessTour.step2Body") }]}
-          stepIndex={0}
-          onNext={fitnessTour.finish}
+          steps={[
+            { target: '[data-tour="fitness-exercise-row"]', title: t("onboarding.fitnessTour.step2Title"), body: t("onboarding.fitnessTour.step2Body") },
+            { target: '[data-tour="fitness-statistics-btn"]', title: t("onboarding.fitnessTour.step3Title"), body: t("onboarding.fitnessTour.step3Body") },
+            { target: '[data-tour="fitness-start-workout"]', interactive: true, title: t("onboarding.fitnessTour.step4Title"), body: t("onboarding.fitnessTour.step4Body") },
+          ]}
+          stepIndex={fitnessTour.step - 2}
+          onNext={() => {
+            if (fitnessTour.step === 4) { fitnessTour.setStep("waiting"); return; }
+            fitnessTour.setStep((s) => s + 1);
+          }}
+          onBack={fitnessTour.step > 2 ? () => fitnessTour.setStep((s) => s - 1) : undefined}
           onSkip={fitnessTour.finish}
           onFinish={fitnessTour.finish}
-          labels={{ skip: t("onboarding.skip"), next: t("onboarding.next"), start: t("common.buttons.ok"), tapHere: t("onboarding.tapHere") }}
+          labels={{ skip: t("onboarding.skip"), next: t("onboarding.next"), start: t("common.buttons.ok"), back: t("common.buttons.back"), tapHere: t("onboarding.tapHere") }}
         />
       )}
     </div>

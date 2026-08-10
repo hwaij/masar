@@ -1893,11 +1893,13 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
   // جولة التغذية السياقية (Priority 6 من خطة الـOnboarding - أعلى أولوية
   // بين كل الجولات السياقية): تظهر تلقائياً أول مرة يُفتح فيها هذا القسم
   // فعلياً طالما لم تكتمل من قبل (tourProgress.modules.nutrition.done)،
-  // مستقلة تماماً عن الجولة الأساسية في MasarApp. 3 خطوات فقط: اضغط
-  // "+ إضافة" في الفطور (تفاعلي) → اختر طريقة الإضافة (تفاعلي، أي طريقة)
-  // → بعد نجاح الحفظ الفعلي، تلميح ختامي على بطاقة الفطور المحدَّثة.
-  // الخطوة 3 تنتظر تغيّراً حقيقياً في السجل (لا مؤقّتاً وهمياً) حتى تظهر
-  // فقط بعد حفظ فعلي، بغض النظر عن طريقة الإضافة التي اختارها المستخدم.
+  // مستقلة تماماً عن الجولة الأساسية في MasarApp. 5 خطوات (Phase G وسّعت
+  // الأصلية من 3): اضغط "+ إضافة" في الفطور (تفاعلي) → اختر طريقة الإضافة
+  // (تفاعلي، أي طريقة) → بعد نجاح الحفظ الفعلي، تلميح ختامي على بطاقة
+  // الفطور المحدَّثة → شرح بطاقة الملخّص اليومي (احتياج شخصي مقابل حد
+  // إرشادي) → اضغط كوب الماء (تفاعلي). الخطوة 2→3 تنتظر تغيّراً حقيقياً
+  // في السجل (لا مؤقّتاً وهمياً) حتى تظهر فقط بعد حفظ فعلي، بغض النظر عن
+  // طريقة الإضافة التي اختارها المستخدم.
   const nutritionTourDone = !!profile?.tourProgress?.modules?.nutrition?.done;
   const [nutritionTourStep, setNutritionTourStep] = useState(0); // 0=غير نشطة، 1/2 = Spotlight، "waiting" = بانتظار حفظ، 3 = تلميح ختامي
   const nutritionTourStartedRef = useRef(false);
@@ -2263,7 +2265,7 @@ ${missingMealsLine}
             </div>
           </>
         )}
-        <div style={NS.macrosRow}>
+        <div style={NS.macrosRow} data-tour="nutrition-summary">
           <div style={NS.macroChip}><div style={NS.macroValue}><NumericValue value={Math.round(totals.protein * 10) / 10} unit={t("common.units.g")} /></div><div style={NS.macroLabel}>{t("common.units.protein")}</div></div>
           <div style={NS.macroChip}><div style={NS.macroValue}><NumericValue value={Math.round(totals.carbs * 10) / 10} unit={t("common.units.g")} /></div><div style={NS.macroLabel}>{t("common.units.carbs")}</div></div>
           <div style={NS.macroChip}><div style={NS.macroValue}><NumericValue value={Math.round(totals.fat * 10) / 10} unit={t("common.units.g")} /></div><div style={NS.macroLabel}>{t("common.units.fat")}</div></div>
@@ -2324,7 +2326,7 @@ ${missingMealsLine}
           <span style={NS.waterCount}>{cupsGoal ? t("nutrition.waterCups", { cups: todayCups, goal: cupsGoal }) : `${todayCups} ${t("nutrition.unitOptions.cup")}`}</span>
         </div>
         {cupsGoal && <div style={{ ...NS.barTrack, marginBottom: 10 }}><div style={{ ...NS.barFill, width: `${waterPercent}%`, background: "linear-gradient(90deg, #3E7E78, #5FA8A0)" }} /></div>}
-        <button onClick={addWaterCup} style={NS.waterAddBtn}><Plus size={15} /> {t("nutrition.waterGlass")}</button>
+        <button onClick={addWaterCup} style={NS.waterAddBtn} data-tour="water-add-btn"><Plus size={15} /> {t("nutrition.waterGlass")}</button>
       </div>
 
       <div style={NS.aiAnalysisCard}>
@@ -2534,16 +2536,19 @@ ${missingMealsLine}
 
       {nutritionTourStep > 0 && nutritionTourStep !== "waiting" && (
         <SpotlightTour
-          steps={
-            nutritionTourStep === 3
-              ? [{ target: '[data-tour="meal-card-breakfast"]', title: t("onboarding.nutritionTour.step3Title"), body: t("onboarding.nutritionTour.step3Body") }]
-              : [
-                  { target: '[data-tour="add-breakfast"]', interactive: true, title: t("onboarding.nutritionTour.step1Title"), body: t("onboarding.nutritionTour.step1Body") },
-                  { target: '[data-tour="add-food-chooser"]', interactive: true, title: t("onboarding.nutritionTour.step2Title"), body: t("onboarding.nutritionTour.step2Body") },
-                ]
-          }
-          stepIndex={nutritionTourStep === 3 ? 0 : nutritionTourStep - 1}
-          onNext={() => setNutritionTourStep((s) => (s === 2 ? "waiting" : s + 1))}
+          steps={[
+            { target: '[data-tour="add-breakfast"]', interactive: true, title: t("onboarding.nutritionTour.step1Title"), body: t("onboarding.nutritionTour.step1Body") },
+            { target: '[data-tour="add-food-chooser"]', interactive: true, title: t("onboarding.nutritionTour.step2Title"), body: t("onboarding.nutritionTour.step2Body") },
+            { target: '[data-tour="meal-card-breakfast"]', title: t("onboarding.nutritionTour.step3Title"), body: t("onboarding.nutritionTour.step3Body") },
+            { target: '[data-tour="nutrition-summary"]', title: t("onboarding.nutritionTour.step4Title"), body: t("onboarding.nutritionTour.step4Body") },
+            { target: '[data-tour="water-add-btn"]', interactive: true, title: t("onboarding.nutritionTour.step5Title"), body: t("onboarding.nutritionTour.step5Body") },
+          ]}
+          stepIndex={nutritionTourStep - 1}
+          onNext={() => {
+            if (nutritionTourStep === 2) { setNutritionTourStep("waiting"); return; }
+            if (nutritionTourStep === 5) { finishNutritionTour(); return; }
+            setNutritionTourStep((s) => s + 1);
+          }}
           onSkip={finishNutritionTour}
           onFinish={finishNutritionTour}
           labels={{ skip: t("onboarding.skip"), next: t("onboarding.next"), start: t("common.buttons.ok"), back: t("common.buttons.back"), tapHere: t("onboarding.tapHere") }}

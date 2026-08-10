@@ -228,11 +228,15 @@
     "tapHere": "Tap here to continue",
     "nutritionTour": {
       "step1Title": "Let's log your first meal",
-      "step1Body": "Tap here to add something to breakfast.",
+      "step1Body": "Tap here to add something to breakfast — logging works the same way for lunch, dinner, and snacks.",
       "step2Title": "Choose how to add it",
       "step2Body": "Search by name, scan a barcode, or snap a photo of your meal or its nutrition label — pick whichever is fastest for you.",
       "step3Title": "Nice work!",
-      "step3Body": "Your calories and macros just updated automatically. Tap any item here to see its full details, including sodium and cholesterol."
+      "step3Body": "Your calories and macros just updated automatically. Tap any item for full details (including sodium and cholesterol), or use its edit and delete icons.",
+      "step4Title": "Your daily totals",
+      "step4Body": "Protein, carbs, and fat here are calculated just for you. Fiber, sugar, sodium, and cholesterol are shown against general guidelines, not a personal target.",
+      "step5Title": "Track your water too",
+      "step5Body": "Tap here each time you drink a glass of water."
     },
     "tasksTour": {
       "step1Title": "Add your first task",
@@ -258,9 +262,15 @@
     },
     "fitnessTour": {
       "step1Title": "Set up your plan",
-      "step1Body": "Choose your goal, experience, and equipment above, then tap here to build your personalized workout plan.",
-      "step2Title": "Start your first workout",
-      "step2Body": "Tap here to begin. The rest timer between sets runs fully automatically — use the +10s/-10s buttons anytime to adjust it."
+      "step1Body": "Choose your goal, experience level, and available equipment below, then tap \"Save & Create Plan\" when you're ready.",
+      "step2Title": "Each exercise, in detail",
+      "step2Body": "Tap to log a set manually, swap for an alternative you prefer, or open full instructions and a muscle diagram.",
+      "step3Title": "Your training stats",
+      "step3Body": "See your weekly training volume and weight progression per exercise here.",
+      "step4Title": "Start your first workout",
+      "step4Body": "Tap here to begin. The rest timer between sets runs fully automatically — use the +10s/-10s buttons anytime to adjust it.",
+      "step6Title": "Great session!",
+      "step6Body": "Here's your summary — duration, volume, and best set. Tap Share to turn it into an achievement card."
     },
     "steps": [
       {
@@ -276,8 +286,8 @@
         "body": "One of Masar's most useful sections — logging a meal takes seconds. We'll walk you through it step by step the first time you open it."
       },
       {
-        "title": "Start with You",
-        "body": "Tell Masar about your goals and interests here first — the more accurate this is, the better every suggestion Masar gives you becomes."
+        "title": "Personalize Masar",
+        "body": "Add your hobbies and interests here — the more accurate this is, the better every suggestion Masar gives you becomes."
       },
       {
         "title": "Everything else",

@@ -771,7 +771,11 @@ const CORE_TOUR_META = [
   { Icon: Sparkles },
   { target: '[data-tour="menu-btn"]', interactive: true },
   { target: '[data-tour="nav-nutrition"]' },
-  { target: '[data-tour="nav-you"]' },
+  // تصحيح (Phase G): كانت هذه الخطوة تستهدف "أنت" (البيانات الصحية:
+  // طول/وزن/عمر) بينما نصّها يتحدّث عن الهوايات والاهتمامات - تلك الحقول
+  // فعلياً في "التخصيص" (ProfileCard) لا في "أنت". الاستهداف الآن مطابق
+  // للمحتوى الحقيقي.
+  { target: '[data-tour="nav-settings"]' },
   {},
   { Icon: Heart },
 ];

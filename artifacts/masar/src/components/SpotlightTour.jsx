@@ -32,6 +32,15 @@ export default function SpotlightTour({ steps, stepIndex, onNext, onBack, onSkip
   const step = steps[stepIndex];
   const isLast = stepIndex === steps.length - 1;
 
+  // عند تغيّر الهدف، مرّره لمنتصف الشاشة أولاً - بعض الأهداف (بطاقات
+  // ملخّص طويلة مثلاً) قد تكون أطول من الشاشة أو خارج نطاق العرض الحالي،
+  // فبلا هذا قد يُحسَب موضع الـTooltip خارج الشاشة تماماً.
+  useEffect(() => {
+    if (!step?.target) return;
+    const el = document.querySelector(step.target);
+    if (el) el.scrollIntoView({ block: "center", behavior: "instant" });
+  }, [step?.target, stepIndex]);
+
   // تتبّع مستمر لموضع العنصر الهدف (فتح قائمة، تمرير، تغيير حجم) حتى تبقى
   // الحلقة/الـTooltip فوق العنصر الحقيقي بالضبط لا موضعه القديم.
   useEffect(() => {

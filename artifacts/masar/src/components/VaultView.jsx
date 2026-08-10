@@ -906,7 +906,7 @@ export default function VaultView({ showToast }) {
                 <div key={code} style={VS.wealthExtra}>{formatVaultAmount(amt, code)}</div>
               ))}
               <div style={VS.actionRow}>
-                <button onClick={() => openTxForm("expense")} style={VS.expenseBtn}><ArrowDownCircle size={16} /> {t("vault.recordExpense")}</button>
+                <button onClick={() => openTxForm("expense")} style={VS.expenseBtn} data-tour="vault-record-expense-btn"><ArrowDownCircle size={16} /> {t("vault.recordExpense")}</button>
                 <button onClick={() => openTxForm("income")} style={VS.incomeBtn}><ArrowUpCircle size={16} /> {t("vault.recordDeposit")}</button>
               </div>
             </div>

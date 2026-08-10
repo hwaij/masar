@@ -374,6 +374,31 @@
           "body": "Try a guided breathing exercise to calm your nerves in minutes — tap any duration to start."
         }
       ]
+    },
+    "stage3": {
+      "title": "Stage 3: Productivity",
+      "steps": [
+        {
+          "title": "Focus & Study",
+          "body": "Tap to start a focus timer — Masar tracks your time automatically."
+        },
+        {
+          "title": "Tasks",
+          "body": "We'll show you how to add and complete your tasks now."
+        },
+        {
+          "title": "Goals",
+          "body": "Set weekly, monthly, or yearly goals, and Masar reviews them with you on schedule."
+        },
+        {
+          "title": "Vault",
+          "body": "Log your expenses or income in your currency, and know exactly where your money goes."
+        },
+        {
+          "title": "Reports",
+          "body": "Comprehensive reports bringing your nutrition, fitness, tasks, and goals together in one place."
+        }
+      ]
     }
   },
   "help": {

@@ -769,7 +769,7 @@ export default function MasarApp() {
       {toast && <div style={S.toast}>{toast}</div>}
       {tourOpen && (
         <MasarJourney
-          view={view} setView={setView} profile={profile} healthProfile={healthProfile}
+          view={view} setView={setView} profile={profile} healthProfile={healthProfile} isSub={isSub}
           resumeStage={typeof profile.tourProgress?.core?.stage === "number" ? profile.tourProgress.core.stage : 1}
           resumeStep={typeof profile.tourProgress?.core?.stage === "number" ? profile.tourProgress.core.step : 0}
           onStepChange={advanceJourneyStep}
@@ -856,6 +856,34 @@ const JOURNEY_STAGES = [
       { view: "mental", target: '[data-tour="mental-breathing-start"]', interactive: true, neverLast: true },
     ],
   },
+  {
+    id: "stage3",
+    titleKey: "onboarding.stage3.title",
+    steps: [
+      // 0: التركيز - بدء المؤقّت فقط (لا يلتزم ببيانات محفوظة إلا عند
+      // إكماله يدوياً لاحقاً)، فلا حاجة لخيار "لاحقاً".
+      { view: "focus", target: '[data-tour="focus-timer-start"]', interactive: true },
+      // 1: تسليم كامل لجولة المهام السياقية الموجودة (خطوتان).
+      { view: "tasks", moduleHandoff: "tasks" },
+      // 2: الأهداف - قسم مقفل بالاشتراك بالكامل. للمشترك: تسليم لجولته
+      // السياقية الموجودة. لغير المشترك: بطاقة صادقة فوق بطاقة الترقية
+      // الحقيقية نفسها (راجع منطق requiresSub في MasarJourney).
+      { view: "goals", moduleHandoff: "goals", requiresSub: true },
+      // 3: الخزنة - مقفل بالاشتراك، بلا جولة سياقية جاهزة بعد. Observe لا
+      // Click عمداً: خُطّط أولاً كـinteractive على زر "سجّل مصروفاً"، لكن
+      // الاختبار الفعلي كشف خللاً حقيقياً - بلا waitFor يوقف الرحلة، الضغطة
+      // الحقيقية تُقدّم الخطوة فوراً (نفس منطق كل خطوة تفاعلية أخرى)،
+      // فتنقل المستخدم للتقارير قبل أن يُتاح له فعلياً استخدام النموذج الذي
+      // فتحه للتو - يُبطل الغرض من الضغطة كلياً. إتمام معاملة حقيقية هنا
+      // يحتاج نمط waitFor (كـ"أنت") لكن بلا إشارة اكتمال يمكن مراقبتها من
+      // خارج VaultView المحمَّلة كسولاً بمعزل عن المنسّق دون ربط حالتها
+      // الداخلية للأعلى تحديداً لهذه الجولة - تبسيط متعمَّد، لا محاكاة.
+      { view: "vault", target: '[data-tour="vault-record-expense-btn"]', requiresSub: true },
+      // 4: التقارير - مقفل بالاشتراك، تسليم لجولته السياقية الموجودة (خطوة
+      // واحدة) للمشترك، أو بطاقة صادقة لغير المشترك.
+      { view: "reports", moduleHandoff: "reports", requiresSub: true, neverLast: true },
+    ],
+  },
 ];
 
 // فهرس كل خطوة يُعطَّل "السابق" عندها لأن الخطوة قبلها تضمّنت تنقّلاً
@@ -869,6 +897,10 @@ const JOURNEY_STAGES = [
 const STAGE_BACK_BLOCKED = [
   { 7: true, 10: true, 11: true, 12: true }, // stage1
   { 2: true, 5: true }, // stage2: بعد تسليم التغذية (1) وبعد تسليم الرياضة (4)
+  // stage3: بعد تسليم المهام (1)، وبعد الأهداف (2 - تسليم للمشترك أو
+  // بطاقة ترقية لغيره، كلاهما محظور رجوعاً للتناسق والبساطة)، وبعد فتح
+  // نموذج الخزنة الحقيقي (3 - حالة داخلية لصفحة منفصلة يستحيل إعادة بنائها).
+  { 2: true, 3: true, 4: true },
 ];
 
 // (stageIndex → { stepIndexAfter: stepIndexOfRealActionStep }) لكل حالة لا
@@ -880,7 +912,7 @@ const DYNAMIC_BACK_BLOCK = [
   { 9: 8 }, // stage1: خطوة 9 تُحظَر إن نُفِّذ فعل خطوة 8 (تسجيل الصلاة) فعلاً
 ];
 
-function MasarJourney({ view, setView, profile, healthProfile, resumeStage, resumeStep, onStepChange, onPause, onFinishAll }) {
+function MasarJourney({ view, setView, profile, healthProfile, isSub, resumeStage, resumeStep, onStepChange, onPause, onFinishAll }) {
   const { t } = useTranslation();
   const initialStageIdx = Math.min(Math.max((Number(resumeStage) || 1) - 1, 0), JOURNEY_STAGES.length - 1);
   const stageForInit = JOURNEY_STAGES[initialStageIdx];
@@ -909,6 +941,20 @@ function MasarJourney({ view, setView, profile, healthProfile, resumeStage, resu
   const atStageComplete = stepIndex >= steps.length;
   const backBlocked = STAGE_BACK_BLOCKED[stageIndex] || {};
 
+  // requiresSub: خطوة مبنية أصلاً حول جولة/فعل حقيقي داخل قسم مقفل
+  // بالاشتراك (الأهداف/الخزنة/التقارير). للمشترك تعمل كما هي بالضبط
+  // (moduleHandoff أو target حقيقي). لغير المشترك، الشاشة الحقيقية هي
+  // بطاقة الترقية (UpsellCard) فقط - فتتحوّل هذه الخطوة تلقائياً لبطاقة
+  // تعريفية صادقة تُسلّط الضوء على تلك البطاقة الحقيقية نفسها (لا بطاقة
+  // منفصلة مختلقة)، بلا أي تفاعل مطلوب أو مُتاح، ثم تكمل عادياً بـ"التالي" -
+  // بلا محاولة إجبار اشتراك أو محاكاة وظيفة غير موجودة فعلياً للمستخدم.
+  const rawCurrentStep = steps[stepIndex];
+  const isLockedForFree = !!(rawCurrentStep?.requiresSub && !isSub);
+  const currentStep = isLockedForFree
+    ? { view: rawCurrentStep.view, title: rawCurrentStep.title, body: rawCurrentStep.body, neverLast: rawCurrentStep.neverLast, target: '[data-tour="upsell-card"]' }
+    : rawCurrentStep;
+  const displaySteps = steps.map((s, i) => (i === stepIndex ? currentStep : s));
+
   // كل خطوة تعرف الشاشة التي تنتمي إليها - إن لم يكن التطبيق عليها فعلاً
   // (تقدّماً أو رجوعاً)، ننقل المستخدم إليها تلقائياً؛ فقط خطوة "افتح
   // القائمة" التمهيدية تعتمد على ضغطة المستخدم الحقيقية لتغيير الشاشة.
@@ -929,11 +975,10 @@ function MasarJourney({ view, setView, profile, healthProfile, resumeStage, resu
   // انتظار - لا شيء يتغيّر لتنتظره.
   useEffect(() => {
     if (showResumeBanner || atStageComplete) return;
-    const s = steps[stepIndex];
-    if (!s?.moduleHandoff) return;
-    const done = !!profile?.tourProgress?.modules?.[s.moduleHandoff]?.done;
+    if (!currentStep?.moduleHandoff) return;
+    const done = !!profile?.tourProgress?.modules?.[currentStep.moduleHandoff]?.done;
     if (done) goNext();
-  }, [stepIndex, stageIndex, atStageComplete, showResumeBanner, profile?.tourProgress]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [stepIndex, stageIndex, atStageComplete, showResumeBanner, profile?.tourProgress, currentStep]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // مراقبة اكتمال الفعل الحقيقي أثناء "الانتظار" (بعد اختيار "املأها
   // الآن") - حالياً معرَّف فقط لـ"you-save" (بيانات "أنت" الأساسية)؛ أي
@@ -1005,8 +1050,8 @@ function MasarJourney({ view, setView, profile, healthProfile, resumeStage, resu
     );
   }
 
-  if (!atStageComplete && steps[stepIndex]?.waitFor) {
-    const s = steps[stepIndex];
+  if (!atStageComplete && currentStep?.waitFor) {
+    const s = currentStep;
     if (activeWait === s.waitFor) return null; // بانتظار الفعل الحقيقي - الصفحة الحقيقية وحدها تُعرض
     return (
       <div style={TourStyles.root}>
@@ -1046,11 +1091,11 @@ function MasarJourney({ view, setView, profile, healthProfile, resumeStage, resu
   // خطوة تسليم: لا Spotlight من المنسّق هنا إطلاقاً - الصفحة الحقيقية
   // (وجولتها السياقية المحلية إن لم تكتمل بعد) هي كل ما يُعرض، حتى تتطابق
   // تجربتها تماماً مع فتحها المستقل خارج هذه الرحلة.
-  if (steps[stepIndex]?.moduleHandoff) return null;
+  if (currentStep?.moduleHandoff) return null;
 
   return (
     <SpotlightTour
-      steps={steps}
+      steps={displaySteps}
       stepIndex={stepIndex}
       onNext={goNext}
       onBack={canGoBack() ? goBack : undefined}
@@ -4615,7 +4660,7 @@ function FocusView({ focus, setFocus, commitments, setCommitments, categories, e
               <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t("focus.focusOnPlaceholder")} style={{ ...S.input, marginTop: 12 }} />
               <div style={S.timerControls}>
                 <button onClick={reset} style={S.timerSecondary}><RotateCcw size={18} /></button>
-                <button onClick={toggle} style={S.timerPrimary}>
+                <button onClick={toggle} style={S.timerPrimary} data-tour="focus-timer-start">
                   {running ? <Pause size={20} /> : <Play size={20} />}
                   {running ? t("focus.pause") : sessionRef.current ? t("focus.resume") : t("focus.start")}
                 </button>
@@ -5526,7 +5571,7 @@ const SUBSCRIBE_INSTAGRAM_URL = "https://www.instagram.com/hjmasar";
 function UpsellCard({ icon: Icon = Crown, title, message, compact }) {
   const { t } = useTranslation();
   return (
-    <div style={{ ...SUB.upsellCard, ...(compact ? SUB.upsellCardCompact : {}) }}>
+    <div style={{ ...SUB.upsellCard, ...(compact ? SUB.upsellCardCompact : {}) }} data-tour="upsell-card">
       <div style={SUB.upsellIconBadge}><Icon size={compact ? 20 : 26} color="var(--on-accent)" /></div>
       <div style={SUB.upsellTitle}>{title}</div>
       <p style={SUB.upsellMessage}>{message}</p>

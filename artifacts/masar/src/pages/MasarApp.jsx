@@ -84,6 +84,7 @@ class LazySectionErrorBoundary extends React.Component {
   }
 }
 import SideMenu, { MENU_SECTIONS, SECTION_COLOR_PALETTE } from "../components/SideMenu";
+import SpotlightTour from "../components/SpotlightTour";
 import Sidebar from "../components/Sidebar";
 import TasbihIcon from "../components/TasbihIcon";
 
@@ -278,7 +279,7 @@ export default function MasarApp() {
   const [categories, setCategories] = useState([]);
   const [reports, setReports] = useState([]);
   const [gamify, setGamify] = useState({ points: 0, badges: [] });
-  const [profile, setProfile] = useState({ name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", language: "ar" });
+  const [profile, setProfile] = useState({ name: "", about: "", hobbies: "", field: "", tourSeen: false, tourProgress: {}, theme: "dark", language: "ar" });
   const [tourOpen, setTourOpen] = useState(false);
   const [theme, setTheme] = useState(() => store.getLocalTheme());
   const [fontSize, setFontSize] = useState(() => store.getLocalFontSize());
@@ -329,7 +330,7 @@ export default function MasarApp() {
         withTimeout(store.loadTasks(), T, []),
         withTimeout(store.loadReports(), T, []),
         withTimeout(store.loadGamify(), T, { points: 0, badges: [] }),
-        withTimeout(store.loadProfile(), T, { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", language: "ar" }),
+        withTimeout(store.loadProfile(), T, { name: "", about: "", hobbies: "", field: "", tourSeen: false, tourProgress: {}, theme: "dark", language: "ar" }),
         withTimeout(store.loadMandatoryLog(), T, {}),
         withTimeout(store.loadFocus(), T, []),
         withTimeout(store.loadSubscription(), T, { isSubscriber: false, subscriptionEnd: null, isVip: false, subscriptionType: null }),
@@ -461,11 +462,27 @@ export default function MasarApp() {
 
   const closeTour = useCallback(() => {
     setTourOpen(false);
-    setProfile((p) => ({ ...p, tourSeen: true }));
+    setProfile((p) => ({ ...p, tourSeen: true, tourProgress: { ...p.tourProgress, core: { step: 0 } } }));
     store.saveTourSeen(true);
+    store.saveTourProgress({ core: { step: 0 } });
   }, []);
 
-  const startTour = useCallback(() => setTourOpen(true), []);
+  // "إعادة الجولة" من الإعدادات تبدأ دائماً من الخطوة الأولى، لا من آخر
+  // نقطة توقّف قديمة محفوظة صدفة.
+  const startTour = useCallback(() => {
+    setProfile((p) => ({ ...p, tourProgress: { ...p.tourProgress, core: { step: 0 } } }));
+    store.saveTourProgress({ core: { step: 0 } });
+    setTourOpen(true);
+  }, []);
+
+  // يُستدعى من OnboardingTour عند كل انتقال بين خطوات الجولة الأساسية -
+  // يحفظ رقم الخطوة الحالية حتى يستأنف المستخدم من نفس النقطة تماماً إن
+  // أغلق التطبيق في المنتصف قبل اكتمال الجولة (بدون انتظار الحفظ، لا يوقف
+  // الواجهة).
+  const advanceCoreTourStep = useCallback((step) => {
+    setProfile((p) => ({ ...p, tourProgress: { ...p.tourProgress, core: { step } } }));
+    store.saveTourProgress({ core: { step } });
+  }, []);
 
   // مزامنة المظهر مع الحساب بعد اكتمال كل تحميل — يغطي حالة تسجيل الدخول
   // من متصفح/جهاز آخر كان قد اختار مظهراً مختلفاً سابقاً على هذا الحساب.
@@ -734,89 +751,69 @@ export default function MasarApp() {
       </div>
       </div>
       {toast && <div style={S.toast}>{toast}</div>}
-      {tourOpen && <OnboardingTour onClose={closeTour} />}
+      {tourOpen && <OnboardingTour onClose={closeTour} resumeStep={profile.tourProgress?.core?.step} onStepChange={advanceCoreTourStep} />}
       {dailyTip && <DailyTipModal tip={dailyTip} onClose={() => setDailyTip(null)} />}
     </div>
   );
 }
 
-// أيقونات/بيانات كل خطوة فقط - النصوص (title/body) تُقرأ من onboarding.steps
-// في ملفات الترجمة عبر returnObjects، حتى تبقى الأيقونة/التمييز/كونها
-// الخطوة الأخيرة ثابتة بغض النظر عن اللغة.
-const TOUR_META = [
-  { icon: "◐" },
-  { Icon: User, emphasize: true },
-  { Icon: Clock },
-  { Icon: Moon },
-  { Icon: Eye },
-  { Icon: Timer },
-  { Icon: Target },
-  { Icon: Wallet },
-  { Icon: TrendingUp },
+// الجولة الأساسية (Core Tour) - أُعيد بناؤها بالكامل فوق محرك SpotlightTour
+// القابل لإعادة الاستخدام، بدل 11 شاشة نصية متطابقة الشكل كما كانت سابقاً.
+// 6 خطوات قصيرة فقط، بخطوة تفاعلية حقيقية واحدة (فتح القائمة بضغطة
+// المستخدم نفسه لا بشرح نظري)، وبلا إغراق بالتفاصيل: كل قسم (تغذية/
+// رياضة/مهام/أهداف/تقارير/AI) له جولته السياقية الخاصة المستقلة أول مرة
+// يُفتح فعلياً (راجع كل قسم على حدة) بدل شرحه هنا مسبقاً. الأيقونة تظهر
+// فقط في الشاشتين المركزيتين (ترحيب/ختام) - خطوات الـSpotlight الوسطى
+// أصغر حجماً وتلتصق بالعنصر الحقيقي مباشرة. target تُطابق data-tour
+// المضافة على زر القائمة (MasarApp) وعناصر التنقل (SideMenu).
+const CORE_TOUR_META = [
   { Icon: Sparkles },
-  { Icon: Heart, isLast: true },
+  { target: '[data-tour="menu-btn"]', interactive: true },
+  { target: '[data-tour="nav-nutrition"]' },
+  { target: '[data-tour="nav-you"]' },
+  {},
+  { Icon: Heart },
 ];
 
-function OnboardingTour({ onClose }) {
+function OnboardingTour({ onClose, resumeStep, onStepChange }) {
   const { t } = useTranslation();
-  const tourSteps = t("onboarding.steps", { returnObjects: true });
-  const [step, setStep] = useState(0);
-  const s = { ...TOUR_META[step], ...(tourSteps[step] || {}) };
-  const isLast = step === TOUR_META.length - 1;
-  const Icon = s.Icon;
+  const tourTexts = t("onboarding.steps", { returnObjects: true });
+  const [stepIndex, setStepIndex] = useState(() => {
+    const n = Number(resumeStep) || 0;
+    return Math.min(Math.max(n, 0), CORE_TOUR_META.length - 1);
+  });
+  const steps = CORE_TOUR_META.map((meta, i) => ({ ...meta, ...(tourTexts[i] || {}) }));
+
+  function goNext() {
+    setStepIndex((cur) => {
+      const next = Math.min(cur + 1, steps.length - 1);
+      onStepChange(next);
+      return next;
+    });
+  }
+  function goBack() {
+    setStepIndex((cur) => {
+      const prev = Math.max(cur - 1, 0);
+      onStepChange(prev);
+      return prev;
+    });
+  }
 
   return (
-    <div style={OT.overlay} onClick={onClose}>
-      <motion.div
-        key={step}
-        initial={{ opacity: 0, y: 14, scale: 0.97 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-        style={OT.card}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button onClick={onClose} style={OT.skipX}><X size={18} /></button>
-        <div style={{ ...OT.iconBadge, ...(s.emphasize ? OT.iconBadgeEmphasize : {}) }}>
-          {Icon ? <Icon size={26} color="var(--on-accent)" /> : <span style={{ fontSize: 30 }}>{s.icon}</span>}
-        </div>
-        <div style={OT.title}>{s.title}</div>
-        <p style={{ ...OT.body, ...(s.emphasize ? OT.bodyEmphasize : {}) }}>{s.body}</p>
-        <div style={OT.dots}>
-          {TOUR_META.map((_, i) => (
-            <span key={i} style={{ ...OT.dot, ...(i === step ? OT.dotActive : {}) }} />
-          ))}
-        </div>
-        <div style={OT.actions}>
-          {!isLast && <button onClick={onClose} style={OT.skipBtn}>{t("onboarding.skip")}</button>}
-          <button
-            onClick={() => (isLast ? onClose() : setStep((n) => n + 1))}
-            style={{ ...OT.nextBtn, ...(isLast ? OT.nextBtnLast : {}) }}
-          >
-            {isLast ? t("onboarding.start") : t("onboarding.next")}
-          </button>
-        </div>
-      </motion.div>
-    </div>
+    <SpotlightTour
+      steps={steps}
+      stepIndex={stepIndex}
+      onNext={goNext}
+      onBack={goBack}
+      onSkip={onClose}
+      onFinish={onClose}
+      labels={{
+        skip: t("onboarding.skip"), next: t("onboarding.next"), start: t("onboarding.start"),
+        back: t("common.buttons.back"), tapHere: t("onboarding.tapHere"),
+      }}
+    />
   );
 }
-
-const OT = {
-  overlay: { position: "fixed", inset: 0, background: "rgba(6,6,7,0.78)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 20 },
-  card: { position: "relative", width: "100%", maxWidth: 360, background: "linear-gradient(165deg, var(--panel), var(--surface-sunken))", border: "1px solid var(--line)", borderRadius: 24, padding: "32px 22px 22px", textAlign: "center", boxShadow: "0 20px 60px rgba(0,0,0,0.5)" },
-  skipX: { position: "absolute", top: 14, left: 14, background: "none", border: "none", color: "#5A5650", cursor: "pointer", padding: 6, display: "flex" },
-  iconBadge: { width: 56, height: 56, borderRadius: "50%", background: "linear-gradient(140deg, #E0B868, #C9A24B)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 18px" },
-  iconBadgeEmphasize: { background: "linear-gradient(140deg, #6FC4B8, #3E7E78)" },
-  title: { fontFamily: "'Amiri', serif", fontSize: 20, fontWeight: 700, color: "var(--ink)", marginBottom: 10 },
-  body: { fontSize: 13.5, color: "var(--muted2)", lineHeight: 1.9, marginBottom: 22 },
-  bodyEmphasize: { color: "#BFD8D4" },
-  dots: { display: "flex", justifyContent: "center", gap: 6, marginBottom: 20 },
-  dot: { width: 6, height: 6, borderRadius: "50%", background: "var(--border2)" },
-  dotActive: { background: "#C9A24B", width: 18 },
-  actions: { display: "flex", alignItems: "center", justifyContent: "center", gap: 10 },
-  skipBtn: { background: "none", border: "none", color: "var(--muted2)", fontSize: 13.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", padding: "13px 14px" },
-  nextBtn: { flex: 1, background: "var(--gold)", color: "var(--bg)", border: "none", borderRadius: 12, padding: "13px 0", fontSize: 14.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
-  nextBtnLast: { flex: "1 0 auto" },
-};
 
 function SplashScreen({ onDone }) {
   const { t, i18n } = useTranslation();
@@ -1052,6 +1049,7 @@ function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSign
               onClick={() => setMenuOpen(true)}
               aria-label={t("nav.menu")}
               className="masar-menu-btn"
+              data-tour="menu-btn"
               style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: 10, background: "var(--surface-sunken)", border: "1px solid var(--line)", color: "var(--ink)", cursor: "pointer", flexShrink: 0, padding: 0 }}
             >
               <Menu size={18} />

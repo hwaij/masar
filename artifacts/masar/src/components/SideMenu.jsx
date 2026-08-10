@@ -158,7 +158,7 @@ export default function SideMenu({ open, onClose, view, setView, customColorsEna
                       ? { background: `${customColor}20`, color: customColor }
                       : MS.itemActive;
                     return (
-                      <button key={item.id} onClick={() => go(item.id)} style={{ ...MS.item, ...(active ? activeStyle : {}) }}>
+                      <button key={item.id} data-tour={`nav-${item.id}`} onClick={() => go(item.id)} style={{ ...MS.item, ...(active ? activeStyle : {}) }}>
                         <span style={MS.itemIcon}><Icon size={18} /></span>
                         {t(item.labelKey)}
                         {customColor && <span style={{ ...MS.colorDot, background: customColor }} />}

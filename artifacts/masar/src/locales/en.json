@@ -224,50 +224,31 @@
     "skip": "Skip",
     "start": "Start your journey now 🤍",
     "next": "Next",
+    "tapHere": "Tap here to continue",
     "steps": [
       {
         "title": "Welcome to Masar",
-        "body": "Your personal space for productivity and worship. A quick tour of the app's key sections."
+        "body": "Let's set Masar up together in under two minutes."
       },
       {
-        "title": "Start with Settings first",
-        "body": "Add your hobbies and a short bio in \"Settings\" — this step really matters. Without it, the AI in \"Achieve\" and \"Assistant\" can't personalize anything for you, and its suggestions will feel generic."
+        "title": "Your way around Masar",
+        "body": "Everything in Masar is one tap away from here. Tap the menu to open it."
       },
       {
-        "title": "Today",
-        "body": "Log your daily activities and see them on the interactive time wheel, alongside your core daily tasks."
+        "title": "Nutrition",
+        "body": "One of Masar's most useful sections — logging a meal takes seconds. We'll walk you through it step by step the first time you open it."
       },
       {
-        "title": "Your daily worship",
-        "body": "Track your prayers and daily religious tasks like istighfar and Quran reading in \"Prayer\", and your adhkar in \"Adhkar\"."
+        "title": "Start with You",
+        "body": "Tell Masar about your goals and interests here first — the more accurate this is, the better every suggestion Masar gives you becomes."
       },
       {
-        "title": "Wisdom",
-        "body": "A new tip awaits you every day in \"Wisdom\", blending worldly and spiritual wisdom, without repeating for a long while. You can also browse the archive of past tips on the same page."
-      },
-      {
-        "title": "Your productivity tools",
-        "body": "Run focus and study sessions in \"Focus\", and organize your daily tasks in \"Tasks\"."
-      },
-      {
-        "title": "Goals",
-        "body": "Write your weekly, monthly, or yearly goals in \"Goals\", and track them on a visual calendar that reminds you of review dates, with points awarded or deducted based on your progress."
-      },
-      {
-        "title": "Vault",
-        "body": "Track your balance in your currency in \"Vault\", and log every expense or deposit with its reason so you know exactly where your money goes, plus a new financial tip every day."
-      },
-      {
-        "title": "Reports",
-        "body": "See your weekly progress with clear numbers and analysis in \"Reports\", so you know where you're improving and where you need more effort."
-      },
-      {
-        "title": "AI features",
-        "body": "\"Achieve\" suggests challenges and projects suited to you, and \"Assistant\" is your personal chat coach. Both rely on your hobbies and bio in Settings to make suggestions truly personal."
+        "title": "Everything else",
+        "body": "Workouts, tasks, goals, reports, and AI — Masar will guide you through each one the first time you actually open it, no need to memorize anything now."
       },
       {
         "title": "Ready?",
-        "body": "Start your journey now 🤍"
+        "body": "You're all set. Let's go!"
       }
     ]
   },

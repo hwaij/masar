@@ -85,6 +85,7 @@ class LazySectionErrorBoundary extends React.Component {
 }
 import SideMenu, { MENU_SECTIONS, SECTION_COLOR_PALETTE } from "../components/SideMenu";
 import SpotlightTour from "../components/SpotlightTour";
+import { useModuleTour } from "../lib/useModuleTour";
 import Sidebar from "../components/Sidebar";
 import TasbihIcon from "../components/TasbihIcon";
 
@@ -713,21 +714,21 @@ export default function MasarApp() {
         {view === "tips" && <TipsView tipsLog={tipsLog} setTipsLog={setTipsLog} showToast={showToast} subscription={subscription} />}
         {/* "missing locale key" لكل بطاقات الترقية أدناه (goals/vault/achieve/reportsView/assistant.upsellTitle
             و upsellMessage) - لا مفتاح مخصص لها بعد في ملفات الترجمة، استُخدم نص إنجليزي/عربي حرفي بديل مؤقتاً. */}
-        {view === "goals" && (isSub ? <GoalsView goals={goals} setGoals={setGoals} addPoints={addPoints} showToast={showToast} /> : (
+        {view === "goals" && (isSub ? <GoalsView goals={goals} setGoals={setGoals} addPoints={addPoints} showToast={showToast} profile={profile} setProfile={setProfile} /> : (
           <div style={S.view}><UpsellCard icon={Target} title={i18n.language === "en" ? "Plan your goals with Masar Premium" : "خطّط لأهدافك مع مسار الكامل"} message={i18n.language === "en" ? "Set your weekly, monthly, and yearly goals, and track your progress on a visual calendar with periodic reviews and points accountability." : "حدّد أهدافك الأسبوعية والشهرية والسنوية، وتابع إنجازك على تقويم بصري مع مراجعات دورية ومحاسبة بالنقاط."} /></div>
         ))}
         {view === "vault" && !isSub && (
           <div style={S.view}><UpsellCard icon={Wallet} title={i18n.language === "en" ? "Track your money with Masar Premium" : "تتبّع أموالك مع مسار الكامل"} message={i18n.language === "en" ? "Log your balance and expenses in your currency, and know exactly where your money goes, with a new financial tip every day." : "سجّل رصيدك ومصروفاتك بعملتك، واعرف أين تذهب أموالك بالضبط، مع نصيحة مالية جديدة كل يوم."} /></div>
         )}
-        {view === "tasks" && <TasksView tasks={tasks} setTasks={setTasks} categories={categories} addPoints={addPoints} showToast={showToast} subscription={subscription} />}
+        {view === "tasks" && <TasksView tasks={tasks} setTasks={setTasks} categories={categories} addPoints={addPoints} showToast={showToast} subscription={subscription} profile={profile} setProfile={setProfile} />}
         {view === "focus" && <FocusView focus={focus} setFocus={setFocus} commitments={commitments} setCommitments={setCommitments} categories={categories} entries={entries} addPoints={addPoints} showToast={showToast} subscription={subscription} />}
         {view === "achieve" && (isSub ? <AchieveView achieve={achieve} setAchieve={setAchieve} profile={profile} focus={focus} tasks={tasks} prayerLog={prayerLog} religious={religious} addPoints={addPoints} showToast={showToast} setView={setView} /> : (
           <div style={S.view}><UpsellCard icon={Rocket} title={i18n.language === "en" ? "Achieve is waiting for you in Masar Premium" : "أنجز ينتظرك في مسار الكامل"} message={i18n.language === "en" ? "Achieve knows your hobbies and suggests challenges, projects, and learning paths made specifically for you." : "أنجز يعرف هواياتك ويقترح لك تحديات ومشاريع ومسارات تعلّم تناسبك أنت تحديداً."} /></div>
         ))}
-        {view === "reports" && (isSub ? <ReportsView entries={entries} categories={categories} focus={focus} profile={profile} healthProfile={healthProfile} sleepLog={sleepLog} setSleepLog={setSleepLog} showToast={showToast} tasks={tasks} goals={goals} /> : (
+        {view === "reports" && (isSub ? <ReportsView entries={entries} categories={categories} focus={focus} profile={profile} setProfile={setProfile} healthProfile={healthProfile} sleepLog={sleepLog} setSleepLog={setSleepLog} showToast={showToast} tasks={tasks} goals={goals} /> : (
           <div style={S.view}><UpsellCard icon={TrendingUp} title={i18n.language === "en" ? "Your detailed reports in Masar Premium" : "تقاريرك التفصيلية في مسار الكامل"} message={i18n.language === "en" ? "See your progress with clear numbers and analysis, and track your sleep and rest pattern across days." : "شاهد تقدّمك بأرقام وتحليلات واضحة، وتتبّع نومك ونمط راحتك عبر الأيام."} /></div>
         ))}
-        {view === "assistant" && (isSub ? <AssistantView entries={entries} tasks={tasks} categories={categories} focus={focus} prayerLog={prayerLog} religious={religious} profile={profile} stats={stats} setView={setView} healthProfile={healthProfile} goals={goals} showToast={showToast} /> : (
+        {view === "assistant" && (isSub ? <AssistantView entries={entries} tasks={tasks} categories={categories} focus={focus} prayerLog={prayerLog} religious={religious} profile={profile} setProfile={setProfile} stats={stats} setView={setView} healthProfile={healthProfile} goals={goals} showToast={showToast} /> : (
           <div style={S.view}><UpsellCard icon={MessageCircle} title={i18n.language === "en" ? "Your AI assistant in Masar Premium" : "مساعدك الذكي في مسار الكامل"} message={i18n.language === "en" ? "A personal coach who analyzes your day and habits and suggests practical steps based on your actual data." : "مدرّب شخصي يحلّل يومك وعاداتك ويقترح خطوات عملية بناءً على بياناتك الفعلية."} /></div>
         ))}
         {view === "you" && <YouView healthProfile={healthProfile} setHealthProfile={setHealthProfile} showToast={showToast} />}
@@ -737,7 +738,7 @@ export default function MasarApp() {
               {view === "nutrition" && <NutritionView healthProfile={healthProfile} showToast={showToast} profile={profile} setProfile={setProfile} subscription={subscription} />}
               {view === "nutritionPlan" && <NutritionPlanView healthProfile={healthProfile} showToast={showToast} subscription={subscription} setView={setView} />}
               {view === "dietPlans" && <DietPlansView healthProfile={healthProfile} showToast={showToast} subscription={subscription} />}
-              {view === "fitness" && <FitnessView healthProfile={healthProfile} showToast={showToast} />}
+              {view === "fitness" && <FitnessView healthProfile={healthProfile} showToast={showToast} profile={profile} setProfile={setProfile} />}
               {view === "mental" && <MentalHealthView setView={setView} showToast={showToast} />}
               {view === "groups" && isSub && <GroupsView showToast={showToast} />}
               {view === "vault" && isSub && <VaultView showToast={showToast} />}
@@ -1441,7 +1442,7 @@ function addDaysKey(dateKey, delta) {
 
 const FREE_TASK_LIMIT = 3;
 
-function TasksView({ tasks, setTasks, categories, addPoints, showToast, subscription }) {
+function TasksView({ tasks, setTasks, categories, addPoints, showToast, subscription, profile, setProfile }) {
   const { t, i18n } = useTranslation();
   const language = i18n.language;
   const weekdayShort = WEEKDAY_SHORT[language] || WEEKDAY_SHORT.ar;
@@ -1453,6 +1454,16 @@ function TasksView({ tasks, setTasks, categories, addPoints, showToast, subscrip
   const catMap = useMemo(() => Object.fromEntries(categories.map((c) => [c.id, c])), [categories]);
   const today = todayKey();
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDaysKey(weekStart, i)), [weekStart]);
+
+  // جولة المهام السياقية (Onboarding - Phase D): تظهر أول مرة فقط، وتتقدّم
+  // فور ظهور أول مهمة فعلية في القائمة - بغض النظر عن ضغط زر الإضافة أو
+  // Enter من لوحة المفاتيح (لا نعتمد فقط على استماع الخطوة التفاعلية للنقر).
+  const tasksTour = useModuleTour("tasks", profile, setProfile);
+  const taskCountAtTourStartRef = useRef(tasks.length);
+  useEffect(() => {
+    if (tasksTour.step === 1 && tasks.length > taskCountAtTourStartRef.current) tasksTour.setStep(2);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasksTour.step, tasks.length]);
 
   function shiftWeek(delta) {
     const dayOffset = Math.max(0, weekDays.indexOf(selectedDay));
@@ -1535,7 +1546,7 @@ function TasksView({ tasks, setTasks, categories, addPoints, showToast, subscrip
 
       <div style={S.taskComposer}>
         <input value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addTask()} placeholder={t("tasksView.addTaskPlaceholder", { day: weekdayShort[selectedIdx] })} style={S.taskInput} />
-        <button onClick={addTask} style={S.taskAddBtn}><Plus size={18} /></button>
+        <button onClick={addTask} style={S.taskAddBtn} data-tour="add-task-btn"><Plus size={18} /></button>
       </div>
       <div style={S.taskMeta}>
         <div style={S.catScroll}>
@@ -1553,11 +1564,11 @@ function TasksView({ tasks, setTasks, categories, addPoints, showToast, subscrip
 
       <div style={S.taskList} className="stagger-in responsive-card-list">
         {selectedList.length === 0 && <div style={S.emptyState}><div style={S.emptyStateTitle}>{t("tasksView.emptyTitle")}</div><div style={S.emptyStateSub}>{t("tasksView.emptySub")}</div></div>}
-        {selectedList.map((task) => {
+        {selectedList.map((task, idx) => {
           const cat = catMap[task.catId];
           return (
             <div key={task.id} style={S.taskRow}>
-              <span onClick={() => toggle(task)} style={{ ...S.checkbox, ...(task.done ? S.checkboxDone : {}) }}>{task.done && <Check size={12} />}</span>
+              <span onClick={() => toggle(task)} style={{ ...S.checkbox, ...(task.done ? S.checkboxDone : {}) }} data-tour={idx === 0 ? "task-row-first" : undefined}>{task.done && <Check size={12} />}</span>
               <div style={S.taskInfo}>
                 <div style={{ ...S.taskTitle, ...(task.done ? S.taskTitleDone : {}) }}>{task.title}</div>
                 {cat && <div style={S.taskTags}><span style={S.taskTag}><span style={{ ...S.legendDot, background: cat.color, width: 6, height: 6 }} />{catDisplayName(cat, language)}</span></div>}
@@ -1568,6 +1579,27 @@ function TasksView({ tasks, setTasks, categories, addPoints, showToast, subscrip
         })}
         {selectedStats.complete && <div style={S.dayCompleteBanner}>{t("tasksView.allDoneBanner")}</div>}
       </div>
+
+      {tasksTour.step === 1 && (
+        <SpotlightTour
+          steps={[{ target: '[data-tour="add-task-btn"]', interactive: true, title: t("onboarding.tasksTour.step1Title"), body: t("onboarding.tasksTour.step1Body") }]}
+          stepIndex={0}
+          onNext={() => tasksTour.setStep(2)}
+          onSkip={tasksTour.finish}
+          onFinish={tasksTour.finish}
+          labels={{ skip: t("onboarding.skip"), next: t("onboarding.next"), start: t("common.buttons.ok"), tapHere: t("onboarding.tapHere") }}
+        />
+      )}
+      {tasksTour.step === 2 && (
+        <SpotlightTour
+          steps={[{ target: '[data-tour="task-row-first"]', title: t("onboarding.tasksTour.step2Title"), body: t("onboarding.tasksTour.step2Body") }]}
+          stepIndex={0}
+          onNext={tasksTour.finish}
+          onSkip={tasksTour.finish}
+          onFinish={tasksTour.finish}
+          labels={{ skip: t("onboarding.skip"), next: t("onboarding.next"), start: t("common.buttons.ok"), tapHere: t("onboarding.tapHere") }}
+        />
+      )}
     </div>
   );
 }
@@ -1650,7 +1682,7 @@ const RS = {
   journeyCardLabel: { fontSize: 11, color: "var(--muted2)", marginTop: 4 },
 };
 
-function ReportsView({ entries, categories, focus, profile, healthProfile, sleepLog, setSleepLog, showToast, tasks, goals }) {
+function ReportsView({ entries, categories, focus, profile, setProfile, healthProfile, sleepLog, setSleepLog, showToast, tasks, goals }) {
   const { t, i18n } = useTranslation();
   const language = i18n.language;
   const [range, setRange] = useState("week");
@@ -1659,6 +1691,11 @@ function ReportsView({ entries, categories, focus, profile, healthProfile, sleep
   useEffect(() => { setInsightText(""); setInsightError(false); }, [range]);
   const [subTab, setSubTab] = useState("overview");
   const [exporting, setExporting] = useState(false);
+
+  // جولة التقارير السياقية (Onboarding - Phase D): خطوة واحدة فقط - Spotlight
+  // على تبويب "الشامل" (أغنى تبويب) بانتظار ضغطة حقيقية، وتكتمل الجولة فوراً
+  // بمجرد ذلك (لا حدث "حفظ" لانتظاره هنا كما في التغذية/المهام/الأهداف).
+  const reportsTour = useModuleTour("reports", profile, setProfile);
   const [nutritionLog, setNutritionLog] = useState([]);
   const [nutritionLoaded, setNutritionLoaded] = useState(false);
   // بيانات إضافية خاصة بـ"التقرير الشامل" (Priority 4) - نفس نمط "العرض
@@ -2108,7 +2145,7 @@ function ReportsView({ entries, categories, focus, profile, healthProfile, sleep
         {REPORT_SUB_TABS.map((tab) => {
           const Icon = tab.icon;
           return (
-            <button key={tab.id} onClick={() => setSubTab(tab.id)} style={{ ...S.subTab, ...(subTab === tab.id ? S.subTabActive : {}) }}>
+            <button key={tab.id} onClick={() => setSubTab(tab.id)} style={{ ...S.subTab, ...(subTab === tab.id ? S.subTabActive : {}) }} data-tour={tab.id === "comprehensive" ? "reports-tab-comprehensive" : undefined}>
               <Icon size={13} /> {t(tab.labelKey)}
             </button>
           );
@@ -2483,6 +2520,17 @@ function ReportsView({ entries, categories, focus, profile, healthProfile, sleep
           </>
         )
       )}
+
+      {reportsTour.step === 1 && (
+        <SpotlightTour
+          steps={[{ target: '[data-tour="reports-tab-comprehensive"]', interactive: true, title: t("onboarding.reportsTour.step1Title"), body: t("onboarding.reportsTour.step1Body") }]}
+          stepIndex={0}
+          onNext={reportsTour.finish}
+          onSkip={reportsTour.finish}
+          onFinish={reportsTour.finish}
+          labels={{ skip: t("onboarding.skip"), next: t("onboarding.next"), start: t("common.buttons.ok"), tapHere: t("onboarding.tapHere") }}
+        />
+      )}
     </div>
   );
 }
@@ -2597,7 +2645,7 @@ function SleepSection({ sleepLog, setSleepLog, days, range, showToast }) {
   );
 }
 
-function AssistantView({ entries, tasks, categories, focus, prayerLog, religious, profile, stats, setView, healthProfile, goals, showToast }) {
+function AssistantView({ entries, tasks, categories, focus, prayerLog, religious, profile, setProfile, stats, setView, healthProfile, goals, showToast }) {
   const { t, i18n } = useTranslation();
   const language = i18n.language;
   const today = todayKey();
@@ -2608,6 +2656,16 @@ function AssistantView({ entries, tasks, categories, focus, prayerLog, religious
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const scrollRef = useRef(null);
+
+  // جولة المساعد السياقية (Onboarding - Phase D): تظهر فقط عندما تكون
+  // شرائح الأسئلة الجاهزة معروضة فعلاً (لا محادثة سابقة بعد) - تفاعلية على
+  // أول شريحة (مثال حقيقي، لا شرح نظري)، ثم تلميح ختامي بعد وصول أول رد فعلي.
+  const assistantTour = useModuleTour("ai", profile, setProfile, { active: hasIdentity && !loadingHistory && messages.length === 0 });
+  const msgCountAtTourStartRef = useRef(0);
+  useEffect(() => {
+    if (assistantTour.step === 1 && messages.length > msgCountAtTourStartRef.current) assistantTour.setStep(2);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assistantTour.step, messages.length]);
 
   // بيانات الأقسام غير المحمَّلة مركزياً في MasarApp (الرياضة/التغذية/الماء/
   // الصحة النفسية تتبع نمط "العرض المستقل" نفسه المستخدم في صفحاتها). تُجلب
@@ -2852,8 +2910,8 @@ function AssistantView({ entries, tasks, categories, focus, prayerLog, religious
           </div>
           {!loadingHistory && messages.length === 0 && (
             <div style={HS.suggestionRow}>
-              {suggestions.map((s) => (
-                <button key={s} onClick={() => send(s)} style={HS.suggestionChip}>{s}</button>
+              {suggestions.map((s, sIdx) => (
+                <button key={s} onClick={() => send(s)} style={HS.suggestionChip} data-tour={sIdx === 0 ? "assistant-suggestion-0" : undefined}>{s}</button>
               ))}
             </div>
           )}
@@ -2873,6 +2931,27 @@ function AssistantView({ entries, tasks, categories, focus, prayerLog, religious
         </div>
         )}
       </div>
+
+      {assistantTour.step === 1 && (
+        <SpotlightTour
+          steps={[{ target: '[data-tour="assistant-suggestion-0"]', interactive: true, title: t("onboarding.aiTour.step1Title"), body: t("onboarding.aiTour.step1Body") }]}
+          stepIndex={0}
+          onNext={() => assistantTour.setStep(2)}
+          onSkip={assistantTour.finish}
+          onFinish={assistantTour.finish}
+          labels={{ skip: t("onboarding.skip"), next: t("onboarding.next"), start: t("common.buttons.ok"), tapHere: t("onboarding.tapHere") }}
+        />
+      )}
+      {assistantTour.step === 2 && (
+        <SpotlightTour
+          steps={[{ title: t("onboarding.aiTour.step2Title"), body: t("onboarding.aiTour.step2Body") }]}
+          stepIndex={0}
+          onNext={assistantTour.finish}
+          onSkip={assistantTour.finish}
+          onFinish={assistantTour.finish}
+          labels={{ skip: t("onboarding.skip"), next: t("onboarding.next"), start: t("common.buttons.ok"), tapHere: t("onboarding.tapHere") }}
+        />
+      )}
     </div>
   );
 }
@@ -3755,7 +3834,7 @@ function GoalCalendar({ goal, today }) {
   );
 }
 
-function GoalsView({ goals, setGoals, addPoints, showToast }) {
+function GoalsView({ goals, setGoals, addPoints, showToast, profile, setProfile }) {
   const { t, i18n } = useTranslation();
   const [title, setTitle] = useState("");
   const [period, setPeriod] = useState("weekly");
@@ -3763,6 +3842,15 @@ function GoalsView({ goals, setGoals, addPoints, showToast }) {
   const today = localDayKey();
 
   const hasPendingReason = Object.values(reviewDrafts).some((d) => d?.active);
+
+  // جولة الأهداف السياقية (Onboarding - Phase D): نفس مبدأ جولة المهام -
+  // خطوة تفاعلية على زر الإضافة، ثم تلميح ختامي بعد ظهور أول هدف فعلي.
+  const goalsTour = useModuleTour("goals", profile, setProfile);
+  const goalCountAtTourStartRef = useRef(goals.length);
+  useEffect(() => {
+    if (goalsTour.step === 1 && goals.length > goalCountAtTourStartRef.current) goalsTour.setStep(2);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [goalsTour.step, goals.length]);
 
   async function addGoal() {
     if (!title.trim()) return;
@@ -3837,18 +3925,18 @@ function GoalsView({ goals, setGoals, addPoints, showToast }) {
             ))}
           </div>
           {hasPendingReason && <div style={GS.pendingNote}>{t("goals.finishPendingFirst")}</div>}
-          <button onClick={addGoal} disabled={hasPendingReason} style={{ ...S.saveBtn, marginTop: hasPendingReason ? 8 : 0, ...(hasPendingReason ? { opacity: 0.5, cursor: "default" } : {}) }}>
+          <button onClick={addGoal} disabled={hasPendingReason} style={{ ...S.saveBtn, marginTop: hasPendingReason ? 8 : 0, ...(hasPendingReason ? { opacity: 0.5, cursor: "default" } : {}) }} data-tour="add-goal-btn">
             <Plus size={16} style={{ display: "inline", verticalAlign: "-3px" }} /> {t("goals.addGoal")}
           </button>
         </div>
 
         <div style={GS.goalsList} className="stagger-in responsive-card-list">
           {activeGoals.length === 0 && <div style={S.emptyHint}>{t("goals.emptyState")}</div>}
-          {activeGoals.map((goal) => {
+          {activeGoals.map((goal, goalIdx) => {
             const due = isReviewDue(goal, today);
             const draft = reviewDrafts[goal.id];
             return (
-              <div key={goal.id} style={GS.goalCard}>
+              <div key={goal.id} style={GS.goalCard} data-tour={goalIdx === 0 ? "goal-card-first" : undefined}>
                 <div style={GS.goalTop}>
                   <div>
                     <div style={GS.goalTitle}>{goal.title}</div>
@@ -3907,6 +3995,27 @@ function GoalsView({ goals, setGoals, addPoints, showToast }) {
           </div>
         </div>
       </div>
+
+      {goalsTour.step === 1 && (
+        <SpotlightTour
+          steps={[{ target: '[data-tour="add-goal-btn"]', interactive: true, title: t("onboarding.goalsTour.step1Title"), body: t("onboarding.goalsTour.step1Body") }]}
+          stepIndex={0}
+          onNext={() => goalsTour.setStep(2)}
+          onSkip={goalsTour.finish}
+          onFinish={goalsTour.finish}
+          labels={{ skip: t("onboarding.skip"), next: t("onboarding.next"), start: t("common.buttons.ok"), tapHere: t("onboarding.tapHere") }}
+        />
+      )}
+      {goalsTour.step === 2 && (
+        <SpotlightTour
+          steps={[{ target: '[data-tour="goal-card-first"]', title: t("onboarding.goalsTour.step2Title"), body: t("onboarding.goalsTour.step2Body") }]}
+          stepIndex={0}
+          onNext={goalsTour.finish}
+          onSkip={goalsTour.finish}
+          onFinish={goalsTour.finish}
+          labels={{ skip: t("onboarding.skip"), next: t("onboarding.next"), start: t("common.buttons.ok"), tapHere: t("onboarding.tapHere") }}
+        />
+      )}
     </div>
   );
 }

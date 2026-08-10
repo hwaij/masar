@@ -233,6 +233,34 @@
       "step3Title": "Nice work!",
       "step3Body": "Your calories and macros just updated automatically. Tap any item here to see its full details, including sodium and cholesterol."
     },
+    "tasksTour": {
+      "step1Title": "Add your first task",
+      "step1Body": "Type a task name above, then tap here to add it.",
+      "step2Title": "Mark it done",
+      "step2Body": "Tap the circle next to any task to complete it — Masar tracks your daily consistency automatically."
+    },
+    "goalsTour": {
+      "step1Title": "Set your first goal",
+      "step1Body": "Type a goal above, choose weekly, monthly, or yearly, then tap here to add it.",
+      "step2Title": "Track your progress",
+      "step2Body": "Masar reminds you at review time and adjusts your points based on whether you achieved it."
+    },
+    "aiTour": {
+      "step1Title": "Try it with a real question",
+      "step1Body": "Tap this example — Masar answers using your actual logged data, not generic advice.",
+      "step2Title": "Ask anything, anytime",
+      "step2Body": "Type your own questions whenever you like — Masar always answers based on what you've really logged."
+    },
+    "reportsTour": {
+      "step1Title": "The full picture",
+      "step1Body": "Tap \"Comprehensive\" for a complete digest across nutrition, fitness, tasks, and goals."
+    },
+    "fitnessTour": {
+      "step1Title": "Set up your plan",
+      "step1Body": "Choose your goal, experience, and equipment above, then tap here to build your personalized workout plan.",
+      "step2Title": "Start your first workout",
+      "step2Body": "Tap here to begin. The rest timer between sets runs fully automatically — use the +10s/-10s buttons anytime to adjust it."
+    },
     "steps": [
       {
         "title": "Welcome to Masar",

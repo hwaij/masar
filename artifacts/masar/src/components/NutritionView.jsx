@@ -1849,7 +1849,7 @@ function LabelPhotoPanel({ onSave, onManual, preselectedMealType }) {
   );
 }
 
-export default function NutritionView({ healthProfile, showToast, profile, setProfile, subscription }) {
+export default function NutritionView({ healthProfile, showToast, profile, setProfile, subscription, journeyActive }) {
   const { t, i18n } = useTranslation();
   const [loaded, setLoaded] = useState(false);
   const [nutritionLog, setNutritionLog] = useState([]);
@@ -1906,13 +1906,16 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
   const breakfastCountAtTourStartRef = useRef(0);
 
   useEffect(() => {
-    if (loaded && !nutritionTourDone && !nutritionTourStartedRef.current) {
+    // journeyActive: لا تبدأ هذه الجولة المحلية تلقائياً أثناء زيارة رحلة
+    // مسار المتصلة الأساسية لهذه الصفحة (Observe فقط) - تبقى متاحة كاملة
+    // لمن يفتح التغذية مستقلاً، أو يعيد تشغيلها يدوياً من الإعدادات لاحقاً.
+    if (loaded && !nutritionTourDone && !nutritionTourStartedRef.current && !journeyActive) {
       nutritionTourStartedRef.current = true;
       breakfastCountAtTourStartRef.current = nutritionLog.filter((e) => e.date === today && e.mealType === "breakfast").length;
       setNutritionTourStep(1);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded, nutritionTourDone]);
+  }, [loaded, nutritionTourDone, journeyActive]);
 
   // انتظار سلبي بلا Spotlight معروض: بمجرد أن يُغلَق الشيت (انتهت عملية
   // الإضافة أياً كانت طريقتها) ويظهر صنف فطور جديد فعلاً في السجل، تُعرض

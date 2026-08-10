@@ -649,7 +649,7 @@ function StatisticsView({ isEn, isRtl, t, progressChartData, exerciseOptions, se
   );
 }
 
-export default function FitnessView({ healthProfile, showToast, profile, setProfile }) {
+export default function FitnessView({ healthProfile, showToast, profile, setProfile, journeyActive }) {
   const { t, i18n } = useTranslation();
   const isEn = i18n.language === "en";
   const isRtl = !isEn;
@@ -766,7 +766,7 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
   //
   // شرح المؤقّت التلقائي وأزرار +10/-10 يبقى نصياً في تلميح الخطوة 4 نفسها
   // بدل Spotlight حي داخل وضع التركيز - لنفس سبب الهشاشة الموثَّق سابقاً.
-  const fitnessTour = useModuleTour("fitness", profile, setProfile, { active: loaded });
+  const fitnessTour = useModuleTour("fitness", profile, setProfile, { active: loaded && !journeyActive });
   useEffect(() => {
     if (fitnessTour.step === 1 && hasProfile) fitnessTour.setStep(2);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1186,7 +1186,7 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
         <div style={FS.formCard}>
           <p style={FS.noteText}>{t("fitness.yourAssessmentNote")}</p>
           <label style={S.label}>{t("fitness.goal")}</label>
-          <div style={FS.chipRow}>
+          <div style={FS.chipRow} data-tour="fitness-goal-row">
             {FITNESS_GOALS.map((g) => (
               <button key={g.key} onClick={() => setDraft((d) => ({ ...d, goal: g.key }))} style={{ ...FS.chip, ...(draft.goal === g.key ? FS.chipActive : {}) }}>{t(`fitness.goals.${g.key}`)}</button>
             ))}
@@ -1210,7 +1210,7 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
             ))}
           </div>
           <label style={S.label}>{t("fitness.availableEquipment")}</label>
-          <div style={FS.chipRow}>
+          <div style={FS.chipRow} data-tour="fitness-equipment-row">
             {EQUIPMENT_ENVIRONMENTS.map((eq) => (
               <button key={eq.key} onClick={() => setDraft((d) => ({ ...d, equipment: eq.key }))} style={{ ...FS.chip, ...(draft.equipment === eq.key ? FS.chipActive : {}) }}>{t(`fitness.equipmentLevels.${eq.key}`)}</button>
             ))}

@@ -322,7 +322,7 @@
         },
         {
           "title": "Log a prayer",
-          "body": "Tap to log a prayer you've actually prayed — Masar times it and awards you points. Already prayed it? Log it now, or continue the tour and log it later."
+          "body": "Tap here to log a prayer you've actually prayed — Masar times it and awards you points."
         },
         {
           "title": "Istighfar, Adhkar & Quran",
@@ -330,11 +330,7 @@
         },
         {
           "title": "Adhkar",
-          "body": "This is the full Adhkar section — real texts and repetition counters, separate from the mini checklist inside Prayer. Try tapping any category to open it."
-        },
-        {
-          "title": "The dhikr counter",
-          "body": "Tap any dhikr to count down its repetitions — this is how Masar tracks adhkar. Try it now, or continue the tour and come back to it later."
+          "body": "This is the full Adhkar section — 3 categories (morning, evening, sleep), each with real adhkar texts and a repetition counter you tap to count down — completely separate from the mini checklist inside Prayer."
         },
         {
           "title": "The daily wisdom",
@@ -347,11 +343,35 @@
       "steps": [
         {
           "title": "Your basic data",
-          "body": "Your height, weight, and age here are the foundation of every nutrition and fitness calculation. Fill it in and save now, or continue the tour and come back to it later."
+          "body": "Your height, weight, age, gender, and activity level here let Masar calculate your BMI and daily calorie needs."
         },
         {
           "title": "Nutrition",
-          "body": "We'll walk you through logging a meal step by step now."
+          "body": "This is where you log breakfast — the same way works for lunch, dinner, and snacks."
+        },
+        {
+          "title": "Ways to add food",
+          "body": "You can add food by searching its name, scanning a product barcode directly, or even photographing your meal for AI to recognize it."
+        },
+        {
+          "title": "Your daily totals",
+          "body": "Protein, carbs, and fat here are calculated just for you, along with fiber, sodium, and key vitamins and minerals."
+        },
+        {
+          "title": "Track your water",
+          "body": "Tap here each time you drink a glass of water, and Masar tracks your daily goal."
+        },
+        {
+          "title": "Your fitness goal",
+          "body": "Choose your goal — losing fat, building muscle, general fitness, or maintaining your weight."
+        },
+        {
+          "title": "Your available equipment",
+          "body": "Choose your environment — a full gym, home with light weights, or no equipment at all — Masar builds a program that fits it."
+        },
+        {
+          "title": "Your program & Focus Mode",
+          "body": "Once saved, Masar builds you a complete weekly program with fitting exercises, plus a Focus Mode with an automatic rest timer between sets and a suggested next weight for each exercise."
         },
         {
           "title": "Nutrition Plan",
@@ -362,16 +382,12 @@
           "body": "Ready-made diet systems (like DASH) — Masar checks their suitability for your health conditions before suggesting anything."
         },
         {
-          "title": "Fitness",
-          "body": "We'll build you a complete workout program now."
-        },
-        {
           "title": "Your mood today",
           "body": "Log your mood, stress, and energy daily — Masar suggests a fitting activity based on them."
         },
         {
           "title": "The breathing exercise",
-          "body": "Try a guided breathing exercise to calm your nerves in minutes — tap any duration to start."
+          "body": "This is where you start a guided breathing exercise to calm your nerves in minutes — pick any duration that suits you."
         }
       ]
     },
@@ -380,15 +396,15 @@
       "steps": [
         {
           "title": "Focus & Study",
-          "body": "Tap to start a focus timer — Masar tracks your time automatically."
+          "body": "This is where you start a focus or study timer — Masar tracks your time automatically and awards you points."
         },
         {
           "title": "Tasks",
-          "body": "We'll show you how to add and complete your tasks now."
+          "body": "Type your task and tap here to add it — pick its day and category, then tap the circle beside it to complete it."
         },
         {
           "title": "Goals",
-          "body": "Set weekly, monthly, or yearly goals, and Masar reviews them with you on schedule."
+          "body": "Set a weekly, monthly, or yearly goal — Masar reminds you at review time and adjusts your points based on whether you achieved it."
         },
         {
           "title": "Vault",
@@ -396,7 +412,7 @@
         },
         {
           "title": "Reports",
-          "body": "Comprehensive reports bringing your nutrition, fitness, tasks, and goals together in one place."
+          "body": "Tap \"Comprehensive\" for a complete digest bringing your nutrition, fitness, tasks, and goals together in one place."
         }
       ]
     },
@@ -409,7 +425,7 @@
         },
         {
           "title": "AI Assistant",
-          "body": "A personal coach who analyzes your real data and suggests practical steps - needs a subscription and your identity filled in Settings."
+          "body": "Tap any ready-made question and Masar answers using your actual logged data - not generic advice. Needs a subscription and your identity filled in Settings."
         },
         {
           "title": "Achieve",
@@ -417,7 +433,7 @@
         },
         {
           "title": "Complete your identity",
-          "body": "Add your hobbies and a short bio here - this unlocks the Assistant and Achieve, and makes every Masar suggestion more accurate. Fill it in now, or continue the tour and come back to it later."
+          "body": "Add your name, a short bio, your hobbies, and your field here - this unlocks the Assistant and Achieve, and makes every Masar suggestion more accurate."
         }
       ]
     }

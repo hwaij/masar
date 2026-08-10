@@ -729,31 +729,31 @@ export default function MasarApp() {
         {view === "tips" && <TipsView tipsLog={tipsLog} setTipsLog={setTipsLog} showToast={showToast} subscription={subscription} />}
         {/* "missing locale key" لكل بطاقات الترقية أدناه (goals/vault/achieve/reportsView/assistant.upsellTitle
             و upsellMessage) - لا مفتاح مخصص لها بعد في ملفات الترجمة، استُخدم نص إنجليزي/عربي حرفي بديل مؤقتاً. */}
-        {view === "goals" && (isSub ? <GoalsView goals={goals} setGoals={setGoals} addPoints={addPoints} showToast={showToast} profile={profile} setProfile={setProfile} /> : (
+        {view === "goals" && (isSub ? <GoalsView goals={goals} setGoals={setGoals} addPoints={addPoints} showToast={showToast} profile={profile} setProfile={setProfile} journeyActive={tourOpen} /> : (
           <div style={S.view}><UpsellCard icon={Target} title={i18n.language === "en" ? "Plan your goals with Masar Premium" : "خطّط لأهدافك مع مسار الكامل"} message={i18n.language === "en" ? "Set your weekly, monthly, and yearly goals, and track your progress on a visual calendar with periodic reviews and points accountability." : "حدّد أهدافك الأسبوعية والشهرية والسنوية، وتابع إنجازك على تقويم بصري مع مراجعات دورية ومحاسبة بالنقاط."} /></div>
         ))}
         {view === "vault" && !isSub && (
           <div style={S.view}><UpsellCard icon={Wallet} title={i18n.language === "en" ? "Track your money with Masar Premium" : "تتبّع أموالك مع مسار الكامل"} message={i18n.language === "en" ? "Log your balance and expenses in your currency, and know exactly where your money goes, with a new financial tip every day." : "سجّل رصيدك ومصروفاتك بعملتك، واعرف أين تذهب أموالك بالضبط، مع نصيحة مالية جديدة كل يوم."} /></div>
         )}
-        {view === "tasks" && <TasksView tasks={tasks} setTasks={setTasks} categories={categories} addPoints={addPoints} showToast={showToast} subscription={subscription} profile={profile} setProfile={setProfile} />}
+        {view === "tasks" && <TasksView tasks={tasks} setTasks={setTasks} categories={categories} addPoints={addPoints} showToast={showToast} subscription={subscription} profile={profile} setProfile={setProfile} journeyActive={tourOpen} />}
         {view === "focus" && <FocusView focus={focus} setFocus={setFocus} commitments={commitments} setCommitments={setCommitments} categories={categories} entries={entries} addPoints={addPoints} showToast={showToast} subscription={subscription} />}
         {view === "achieve" && (isSub ? <AchieveView achieve={achieve} setAchieve={setAchieve} profile={profile} focus={focus} tasks={tasks} prayerLog={prayerLog} religious={religious} addPoints={addPoints} showToast={showToast} setView={setView} /> : (
           <div style={S.view}><UpsellCard icon={Rocket} title={i18n.language === "en" ? "Achieve is waiting for you in Masar Premium" : "أنجز ينتظرك في مسار الكامل"} message={i18n.language === "en" ? "Achieve knows your hobbies and suggests challenges, projects, and learning paths made specifically for you." : "أنجز يعرف هواياتك ويقترح لك تحديات ومشاريع ومسارات تعلّم تناسبك أنت تحديداً."} /></div>
         ))}
-        {view === "reports" && (isSub ? <ReportsView entries={entries} categories={categories} focus={focus} profile={profile} setProfile={setProfile} healthProfile={healthProfile} sleepLog={sleepLog} setSleepLog={setSleepLog} showToast={showToast} tasks={tasks} goals={goals} /> : (
+        {view === "reports" && (isSub ? <ReportsView entries={entries} categories={categories} focus={focus} profile={profile} setProfile={setProfile} healthProfile={healthProfile} sleepLog={sleepLog} setSleepLog={setSleepLog} showToast={showToast} tasks={tasks} goals={goals} journeyActive={tourOpen} /> : (
           <div style={S.view}><UpsellCard icon={TrendingUp} title={i18n.language === "en" ? "Your detailed reports in Masar Premium" : "تقاريرك التفصيلية في مسار الكامل"} message={i18n.language === "en" ? "See your progress with clear numbers and analysis, and track your sleep and rest pattern across days." : "شاهد تقدّمك بأرقام وتحليلات واضحة، وتتبّع نومك ونمط راحتك عبر الأيام."} /></div>
         ))}
-        {view === "assistant" && (isSub ? <AssistantView entries={entries} tasks={tasks} categories={categories} focus={focus} prayerLog={prayerLog} religious={religious} profile={profile} setProfile={setProfile} stats={stats} setView={setView} healthProfile={healthProfile} goals={goals} showToast={showToast} /> : (
+        {view === "assistant" && (isSub ? <AssistantView entries={entries} tasks={tasks} categories={categories} focus={focus} prayerLog={prayerLog} religious={religious} profile={profile} setProfile={setProfile} stats={stats} setView={setView} healthProfile={healthProfile} goals={goals} showToast={showToast} journeyActive={tourOpen} /> : (
           <div style={S.view}><UpsellCard icon={MessageCircle} title={i18n.language === "en" ? "Your AI assistant in Masar Premium" : "مساعدك الذكي في مسار الكامل"} message={i18n.language === "en" ? "A personal coach who analyzes your day and habits and suggests practical steps based on your actual data." : "مدرّب شخصي يحلّل يومك وعاداتك ويقترح خطوات عملية بناءً على بياناتك الفعلية."} /></div>
         ))}
         {view === "you" && <YouView healthProfile={healthProfile} setHealthProfile={setHealthProfile} showToast={showToast} />}
         {(view === "nutrition" || view === "nutritionPlan" || view === "dietPlans" || view === "fitness" || view === "mental" || (view === "groups" && isSub) || (view === "vault" && isSub)) && (
           <LazySectionErrorBoundary key={view} isEn={i18n.language === "en"}>
             <Suspense fallback={<div style={{ ...S.view, display: "flex", justifyContent: "center", padding: 40 }}><Loader2 size={24} color="#C9A24B" className="spin" /></div>}>
-              {view === "nutrition" && <NutritionView healthProfile={healthProfile} showToast={showToast} profile={profile} setProfile={setProfile} subscription={subscription} />}
+              {view === "nutrition" && <NutritionView healthProfile={healthProfile} showToast={showToast} profile={profile} setProfile={setProfile} subscription={subscription} journeyActive={tourOpen} />}
               {view === "nutritionPlan" && <NutritionPlanView healthProfile={healthProfile} showToast={showToast} subscription={subscription} setView={setView} />}
               {view === "dietPlans" && <DietPlansView healthProfile={healthProfile} showToast={showToast} subscription={subscription} />}
-              {view === "fitness" && <FitnessView healthProfile={healthProfile} showToast={showToast} profile={profile} setProfile={setProfile} />}
+              {view === "fitness" && <FitnessView healthProfile={healthProfile} showToast={showToast} profile={profile} setProfile={setProfile} journeyActive={tourOpen} />}
               {view === "mental" && <MentalHealthView setView={setView} showToast={showToast} />}
               {view === "groups" && isSub && <GroupsView showToast={showToast} />}
               {view === "vault" && isSub && <VaultView showToast={showToast} />}
@@ -782,24 +782,33 @@ export default function MasarApp() {
   );
 }
 
-// MASAR JOURNEY - رحلة واحدة مترابطة عبر التطبيق كله، مقسّمة لمراحل طبيعية
-// بنقاط توقّف (وليست 4 جولات منفصلة الإحساس). تحلّ محل الجولة الأساسية
-// القديمة (Core Tour، 6 خطوات، جولة في القائمة فقط) بإعادة تصميم كامل
-// لتجربة الـUX، مع الحفاظ الكامل على محرك SpotlightTour والبنية التقنية
-// (tour_seen/tour_progress) كما هي. كل قسم لا يزال له جولته السياقية
-// الخاصة (تغذية/رياضة/مهام/أهداف/تقارير/AI) - هذه الرحلة تُضاف فوقها، لا
-// تُلغيها.
+// MASAR JOURNEY - رحلة واحدة مترابطة عبر التطبيق كله، مقسّمة لأربع مراحل
+// طبيعية بنقاط توقّف. تحلّ محل الجولة الأساسية القديمة (Core Tour، 6
+// خطوات، جولة في القائمة فقط) بإعادة تصميم كامل لتجربة الـUX، مع الحفاظ
+// الكامل على محرك SpotlightTour والبنية التقنية (tour_seen/tour_progress)
+// كما هي.
 //
-// حالياً: المرحلة 1 فقط مبنية ("البداية والعبادة": لوحة اليوم ثم الصلاة/
-// الأذكار/الحكمة، بالترتيب الحقيقي من MENU_SECTIONS في SideMenu.jsx).
-// المراحل 2-4 (الصحة/الإنتاجية/المجتمع والذكاء والحساب) تُضاف مستقبلاً
-// كعناصر جديدة فقط في JOURNEY_STAGES أدناه، بلا أي تعديل على منطق
-// MasarJourney نفسه - بُني عاماً لهذا الغرض تحديداً.
+// مبدأ "Explain, Don't Execute" (تعديل لاحق على التصميم الأول): كل خطوة
+// هنا الآن Observe فقط - Highlight على عنصر حقيقي + شرح قصير + التالي -
+// بلا انتظار أي فعل حقيقي (حفظ وجبة/برنامج رياضي/هدف/بيانات صحية) وبلا
+// تسليم الشاشة لأي جولة سياقية محلية تنتظر أفعالاً حقيقية. الاستثناء
+// الضيق الوحيد المتبقي: خطوتا "افتح القائمة" + "اضغط قسم العبادة"
+// (أدناه) - ضغطتان حقيقيتان آمنتان تماماً (تنقّل بلا أي بيانات) ضروريتان
+// لشرح آلية التنقّل نفسها ولتفادي مشكلة هندسية حقيقية (القائمة الجانبية
+// تُغلَق فقط بضغطة SideMenu الحقيقية على عنصرها، لا بأمر برمجي من
+// المنسّق - محاولة تجاوز هذا كانت ستُظهر شاشة الصلاة خلف قائمة لا تزال
+// مفتوحة). كل الخطوات الأخرى في الرحلة كلها الآن Observe بلا أي استثناء.
+//
+// الجولات السياقية المحلية الأصلية (useModuleTour في التغذية/الرياضة/
+// المهام/الأهداف/التقارير/المساعد) لم تُحذف ولم تُعدَّل في منطقها -
+// تبقى موجودة وقابلة لإعادة التشغيل المستقل من الإعدادات لاحقاً كتجربة
+// تفاعلية اختيارية. فقط أُضيف شرط "journeyActive" (يقرأ نفس tourOpen
+// الموجود أصلاً) لمنعها من الانطلاق تلقائياً بالتوازي أثناء زيارة
+// الرحلة الأساسية المتصلة لتلك الصفحات (Observe فقط) - كي لا يظهر
+// SpotlightTour مزدوج فوق بعضه.
 //
 // كل خطوة تحمل view خاصاً بها؛ المكوّن ينقل المستخدم تلقائياً (setView)
-// عند الانتقال بين خطوات بشاشات مختلفة، فلا يحتاج المستخدم لفتح القائمة
-// يدوياً وسط الرحلة إلا في خطوة "افتح القائمة" التمهيدية الوحيدة - الانتقال
-// لكل من الأذكار والحكمة بعدها تلقائي بالكامل.
+// عند الانتقال بين خطوات بشاشات مختلفة.
 const JOURNEY_STAGES = [
   {
     id: "stage1",
@@ -809,135 +818,78 @@ const JOURNEY_STAGES = [
       { view: "today", target: '[data-tour="today-daywheel"]' }, // 1: عجلة اليوم
       { view: "today", target: '[data-tour="today-categories"]' }, // 2: فئاتك
       { view: "today", target: '[data-tour="today-add-activity"]' }, // 3: سجل نشاطك
-      { view: "today" }, // 4: مهام اليوم السريعة (بلا هدف - قد لا توجد مهام بعد لمستخدم جديد)
-      { view: "today", target: '[data-tour="menu-btn"]', interactive: true }, // 5: افتح القائمة (تفاعلي حقيقي وحيد لكل الرحلة)
-      { view: "today", target: '[data-tour="nav-prayer"]', interactive: true }, // 6: اضغط "الصلاة" (تفاعلي حقيقي - نفس تنقّل SideMenu الحقيقي)
-      { view: "prayer", target: '[data-tour="prayer-next-card"]' }, // 7
-      { view: "prayer", target: '[data-tour="prayer-mark-btn"]', interactive: true, allowLater: true }, // 8: فعل حقيقي (تسجيل صلاة) - نفّذ الآن/لاحقاً
-      { view: "prayer", target: '[data-tour="prayer-extras"]' }, // 9
-      { view: "adhkar", target: '[data-tour="adhkar-cat-first"]', interactive: true }, // 10: اختر فئة أذكار (تفاعلي)
-      { view: "adhkar", target: '[data-tour="adhkar-counter-first"]', interactive: true, allowLater: true }, // 11: فعل حقيقي (عدّاد ذكر) - نفّذ الآن/لاحقاً
-      // 12: آخر خطوة حقيقية بالمرحلة - neverLast تمنع محرك SpotlightTour من
-      // معاملتها كخاتمة الجولة كلها (نفس خلل "isLast" المُكتشف والمُصلح في
-      // Phase G لفيتنس) لأن شاشة "نهاية المرحلة" المخصصة (أدناه) هي التي
-      // يجب أن تظهر بعدها دائماً، لا زر "إنهاء" فوري.
-      { view: "tips", target: '[data-tour="tips-hero"]', neverLast: true },
+      { view: "today" }, // 4: مهام اليوم السريعة
+      { view: "today", target: '[data-tour="menu-btn"]', interactive: true }, // 5: افتح القائمة (استثناء تنقّل آمن)
+      { view: "today", target: '[data-tour="nav-prayer"]', interactive: true }, // 6: اضغط "الصلاة" (استثناء تنقّل آمن - يغلق القائمة فعلياً)
+      { view: "prayer", target: '[data-tour="prayer-next-card"]' }, // 7: أوقات الصلاة
+      { view: "prayer", target: '[data-tour="prayer-mark-btn"]' }, // 8: Observe - كيف تُسجَّل الصلاة (بلا تسجيل فعلي)
+      { view: "prayer", target: '[data-tour="prayer-extras"]' }, // 9: استغفار/أذكار مصغّرة/قرآن
+      { view: "adhkar", target: '[data-tour="adhkar-cat-first"]' }, // 10: Observe - فئات الأذكار وعدّاداتها (بلا دخول فئة فعلياً)
+      { view: "tips", target: '[data-tour="tips-hero"]', neverLast: true }, // 11: آخر خطوة بالمرحلة
     ],
   },
   {
     id: "stage2",
     titleKey: "onboarding.stage2.title",
     steps: [
-      // 0: "أنت" - أساس التغذية والرياضة، فعل حقيقي مع خيار لاحقاً. بلا
-      // هدف مباشر عمداً: تسليط الضوء على زر "احفظ" وحده كان سيُعتّم بقية
-      // حقول النموذج (الطول/الوزن/العمر/الجنس...) فيمنع تعبئتها - نفس خلل
-      // Phase G في خطوة الرياضة الأولى. الحل هنا مطابق: waitFor يُخفي كل
-      // Spotlight تماماً بعد اختيار "املأها الآن" ليتفاعل المستخدم مع
-      // النموذج الحقيقي كاملاً بحرية، وتراقب MasarJourney حفظاً حقيقياً
-      // لتكمل تلقائياً (تماماً كنمط "الانتظار" المُثبت في التغذية/الرياضة).
-      { view: "you", waitFor: "you-save", allowLater: true },
-      // 1: تسليم كامل لجولة التغذية السياقية الموجودة والمُختبرة مسبقاً (5
-      // خطوات حقيقية) - المنسّق لا يرسم شيئاً بنفسه هنا، فقط ينقل المستخدم
-      // للقسم وينتظر modules.nutrition.done (راجع منطق moduleHandoff أدناه).
-      { view: "nutrition", moduleHandoff: "nutrition" },
-      // 2: خطة التغذية - بطاقة تعريفية بلا هدف عمداً (محتوى الصفحة يتفرّع
-      // حسب اكتمال بيانات "أنت" من عدمه - آمن لكل الحالات دون تخمين).
-      { view: "nutritionPlan" },
-      // 3: الأنظمة الغذائية - نفس مبدأ خطة التغذية.
-      { view: "dietPlans" },
-      // 4: تسليم كامل لجولة الرياضة السياقية الموجودة والمُختبرة مسبقاً (6
-      // خطوات).
-      { view: "fitness", moduleHandoff: "fitness" },
-      // 5: الصحة النفسية - تسجيل المزاج (Observe؛ الحفظ يتطلب اختيار
-      // الثلاثة معاً فلا يصلح كخطوة ضغطة واحدة تفاعلية).
-      { view: "mental", target: '[data-tour="mental-mood-card"]' },
-      // 6: تمرين التنفّس - فعل حقيقي لكن بلا بيانات محفوظة (حالة عرض مؤقتة
-      // فقط)، فلا حاجة لخيار "لاحقاً" هنا.
-      { view: "mental", target: '[data-tour="mental-breathing-start"]', interactive: true, neverLast: true },
+      { view: "you", target: '[data-tour="you-form-card"]' }, // 0: Observe - حقول البيانات الأساسية بلا حفظ فعلي
+      { view: "nutrition", target: '[data-tour="add-breakfast"]' }, // 1: تسجيل الفطور (ونفس الطريقة لباقي الوجبات)
+      { view: "nutrition" }, // 2: طرق الإضافة (بحث/باركود/تصوير) - بلا هدف، النموذج الفرعي لا يظهر بلا ضغطة حقيقية لم نعد نطلبها
+      { view: "nutrition", target: '[data-tour="nutrition-summary"]' }, // 3: مجاميعك اليومية
+      { view: "nutrition", target: '[data-tour="water-add-btn"]' }, // 4: متابعة الماء
+      { view: "fitness", target: '[data-tour="fitness-goal-row"]' }, // 5: اختيار الهدف الرياضي
+      { view: "fitness", target: '[data-tour="fitness-equipment-row"]' }, // 6: اختيار المعدات المتاحة
+      { view: "fitness" }, // 7: البرنامج الناتج + وضع التركيز والمؤقّت - شرحاً بلا إنشاء برنامج فعلي
+      { view: "nutritionPlan" }, // 8
+      { view: "dietPlans" }, // 9
+      { view: "mental", target: '[data-tour="mental-mood-card"]' }, // 10
+      { view: "mental", target: '[data-tour="mental-breathing-start"]', neverLast: true }, // 11: آخر خطوة بالمرحلة
     ],
   },
   {
     id: "stage3",
     titleKey: "onboarding.stage3.title",
     steps: [
-      // 0: التركيز - بدء المؤقّت فقط (لا يلتزم ببيانات محفوظة إلا عند
-      // إكماله يدوياً لاحقاً)، فلا حاجة لخيار "لاحقاً".
-      { view: "focus", target: '[data-tour="focus-timer-start"]', interactive: true },
-      // 1: تسليم كامل لجولة المهام السياقية الموجودة (خطوتان).
-      { view: "tasks", moduleHandoff: "tasks" },
-      // 2: الأهداف - قسم مقفل بالاشتراك بالكامل. للمشترك: تسليم لجولته
-      // السياقية الموجودة. لغير المشترك: بطاقة صادقة فوق بطاقة الترقية
-      // الحقيقية نفسها (راجع منطق requiresSub في MasarJourney).
-      { view: "goals", moduleHandoff: "goals", requiresSub: true },
-      // 3: الخزنة - مقفل بالاشتراك، بلا جولة سياقية جاهزة بعد. Observe لا
-      // Click عمداً: خُطّط أولاً كـinteractive على زر "سجّل مصروفاً"، لكن
-      // الاختبار الفعلي كشف خللاً حقيقياً - بلا waitFor يوقف الرحلة، الضغطة
-      // الحقيقية تُقدّم الخطوة فوراً (نفس منطق كل خطوة تفاعلية أخرى)،
-      // فتنقل المستخدم للتقارير قبل أن يُتاح له فعلياً استخدام النموذج الذي
-      // فتحه للتو - يُبطل الغرض من الضغطة كلياً. إتمام معاملة حقيقية هنا
-      // يحتاج نمط waitFor (كـ"أنت") لكن بلا إشارة اكتمال يمكن مراقبتها من
-      // خارج VaultView المحمَّلة كسولاً بمعزل عن المنسّق دون ربط حالتها
-      // الداخلية للأعلى تحديداً لهذه الجولة - تبسيط متعمَّد، لا محاكاة.
-      { view: "vault", target: '[data-tour="vault-record-expense-btn"]', requiresSub: true },
-      // 4: التقارير - مقفل بالاشتراك، تسليم لجولته السياقية الموجودة (خطوة
-      // واحدة) للمشترك، أو بطاقة صادقة لغير المشترك.
-      { view: "reports", moduleHandoff: "reports", requiresSub: true, neverLast: true },
+      { view: "focus", target: '[data-tour="focus-timer-start"]' }, // 0: Observe - بدء مؤقّت التركيز بلا تشغيل فعلي
+      { view: "tasks", target: '[data-tour="add-task-btn"]' }, // 1: إضافة/إنجاز مهمة
+      { view: "goals", target: '[data-tour="add-goal-btn"]', requiresSub: true }, // 2: تحديد هدف ومراجعته الدورية
+      { view: "vault", target: '[data-tour="vault-record-expense-btn"]', requiresSub: true }, // 3
+      { view: "reports", target: '[data-tour="reports-tab-comprehensive"]', requiresSub: true, neverLast: true }, // 4: آخر خطوة بالمرحلة
     ],
   },
   {
     id: "stage4",
     // "والأخيرة" عمداً: هذه فعلياً آخر مرحلة تغطّي كل قسم أساسي حقيقي في
-    // مسار حسب الـAudit المعتمد - إكمالها هو إكمال الرحلة كلها، لا مجرد
-    // مرحلة وسيطة، رغم أن آلية "أكمل الآن/لاحقاً" العامة نفسها (المصمَّمة
-    // أصلاً لتمتد لمراحل مستقبلية) تبقى بلا تخصيص إضافي لهذه الحالة.
+    // مسار حسب الـAudit المعتمد.
     titleKey: "onboarding.stage4.title",
     steps: [
-      // 0: المجموعات - مقفل بالاشتراك، بلا جولة سياقية جاهزة.
-      { view: "groups", target: '[data-tour="groups-create-card"]', requiresSub: true },
-      // 1: المساعد الذكي - مقفل بالاشتراك ويحتاج أيضاً بيانات هوية
-      // (هوايات/نبذة) قبل أن تظهر واجهة المحادثة الحقيقية أصلاً - تسليم
-      // لجولته السياقية الموجودة فقط إن اجتاز الشرطين معاً.
-      { view: "assistant", moduleHandoff: "ai", requiresSub: true, requiresIdentity: true },
-      // 2: أنجز - نفس شرطي المساعد (اشتراك + هوية)، بلا جولة سياقية جاهزة.
-      { view: "achieve", target: '[data-tour="achieve-coach-card"]', requiresSub: true, requiresIdentity: true },
-      // 3: الإعدادات - حرة بالكامل، وهنا تحديداً تُملأ الهوية التي تفتح
-      // المساعد وأنجز الحقيقيين. نفس نمط waitFor المُثبت في "أنت": يُخفي
-      // الـSpotlight تماماً بعد "املأها الآن" ليتفاعل المستخدم مع البطاقة
-      // الحقيقية بحرية، ويُكمل تلقائياً بمجرد حفظ هوية حقيقية.
-      { view: "settings", waitFor: "settings-identity", allowLater: true },
+      { view: "groups", target: '[data-tour="groups-create-card"]', requiresSub: true }, // 0
+      { view: "assistant", target: '[data-tour="assistant-suggestion-0"]', requiresSub: true, requiresIdentity: true }, // 1
+      { view: "achieve", target: '[data-tour="achieve-coach-card"]', requiresSub: true, requiresIdentity: true }, // 2
+      { view: "settings", target: '[data-tour="settings-identity-card"]', neverLast: true }, // 3: آخر خطوة بالرحلة كلها
     ],
   },
 ];
 
-// فهرس كل خطوة يُعطَّل "السابق" عندها لأن الخطوة قبلها تضمّنت تنقّلاً
-// حقيقياً بين الأقسام أو حالة داخلية للصفحة (مثل فتح القائمة تلقائياً أو
-// اختيار فئة أذكار داخلياً، أو تسليماً كاملاً لجولة سياقية منتهية بالفعل)
-// يستحيل على المنسّق إعادة بنائها بمجرد الرجوع برقم الخطوة - توسيع طفيف
-// ومتعمَّد لقاعدة "السابق يُعطَّل بعد فعل بيانات حقيقي" ليشمل هذه الحالة
-// المكافئة في الخطورة. بعض الفهارس معطَّلة ديناميكياً فقط إن نُفِّذ الفعل
-// الحقيقي فعلاً (لا "لاحقاً") - تُحسَب داخل المكوّن عبر DYNAMIC_BACK_BLOCK،
-// ليس هنا.
+// فهرس كل خطوة يُعطَّل "السابق" عندها. بما أن كل خطوات الرحلة الآن Observe
+// (بلا فعل حقيقي أو تسليم لجولة محلية)، القاعدة نادرة التطبيق عملياً -
+// الاستثناء الوحيد المتبقّي: الخطوة التالية لـ"اضغط الصلاة" في المرحلة 1
+// (فهرس 7)، لأن الرجوع إليها يتطلب إعادة فتح القائمة الجانبية فعلياً، وهو
+// ما لا يملك المنسّق طريقة موثوقة لإعادة بنائه برمجياً (راجع التعليق أعلى
+// JOURNEY_STAGES). كل خطوات المراحل 2-4 أصبحت آمنة تماماً للرجوع إليها -
+// لا حالة داخلية أو تنقّل حقيقي يمكن أن يُكسَر بالضغط على "السابق".
 const STAGE_BACK_BLOCKED = [
-  { 7: true, 10: true, 11: true, 12: true }, // stage1
-  { 2: true, 5: true }, // stage2: بعد تسليم التغذية (1) وبعد تسليم الرياضة (4)
-  // stage3: بعد تسليم المهام (1)، وبعد الأهداف (2 - تسليم للمشترك أو
-  // بطاقة ترقية لغيره، كلاهما محظور رجوعاً للتناسق والبساطة)، وبعد فتح
-  // نموذج الخزنة الحقيقي (3 - حالة داخلية لصفحة منفصلة يستحيل إعادة بنائها).
-  { 2: true, 3: true, 4: true },
-  // stage4: بعد المساعد (1 - تسليم محتمل للمشترك المكتمل الهوية، نفس
-  // منطق stage3 مع الأهداف). المجموعات(0) وأنجز(2) مجرد Observe بلا حالة
-  // داخلية تُكسَر بالرجوع، فلا حظر بعدهما.
-  { 2: true },
+  { 7: true }, // stage1
+  {}, // stage2
+  {}, // stage3
+  {}, // stage4
 ];
 
-// (stageIndex → { stepIndexAfter: stepIndexOfRealActionStep }) لكل حالة لا
-// يمكن التعبير عنها كفهرس ثابت لأن حظرها يعتمد على تنفيذ الفعل فعلاً لا
-// تخطّيه (لا حاجة لإدخال هنا إن كانت الخطوة التالية أصلاً محظورة ثابتاً
-// أو تسليماً كاملاً بلا واجهة "سابق" من المنسّق، كحال "أنت" في المرحلة
-// الثانية - تسليم التغذية بعدها محظور ثابتاً بصرف النظر عن هذا الفعل).
-const DYNAMIC_BACK_BLOCK = [
-  { 9: 8 }, // stage1: خطوة 9 تُحظَر إن نُفِّذ فعل خطوة 8 (تسجيل الصلاة) فعلاً
-];
+// كانت تُستخدم سابقاً لحظر "السابق" ديناميكياً فقط إن نُفِّذ فعل حقيقي
+// فعلاً (لا "لاحقاً") في الخطوة السابقة - لا وجود لأي فعل حقيقي كهذا في
+// الرحلة الآن، فبقيت المصفوفة فارغة عمداً (الآلية نفسها لا تزال متاحة في
+// MasarJourney لأي استخدام مستقبلي، لا حاجة لحذفها).
+const DYNAMIC_BACK_BLOCK = [];
 
 function MasarJourney({ view, setView, profile, healthProfile, isSub, resumeStage, resumeStep, onStepChange, onPause, onFinishAll }) {
   const { t } = useTranslation();
@@ -1780,7 +1732,7 @@ function addDaysKey(dateKey, delta) {
 
 const FREE_TASK_LIMIT = 3;
 
-function TasksView({ tasks, setTasks, categories, addPoints, showToast, subscription, profile, setProfile }) {
+function TasksView({ tasks, setTasks, categories, addPoints, showToast, subscription, profile, setProfile, journeyActive }) {
   const { t, i18n } = useTranslation();
   const language = i18n.language;
   const weekdayShort = WEEKDAY_SHORT[language] || WEEKDAY_SHORT.ar;
@@ -1796,7 +1748,7 @@ function TasksView({ tasks, setTasks, categories, addPoints, showToast, subscrip
   // جولة المهام السياقية (Onboarding - Phase D): تظهر أول مرة فقط، وتتقدّم
   // فور ظهور أول مهمة فعلية في القائمة - بغض النظر عن ضغط زر الإضافة أو
   // Enter من لوحة المفاتيح (لا نعتمد فقط على استماع الخطوة التفاعلية للنقر).
-  const tasksTour = useModuleTour("tasks", profile, setProfile);
+  const tasksTour = useModuleTour("tasks", profile, setProfile, { active: !journeyActive });
   const taskCountAtTourStartRef = useRef(tasks.length);
   useEffect(() => {
     if (tasksTour.step === 1 && tasks.length > taskCountAtTourStartRef.current) tasksTour.setStep(2);
@@ -2020,7 +1972,7 @@ const RS = {
   journeyCardLabel: { fontSize: 11, color: "var(--muted2)", marginTop: 4 },
 };
 
-function ReportsView({ entries, categories, focus, profile, setProfile, healthProfile, sleepLog, setSleepLog, showToast, tasks, goals }) {
+function ReportsView({ entries, categories, focus, profile, setProfile, healthProfile, sleepLog, setSleepLog, showToast, tasks, goals, journeyActive }) {
   const { t, i18n } = useTranslation();
   const language = i18n.language;
   const [range, setRange] = useState("week");
@@ -2033,7 +1985,7 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
   // جولة التقارير السياقية (Onboarding - Phase D): خطوة واحدة فقط - Spotlight
   // على تبويب "الشامل" (أغنى تبويب) بانتظار ضغطة حقيقية، وتكتمل الجولة فوراً
   // بمجرد ذلك (لا حدث "حفظ" لانتظاره هنا كما في التغذية/المهام/الأهداف).
-  const reportsTour = useModuleTour("reports", profile, setProfile);
+  const reportsTour = useModuleTour("reports", profile, setProfile, { active: !journeyActive });
   const [nutritionLog, setNutritionLog] = useState([]);
   const [nutritionLoaded, setNutritionLoaded] = useState(false);
   // بيانات إضافية خاصة بـ"التقرير الشامل" (Priority 4) - نفس نمط "العرض
@@ -2983,7 +2935,7 @@ function SleepSection({ sleepLog, setSleepLog, days, range, showToast }) {
   );
 }
 
-function AssistantView({ entries, tasks, categories, focus, prayerLog, religious, profile, setProfile, stats, setView, healthProfile, goals, showToast }) {
+function AssistantView({ entries, tasks, categories, focus, prayerLog, religious, profile, setProfile, stats, setView, healthProfile, goals, showToast, journeyActive }) {
   const { t, i18n } = useTranslation();
   const language = i18n.language;
   const today = todayKey();
@@ -2998,7 +2950,7 @@ function AssistantView({ entries, tasks, categories, focus, prayerLog, religious
   // جولة المساعد السياقية (Onboarding - Phase D): تظهر فقط عندما تكون
   // شرائح الأسئلة الجاهزة معروضة فعلاً (لا محادثة سابقة بعد) - تفاعلية على
   // أول شريحة (مثال حقيقي، لا شرح نظري)، ثم تلميح ختامي بعد وصول أول رد فعلي.
-  const assistantTour = useModuleTour("ai", profile, setProfile, { active: hasIdentity && !loadingHistory && messages.length === 0 });
+  const assistantTour = useModuleTour("ai", profile, setProfile, { active: hasIdentity && !loadingHistory && messages.length === 0 && !journeyActive });
   const msgCountAtTourStartRef = useRef(0);
   useEffect(() => {
     if (assistantTour.step === 1 && messages.length > msgCountAtTourStartRef.current) assistantTour.setStep(2);
@@ -4256,7 +4208,7 @@ function GoalCalendar({ goal, today }) {
   );
 }
 
-function GoalsView({ goals, setGoals, addPoints, showToast, profile, setProfile }) {
+function GoalsView({ goals, setGoals, addPoints, showToast, profile, setProfile, journeyActive }) {
   const { t, i18n } = useTranslation();
   const [title, setTitle] = useState("");
   const [period, setPeriod] = useState("weekly");
@@ -4267,7 +4219,7 @@ function GoalsView({ goals, setGoals, addPoints, showToast, profile, setProfile 
 
   // جولة الأهداف السياقية (Onboarding - Phase D): نفس مبدأ جولة المهام -
   // خطوة تفاعلية على زر الإضافة، ثم تلميح ختامي بعد ظهور أول هدف فعلي.
-  const goalsTour = useModuleTour("goals", profile, setProfile);
+  const goalsTour = useModuleTour("goals", profile, setProfile, { active: !journeyActive });
   const goalCountAtTourStartRef = useRef(goals.length);
   useEffect(() => {
     if (goalsTour.step === 1 && goals.length > goalCountAtTourStartRef.current) goalsTour.setStep(2);
@@ -5767,7 +5719,7 @@ function YouView({ healthProfile, setHealthProfile, showToast }) {
             <div style={YS.heroSub}>{language === "en" ? "Your basic data — the foundation the nutrition and fitness sections build on later." : "بياناتك الأساسية — أساس تُبنى عليه أقسام التغذية والرياضة لاحقاً."}</div>
           </div>
         </div>
-        <div style={YS.formCard}>
+        <div style={YS.formCard} data-tour="you-form-card">
           <div style={YS.row2}>
             <div style={YS.col}>
               <label style={S.label}>{language === "en" ? "Height (cm)" : "الطول (سم)"}</label>
@@ -5888,7 +5840,7 @@ function ProfileCard({ profile, setProfile, showToast }) {
   }
 
   return (
-    <div style={S.profileCard}>
+    <div style={S.profileCard} data-tour="settings-identity-card">
       <div style={S.catEditorHeader}><User size={15} color="#C9A24B" /><span>{isEn ? "My Identity" : "هويتي"}</span></div>
       <p style={S.profileHint}>{isEn ? "This data makes Achieve's suggestions and analysis personal to you." : "هذه البيانات تجعل اقتراحات أنجز والتحليل مرتبطة بك شخصياً."}</p>
       <label style={S.label}>{isEn ? "Your name" : "اسمك"}</label>

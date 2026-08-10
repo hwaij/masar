@@ -6,6 +6,7 @@ import {
   Egg, Drumstick, Beef, Fish, Wheat, Carrot, Apple, Bean, Milk, Nut, Coffee, Cookie, Salad,
 } from "lucide-react";
 import { store } from "../lib/store";
+import SpotlightTour from "./SpotlightTour";
 import { todayKey, uid, analyze, parseJsonLoose, arabicDate } from "../lib/helpers";
 import { isActiveSubscriber } from "../lib/subscription";
 import {
@@ -533,7 +534,7 @@ function MealCard({ mealType, items, dayTotalCalories, usualTimeLabel, isCurrent
   }
 
   return (
-    <div style={{ ...NS.mealCard, ...(isCurrent ? NS.mealCardCurrent : {}) }}>
+    <div style={{ ...NS.mealCard, ...(isCurrent ? NS.mealCardCurrent : {}) }} data-tour={mealType === "breakfast" ? "meal-card-breakfast" : undefined}>
       <div style={NS.mealCardHeaderTop}>
         <span style={NS.mealCardTitle}>{MEAL_TYPE_EMOJI[mealType]} {t(`nutrition.mealTypes.${mealType}`)}</span>
         <span style={NS.mealCardCalories}><NumericValue value={groupCalories} unit={t("common.units.kcal")} /></span>
@@ -613,7 +614,7 @@ function MealCard({ mealType, items, dayTotalCalories, usualTimeLabel, isCurrent
         </div>
       )}
 
-      <button onClick={() => onAddFood(mealType)} style={NS.mealCardAddBtn}>
+      <button onClick={() => onAddFood(mealType)} style={NS.mealCardAddBtn} data-tour={mealType === "breakfast" ? "add-breakfast" : undefined}>
         <Plus size={14} /> {t("nutrition.addToMeal", { meal: t(`nutrition.mealTypes.${mealType}`) })}
       </button>
     </div>
@@ -1889,6 +1890,44 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
     return () => { active = false; };
   }, []);
 
+  // جولة التغذية السياقية (Priority 6 من خطة الـOnboarding - أعلى أولوية
+  // بين كل الجولات السياقية): تظهر تلقائياً أول مرة يُفتح فيها هذا القسم
+  // فعلياً طالما لم تكتمل من قبل (tourProgress.modules.nutrition.done)،
+  // مستقلة تماماً عن الجولة الأساسية في MasarApp. 3 خطوات فقط: اضغط
+  // "+ إضافة" في الفطور (تفاعلي) → اختر طريقة الإضافة (تفاعلي، أي طريقة)
+  // → بعد نجاح الحفظ الفعلي، تلميح ختامي على بطاقة الفطور المحدَّثة.
+  // الخطوة 3 تنتظر تغيّراً حقيقياً في السجل (لا مؤقّتاً وهمياً) حتى تظهر
+  // فقط بعد حفظ فعلي، بغض النظر عن طريقة الإضافة التي اختارها المستخدم.
+  const nutritionTourDone = !!profile?.tourProgress?.modules?.nutrition?.done;
+  const [nutritionTourStep, setNutritionTourStep] = useState(0); // 0=غير نشطة، 1/2 = Spotlight، "waiting" = بانتظار حفظ، 3 = تلميح ختامي
+  const nutritionTourStartedRef = useRef(false);
+  const breakfastCountAtTourStartRef = useRef(0);
+
+  useEffect(() => {
+    if (loaded && !nutritionTourDone && !nutritionTourStartedRef.current) {
+      nutritionTourStartedRef.current = true;
+      breakfastCountAtTourStartRef.current = nutritionLog.filter((e) => e.date === today && e.mealType === "breakfast").length;
+      setNutritionTourStep(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, nutritionTourDone]);
+
+  // انتظار سلبي بلا Spotlight معروض: بمجرد أن يُغلَق الشيت (انتهت عملية
+  // الإضافة أياً كانت طريقتها) ويظهر صنف فطور جديد فعلاً في السجل، تُعرض
+  // خطوة التلميح الختامية تلقائياً.
+  useEffect(() => {
+    if (nutritionTourStep !== "waiting") return;
+    if (sheet !== null) return;
+    const currentCount = nutritionLog.filter((e) => e.date === today && e.mealType === "breakfast").length;
+    if (currentCount > breakfastCountAtTourStartRef.current) setNutritionTourStep(3);
+  }, [nutritionTourStep, sheet, nutritionLog, today]);
+
+  function finishNutritionTour() {
+    setNutritionTourStep(0);
+    setProfile((p) => ({ ...p, tourProgress: { ...p.tourProgress, modules: { ...(p.tourProgress?.modules || {}), nutrition: { done: true } } } }));
+    store.saveTourProgress({ modules: { nutrition: { done: true } } });
+  }
+
   // لا تنقّل لأيام مستقبلية (لا سجل لها بعد) - يُقيَّد هنا لا فقط بتعطيل
   // الزر، حتى لا يتغيّر التاريخ حتى لو استُدعيت الدالة من مصدر آخر لاحقاً.
   function shiftDay(delta) {
@@ -2376,7 +2415,7 @@ ${missingMealsLine}
             )}
 
             {sheet === "choose" && (
-              <div style={NS.chooserGrid}>
+              <div style={NS.chooserGrid} data-tour="add-food-chooser">
                 <button onClick={() => setSheet("scan")} style={NS.chooserBtn}>
                   <span style={NS.chooserIcon}><Camera size={19} /></span> {t("nutrition.scanWithCameraOption")}
                 </button>
@@ -2491,6 +2530,24 @@ ${missingMealsLine}
 
       {sheet === "scan" && (
         <BarcodeScannerModal onDetected={handleBarcodeDetected} onClose={closeSheet} />
+      )}
+
+      {nutritionTourStep > 0 && nutritionTourStep !== "waiting" && (
+        <SpotlightTour
+          steps={
+            nutritionTourStep === 3
+              ? [{ target: '[data-tour="meal-card-breakfast"]', title: t("onboarding.nutritionTour.step3Title"), body: t("onboarding.nutritionTour.step3Body") }]
+              : [
+                  { target: '[data-tour="add-breakfast"]', interactive: true, title: t("onboarding.nutritionTour.step1Title"), body: t("onboarding.nutritionTour.step1Body") },
+                  { target: '[data-tour="add-food-chooser"]', interactive: true, title: t("onboarding.nutritionTour.step2Title"), body: t("onboarding.nutritionTour.step2Body") },
+                ]
+          }
+          stepIndex={nutritionTourStep === 3 ? 0 : nutritionTourStep - 1}
+          onNext={() => setNutritionTourStep((s) => (s === 2 ? "waiting" : s + 1))}
+          onSkip={finishNutritionTour}
+          onFinish={finishNutritionTour}
+          labels={{ skip: t("onboarding.skip"), next: t("onboarding.next"), start: t("common.buttons.ok"), back: t("common.buttons.back"), tapHere: t("onboarding.tapHere") }}
+        />
       )}
     </div>
   );

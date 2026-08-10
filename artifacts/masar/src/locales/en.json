@@ -225,6 +225,14 @@
     "start": "Start your journey now 🤍",
     "next": "Next",
     "tapHere": "Tap here to continue",
+    "nutritionTour": {
+      "step1Title": "Let's log your first meal",
+      "step1Body": "Tap here to add something to breakfast.",
+      "step2Title": "Choose how to add it",
+      "step2Body": "Search by name, scan a barcode, or snap a photo of your meal or its nutrition label — pick whichever is fastest for you.",
+      "step3Title": "Nice work!",
+      "step3Body": "Your calories and macros just updated automatically. Tap any item here to see its full details, including sodium and cholesterol."
+    },
     "steps": [
       {
         "title": "Welcome to Masar",

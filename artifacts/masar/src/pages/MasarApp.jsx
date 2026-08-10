@@ -724,7 +724,7 @@ export default function MasarApp() {
           <TodayView
             date={selectedDate} setDate={setSelectedDate}
             entries={entries} setEntries={setEntries}
-            categories={categories} tasks={tasks} setTasks={setTasks}
+            categories={categories} setCategories={setCategories} tasks={tasks} setTasks={setTasks}
             reports={reports} setReports={setReports}
             aiHistory={aiHistory}
             mandatoryLog={mandatoryLog} setMandatoryLog={setMandatoryLog}
@@ -1448,12 +1448,14 @@ function catDisplayName(cat, language) {
   return def ? def.nameEn : cat.name;
 }
 
-function TodayView({ date, setDate, entries, setEntries, categories, tasks, setTasks, reports, setReports, aiHistory, mandatoryLog, setMandatoryLog, focus, addPoints, showToast, subscription }) {
+function TodayView({ date, setDate, entries, setEntries, categories, setCategories, tasks, setTasks, reports, setReports, aiHistory, mandatoryLog, setMandatoryLog, focus, addPoints, showToast, subscription }) {
   const { t, i18n } = useTranslation();
   const language = i18n.language;
+  const isSub = isActiveSubscriber(subscription);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState(null);
   const [manualPeriod, setManualPeriod] = useState(null);
+  const [categoryManagerOpen, setCategoryManagerOpen] = useState(false);
   const catMap = useMemo(() => Object.fromEntries(categories.map((c) => [c.id, c])), [categories]);
   const dayEntries = useMemo(() => entries.filter((e) => e.date === date).sort((a, b) => a.start.localeCompare(b.start)), [entries, date]);
   const dayFocusSessions = useMemo(
@@ -1608,7 +1610,21 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
           <div key={c.catId} style={S.legendChip}><span style={{ ...S.legendDot, background: c.color }} /><span>{catDisplayName(c, language)}</span><span style={S.legendMins}>{fmtHM(c.mins, language)}</span></div>
         ))}
         {byCategory.length === 0 && <div style={S.emptyHint}>{t("todayView.noActivitiesToday")}</div>}
+        <button onClick={() => setCategoryManagerOpen(true)} style={S.manageCategoriesChip}>
+          <Palette size={12} /> <span>{t("todayView.manageCategories")}</span>
+        </button>
       </div>
+
+      {categoryManagerOpen && (
+        <div style={S.modalOverlay} className="overlay-in" onClick={() => setCategoryManagerOpen(false)}>
+          <div style={S.modal} className="sheet-in" onClick={(e) => e.stopPropagation()}>
+            <div style={S.modalHeader}><span>{t("todayView.categoriesModalTitle")}</span><button onClick={() => setCategoryManagerOpen(false)} style={S.iconBtn}><X size={18} /></button></div>
+            <div style={S.modalBody}>
+              <CategoryManagerCard categories={categories} setCategories={setCategories} isSub={isSub} showToast={showToast} />
+            </div>
+          </div>
+        </div>
+      )}
 
       <DailyEvolution
         date={date} dayEntries={dayEntries} catMap={catMap}
@@ -5293,19 +5309,108 @@ function AchieveCard({ item, kindLabel, onToggle, onRemove }) {
 
 const FREE_CATEGORY_LIMIT = 5;
 
+// إدارة الفئات (إضافة/تعديل/حذف) - مكوّن مستقل يُستخدَم من مكانين: بطاقة
+// "فئاتك" داخل الإعدادات (كما كانت دائماً)، وأيضاً من نافذة سريعة تُفتح
+// مباشرة من لوحة "اليوم" (زر بجانب شرائط الفئات) - حتى لا يحتاج المستخدم
+// للتنقّل لصفحة الإعدادات كاملة فقط لإضافة فئة جديدة. مسار الحفظ نفسه
+// (store.saveCategory/deleteCategory) في الحالتين، بلا أي تكرار منطق.
+function CategoryManagerCard({ categories, setCategories, isSub, showToast }) {
+  const { t, i18n } = useTranslation();
+  const isEn = i18n.language === "en";
+  const [editing, setEditing] = useState(null);
+  const [editDraft, setEditDraft] = useState({ name: "", color: "" });
+  const [newName, setNewName] = useState("");
+  const [newColor, setNewColor] = useState(COLOR_CHOICES[0]);
+
+  async function addCategory() {
+    const name = newName.trim();
+    if (!name) return;
+    if (!isSub && categories.length >= FREE_CATEGORY_LIMIT) {
+      showToast(t("settings.unlimitedCategoriesUpsell"));
+      return;
+    }
+    const cat = { id: uid(), name, color: newColor };
+    setCategories((prev) => [...prev, cat]);
+    const res = await store.saveCategory(cat);
+    if (res.ok) { setNewName(""); showToast(t("settings.categoryAdded")); }
+    else {
+      setCategories((prev) => prev.filter((c) => c.id !== cat.id));
+      showToast(t("settings.categorySaveFailed"));
+    }
+  }
+  function startEditing(c) {
+    setEditing(c.id);
+    setEditDraft({ name: c.name, color: c.color });
+  }
+  async function confirmEditing(id) {
+    const name = editDraft.name.trim();
+    if (!name) { showToast(t("settings.categoryNameEmpty")); return; }
+    let updated;
+    setCategories((prev) => prev.map((c) => { if (c.id === id) { updated = { ...c, name, color: editDraft.color }; return updated; } return c; }));
+    const res = updated ? await store.saveCategory(updated) : { ok: true };
+    if (res.ok) setEditing(null);
+    else showToast(t("settings.editSaveFailed"));
+  }
+  async function removeCategory(id) {
+    const removed = categories.find((c) => c.id === id);
+    setCategories((prev) => prev.filter((c) => c.id !== id));
+    const res = await store.deleteCategory(id);
+    if (res.ok) showToast(t("settings.categoryDeleted"));
+    else {
+      if (removed) setCategories((prev) => [...prev, removed]);
+      showToast(t("settings.categoryDeleteFailed"));
+    }
+  }
+
+  return (
+    <>
+      <div style={S.catEditorCard}>
+        <div style={S.catEditorHeader}><Palette size={15} color="#C9A24B" /><span>{t("settings.yourCategories")}</span></div>
+        <div style={S.catEditList}>
+          {categories.map((c) => (
+            <div key={c.id} style={S.catEditRow}>
+              {editing === c.id ? (
+                <>
+                  <div style={S.colorPickRow}>{COLOR_CHOICES.map((col) => <button key={col} onClick={() => setEditDraft((d) => ({ ...d, color: col }))} style={{ ...S.colorDot, background: col, ...(editDraft.color === col ? S.colorDotSelected : {}) }} />)}</div>
+                  <input
+                    value={editDraft.name}
+                    onChange={(e) => setEditDraft((d) => ({ ...d, name: e.target.value }))}
+                    onKeyDown={(e) => e.key === "Enter" && confirmEditing(c.id)}
+                    style={S.catEditInput}
+                    autoFocus
+                  />
+                  <button onClick={() => confirmEditing(c.id)} style={S.catSaveBtn}><Check size={14} /></button>
+                </>
+              ) : (
+                <>
+                  <span style={{ ...S.legendDot, background: c.color, width: 12, height: 12 }} />
+                  <span style={S.catEditName}>{isEn ? (DEFAULT_CATEGORIES.find((d) => d.id === c.id && d.name === c.name)?.nameEn || c.name) : c.name}</span>
+                  <button onClick={() => startEditing(c)} style={S.catIconBtn}><Edit3 size={13} /></button>
+                  <button onClick={() => removeCategory(c.id)} style={S.catIconBtn}><Trash2 size={13} /></button>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+        <div style={S.catAddRow}>
+          <div style={S.colorPickRow}>{COLOR_CHOICES.map((col) => <button key={col} onClick={() => setNewColor(col)} style={{ ...S.colorDot, background: col, ...(newColor === col ? S.colorDotSelected : {}) }} />)}</div>
+          <div style={S.catAddInputRow}>
+            <input value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addCategory()} placeholder={t("settings.newCategoryPlaceholder")} style={S.catEditInput} />
+            <button onClick={addCategory} style={S.taskAddBtn}><Plus size={16} /></button>
+          </div>
+        </div>
+      </div>
+      {!isSub && categories.length >= FREE_CATEGORY_LIMIT && (
+        <UpsellCard icon={Palette} title={t("settings.categoriesUpsellTitle")} message={t("settings.categoriesUpsellMessage")} compact />
+      )}
+    </>
+  );
+}
+
 function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, profile, setProfile, pointsLog, onStartTour, subscription, theme, toggleTheme, fontSize, changeFontSize, highContrast, toggleHighContrast, spacious, toggleSpacious }) {
   const { t, i18n } = useTranslation();
   const isEn = i18n.language === "en";
   const isSub = isActiveSubscriber(subscription);
-  const [editing, setEditing] = useState(null);
-  // While a category is being renamed, edits live here only — nothing is
-  // persisted per keystroke. Firing a save on every character raced N
-  // concurrent upserts against each other with no ordering guarantee, so a
-  // stale, shorter keystroke could land in the database *after* the final
-  // one and silently overwrite it — the exact "dropped/scrambled letters
-  // after refresh" bug. Now there's a single save on explicit confirm.
-  const [editDraft, setEditDraft] = useState({ name: "", color: "" });
-  const [newName, setNewName] = useState("");
   const [showModuleReplays, setShowModuleReplays] = useState(false);
 
   // إعادة تشغيل جولة سياقية واحدة (Onboarding - Phase E): يصفّر علم اكتمال
@@ -5352,47 +5457,6 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
     setProfile((p) => ({ ...p, soundEnabled: next }));
     const res = await store.saveSoundEnabled(next);
     if (!res.ok) { setProfile((p) => ({ ...p, soundEnabled: prev })); showToast(t("settings.soundSaveFailed")); }
-  }
-  const [newColor, setNewColor] = useState(COLOR_CHOICES[0]);
-
-  async function addCategory() {
-    const name = newName.trim();
-    if (!name) return;
-    if (!isSub && categories.length >= FREE_CATEGORY_LIMIT) {
-      showToast(t("settings.unlimitedCategoriesUpsell"));
-      return;
-    }
-    const cat = { id: uid(), name, color: newColor };
-    setCategories((prev) => [...prev, cat]);
-    const res = await store.saveCategory(cat);
-    if (res.ok) { setNewName(""); showToast(t("settings.categoryAdded")); }
-    else {
-      setCategories((prev) => prev.filter((c) => c.id !== cat.id));
-      showToast(t("settings.categorySaveFailed"));
-    }
-  }
-  function startEditing(c) {
-    setEditing(c.id);
-    setEditDraft({ name: c.name, color: c.color });
-  }
-  async function confirmEditing(id) {
-    const name = editDraft.name.trim();
-    if (!name) { showToast(t("settings.categoryNameEmpty")); return; }
-    let updated;
-    setCategories((prev) => prev.map((c) => { if (c.id === id) { updated = { ...c, name, color: editDraft.color }; return updated; } return c; }));
-    const res = updated ? await store.saveCategory(updated) : { ok: true };
-    if (res.ok) setEditing(null);
-    else showToast(t("settings.editSaveFailed"));
-  }
-  async function removeCategory(id) {
-    const removed = categories.find((c) => c.id === id);
-    setCategories((prev) => prev.filter((c) => c.id !== id));
-    const res = await store.deleteCategory(id);
-    if (res.ok) showToast(t("settings.categoryDeleted"));
-    else {
-      if (removed) setCategories((prev) => [...prev, removed]);
-      showToast(t("settings.categoryDeleteFailed"));
-    }
   }
 
   return (
@@ -5516,45 +5580,7 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
           })}
         </div>
       </div>
-      <div style={S.catEditorCard}>
-        <div style={S.catEditorHeader}><Palette size={15} color="#C9A24B" /><span>{t("settings.yourCategories")}</span></div>
-        <div style={S.catEditList}>
-          {categories.map((c) => (
-            <div key={c.id} style={S.catEditRow}>
-              {editing === c.id ? (
-                <>
-                  <div style={S.colorPickRow}>{COLOR_CHOICES.map((col) => <button key={col} onClick={() => setEditDraft((d) => ({ ...d, color: col }))} style={{ ...S.colorDot, background: col, outline: editDraft.color === col ? "2px solid #fff" : "none" }} />)}</div>
-                  <input
-                    value={editDraft.name}
-                    onChange={(e) => setEditDraft((d) => ({ ...d, name: e.target.value }))}
-                    onKeyDown={(e) => e.key === "Enter" && confirmEditing(c.id)}
-                    style={S.catEditInput}
-                    autoFocus
-                  />
-                  <button onClick={() => confirmEditing(c.id)} style={S.catSaveBtn}><Check size={14} /></button>
-                </>
-              ) : (
-                <>
-                  <span style={{ ...S.legendDot, background: c.color, width: 12, height: 12 }} />
-                  <span style={S.catEditName}>{isEn ? (DEFAULT_CATEGORIES.find((d) => d.id === c.id && d.name === c.name)?.nameEn || c.name) : c.name}</span>
-                  <button onClick={() => startEditing(c)} style={S.catIconBtn}><Edit3 size={13} /></button>
-                  <button onClick={() => removeCategory(c.id)} style={S.catIconBtn}><Trash2 size={13} /></button>
-                </>
-              )}
-            </div>
-          ))}
-        </div>
-        <div style={S.catAddRow}>
-          <div style={S.colorPickRow}>{COLOR_CHOICES.map((col) => <button key={col} onClick={() => setNewColor(col)} style={{ ...S.colorDot, background: col, outline: newColor === col ? "2px solid #fff" : "none" }} />)}</div>
-          <div style={S.catAddInputRow}>
-            <input value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addCategory()} placeholder={t("settings.newCategoryPlaceholder")} style={S.catEditInput} />
-            <button onClick={addCategory} style={S.taskAddBtn}><Plus size={16} /></button>
-          </div>
-        </div>
-      </div>
-      {!isSub && categories.length >= FREE_CATEGORY_LIMIT && (
-        <UpsellCard icon={Palette} title={t("settings.categoriesUpsellTitle")} message={t("settings.categoriesUpsellMessage")} compact />
-      )}
+      <CategoryManagerCard categories={categories} setCategories={setCategories} isSub={isSub} showToast={showToast} />
       {pointsLog && pointsLog.length > 0 && (
         <div style={S.catEditorCard}>
           <div style={S.catEditorHeader}><span style={{ fontSize: 14 }}>📋</span><span>{t("settings.pointsLog")}</span></div>

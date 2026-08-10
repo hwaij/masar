@@ -36,6 +36,7 @@ export const S = {
   legendChip: { display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--muted2)", background: "var(--surface-sunken)", border: "1px solid var(--surface-raised)", borderRadius: 20, padding: "5px 10px" },
   legendDot: { width: 8, height: 8, borderRadius: "50%", display: "inline-block", flexShrink: 0 },
   legendMins: { color: "var(--muted)", fontSize: 11 },
+  manageCategoriesChip: { display: "flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, color: "#C9A24B", background: "rgba(201,162,75,0.08)", border: "1px dashed rgba(201,162,75,0.45)", borderRadius: 20, padding: "5px 10px", cursor: "pointer" },
   emptyHint: { color: "var(--muted)", fontSize: 13, textAlign: "center", padding: "12px 0" },
 
   evolutionCard: { background: "linear-gradient(160deg, var(--warm-tint), var(--panel))", border: "1px solid var(--warm-border)", borderRadius: 16, padding: sp("14px"), marginBottom: sp(20) },
@@ -128,8 +129,9 @@ export const S = {
   catIconBtn: { background: "none", border: "none", color: "var(--muted)", cursor: "pointer", padding: 4, display: "flex" },
   catEditInput: { flex: 1, background: "var(--bg)", border: "1px solid var(--border2)", borderRadius: 8, padding: "8px 10px", color: "var(--ink)", fontSize: 13, fontFamily: "inherit", minWidth: 100 },
   catSaveBtn: { background: "#5FA8A0", border: "none", borderRadius: 8, color: "var(--bg)", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" },
-  colorPickRow: { display: "flex", gap: 5, flexWrap: "wrap", width: "100%", marginBottom: 4 },
-  colorDot: { width: 18, height: 18, borderRadius: "50%", border: "none", cursor: "pointer", padding: 0 },
+  colorPickRow: { display: "flex", gap: 7, flexWrap: "wrap", width: "100%", marginBottom: 4, padding: "2px 0" },
+  colorDot: { width: 22, height: 22, borderRadius: "50%", border: "1.5px solid var(--border2)", cursor: "pointer", padding: 0, transition: "transform 0.12s ease" },
+  colorDotSelected: { border: "2px solid var(--ink)", transform: "scale(1.12)" },
   catAddRow: { borderTop: "1px solid var(--line)", paddingTop: 12 },
   catAddInputRow: { display: "flex", gap: 8, marginTop: 4 },
 

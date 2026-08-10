@@ -52,6 +52,8 @@
     "unrecordedToday": "You have {{time}} unrecorded today — log your activities to see where your time goes.",
     "unrecordedOtherDay": "You have {{time}} unrecorded on this day — log your activities to see where your time goes.",
     "noActivitiesToday": "No activities logged for this day",
+    "manageCategories": "Categories",
+    "categoriesModalTitle": "Manage your categories",
     "log": "Log",
     "addActivity": "Add activity",
     "emptyStateSub": "Log your first activity to see your day's wheel come alive",

@@ -52,6 +52,8 @@
     "unrecordedToday": "لديك {{time}} غير مسجّلة اليوم — سجّل أنشطتك لتعرف أين يذهب وقتك.",
     "unrecordedOtherDay": "لديك {{time}} غير مسجّلة في هذا اليوم — سجّل أنشطتك لتعرف أين يذهب وقتك.",
     "noActivitiesToday": "لا أنشطة مسجلة لهذا اليوم",
+    "manageCategories": "فئاتك",
+    "categoriesModalTitle": "إدارة فئاتك",
     "log": "السجل",
     "addActivity": "إضافة نشاط",
     "emptyStateSub": "سجّل أول نشاط لترى عجلة يومك تنبض",

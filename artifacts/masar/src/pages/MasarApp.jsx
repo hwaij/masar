@@ -84,7 +84,7 @@ class LazySectionErrorBoundary extends React.Component {
   }
 }
 import SideMenu, { MENU_SECTIONS, SECTION_COLOR_PALETTE } from "../components/SideMenu";
-import SpotlightTour from "../components/SpotlightTour";
+import SpotlightTour, { ST as TourStyles } from "../components/SpotlightTour";
 import { useModuleTour } from "../lib/useModuleTour";
 import Sidebar from "../components/Sidebar";
 import TasbihIcon from "../components/TasbihIcon";
@@ -461,28 +461,43 @@ export default function MasarApp() {
     if (loaded && !profile.tourSeen) setTourOpen(true);
   }, [loaded]);
 
+  // "تخطّي" في أي مكان بالرحلة، أو "أكمل الآن" عند نهاية آخر مرحلة مبنية
+  // حالياً بلا مرحلة تالية - ينهي الرحلة كلها نهائياً: tourSeen=true (لا
+  // تظهر تلقائياً مرة أخرى أبداً)، وتُصفَّر core لتبدأ أي إعادة تشغيل
+  // يدوية لاحقة من أول المرحلة الأولى دائماً.
   const closeTour = useCallback(() => {
     setTourOpen(false);
-    setProfile((p) => ({ ...p, tourSeen: true, tourProgress: { ...p.tourProgress, core: { step: 0 } } }));
+    setProfile((p) => ({ ...p, tourSeen: true, tourProgress: { ...p.tourProgress, core: { stage: 1, step: 0 } } }));
     store.saveTourSeen(true);
-    store.saveTourProgress({ core: { step: 0 } });
+    store.saveTourProgress({ core: { stage: 1, step: 0 } });
   }, []);
 
-  // "إعادة الجولة" من الإعدادات تبدأ دائماً من الخطوة الأولى، لا من آخر
-  // نقطة توقّف قديمة محفوظة صدفة.
+  // "لاحقاً" عند شاشة "نهاية المرحلة": يحفظ الموضع (المرحلة اكتملت،
+  // بانتظار القرار) ويُغلق الرحلة بلا لمس tourSeen إطلاقاً - فتُعاد فتحها
+  // تلقائياً في الجلسة القادمة (طالما لم تُخطَّ أو تكتمل الرحلة كلها بعد)
+  // وتُستأنف بنفس شاشة "نهاية المرحلة" هذه بالضبط عبر بطاقة "نكمل من حيث
+  // توقفنا؟" في MasarJourney.
+  const pauseJourney = useCallback((stage, step) => {
+    setTourOpen(false);
+    setProfile((p) => ({ ...p, tourProgress: { ...p.tourProgress, core: { stage, step } } }));
+    store.saveTourProgress({ core: { stage, step } });
+  }, []);
+
+  // "إعادة الجولة" من الإعدادات/المساعدة تبدأ دائماً من أول المرحلة
+  // الأولى، لا من آخر نقطة توقّف قديمة محفوظة صدفة.
   const startTour = useCallback(() => {
-    setProfile((p) => ({ ...p, tourProgress: { ...p.tourProgress, core: { step: 0 } } }));
-    store.saveTourProgress({ core: { step: 0 } });
+    setProfile((p) => ({ ...p, tourProgress: { ...p.tourProgress, core: { stage: 1, step: 0 } } }));
+    store.saveTourProgress({ core: { stage: 1, step: 0 } });
     setTourOpen(true);
   }, []);
 
-  // يُستدعى من OnboardingTour عند كل انتقال بين خطوات الجولة الأساسية -
-  // يحفظ رقم الخطوة الحالية حتى يستأنف المستخدم من نفس النقطة تماماً إن
-  // أغلق التطبيق في المنتصف قبل اكتمال الجولة (بدون انتظار الحفظ، لا يوقف
-  // الواجهة).
-  const advanceCoreTourStep = useCallback((step) => {
-    setProfile((p) => ({ ...p, tourProgress: { ...p.tourProgress, core: { step } } }));
-    store.saveTourProgress({ core: { step } });
+  // يُستدعى من MasarJourney عند كل انتقال بين خطوات الرحلة (تقدّماً أو
+  // رجوعاً) - يحفظ المرحلة والخطوة الحاليتين معاً حتى يستأنف المستخدم من
+  // نفس النقطة تماماً إن أغلق التطبيق في المنتصف (بدون انتظار الحفظ، لا
+  // يوقف الواجهة).
+  const advanceJourneyStep = useCallback((stage, step) => {
+    setProfile((p) => ({ ...p, tourProgress: { ...p.tourProgress, core: { stage, step } } }));
+    store.saveTourProgress({ core: { stage, step } });
   }, []);
 
   // مزامنة المظهر مع الحساب بعد اكتمال كل تحميل — يغطي حالة تسجيل الدخول
@@ -752,56 +767,181 @@ export default function MasarApp() {
       </div>
       </div>
       {toast && <div style={S.toast}>{toast}</div>}
-      {tourOpen && <OnboardingTour onClose={closeTour} resumeStep={profile.tourProgress?.core?.step} onStepChange={advanceCoreTourStep} />}
+      {tourOpen && (
+        <MasarJourney
+          view={view} setView={setView}
+          resumeStage={typeof profile.tourProgress?.core?.stage === "number" ? profile.tourProgress.core.stage : 1}
+          resumeStep={typeof profile.tourProgress?.core?.stage === "number" ? profile.tourProgress.core.step : 0}
+          onStepChange={advanceJourneyStep}
+          onPause={pauseJourney}
+          onFinishAll={closeTour}
+        />
+      )}
       {dailyTip && <DailyTipModal tip={dailyTip} onClose={() => setDailyTip(null)} />}
     </div>
   );
 }
 
-// الجولة الأساسية (Core Tour) - أُعيد بناؤها بالكامل فوق محرك SpotlightTour
-// القابل لإعادة الاستخدام، بدل 11 شاشة نصية متطابقة الشكل كما كانت سابقاً.
-// 6 خطوات قصيرة فقط، بخطوة تفاعلية حقيقية واحدة (فتح القائمة بضغطة
-// المستخدم نفسه لا بشرح نظري)، وبلا إغراق بالتفاصيل: كل قسم (تغذية/
-// رياضة/مهام/أهداف/تقارير/AI) له جولته السياقية الخاصة المستقلة أول مرة
-// يُفتح فعلياً (راجع كل قسم على حدة) بدل شرحه هنا مسبقاً. الأيقونة تظهر
-// فقط في الشاشتين المركزيتين (ترحيب/ختام) - خطوات الـSpotlight الوسطى
-// أصغر حجماً وتلتصق بالعنصر الحقيقي مباشرة. target تُطابق data-tour
-// المضافة على زر القائمة (MasarApp) وعناصر التنقل (SideMenu).
-const CORE_TOUR_META = [
-  { Icon: Sparkles },
-  { target: '[data-tour="menu-btn"]', interactive: true },
-  { target: '[data-tour="nav-nutrition"]' },
-  // تصحيح (Phase G): كانت هذه الخطوة تستهدف "أنت" (البيانات الصحية:
-  // طول/وزن/عمر) بينما نصّها يتحدّث عن الهوايات والاهتمامات - تلك الحقول
-  // فعلياً في "التخصيص" (ProfileCard) لا في "أنت". الاستهداف الآن مطابق
-  // للمحتوى الحقيقي.
-  { target: '[data-tour="nav-settings"]' },
-  {},
-  { Icon: Heart },
+// MASAR JOURNEY - رحلة واحدة مترابطة عبر التطبيق كله، مقسّمة لمراحل طبيعية
+// بنقاط توقّف (وليست 4 جولات منفصلة الإحساس). تحلّ محل الجولة الأساسية
+// القديمة (Core Tour، 6 خطوات، جولة في القائمة فقط) بإعادة تصميم كامل
+// لتجربة الـUX، مع الحفاظ الكامل على محرك SpotlightTour والبنية التقنية
+// (tour_seen/tour_progress) كما هي. كل قسم لا يزال له جولته السياقية
+// الخاصة (تغذية/رياضة/مهام/أهداف/تقارير/AI) - هذه الرحلة تُضاف فوقها، لا
+// تُلغيها.
+//
+// حالياً: المرحلة 1 فقط مبنية ("البداية والعبادة": لوحة اليوم ثم الصلاة/
+// الأذكار/الحكمة، بالترتيب الحقيقي من MENU_SECTIONS في SideMenu.jsx).
+// المراحل 2-4 (الصحة/الإنتاجية/المجتمع والذكاء والحساب) تُضاف مستقبلاً
+// كعناصر جديدة فقط في JOURNEY_STAGES أدناه، بلا أي تعديل على منطق
+// MasarJourney نفسه - بُني عاماً لهذا الغرض تحديداً.
+//
+// كل خطوة تحمل view خاصاً بها؛ المكوّن ينقل المستخدم تلقائياً (setView)
+// عند الانتقال بين خطوات بشاشات مختلفة، فلا يحتاج المستخدم لفتح القائمة
+// يدوياً وسط الرحلة إلا في خطوة "افتح القائمة" التمهيدية الوحيدة - الانتقال
+// لكل من الأذكار والحكمة بعدها تلقائي بالكامل.
+const JOURNEY_STAGES = [
+  {
+    id: "stage1",
+    titleKey: "onboarding.stage1.title",
+    steps: [
+      { view: "today", Icon: Sparkles }, // 0: ترحيب
+      { view: "today", target: '[data-tour="today-daywheel"]' }, // 1: عجلة اليوم
+      { view: "today", target: '[data-tour="today-categories"]' }, // 2: فئاتك
+      { view: "today", target: '[data-tour="today-add-activity"]' }, // 3: سجل نشاطك
+      { view: "today" }, // 4: مهام اليوم السريعة (بلا هدف - قد لا توجد مهام بعد لمستخدم جديد)
+      { view: "today", target: '[data-tour="menu-btn"]', interactive: true }, // 5: افتح القائمة (تفاعلي حقيقي وحيد لكل الرحلة)
+      { view: "today", target: '[data-tour="nav-prayer"]', interactive: true }, // 6: اضغط "الصلاة" (تفاعلي حقيقي - نفس تنقّل SideMenu الحقيقي)
+      { view: "prayer", target: '[data-tour="prayer-next-card"]' }, // 7
+      { view: "prayer", target: '[data-tour="prayer-mark-btn"]', interactive: true, allowLater: true }, // 8: فعل حقيقي (تسجيل صلاة) - نفّذ الآن/لاحقاً
+      { view: "prayer", target: '[data-tour="prayer-extras"]' }, // 9
+      { view: "adhkar", target: '[data-tour="adhkar-cat-first"]', interactive: true }, // 10: اختر فئة أذكار (تفاعلي)
+      { view: "adhkar", target: '[data-tour="adhkar-counter-first"]', interactive: true, allowLater: true }, // 11: فعل حقيقي (عدّاد ذكر) - نفّذ الآن/لاحقاً
+      // 12: آخر خطوة حقيقية بالمرحلة - neverLast تمنع محرك SpotlightTour من
+      // معاملتها كخاتمة الجولة كلها (نفس خلل "isLast" المُكتشف والمُصلح في
+      // Phase G لفيتنس) لأن شاشة "نهاية المرحلة" المخصصة (أدناه) هي التي
+      // يجب أن تظهر بعدها دائماً، لا زر "إنهاء" فوري.
+      { view: "tips", target: '[data-tour="tips-hero"]', neverLast: true },
+    ],
+  },
 ];
 
-function OnboardingTour({ onClose, resumeStep, onStepChange }) {
+// فهرس كل خطوة يُعطَّل "السابق" عندها لأن الخطوة قبلها تضمّنت تنقّلاً
+// حقيقياً بين الأقسام أو حالة داخلية للصفحة (مثل فتح القائمة تلقائياً أو
+// اختيار فئة أذكار داخلياً) يستحيل على المنسّق إعادة بنائها بمجرد الرجوع
+// برقم الخطوة - توسيع طفيف ومتعمَّد لقاعدة "السابق يُعطَّل بعد فعل بيانات
+// حقيقي" ليشمل هذه الحالة المكافئة في الخطورة. الفهرس 9 (بعد خطوة تسجيل
+// الصلاة رقم 8) معطَّل ديناميكياً فقط إن نُفِّذ الفعل الحقيقي فعلاً (لا
+// "لاحقاً") - يُحسَب داخل المكوّن، ليس هنا.
+const STAGE_BACK_BLOCKED = [
+  { 7: true, 10: true, 11: true, 12: true }, // stage1
+];
+
+function MasarJourney({ view, setView, resumeStage, resumeStep, onStepChange, onPause, onFinishAll }) {
   const { t } = useTranslation();
-  const tourTexts = t("onboarding.steps", { returnObjects: true });
-  const [stepIndex, setStepIndex] = useState(() => {
-    const n = Number(resumeStep) || 0;
-    return Math.min(Math.max(n, 0), CORE_TOUR_META.length - 1);
-  });
-  const steps = CORE_TOUR_META.map((meta, i) => ({ ...meta, ...(tourTexts[i] || {}) }));
+  const initialStageIdx = Math.min(Math.max((Number(resumeStage) || 1) - 1, 0), JOURNEY_STAGES.length - 1);
+  const stageForInit = JOURNEY_STAGES[initialStageIdx];
+  const initialStepRaw = Math.min(Math.max(Number(resumeStep) || 0, 0), stageForInit.steps.length);
+  const [stageIndex, setStageIndex] = useState(initialStageIdx);
+  const [stepIndex, setStepIndex] = useState(initialStepRaw);
+  const [realActionTaken, setRealActionTaken] = useState({});
+  // بطاقة ترحيب-بالعودة تظهر مرة واحدة فقط عند إعادة فتح الرحلة بعد إغلاق
+  // التطبيق في المنتصف (سواء وسط مرحلة أو بعد اختيار "لاحقاً" عند نهايتها) -
+  // تُحسب مرة واحدة عند التركيب فقط، لا تُعاد حسابها لاحقاً.
+  const [resuming] = useState(() => initialStageIdx > 0 || initialStepRaw > 0);
+  const [showResumeBanner, setShowResumeBanner] = useState(resuming);
+
+  const stage = JOURNEY_STAGES[stageIndex];
+  const stepsKey = stage.titleKey.replace(".title", ".steps");
+  const stageTexts = t(stepsKey, { returnObjects: true });
+  const steps = stage.steps.map((meta, i) => ({ ...meta, ...((Array.isArray(stageTexts) && stageTexts[i]) || {}) }));
+  const atStageComplete = stepIndex >= steps.length;
+  const backBlocked = STAGE_BACK_BLOCKED[stageIndex] || {};
+
+  // كل خطوة تعرف الشاشة التي تنتمي إليها - إن لم يكن التطبيق عليها فعلاً
+  // (تقدّماً أو رجوعاً)، ننقل المستخدم إليها تلقائياً؛ فقط خطوة "افتح
+  // القائمة" التمهيدية تعتمد على ضغطة المستخدم الحقيقية لتغيير الشاشة.
+  useEffect(() => {
+    if (showResumeBanner || atStageComplete) return;
+    const wantedView = steps[stepIndex]?.view;
+    if (wantedView && wantedView !== view) setView(wantedView);
+  }, [stepIndex, stageIndex, atStageComplete, showResumeBanner, view]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function goNext() {
     setStepIndex((cur) => {
-      const next = Math.min(cur + 1, steps.length - 1);
-      onStepChange(next);
+      if (steps[cur]?.allowLater) setRealActionTaken((s) => ({ ...s, [cur]: true }));
+      const next = Math.min(cur + 1, steps.length);
+      onStepChange(stageIndex + 1, next);
+      return next;
+    });
+  }
+  function goLater() {
+    setStepIndex((cur) => {
+      const next = Math.min(cur + 1, steps.length);
+      onStepChange(stageIndex + 1, next);
       return next;
     });
   }
   function goBack() {
     setStepIndex((cur) => {
       const prev = Math.max(cur - 1, 0);
-      onStepChange(prev);
+      onStepChange(stageIndex + 1, prev);
       return prev;
     });
+  }
+  function canGoBack() {
+    if (stepIndex <= 0) return false;
+    if (backBlocked[stepIndex]) return false;
+    if (stepIndex === 9 && realActionTaken[8]) return false;
+    return true;
+  }
+  function handleContinueNow() {
+    const nextStageIdx = stageIndex + 1;
+    if (JOURNEY_STAGES[nextStageIdx]) {
+      setStageIndex(nextStageIdx);
+      setStepIndex(0);
+      onStepChange(nextStageIdx + 1, 0);
+    } else {
+      // لا مراحل أخرى مبنية بعد - كل ما هو متاح حالياً من الرحلة الجديدة
+      // ينتهي هنا فعلياً. بمجرد بناء كود المرحلة التالية مستقبلاً سيتحوّل
+      // هذا الفرع تلقائياً لانتقال حقيقي للأمام بلا أي تعديل هنا.
+      onFinishAll();
+    }
+  }
+
+  if (showResumeBanner) {
+    return (
+      <div style={TourStyles.root}>
+        <div style={TourStyles.fullDim} />
+        <div style={TourStyles.centerWrap}>
+          <div style={TourStyles.centeredCard}>
+            <div style={TourStyles.title}>{t("onboarding.welcomeBack.title")}</div>
+            <p style={TourStyles.body}>{t("onboarding.welcomeBack.body")}</p>
+            <div style={TourStyles.actions}>
+              <button onClick={() => setShowResumeBanner(false)} style={{ ...TourStyles.nextBtn, ...TourStyles.nextBtnLast }}>{t("onboarding.welcomeBack.continue")}</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (atStageComplete) {
+    return (
+      <div style={TourStyles.root}>
+        <div style={TourStyles.fullDim} />
+        <div style={TourStyles.centerWrap}>
+          <div style={TourStyles.centeredCard}>
+            <div style={TourStyles.title}>{t("onboarding.stageComplete.title", { stage: t(stage.titleKey) })}</div>
+            <p style={TourStyles.body}>{t("onboarding.stageComplete.body")}</p>
+            <div style={TourStyles.actions}>
+              <button onClick={() => onPause(stageIndex + 1, stepIndex)} style={TourStyles.skipBtn}>{t("onboarding.stageComplete.later")}</button>
+              <button onClick={handleContinueNow} style={{ ...TourStyles.nextBtn, ...TourStyles.nextBtnLast }}>{t("onboarding.stageComplete.continueNow")}</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -809,12 +949,13 @@ function OnboardingTour({ onClose, resumeStep, onStepChange }) {
       steps={steps}
       stepIndex={stepIndex}
       onNext={goNext}
-      onBack={goBack}
-      onSkip={onClose}
-      onFinish={onClose}
+      onBack={canGoBack() ? goBack : undefined}
+      onLater={goLater}
+      onSkip={onFinishAll}
+      onFinish={goNext}
       labels={{
         skip: t("onboarding.skip"), next: t("onboarding.next"), start: t("onboarding.start"),
-        back: t("common.buttons.back"), tapHere: t("onboarding.tapHere"),
+        back: t("common.buttons.back"), tapHere: t("onboarding.tapHere"), later: t("onboarding.later"),
       }}
     />
   );
@@ -1275,7 +1416,7 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
         </div>
       )}
 
-      <div style={S.wheelSection} className="masar-hero-graphic">
+      <div style={S.wheelSection} className="masar-hero-graphic" data-tour="today-daywheel">
         <DayWheel
           entries={halfEntries}
           focusSessions={halfFocusSessions}
@@ -1303,7 +1444,7 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
         </div>
       )}
 
-      <div style={S.legendRow}>
+      <div style={S.legendRow} data-tour="today-categories">
         {byCategory.map((c) => (
           <div key={c.catId} style={S.legendChip}><span style={{ ...S.legendDot, background: c.color }} /><span>{catDisplayName(c, language)}</span><span style={S.legendMins}>{fmtHM(c.mins, language)}</span></div>
         ))}
@@ -1325,7 +1466,7 @@ function TodayView({ date, setDate, entries, setEntries, categories, tasks, setT
 
       <div style={S.entryListHeader}>
         <span>{t("todayView.log")}</span>
-        <button onClick={() => { setEditingEntry(null); setModalOpen(true); }} style={S.addBtn}><Plus size={16} /><span>{t("todayView.addActivity")}</span></button>
+        <button onClick={() => { setEditingEntry(null); setModalOpen(true); }} style={S.addBtn} data-tour="today-add-activity"><Plus size={16} /><span>{t("todayView.addActivity")}</span></button>
       </div>
       <div style={S.entryList} className="stagger-in responsive-card-list">
         {dayEntries.length === 0 && <div style={S.emptyState}><div style={S.emptyStateTitle}>{t("todayView.startYourDay")}</div><div style={S.emptyStateSub}>{t("todayView.emptyStateSub")}</div></div>}
@@ -3180,7 +3321,7 @@ function PrayerView({
           <div style={PS.prayerHeroSub}>{arabicDate(today, { weekday: "long", day: "numeric", month: "long" }, language === "en" ? "en-US" : undefined)}</div>
         </div>
       </div>
-      <div style={PS.nextPrayerCard}>
+      <div style={PS.nextPrayerCard} data-tour="prayer-next-card">
         <div style={PS.nextLabel}>{t("prayer.nextPrayer")}</div>
         <div style={PS.nextName}>{prayerName(next.id)}{next.tomorrow ? t("prayer.tomorrow") : ""}</div>
         <div style={PS.nextTime}>{to12h(next.time)}</div>
@@ -3202,7 +3343,7 @@ function PrayerView({
         <button onClick={enableNotifications} style={PS.notifBtn}><Bell size={15} /> {t("prayer.enableAdhanNotif")}</button>
       )}
       <div style={PS.prayerList}>
-        {prayers.map((p) => {
+        {prayers.map((p, pIdx) => {
           const done = isDone(p.id);
           const isNext = p.id === next.id && !next.tomorrow;
           const entry = done ? todayLog.find((x) => x.prayerId === p.id) : null;
@@ -3215,7 +3356,7 @@ function PrayerView({
                   <div style={PS.prayerTimingNote}>{prayerTimingNote(entry.minutesAfterAdhan, t)}</div>
                 )}
               </div>
-              <button onClick={() => togglePrayer(p)} style={{ ...PS.prayerBtn, ...(done ? PS.prayerBtnDone : {}) }}>
+              <button onClick={() => togglePrayer(p)} style={{ ...PS.prayerBtn, ...(done ? PS.prayerBtnDone : {}) }} data-tour={pIdx === 0 ? "prayer-mark-btn" : undefined}>
                 {done ? <><CheckCircle2 size={15} /> {t("prayer.done")}</> : t("prayer.markPrayed")}
               </button>
             </div>
@@ -3246,7 +3387,7 @@ function PrayerView({
         )}
       </div>
 
-      <div style={PS.essSection}>
+      <div style={PS.essSection} data-tour="prayer-extras">
         <div style={PS.essSectionHead}>
           <span style={{ fontSize: 16 }}>🤲</span>
           <span style={PS.essSectionTitle}>{t("prayer.istighfarCounter")}</span>
@@ -3499,10 +3640,10 @@ function AdhkarView({ showToast }) {
             </div>
           </div>
           <div style={AS.grid}>
-            {ADHKAR_CATEGORIES.map((cat) => {
+            {ADHKAR_CATEGORIES.map((cat, catIdx) => {
               const stats = categoryStats(cat.id);
               return (
-                <button key={cat.id} onClick={() => setSelected(cat.id)} style={AS.catCard}>
+                <button key={cat.id} onClick={() => setSelected(cat.id)} style={AS.catCard} data-tour={catIdx === 0 ? "adhkar-cat-first" : undefined}>
                   <span style={AS.catIcon}>{cat.icon}</span>
                   <div style={AS.catInfo}>
                     <div style={AS.catTitle}>{t(`adhkar.categories.${cat.id}.title`)}</div>
@@ -3548,7 +3689,7 @@ function AdhkarView({ showToast }) {
           </div>
         )}
 
-        {items.map((item) => {
+        {items.map((item, itemIdx) => {
           const st = stateFor(selected, item);
           const isQuran = /^\[/.test(item.note || "");
           return (
@@ -3562,7 +3703,7 @@ function AdhkarView({ showToast }) {
               {item.note && <div style={AS.itemNote}>{item.note}</div>}
               <div style={AS.itemFooter}>
                 <span style={AS.itemLabel}>{item.countLabel}</span>
-                <button onClick={() => decrement(selected, item)} disabled={st.done} style={{ ...AS.counterBtn, ...(st.done ? AS.counterBtnDone : {}) }}>
+                <button onClick={() => decrement(selected, item)} disabled={st.done} style={{ ...AS.counterBtn, ...(st.done ? AS.counterBtnDone : {}) }} data-tour={itemIdx === 0 ? "adhkar-counter-first" : undefined}>
                   {st.done ? <><Check size={18} /> {t("adhkar.done")}</> : st.remaining}
                 </button>
               </div>
@@ -3703,7 +3844,7 @@ function TipsView({ tipsLog, setTipsLog, showToast, subscription }) {
   return (
     <div style={S.view}>
       <div style={TS.wrap}>
-        <div style={TS.hero}>
+        <div style={TS.hero} data-tour="tips-hero">
           <div style={TS.heroIcon}><Eye size={22} color="var(--on-accent)" /></div>
           <div>
             <div style={TS.heroTitle}>{t("tips.heroTitle")}</div>

@@ -24,13 +24,18 @@ function getRect(selector) {
   return el.getBoundingClientRect();
 }
 
-export default function SpotlightTour({ steps, stepIndex, onNext, onBack, onSkip, onFinish, labels }) {
+export default function SpotlightTour({ steps, stepIndex, onNext, onBack, onSkip, onFinish, onLater, labels }) {
   const reduceMotion = useReducedMotion();
   const [rect, setRect] = useState(null);
   const [tooltipSize, setTooltipSize] = useState({ width: 300, height: 160 });
   const tooltipRef = useRef(null);
   const step = steps[stepIndex];
-  const isLast = stepIndex === steps.length - 1;
+  // neverLast: خطوة أخيرة في مصفوفتها موضعياً لكن ليست خاتمة الجولة فعلياً
+  // (مثال: آخر خطوة حقيقية بمرحلة من رحلة متعددة المراحل، تليها شاشة
+  // "نهاية المرحلة" المخصصة لا زر "إنهاء" فوري) - بلا هذا العلم يعامل
+  // المحرك أي مصفوفة خطوات واحدة أو أخيرة الموضع كخاتمة دائماً، وهو الخلل
+  // نفسه المُكتشف والمُصلح سابقاً في جولة الرياضة (Phase G).
+  const isLast = stepIndex === steps.length - 1 && !step?.neverLast;
 
   // عند تغيّر الهدف، مرّره لمنتصف الشاشة أولاً - بعض الأهداف (بطاقات
   // ملخّص طويلة مثلاً) قد تكون أطول من الشاشة أو خارج نطاق العرض الحالي،
@@ -62,11 +67,29 @@ export default function SpotlightTour({ steps, stepIndex, onNext, onBack, onSkip
   // نفسه - لا نعترض الحدث، فقط نراقبه.
   useEffect(() => {
     if (!step?.interactive || !step?.target) return undefined;
-    const el = document.querySelector(step.target);
-    if (!el) return undefined;
+    let cancelled = false;
+    let attachedEl = null;
+    let raf;
     function handleRealClick() { window.setTimeout(() => onNext(), 250); }
-    el.addEventListener("click", handleRealClick, { once: true });
-    return () => el.removeEventListener("click", handleRealClick);
+    // العنصر الهدف قد لا يكون موجوداً في الـDOM بعد لحظة تركيب هذا الأثر -
+    // خطوة تنقل المستخدم تلقائياً لشاشة جديدة (مثال: الانتقال التلقائي بين
+    // أقسام رحلة مسار) تُنفَّذ من أثر الأب (useEffect في المكوّن الحاوي)،
+    // الذي يُنفَّذ بعد أثر هذا المكوّن الابن في نفس الدورة - فبلا إعادة
+    // محاولة، يفوّت هذا الأثر العنصر الذي لم يُولَد بعد ولا يعاود المحاولة
+    // إطلاقاً لأن لا شيء في مصفوفة الاعتماديات يتغيّر بعد ظهوره. نفس فكرة
+    // الاستطلاع المستمر (polling) المستخدمة أصلاً في أثر تتبّع الموضع أدناه.
+    function tryAttach() {
+      if (cancelled || attachedEl) return;
+      const el = document.querySelector(step.target);
+      if (el) { attachedEl = el; el.addEventListener("click", handleRealClick, { once: true }); }
+      else raf = requestAnimationFrame(tryAttach);
+    }
+    tryAttach();
+    return () => {
+      cancelled = true;
+      if (raf) cancelAnimationFrame(raf);
+      if (attachedEl) attachedEl.removeEventListener("click", handleRealClick);
+    };
   }, [step?.target, step?.interactive, stepIndex, onNext]);
 
   useEffect(() => {
@@ -162,7 +185,12 @@ export default function SpotlightTour({ steps, stepIndex, onNext, onBack, onSkip
           </div>
         )}
         {step.interactive ? (
-          <div style={ST.interactiveHint}>👆 {labels.tapHere}</div>
+          <div style={ST.interactiveHint}>
+            <div>👆 {labels.tapHere}</div>
+            {step.allowLater && onLater && (
+              <button onClick={onLater} style={ST.laterBtn}>{labels.later}</button>
+            )}
+          </div>
         ) : (
           <div style={ST.actions}>
             {stepIndex > 0 && onBack && <button onClick={onBack} style={ST.backBtn}>{labels.back}</button>}
@@ -177,7 +205,7 @@ export default function SpotlightTour({ steps, stepIndex, onNext, onBack, onSkip
   }
 }
 
-const ST = {
+export const ST = {
   // pointerEvents: "none" هنا أساسي - هذا الحاوي يغطي الشاشة كاملة
   // (inset: 0)، فلولا هذا لالتقط هو نفسه كل نقرة حتى فوق "الفتحة" حول
   // العنصر المُبرَز، رغم أن أياً من عناصره الفرعية لا يرسم شيئاً هناك.
@@ -200,7 +228,8 @@ const ST = {
   dots: { display: "flex", gap: 5, marginBottom: 12 },
   dot: { width: 5, height: 5, borderRadius: "50%", background: "var(--border2)" },
   dotActive: { background: "var(--gold)", width: 14 },
-  interactiveHint: { fontSize: 12.5, fontWeight: 700, color: "var(--gold)", textAlign: "center", padding: "8px 0 2px" },
+  interactiveHint: { display: "flex", flexDirection: "column", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700, color: "var(--gold)", textAlign: "center", padding: "8px 0 2px" },
+  laterBtn: { background: "none", border: "none", color: "var(--muted2)", fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", padding: "6px 10px", minHeight: 36 },
   actions: { display: "flex", alignItems: "center", gap: 8 },
   backBtn: { background: "none", border: "none", color: "var(--muted2)", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", padding: "10px 8px", minHeight: 40 },
   skipBtn: { background: "none", border: "none", color: "var(--muted2)", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", padding: "10px 8px", minHeight: 40 },

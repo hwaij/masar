@@ -272,32 +272,75 @@
       "step6Title": "Great session!",
       "step6Body": "Here's your summary — duration, volume, and best set. Tap Share to turn it into an achievement card."
     },
-    "steps": [
-      {
-        "title": "Welcome to Masar",
-        "body": "Let's set Masar up together in under two minutes."
-      },
-      {
-        "title": "Your way around Masar",
-        "body": "Everything in Masar is one tap away from here. Tap the menu to open it."
-      },
-      {
-        "title": "Nutrition",
-        "body": "One of Masar's most useful sections — logging a meal takes seconds. We'll walk you through it step by step the first time you open it."
-      },
-      {
-        "title": "Personalize Masar",
-        "body": "Add your hobbies and interests here — the more accurate this is, the better every suggestion Masar gives you becomes."
-      },
-      {
-        "title": "Everything else",
-        "body": "Workouts, tasks, goals, reports, and AI — Masar will guide you through each one the first time you actually open it, no need to memorize anything now."
-      },
-      {
-        "title": "Ready?",
-        "body": "You're all set. Let's go!"
-      }
-    ]
+    "later": "Later",
+    "welcomeBack": {
+      "title": "👋 Continue where we left off?",
+      "body": "Let's pick your tour back up right where you paused it.",
+      "continue": "Continue"
+    },
+    "stageComplete": {
+      "title": "🎉 Nice! You finished {{stage}}",
+      "body": "You can continue now, or come back to it later.",
+      "later": "Later",
+      "continueNow": "Continue now"
+    },
+    "stage1": {
+      "title": "Stage 1: Getting started & Worship",
+      "steps": [
+        {
+          "title": "Welcome to Masar",
+          "body": "We'll walk through one connected tour that shows you Masar step by step — from your home screen to every important section. First stage: getting started and Worship."
+        },
+        {
+          "title": "Your day wheel",
+          "body": "This is your day wheel — a half-day (morning/evening) view of where your time went today, at a glance."
+        },
+        {
+          "title": "Your categories",
+          "body": "Each activity category has its own color here. You can add or edit your categories later from Settings."
+        },
+        {
+          "title": "Log your activity",
+          "body": "Tap here anytime to add a new activity to your day — duration, category, and a note, all in seconds."
+        },
+        {
+          "title": "Your day's tasks",
+          "body": "If you have tasks due today, they'll show up here below your activities — we'll cover tasks in detail in a later stage."
+        },
+        {
+          "title": "Your way around Masar",
+          "body": "Everything in Masar is one tap away from here. Tap to open the menu."
+        },
+        {
+          "title": "The Worship section",
+          "body": "This is where Worship starts — Prayer, Adhkar, and the daily Wisdom tip. Try tapping \"Prayer\"."
+        },
+        {
+          "title": "Your prayer times",
+          "body": "Here are your five daily prayer times, with a live countdown to the next one."
+        },
+        {
+          "title": "Log a prayer",
+          "body": "Tap to log a prayer you've actually prayed — Masar times it and awards you points. Already prayed it? Log it now, or continue the tour and log it later."
+        },
+        {
+          "title": "Istighfar, Adhkar & Quran",
+          "body": "You can also track your daily istighfar count, adhkar, and Quran progress right here — note: this mini adhkar checklist is different from the full Adhkar section next."
+        },
+        {
+          "title": "Adhkar",
+          "body": "This is the full Adhkar section — real texts and repetition counters, separate from the mini checklist inside Prayer. Try tapping any category to open it."
+        },
+        {
+          "title": "The dhikr counter",
+          "body": "Tap any dhikr to count down its repetitions — this is how Masar tracks adhkar. Try it now, or continue the tour and come back to it later."
+        },
+        {
+          "title": "The daily wisdom",
+          "body": "A new tip every day — your very first day is completely free, and a subscription is needed to keep seeing it daily after that."
+        }
+      ]
+    }
   },
   "help": {
     "title": "Help",

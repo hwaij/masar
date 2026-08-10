@@ -28,6 +28,7 @@
     "achieve": "Achieve",
     "account": "Account",
     "settings": "Settings",
+    "help": "Help",
     "language": "Language",
     "arabic": "العربية",
     "english": "English"
@@ -287,6 +288,35 @@
         "body": "You're all set. Let's go!"
       }
     ]
+  },
+  "help": {
+    "title": "Help",
+    "aboutThisPage": "About this page",
+    "whereIsPrompt": "Where do I find...?",
+    "searchPlaceholder": "e.g. log a meal, track a workout...",
+    "noMatch": "No matching section found — try different words.",
+    "goThere": "Go there",
+    "pages": {
+      "today": "Your daily summary and time wheel — log activities here and see where your day actually goes.",
+      "prayer": "Track your prayers and daily worship habits like istighfar and Quran reading.",
+      "adhkar": "Your daily adhkar counter.",
+      "tips": "A new tip every day, blending worldly and spiritual wisdom, plus an archive of past ones.",
+      "you": "Your personal and health info — the more accurate this is, the better every suggestion across Masar becomes.",
+      "nutrition": "Log meals and see your calories, macros, and nutrients update in real time.",
+      "nutritionPlan": "A personalized nutrition plan based on your goals and health data.",
+      "dietPlans": "Browse ready-made diet plan templates.",
+      "fitness": "Build a personalized workout plan and run guided training sessions.",
+      "mental": "Track your mood and mental wellbeing over time.",
+      "focus": "Run focus and study sessions with a timer.",
+      "tasks": "Your daily to-do list, organized by day of the week.",
+      "goals": "Set weekly, monthly, or yearly goals and track them on a review calendar.",
+      "vault": "Track your balance and log expenses or deposits with a reason.",
+      "reports": "Numbers and analysis of your progress — daily, weekly, or a full cross-section digest.",
+      "groups": "Compete with friends on study hours and workout completion.",
+      "assistant": "A chat assistant that answers using your real logged data, not generic advice.",
+      "achieve": "Personalized challenge and project suggestions based on your interests.",
+      "settings": "Your preferences — theme, language, accessibility, and subscription."
+    }
   },
   "tasksView": {
     "upsellCategoriesTitle": "Create unlimited tasks with Masar Premium",
@@ -959,6 +989,9 @@
     "soundOff": "Off",
     "soundOn": "On",
     "replayTour": "Replay the onboarding tour",
+    "replaySectionTours": "Replay a section's guided tour",
+    "replay": "Replay",
+    "replayQueued": "It'll show again next time you open that section",
     "localOnlyNote": "You're currently using local storage only. To enable cloud sync, add your Supabase keys to the environment file.",
     "yourBadges": "Your badges",
     "locked": "Locked",

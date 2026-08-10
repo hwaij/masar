@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import {
   X, Moon, Eye, User, Utensils, Dumbbell, HeartHandshake, Salad, ClipboardList,
   Timer, ListChecks, Target, Wallet, TrendingUp,
-  MessageCircle, Rocket, Settings, Languages, Users,
+  MessageCircle, Rocket, Settings, Languages, Users, HelpCircle,
 } from "lucide-react";
 import { store } from "../lib/store";
 import TasbihIcon from "./TasbihIcon";
@@ -61,6 +61,7 @@ export const MENU_SECTIONS = [
     titleKey: "nav.account",
     items: [
       { id: "settings", labelKey: "nav.settings", icon: Settings },
+      { id: "help", labelKey: "nav.help", icon: HelpCircle },
     ],
   },
 ];
@@ -91,10 +92,13 @@ const MS = {
   langPillActive: { background: "var(--gold)", color: "var(--on-accent)" },
 };
 
-export default function SideMenu({ open, onClose, view, setView, customColorsEnabled, sectionColors }) {
+export default function SideMenu({ open, onClose, view, setView, customColorsEnabled, sectionColors, onHelp }) {
   const { t, i18n } = useTranslation();
 
+  // "المساعدة" ليس قسماً فعلياً (لا setView له) - يفتح لوحة المساعدة بدلاً
+  // من التنقّل، لذا يُعامَل استثناءً هنا فقط دون تغيير سلوك أي عنصر آخر.
   function go(id) {
+    if (id === "help") { onHelp(); onClose(); return; }
     setView(id);
     onClose();
   }

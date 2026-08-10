@@ -16,7 +16,7 @@ import {
   Moon, Bell, BookMarked, CheckCircle2,
   MessageCircle, Send,
   LogIn, LogOut,
-  Heart, GraduationCap, Eye, AlertTriangle,
+  Heart, GraduationCap, Eye, AlertTriangle, RefreshCw,
   Wallet, ArrowDownCircle, ArrowUpCircle, Crown,
   Utensils, Dumbbell, Menu, Users,
   Accessibility, ALargeSmall, Contrast, StretchHorizontal, Volume2,
@@ -681,7 +681,7 @@ export default function MasarApp() {
 
   return (
     <div style={S.app} className="masar-app">
-      <Header view={view} setView={setView} gamify={gamify} stats={stats} hasCloud={store.hasCloud} user={user} onSignIn={handleSignIn} onSignOut={handleSignOut} subscription={subscription} theme={theme} toggleTheme={toggleTheme} customColorsEnabled={profile.customColorsEnabled} sectionColors={profile.sectionColors} />
+      <Header view={view} setView={setView} gamify={gamify} stats={stats} hasCloud={store.hasCloud} user={user} onSignIn={handleSignIn} onSignOut={handleSignOut} subscription={subscription} theme={theme} toggleTheme={toggleTheme} customColorsEnabled={profile.customColorsEnabled} sectionColors={profile.sectionColors} onStartTour={startTour} />
       <div className="masar-shell">
       {/* الشريط الجانبي الثابت (masar-sidebar) لا يُعرَض فعلياً إلا على
           الشاشات العريضة (>=1024px) عبر CSS في masar.css - على الجوال/التابلت
@@ -1033,11 +1033,12 @@ function LandingPage({ onSignIn, onEmailSignIn, onEmailSignUp }) {
   );
 }
 
-function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSignOut, subscription, theme, toggleTheme, customColorsEnabled, sectionColors }) {
+function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSignOut, subscription, theme, toggleTheme, customColorsEnabled, sectionColors, onStartTour }) {
   const { t, i18n } = useTranslation();
   const isVip = !!subscription?.isVip;
   const isSub = isActiveSubscriber(subscription);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const lv = getLevel(gamify.points, i18n.language);
   const lvProgress = lv.next ? (gamify.points - lv.current) / (lv.next - lv.current) : 1;
   const isToday = view === "today";
@@ -1116,7 +1117,8 @@ function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSign
           <span style={S.hStat}><Star size={13} color="#C9A24B" /> {gamify.points}</span>
         </div>
       </div>
-      <SideMenu open={menuOpen} onClose={() => setMenuOpen(false)} view={view} setView={setView} customColorsEnabled={customColorsEnabled} sectionColors={sectionColors} />
+      <SideMenu open={menuOpen} onClose={() => setMenuOpen(false)} view={view} setView={setView} customColorsEnabled={customColorsEnabled} sectionColors={sectionColors} onHelp={() => setHelpOpen(true)} />
+      {helpOpen && <HelpCenter view={view} setView={setView} onClose={() => setHelpOpen(false)} onStartTour={onStartTour} />}
     </>
   );
 }
@@ -3770,6 +3772,90 @@ function DailyTipModal({ tip, onClose }) {
   );
 }
 
+// فهرس بحث "وين ألقى...؟" - مطابقة كلمات مفتاحية محلية بسيطة (بلا أي
+// استدعاء AI، تفادياً للكلفة والتأخير على سؤال بهذا البساطة) بالعربية
+// والإنجليزية معاً في نفس المصفوفة، حتى تُطابق كتابة المستخدم بأي من
+// اللغتين بغض النظر عن لغة الواجهة الحالية.
+const HELP_SEARCH_INDEX = [
+  { viewId: "nutrition", keywords: ["meal", "food", "calories", "macro", "diet", "وجبة", "اكل", "أكل", "طعام", "سعرات", "تغذية"] },
+  { viewId: "fitness", keywords: ["workout", "exercise", "gym", "training", "رياضة", "تمرين", "تمارين", "جيم", "تدريب"] },
+  { viewId: "tasks", keywords: ["task", "todo", "reminder", "مهمة", "مهام", "تذكير"] },
+  { viewId: "goals", keywords: ["goal", "target", "هدف", "اهداف", "أهداف"] },
+  { viewId: "reports", keywords: ["report", "progress", "stats", "تقرير", "تقارير", "احصائيات", "إحصائيات", "تقدم"] },
+  { viewId: "assistant", keywords: ["ai", "chat", "ask", "assistant", "ذكاء", "مساعد", "اسأل", "شات"] },
+  { viewId: "achieve", keywords: ["achieve", "challenge", "project", "أنجز", "تحدي", "مشروع"] },
+  { viewId: "you", keywords: ["profile", "about", "health", "أنت", "بيانات", "صحية", "ملف", "هوايات"] },
+  { viewId: "prayer", keywords: ["prayer", "salah", "صلاة", "استغفار"] },
+  { viewId: "adhkar", keywords: ["adhkar", "dhikr", "اذكار", "أذكار", "تسبيح"] },
+  { viewId: "tips", keywords: ["wisdom", "tip", "بصيرة", "حكمة", "نصيحة"] },
+  { viewId: "focus", keywords: ["focus", "study", "timer", "تركيز", "دراسة", "مؤقت"] },
+  { viewId: "vault", keywords: ["money", "expense", "budget", "خزنة", "مال", "مصروف", "ميزانية"] },
+  { viewId: "mental", keywords: ["mental", "mood", "mind", "نفسية", "مزاج"] },
+  { viewId: "nutritionPlan", keywords: ["diet plan", "نظام غذائي", "خطة تغذية"] },
+  { viewId: "dietPlans", keywords: ["diet plans", "انظمة غذائية", "أنظمة"] },
+  { viewId: "settings", keywords: ["settings", "hobbies", "theme", "اعدادات", "إعدادات", "تخصيص"] },
+];
+const HELP_NAV_LABEL_KEY = { mental: "mentalHealth", focus: "focusStudy", groups: "studyGroups" };
+// قائمة الجولات السياقية القابلة لإعادة التشغيل الفردية من الإعدادات -
+// نفس معرّفات tour_progress.modules.<id> المستخدَمة في كل قسم (راجع
+// useModuleTour في كل من NutritionView/FitnessView/MasarApp).
+const MODULE_TOUR_LIST = [
+  { id: "nutrition", navKey: "nutrition" },
+  { id: "fitness", navKey: "fitness" },
+  { id: "tasks", navKey: "tasks" },
+  { id: "goals", navKey: "goals" },
+  { id: "ai", navKey: "assistant" },
+  { id: "reports", navKey: "reports" },
+];
+
+function HelpCenter({ view, setView, onClose, onStartTour }) {
+  const { t } = useTranslation();
+  const [query, setQuery] = useState("");
+  const pageBody = t(`help.pages.${view}`, { defaultValue: "" });
+
+  const q = query.trim().toLowerCase();
+  const matches = q.length === 0 ? [] : HELP_SEARCH_INDEX.filter((entry) => entry.keywords.some((k) => k.includes(q) || q.includes(k)));
+
+  function goToMatch(viewId) {
+    setView(viewId);
+    onClose();
+  }
+
+  return (
+    <div style={S.modalOverlay} className="overlay-in" onClick={onClose}>
+      <div style={{ ...S.modal, borderRadius: 20, maxWidth: 420 }} className="sheet-in" onClick={(e) => e.stopPropagation()}>
+        <div style={S.modalHeader}><span>{t("help.title")}</span><button onClick={onClose} style={S.iconBtn}><X size={18} /></button></div>
+
+        {pageBody && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ ...S.label, marginBottom: 6 }}>{t("help.aboutThisPage")}</div>
+            <p style={{ fontSize: 13, color: "var(--muted2)", lineHeight: 1.7, margin: 0 }}>{pageBody}</p>
+          </div>
+        )}
+
+        <label style={S.label}>{t("help.whereIsPrompt")}</label>
+        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("help.searchPlaceholder")} style={S.input} />
+        {q.length > 0 && (
+          matches.length > 0 ? (
+            <div style={{ marginTop: 10, marginBottom: 6, display: "flex", flexDirection: "column", gap: 6 }}>
+              {matches.map((m) => (
+                <button key={m.viewId} onClick={() => goToMatch(m.viewId)} style={{ ...S.exportBtn, marginTop: 0, marginBottom: 0, justifyContent: "space-between" }}>
+                  <span>{t(`nav.${HELP_NAV_LABEL_KEY[m.viewId] || m.viewId}`)}</span>
+                  <span style={{ color: "var(--gold)" }}>{t("help.goThere")}</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div style={{ ...S.emptyHint, marginTop: 10 }}>{t("help.noMatch")}</div>
+          )
+        )}
+
+        <button onClick={() => { onClose(); onStartTour(); }} style={{ ...S.exportBtn, marginTop: 16 }}>{t("settings.replayTour")}</button>
+      </div>
+    </div>
+  );
+}
+
 const GS = {
   wrap: { display: "flex", flexDirection: "column", gap: 16 },
   hero: { display: "flex", alignItems: "center", gap: 12, marginBottom: 4 },
@@ -4911,6 +4997,16 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
   // after refresh" bug. Now there's a single save on explicit confirm.
   const [editDraft, setEditDraft] = useState({ name: "", color: "" });
   const [newName, setNewName] = useState("");
+  const [showModuleReplays, setShowModuleReplays] = useState(false);
+
+  // إعادة تشغيل جولة سياقية واحدة (Onboarding - Phase E): يصفّر علم اكتمال
+  // تلك الوحدة فقط في tour_progress.modules، بلا مساس بـtourSeen أو بقية
+  // الوحدات - أول زيارة قادمة لذلك القسم فعلياً تُظهر جولته من جديد.
+  function resetModuleTour(moduleId) {
+    setProfile((p) => ({ ...p, tourProgress: { ...p.tourProgress, modules: { ...(p.tourProgress?.modules || {}), [moduleId]: { done: false } } } }));
+    store.saveTourProgress({ modules: { [moduleId]: { done: false } } });
+    showToast(t("settings.replayQueued"));
+  }
 
   async function handleEnableNotifications() {
     const result = await requestNotificationPermission();
@@ -5077,6 +5173,19 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
       </div>
       <SubscriptionCard subscription={subscription} />
       <button onClick={onStartTour} style={S.exportBtn}><GraduationCap size={15} /> {t("settings.replayTour")}</button>
+      <button onClick={() => setShowModuleReplays((v) => !v)} style={{ ...S.exportBtn, marginTop: -8 }}>
+        <RefreshCw size={14} /> {t("settings.replaySectionTours")}
+      </button>
+      {showModuleReplays && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: -8, marginBottom: 16 }}>
+          {MODULE_TOUR_LIST.map((m) => (
+            <button key={m.id} onClick={() => resetModuleTour(m.id)} style={{ ...S.exportBtn, marginTop: 0, marginBottom: 0, justifyContent: "space-between" }}>
+              <span>{t(`nav.${m.navKey}`)}</span>
+              <span style={{ color: "var(--gold)" }}>{t("settings.replay")}</span>
+            </button>
+          ))}
+        </div>
+      )}
       {!hasCloud && (
         <div style={S.setupCard}>
           <Cloud size={16} color="#5FA8A0" style={{ flexShrink: 0, marginTop: 2 }} />

@@ -9,7 +9,13 @@
 // حتى بناء خادم الإرسال الفعلي لاحقاً.
 import { store } from "./store";
 
-const VAPID_PUBLIC_KEY = "BKryNl1wfzmE9NPLvPEr-lxAIk-yxwQZqOqEZ6qjxSxX1oz34QNwN-fDWC9k5usK8dyblCoisRNEXXmA-wRKE3o";
+// مفتاح VAPID عام جديد (Phase C) - المفتاح القديم استُبدل لأنه تعذّر
+// إثبات وجود مفتاح خاص مطابق له في أي مكان (لا وصول للوحة تحكم Netlify من
+// هذه البيئة)، فتوليد زوج جديد بالكامل كان الخيار الآمن الوحيد بدل
+// الافتراض. أي اشتراك قديم محفوظ بالمفتاح القديم يصبح عديم الفائدة تلقائياً
+// (لن يطابق مفتاح الخادم الجديد) - لا ضرر عملياً لأنه لم يكن هناك من الأصل
+// أي خادم إرسال حقيقي يستخدمه.
+const VAPID_PUBLIC_KEY = "BCQay02YhmBDLTfkyjeyH46OhvkhUDXXOvmCBUq5PBx0vSet9aest5n-ITUWOtUOMquzQNutOHTWskWYiLk5bCQ";
 
 export function pushSupported() {
   return typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;

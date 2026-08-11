@@ -798,6 +798,16 @@ alter table app_flags enable row level security;
 drop policy if exists app_flags_public_read on app_flags;
 create policy app_flags_public_read on app_flags for select to anon, authenticated using (true);
 
+-- مفتاح أمان (Master Switch) لنظام الإشعارات المجدولة (Phase 3) - يُقرأ من
+-- netlify/functions/scheduled-prayer-reminders.js قبل أي إرسال فعلي. طالما
+-- false (الافتراضي)، الدالة المجدولة تُنفَّذ (كل 5 دقائق) لكن تخرج فوراً
+-- بلا قراءة أي بيانات مستخدم وبلا إرسال أي شيء لأي أحد - هذا الخط الفاصل
+-- الحقيقي الوحيد بين "منشور ويعمل بجدول زمني" و"يرسل فعلياً". لا سياسة
+-- insert/update/delete لدور anon/authenticated (نفس نمط free_for_all
+-- أعلاه) - التفعيل يدوي فقط من لوحة Supabase (SQL Editor أو Table Editor)
+-- بصلاحية المالك، لا من أي مسار في التطبيق نفسه.
+alter table app_flags add column if not exists prayer_reminders_live boolean not null default false;
+
 -- إصلاح أمني (تدقيق شامل): كانت هذه الدالة تقبل check_owner كمعامل خارجي
 -- حر - لكن كل استدعاء فعلي لها في هذا الملف بالكامل يمرر auth.uid()::text
 -- فقط (فحص اشتراك المستخدم لنفسه دائماً)، فالمعامل لم يكن ضرورياً لأي

@@ -9,6 +9,13 @@
 [functions]
   directory = "netlify/functions"
 
+# دالة مجدولة (Phase 3) - تعمل كل 5 دقائق بلا أي تفاعل بشري. الأمان الفعلي
+# محكوم بالكامل بمفتاح app_flags.prayer_reminders_live (افتراضياً false)
+# داخل الدالة نفسها، لا بهذا الإعداد - الجدولة هنا تعني فقط "الدالة
+# تُستدعى كل 5 دقائق"، لا "ترسل فعلياً كل 5 دقائق".
+[functions."scheduled-prayer-reminders"]
+  schedule = "*/5 * * * *"
+
 [[redirects]]
   from   = "/*"
   to     = "/index.html"

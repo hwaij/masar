@@ -5575,7 +5575,15 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
       if (res.ok && body.sent) {
         setPrayerTestResult({ ok: true, message: isEn ? `Sent successfully (${body.prayer?.id || "dhuhr"}).` : `أُرسل بنجاح (${body.prayer?.id || "dhuhr"}).` });
       } else {
-        setPrayerTestResult({ ok: false, message: body.error || (isEn ? `Failed (HTTP ${res.status}).` : `فشل (HTTP ${res.status}).`) });
+        // TEMP: تشخيص مؤقت - إزالة لاحقاً مع بقية هذا الزر (انظر debug في
+        // prayer-reminder-test.js). يُعرَض فقط إن أرسله الخادم فعلاً (لن
+        // يظهر لأي خطأ آخر لا يحمله).
+        const debugLine = body.debug
+          ? (isEn
+              ? ` [debug: env set=${body.debug.allowlistEnvVarPresent}, empty=${body.debug.allowlistEnvVarEmpty}, count=${body.debug.allowlistParsedCount}, your id=${body.debug.yourUserId}]`
+              : ` [تشخيص: env مضبوط=${body.debug.allowlistEnvVarPresent}, فارغ=${body.debug.allowlistEnvVarEmpty}, العدد=${body.debug.allowlistParsedCount}, معرّفك=${body.debug.yourUserId}]`)
+          : "";
+        setPrayerTestResult({ ok: false, message: (body.error || (isEn ? `Failed (HTTP ${res.status}).` : `فشل (HTTP ${res.status}).`)) + debugLine });
       }
     } catch (e) {
       console.error("[prayer-reminder-test] request failed:", e);

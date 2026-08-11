@@ -86,10 +86,25 @@ exports.handler = async (event) => {
   const allowlist = readAllowlist();
   if (!allowlist.includes(userId)) {
     console.error(`[prayer-reminder-test] rejected: userId ${userId} not in PRAYER_TEST_ALLOWLIST`);
+    // TEMP: تشخيص مؤقت آمن لمساعدة صاحب الحساب على تصحيح PRAYER_TEST_ALLOWLIST
+    // من طرفه - إزالة لاحقاً. لا يكشف أي قيمة من محتوى allowlist نفسه (قد
+    // تحوي معرّفات مستخدمين آخرين لاحقاً)، فقط: هل env var مضبوط أصلاً
+    // (مضبوط لكن فارغ يختلف عن غير مضبوط إطلاقاً)، عدد المعرّفات المقروءة
+    // منه، ومعرّف حساب المستدعي نفسه (آمن لأنه يعرفه أصلاً - توكنه هو).
+    const rawEnvPresent = typeof process.env.PRAYER_TEST_ALLOWLIST === "string";
+    const rawEnvTrimmedLength = (process.env.PRAYER_TEST_ALLOWLIST || "").trim().length;
     return {
       statusCode: 403,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ error: "هذه الدالة التجريبية محصورة حالياً بمرحلة الاختبار." }),
+      body: JSON.stringify({
+        error: "هذه الدالة التجريبية محصورة حالياً بمرحلة الاختبار.",
+        debug: {
+          allowlistEnvVarPresent: rawEnvPresent,
+          allowlistEnvVarEmpty: rawEnvTrimmedLength === 0,
+          allowlistParsedCount: allowlist.length,
+          yourUserId: userId,
+        },
+      }),
     };
   }
 

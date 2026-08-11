@@ -410,6 +410,48 @@ export const store = {
     }
   },
 
+  // اشتراك Push حقيقي واحد لجهاز/متصفح واحد - يُستدعى من src/lib/push.js
+  // فور نجاح pushManager.subscribe() الحقيقي، لا يبقى الاشتراك حبيس
+  // المتصفح بلا فائدة كما كان سابقاً. الضيوف المحليون (owner='solo') لا
+  // فائدة من حفظ اشتراك لهم أصلاً (لا هوية خادم لإرسال Push إليها لاحقاً
+  // بأمان) - يُعاد فشل صريح NOT_SIGNED_IN بدل ادّعاء نجاح كاذب، بدل
+  // useCloud() المعتاد الذي كان سيصمت بهدوء بـ{ok:true} كبقية الدوال.
+  async savePushSubscription(subscription) {
+    if (!useCloud()) return { ok: false, error: "NOT_SIGNED_IN" };
+    const json = typeof subscription.toJSON === "function" ? subscription.toJSON() : subscription;
+    const endpoint = json?.endpoint;
+    const p256dh = json?.keys?.p256dh;
+    const auth = json?.keys?.auth;
+    if (!endpoint || !p256dh || !auth) return { ok: false, error: "الاشتراك غير صالح." };
+    try {
+      const { error } = await supabase.from("push_subscriptions").upsert(
+        {
+          owner: CURRENT_OWNER, endpoint, p256dh, auth,
+          user_agent: (typeof navigator !== "undefined" && navigator.userAgent) || null,
+          platform: (typeof navigator !== "undefined" && navigator.platform) || null,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "owner,endpoint" },
+      );
+      if (error) { console.error("[savePushSubscription] Supabase error:", error.message); return { ok: false, error: error.message }; }
+      return { ok: true };
+    } catch (e) {
+      console.error("[savePushSubscription] write failed:", e);
+      return { ok: false, error: String(e) };
+    }
+  },
+  async deletePushSubscription(endpoint) {
+    if (!useCloud() || !endpoint) return { ok: true };
+    try {
+      const { error } = await supabase.from("push_subscriptions").delete().eq("owner", CURRENT_OWNER).eq("endpoint", endpoint);
+      if (error) { console.error("[deletePushSubscription] Supabase error:", error.message); return { ok: false, error: error.message }; }
+      return { ok: true };
+    } catch (e) {
+      console.error("[deletePushSubscription] delete failed:", e);
+      return { ok: false, error: String(e) };
+    }
+  },
+
   // بيانات قسم "أنت" الصحية (الطول/الوزن/العمر/الجنس/النشاط/الحالات
   // الصحية) والقيم المحسوبة منها (BMI/IBW/REE/TEE) — صف واحد لكل مستخدم،
   // بنفس نمط جدول profile.

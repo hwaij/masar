@@ -2074,7 +2074,8 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
 
   async function enableNotifications() {
     const result = await requestNotificationPermission();
-    const enabled = !!(result.granted && result.subscribed);
+    // نفس شرط SettingsView: "مفعّلة" فقط إذا حُفظ اشتراك push حقيقي فعلاً.
+    const enabled = !!result.saved;
     setProfile?.((p) => ({ ...p, notificationsEnabled: enabled, notificationsAsked: true }));
     await store.saveNotificationsPreference(enabled, true);
     showToast(enabled ? t("nutrition.notifEnabled") : (result.error ? t(`common.errors.${result.error}`) : t("nutrition.notifNotEnabled")));

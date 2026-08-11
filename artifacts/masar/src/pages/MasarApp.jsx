@@ -5427,7 +5427,10 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
 
   async function handleEnableNotifications() {
     const result = await requestNotificationPermission();
-    const enabled = !!(result.granted && result.subscribed);
+    // "مفعّلة" فعلياً تعني الآن: إذن + اشتراك push حقيقي + حفظه بنجاح في
+    // Supabase معاً - إذن ممنوح وحده (granted/subscribed) بلا حفظ الاشتراك
+    // (saved) لا يعني شيئاً عملياً، إذ لن يصل أي Push حقيقي لاحقاً بلا حفظه.
+    const enabled = !!result.saved;
     setProfile((p) => ({ ...p, notificationsEnabled: enabled, notificationsAsked: true }));
     await store.saveNotificationsPreference(enabled, true);
     if (enabled) showToast(t("settings.notifEnabled"));

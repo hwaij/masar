@@ -1,10 +1,14 @@
-// البنية التحتية لطلب إذن الإشعارات وتسجيل اشتراك Web Push — هذا الملف
-// لا يبني أي نظام إرسال فعلي (لا يوجد خادم يرسل بعد)؛ فقط يطلب الإذن
-// ويُنشئ اشتراك push حقيقياً عبر service worker، تمهيداً لمرحلة لاحقة.
+// البنية التحتية لطلب إذن الإشعارات وتسجيل اشتراك Web Push، وحفظه فعلياً
+// في Supabase (push_subscriptions) حتى يصبح قابلاً للاستخدام لاحقاً من
+// خادم إرسال حقيقي (Netlify Function، مرحلة لاحقة) - قبل هذا التعديل كان
+// الاشتراك يُنشأ في المتصفح ثم يُهمَل فوراً بلا أي حفظ، فلا يوجد أي طريقة
+// لإرسال Push له لاحقاً مهما نجحت خطوات الإذن/الاشتراك ظاهرياً.
 //
 // المفتاح العام هنا آمن للنشر في كود العميل (هذا بالضبط الغرض منه في
 // معيار VAPID) — المفتاح الخاص المقابل لا يظهر هنا إطلاقاً ولن يُستخدم
 // حتى بناء خادم الإرسال الفعلي لاحقاً.
+import { store } from "./store";
+
 const VAPID_PUBLIC_KEY = "BKryNl1wfzmE9NPLvPEr-lxAIk-yxwQZqOqEZ6qjxSxX1oz34QNwN-fDWC9k5usK8dyblCoisRNEXXmA-wRKE3o";
 
 export function pushSupported() {
@@ -28,49 +32,66 @@ async function subscribeToPush() {
   });
 }
 
-// يطلب إذن الإشعارات من المستخدم، ثم يسجّل اشتراك push فعلياً عند الموافقة.
-// يُرجع { granted, subscribed, error } — أبداً لا يرمي استثناءً، حتى يبقى
-// الاستخدام في الواجهة بسيطاً (استدعاء واحد + تحقّق من الحقول).
+// يطلب إذن الإشعارات من المستخدم، يُنشئ اشتراك push حقيقياً عند الموافقة،
+// ثم يحفظه فعلياً في Supabase قبل اعتبار العملية ناجحة - "نجاح" هذه الدالة
+// (subscribed:true, saved:true, بلا error) هو الشرط الوحيد الذي يجوز معه
+// إظهار "الإشعارات مفعّلة" للمستخدم؛ أي حالة أخرى (حتى لو مُنح الإذن
+// ونجح الاشتراك محلياً) تعني أن Push الحقيقي لن يصله أبداً لاحقاً.
 //
-// `error`، إن وُجد، هو الآن رمز ثابت (code) لا نص عربي جاهز — يماثل نمط
-// gemini.js (انظر geminiError هناك) لكن بدون رمي استثناء، حفاظاً على
-// العقد الموثّق أعلاه. المستدعي في React يترجم الرمز عبر
-// t(`common.errors.${error}`) (أو مساحة اسم push.* إن فُضِّلت). الرموز
-// الثلاثة المستخدَمة هنا خاصة بهذا الملف (لا تتقاطع مع رموز gemini.js):
-//   - PUSH_NOT_SUPPORTED: المتصفح لا يدعم Web Push إطلاقاً.
+// يُرجع { granted, subscribed, saved, error } — أبداً لا يرمي استثناءً.
+// `error`، إن وُجد، رمز ثابت (code) لا نص عربي جاهز، يُترجَم في React عبر
+// t(`common.errors.${error}`):
+//   - PUSH_NOT_SUPPORTED: المتصفح لا يدعم Web Push إطلاقاً (يشمل حالة
+//     Safari iOS بلا تثبيت على الشاشة الرئيسية - PushManager غير موجود).
 //   - PUSH_REQUEST_FAILED: فشل طلب إذن الإشعارات نفسه (قبل الموافقة/الرفض).
-//   - PUSH_PARTIAL_FAILURE: مُنح الإذن لكن فشل إنشاء اشتراك الـpush.
+//   - PUSH_PARTIAL_FAILURE: مُنح الإذن لكن فشل إنشاء اشتراك الـpush نفسه.
+//   - PUSH_NOT_SIGNED_IN: الاشتراك نجح لكن المستخدم ضيف محلي (owner='solo')
+//     بلا حساب حقيقي - لا هوية خادم لحفظ الاشتراك لها، فلا فائدة منه.
+//   - PUSH_SAVE_FAILED: الاشتراك نجح لكن حفظه في Supabase فشل (شبكة/خادم).
 export async function requestNotificationPermission() {
   if (!pushSupported()) {
-    return { granted: false, subscribed: false, error: "PUSH_NOT_SUPPORTED" };
+    return { granted: false, subscribed: false, saved: false, error: "PUSH_NOT_SUPPORTED" };
   }
   let permission;
   try {
     permission = await Notification.requestPermission();
   } catch (e) {
     console.error("[push] permission request failed:", e);
-    return { granted: false, subscribed: false, error: "PUSH_REQUEST_FAILED" };
+    return { granted: false, subscribed: false, saved: false, error: "PUSH_REQUEST_FAILED" };
   }
   if (permission !== "granted") {
-    return { granted: false, subscribed: false };
+    return { granted: false, subscribed: false, saved: false };
   }
+  let subscription;
   try {
-    await subscribeToPush();
-    return { granted: true, subscribed: true };
+    subscription = await subscribeToPush();
   } catch (e) {
     console.error("[push] subscribe failed:", e);
-    return { granted: true, subscribed: false, error: "PUSH_PARTIAL_FAILURE" };
+    return { granted: true, subscribed: false, saved: false, error: "PUSH_PARTIAL_FAILURE" };
   }
+  const saveRes = await store.savePushSubscription(subscription);
+  if (!saveRes.ok) {
+    console.error("[push] save subscription failed:", saveRes.error);
+    return { granted: true, subscribed: true, saved: false, error: saveRes.error === "NOT_SIGNED_IN" ? "PUSH_NOT_SIGNED_IN" : "PUSH_SAVE_FAILED" };
+  }
+  return { granted: true, subscribed: true, saved: true };
 }
 
-// يُلغي اشتراك الـpush الحالي (لا يمكن سحب إذن المتصفح نفسه برمجياً —
-// ذلك متاح للمستخدم فقط من إعدادات نظامه/متصفحه).
+// يُلغي اشتراك الـpush الحالي محلياً في المتصفح، ويحذف صفّه المطابق في
+// Supabase (لا يبقى صفاً يتيماً يُرسَل إليه لاحقاً بعد أن الغى المستخدم
+// موافقته فعلياً). لا يمكن سحب إذن المتصفح نفسه برمجياً — ذلك متاح
+// للمستخدم فقط من إعدادات نظامه/متصفحه.
 export async function disablePush() {
   if (!pushSupported()) return;
   try {
     const registration = await navigator.serviceWorker.ready;
     const existing = await registration.pushManager.getSubscription();
-    if (existing) await existing.unsubscribe();
+    if (existing) {
+      const endpoint = existing.endpoint;
+      await existing.unsubscribe();
+      const delRes = await store.deletePushSubscription(endpoint);
+      if (!delRes.ok) console.error("[push] delete subscription row failed:", delRes.error);
+    }
   } catch (e) {
     console.error("[push] unsubscribe failed:", e);
   }

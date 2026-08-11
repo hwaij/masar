@@ -1769,6 +1769,39 @@ create policy usda_cache_public_read on usda_cache for select to anon, authentic
 create policy usda_cache_public_insert on usda_cache for insert to anon, authenticated with check (true);
 create policy usda_cache_public_update on usda_cache for update to anon, authenticated using (true) with check (true);
 
+-- ============================================================
+-- اشتراكات إشعارات Push الحقيقية (Web Push) - push_subscriptions
+-- كل صف = اشتراك واحد لجهاز/متصفح واحد فعلي لمستخدم مسجَّل - المستخدم
+-- الواحد يملك عادة عدة صفوف بلا تعارض (آيفون + أندرويد + ديسكتوب كلها
+-- منفصلة ومتوازية)، القيد الوحيد (owner, endpoint) يمنع فقط تكرار نفس
+-- الجهاز بعينه إن اشترك مرة أخرى (upsert من الواجهة، لا صف جديد).
+-- الضيوف غير المسجَّلين (owner='solo' محلياً) لا يُحفظ لهم شيء هنا
+-- إطلاقاً بتصميم التطبيق نفسه (useCloud() في store.js يمنع أي كتابة
+-- Supabase لهم أصلاً) - وهذا صحيح فنياً: اشتراك بلا هوية خادم حقيقية عديم
+-- الفائدة إذ لا طريقة لإرسال Push له لاحقاً لمستخدم بعينه بأمان.
+-- last_success_at/last_error_at: تُحدَّث لاحقاً من دالة الإرسال الخلفية
+-- (Netlify Function) لا من الواجهة - تتيح لاحقاً معرفة الاشتراكات
+-- الميتة/الفاشلة بلا حذف أعمى فوري عند أول خطأ عابر.
+create table if not exists push_subscriptions (
+  id               uuid primary key default gen_random_uuid(),
+  owner            text not null,
+  endpoint         text not null,
+  p256dh           text not null,
+  auth             text not null,
+  user_agent       text,
+  platform         text,
+  created_at       timestamptz not null default now(),
+  updated_at       timestamptz not null default now(),
+  last_success_at  timestamptz,
+  last_error_at    timestamptz,
+  unique (owner, endpoint)
+);
+create index if not exists push_subscriptions_owner on push_subscriptions (owner);
+
+alter table push_subscriptions enable row level security;
+drop policy if exists push_subscriptions_user_own on push_subscriptions;
+create policy push_subscriptions_user_own on push_subscriptions for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
 -- إجبار طبقة PostgREST (التي تُعرِّض RPC عبر supabase.rpc(...)) على إعادة
 -- تحميل ذاكرتها المؤقتة للمخطط فوراً، بدل انتظار إعادة التحميل التلقائية
 -- (تحدث عادة خلال ثوانٍ، لكن قد تتأخر) - يضمن أن get_group_by_invite_code

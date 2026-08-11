@@ -16,6 +16,7 @@ import {
   Wallet, ArrowDownCircle, ArrowUpCircle, Crown,
   Utensils, Dumbbell, Menu, Users,
   Accessibility, ALargeSmall, Contrast, StretchHorizontal, Volume2,
+  Smartphone,
 } from "lucide-react";
 import { fivePrayers, nextPrayer, to12h } from "../lib/prayer";
 import { ADHKAR_CATEGORIES, ADHKAR } from "../lib/adhkar";
@@ -23,7 +24,7 @@ import { store, setOwner, getOwner, DEFAULT_CATEGORIES } from "../lib/store";
 import { pickDailyTip, TIP_CATEGORY_LABELS, localDayKey, TIPS, FALLBACK_TIP } from "../lib/tips";
 import { pickDailyMoneyTip, MONEY_TIP_CATEGORY_LABELS } from "../lib/money-tips";
 import { isActiveSubscriber } from "../lib/subscription";
-import { requestNotificationPermission, disablePush } from "../lib/push";
+import { requestNotificationPermission, disablePush, getNotificationStatus } from "../lib/push";
 import { ACTIVITY_LEVELS, HEALTH_CONDITIONS, NO_CONDITION, computeHealthMetrics } from "../lib/health";
 import { createGoal, isReviewDue, GOAL_PERIODS, GOAL_POINTS_SUCCESS, GOAL_POINTS_FAILURE } from "../lib/goals";
 import { FITNESS_GOALS } from "../lib/exercises-db";
@@ -738,7 +739,7 @@ export default function MasarApp() {
             prayerLog={prayerLog} setPrayerLog={setPrayerLog} religious={religious} setReligious={setReligious}
             azkarLog={azkarLog} setAzkarLog={setAzkarLog} azkarItems={azkarItems} setAzkarItems={setAzkarItems}
             quranProgress={quranProgress} setQuranProgress={setQuranProgress} istighfar={istighfar} setIstighfar={setIstighfar}
-            addPoints={addPoints} showToast={showToast}
+            addPoints={addPoints} showToast={showToast} profile={profile} setProfile={setProfile}
           />
         )}
         {view === "adhkar" && <AdhkarView showToast={showToast} />}
@@ -3315,13 +3316,20 @@ function religiousTaskTitle(task, t) {
 function PrayerView({
   prayerLog, setPrayerLog, religious, setReligious,
   azkarLog, setAzkarLog, azkarItems, setAzkarItems, quranProgress, setQuranProgress, istighfar, setIstighfar,
-  addPoints, showToast,
+  addPoints, showToast, profile, setProfile,
 }) {
   const { t, i18n } = useTranslation();
   const language = i18n.language;
   const prayerName = (id) => t(`prayer.names.${id}`);
   const [now, setNow] = useState(new Date());
-  const [notifEnabled, setNotifEnabled] = useState(false);
+  // لا يوجد بعد أي جدولة Push حقيقية لأوقات الصلاة (ستُبنى لاحقاً بعد نجاح
+  // اختبار Push الأساسي) - هذا الاحتياطي المحلي (setInterval + Notification
+  // مباشرة داخل الصفحة) هو الآلية الوحيدة الفعلية حالياً، فلا ازدواج إشعار
+  // ممكن اليوم. يُبنى إذنه على نفس فحص الإذن الحي المستخدم في الإعدادات
+  // (Notification.permission) بدل حالة محلية منفصلة تُنسى بعد كل تحميل صفحة.
+  const [notifEnabled, setNotifEnabled] = useState(() => {
+    try { return typeof Notification !== "undefined" && Notification.permission === "granted"; } catch { return false; }
+  });
   const notifiedRef = useRef({});
   const [azkarTab, setAzkarTab] = useState("morning");
   const ISTIGHFAR_TARGET = 1000;
@@ -3348,11 +3356,23 @@ function PrayerView({
     }
   }, [now, notifEnabled, prayers, today]);
 
+  // يستخدم نفس مسار الإذن/الاشتراك/الحفظ الحقيقي المستخدم في الإعدادات
+  // والتغذية (لا طلب إذن منفصل) - الاحتياطي المحلي أعلاه يحتاج فقط الإذن
+  // الممنوح ليعمل (granted)، بصرف النظر عن نجاح حفظ اشتراك Push الحقيقي.
   async function enableNotifications() {
     if (typeof Notification === "undefined") { showToast(t("prayer.notSupported")); return; }
-    const perm = await Notification.requestPermission();
-    if (perm === "granted") { setNotifEnabled(true); showToast(t("prayer.notifEnabled")); }
-    else showToast(t("prayer.notifDenied"));
+    const result = await requestNotificationPermission();
+    if (result.granted) {
+      setNotifEnabled(true);
+      const enabled = !!result.saved;
+      setProfile?.((p) => ({ ...p, notificationsEnabled: enabled, notificationsAsked: true }));
+      await store.saveNotificationsPreference(enabled, true);
+      showToast(enabled ? t("prayer.notifEnabled") : t(`common.errors.${result.error || "PUSH_SAVE_FAILED"}`));
+    } else {
+      setProfile?.((p) => ({ ...p, notificationsAsked: true }));
+      await store.saveNotificationsPreference(false, true);
+      showToast(result.error ? t(`common.errors.${result.error}`) : t("prayer.notifDenied"));
+    }
   }
 
   async function togglePrayer(p) {
@@ -5410,6 +5430,56 @@ function CategoryManagerCard({ categories, setCategories, isSub, showToast }) {
   );
 }
 
+// بطاقة حالة الإشعارات بلغة واضحة بلا أي مصطلحات تقنية (لا "Push API"، لا
+// "Service Worker") - 5 حالات فعلية (Phase E): غير مدعومة، يحتاج تثبيت
+// (آيفون/آيباد بلا تثبيت للشاشة الرئيسية)، لم تُفعَّل بعد، مفعّلة فعلاً،
+// أو لم تكتمل (تحتاج إعادة محاولة). الحالة نفسها من getNotificationStatus
+// في src/lib/push.js - لا منطق حالة مكرَّر هنا.
+function NotificationStatusCard({ profile, onEnable, onDisable }) {
+  const { t } = useTranslation();
+  const status = getNotificationStatus(profile);
+
+  const STATUS_META = {
+    unsupported: { dot: "#dc2626", icon: AlertTriangle },
+    install_required: { dot: "#d97706", icon: Smartphone },
+    permission_required: { dot: "#2563eb", icon: Bell },
+    enabled: { dot: "#16a34a", icon: CheckCircle2 },
+    failed: { dot: "#dc2626", icon: RefreshCw },
+  };
+  const key = { unsupported: "unsupported", install_required: "installRequired", permission_required: "permissionRequired", enabled: "enabled", failed: "failed" }[status];
+  const meta = STATUS_META[status];
+  const Icon = meta.icon;
+
+  return (
+    <div style={S.catEditorCard}>
+      <div style={S.catEditorHeader}><Bell size={15} color="#C9A24B" /><span>{t("settings.notifications")}</span></div>
+      <p style={S.profileHint}>{t("settings.notifNote")}</p>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginTop: 4 }}>
+        <span style={{ width: 10, height: 10, borderRadius: "50%", background: meta.dot, marginTop: 4, flexShrink: 0 }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700, color: "var(--ink-soft)" }}>
+            <Icon size={14} color={meta.dot} />
+            <span>{t(`settings.notifStatus.${key}.title`)}</span>
+          </div>
+          <p style={{ fontSize: 11.5, color: "var(--muted2)", margin: "3px 0 0" }}>{t(`settings.notifStatus.${key}.desc`)}</p>
+          {status === "install_required" && (
+            <p style={{ fontSize: 11, color: "var(--muted2)", margin: "6px 0 0", lineHeight: 1.6 }}>{t("settings.notifStatus.installRequired.steps")}</p>
+          )}
+        </div>
+      </div>
+      {status === "permission_required" && (
+        <button onClick={onEnable} style={{ ...S.saveBtn, marginTop: 12 }}><Bell size={14} /> {t("settings.enableNotif")}</button>
+      )}
+      {status === "failed" && (
+        <button onClick={onEnable} style={{ ...S.saveBtn, marginTop: 12 }}><RefreshCw size={14} /> {t("settings.notifStatus.retry")}</button>
+      )}
+      {status === "enabled" && (
+        <button onClick={onDisable} style={{ ...S.exportBtn, marginTop: 12, marginBottom: 0 }}><Bell size={14} /> {t("settings.notifOnTurnOff")}</button>
+      )}
+    </div>
+  );
+}
+
 function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, profile, setProfile, pointsLog, onStartTour, subscription, theme, toggleTheme, fontSize, changeFontSize, highContrast, toggleHighContrast, spacious, toggleSpacious }) {
   const { t, i18n } = useTranslation();
   const isEn = i18n.language === "en";
@@ -5533,15 +5603,7 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
           </div>
         )}
       </div>
-      <div style={S.catEditorCard}>
-        <div style={S.catEditorHeader}><Bell size={15} color="#C9A24B" /><span>{t("settings.notifications")}</span></div>
-        <p style={S.profileHint}>{t("settings.notifNote")}</p>
-        {profile.notificationsEnabled ? (
-          <button onClick={handleDisableNotifications} style={{ ...S.exportBtn, marginBottom: 0 }}><Bell size={14} /> {t("settings.notifOnTurnOff")}</button>
-        ) : (
-          <button onClick={handleEnableNotifications} style={{ ...S.saveBtn, marginTop: 0 }}><Bell size={14} /> {t("settings.enableNotif")}</button>
-        )}
-      </div>
+      <NotificationStatusCard profile={profile} onEnable={handleEnableNotifications} onDisable={handleDisableNotifications} />
       <div style={S.catEditorCard}>
         <div style={S.catEditorHeader}><Volume2 size={15} color="#C9A24B" /><span>{t("settings.soundEffects")}</span></div>
         <p style={S.profileHint}>{t("settings.soundNote")}</p>

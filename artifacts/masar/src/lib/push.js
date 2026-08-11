@@ -21,6 +21,49 @@ export function pushSupported() {
   return typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 }
 
+// آيفون/آيباد - يشمل iPadOS 13+ الذي يقدّم نفسه في userAgent كـ"Macintosh"
+// عادياً؛ التمييز المعتمد (نفسه الذي توثّقه Apple) هو "MacIntel" + دعم لمس.
+export function isIOS() {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  if (/iPad|iPhone|iPod/.test(ua)) return true;
+  return navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+}
+
+// Web Push على iOS (16.4+) يعمل فقط بعد "إضافة للشاشة الرئيسية" وفتح
+// التطبيق من أيقونته - لا يعمل إطلاقاً داخل تبويب Safari عادي مهما كان
+// إصدار iOS. navigator.standalone خاصية قديمة لا تزال مدعومة على iOS
+// تحديداً؛ display-mode:standalone هي المعيار العام (أندرويد/ديسكتوب).
+export function isStandalone() {
+  if (typeof window === "undefined") return false;
+  const mq = typeof window.matchMedia === "function" && window.matchMedia("(display-mode: standalone)").matches;
+  const iosStandalone = typeof navigator !== "undefined" && navigator.standalone === true;
+  return !!(mq || iosStandalone);
+}
+
+// حالة الإشعارات الفعلية بلغة واضحة لعرضها للمستخدم (5 حالات):
+//   - "unsupported": المتصفح/الجهاز لا يدعم Web Push إطلاقاً (خارج حالة
+//     iOS القابلة للإصلاح بالتثبيت أدناه).
+//   - "install_required": آيفون/آيباد على Safari عادي بلا تثبيت - Push لن
+//     يعمل إطلاقاً قبل "إضافة للشاشة الرئيسية" وفتح التطبيق من أيقونته.
+//   - "permission_required": مدعوم، لكن المستخدم لم يطلب الإذن بعد (أو
+//     الطلب الأخير لم يكتمل ولم يُسجَّل كمحاولة).
+//   - "enabled": إذن حقيقي ممنوح الآن (فحص مباشر، لا قيمة مخزَّنة قديمة)
+//     + اشتراك حُفظ بنجاح سابقاً (profile.notificationsEnabled).
+//   - "failed": حاول المستخدم (profile.notificationsAsked) لكن لم يكتمل
+//     التفعيل الفعلي (رفض الإذن، فشل الاشتراك، أو فشل الحفظ).
+export function getNotificationStatus(profile) {
+  if (isIOS() && !isStandalone()) return "install_required";
+  if (!pushSupported()) return "unsupported";
+  let livePermission = "default";
+  try {
+    livePermission = typeof Notification !== "undefined" ? Notification.permission : "default";
+  } catch { /* بيئات نادرة بلا Notification رغم اجتياز pushSupported() */ }
+  if (livePermission === "granted" && profile?.notificationsEnabled) return "enabled";
+  if (profile?.notificationsAsked) return "failed";
+  return "permission_required";
+}
+
 function urlBase64ToUint8Array(base64String) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");

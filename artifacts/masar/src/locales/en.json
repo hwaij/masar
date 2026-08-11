@@ -1137,6 +1137,14 @@
     "notifNote": "Turn on notifications so Masar can remind you to drink water and log your meals.",
     "notifOnTurnOff": "Notifications on — Turn off",
     "enableNotif": "Enable notifications",
+    "notifStatus": {
+      "unsupported": { "title": "Not supported on this device", "desc": "Your browser or device doesn't support notifications, unfortunately." },
+      "installRequired": { "title": "Install the app first", "desc": "On iPhone/iPad you need to install Masar to your home screen first before you can enable notifications.", "steps": "Share → Add to Home Screen → open Masar from its new icon → then enable notifications from here." },
+      "permissionRequired": { "title": "Not enabled yet", "desc": "Turn them on so Masar can remind you about important things." },
+      "enabled": { "title": "Enabled", "desc": "You'll receive Masar notifications on this device." },
+      "failed": { "title": "Didn't complete", "desc": "We tried to enable this but it didn't finish. Try again." },
+      "retry": "Try again"
+    },
     "soundEffects": "Sound effects",
     "soundNote": "Short, very soft sounds only for meaningful moments (logging a prayer, reaching a goal, completing a challenge) — no sound for ordinary button presses. Off by default, since Masar may be used in quiet places like prayer or study.",
     "soundOff": "Off",

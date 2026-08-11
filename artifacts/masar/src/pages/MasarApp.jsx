@@ -3361,7 +3361,7 @@ function PrayerView({
   // الممنوح ليعمل (granted)، بصرف النظر عن نجاح حفظ اشتراك Push الحقيقي.
   async function enableNotifications() {
     if (typeof Notification === "undefined") { showToast(t("prayer.notSupported")); return; }
-    const result = await requestNotificationPermission();
+    const result = await requestNotificationPermission(language);
     if (result.granted) {
       setNotifEnabled(true);
       const enabled = !!result.saved;
@@ -5496,7 +5496,7 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
   }
 
   async function handleEnableNotifications() {
-    const result = await requestNotificationPermission();
+    const result = await requestNotificationPermission(i18n.language);
     // "مفعّلة" فعلياً تعني الآن: إذن + اشتراك push حقيقي + حفظه بنجاح في
     // Supabase معاً - إذن ممنوح وحده (granted/subscribed) بلا حفظ الاشتراك
     // (saved) لا يعني شيئاً عملياً، إذ لن يصل أي Push حقيقي لاحقاً بلا حفظه.

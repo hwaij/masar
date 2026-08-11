@@ -8,6 +8,7 @@
 // معيار VAPID) — المفتاح الخاص المقابل لا يظهر هنا إطلاقاً ولن يُستخدم
 // حتى بناء خادم الإرسال الفعلي لاحقاً.
 import { store } from "./store";
+import { supabase, hasSupabase } from "./supabase";
 
 // مفتاح VAPID عام جديد (Phase C) - المفتاح القديم استُبدل لأنه تعذّر
 // إثبات وجود مفتاح خاص مطابق له في أي مكان (لا وصول للوحة تحكم Netlify من
@@ -71,6 +72,36 @@ function urlBase64ToUint8Array(base64String) {
   return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
 }
 
+const SEND_TEST_PUSH_URL = "/.netlify/functions/send-test-push";
+
+// إشعار ترحيبي تلقائي فوري بعد أول تفعيل ناجح فعلاً (إذن + اشتراك + حفظ
+// معاً) - يمنح المستخدم دليلاً حقيقياً يصل جهازه مباشرة بدل الاكتفاء بنص
+// "تم التفعيل" في الواجهة فقط. مقصود ألا يُنتظر (fire-and-forget) حتى لا
+// يؤخر تأكيد التفعيل نفسه، ولا يُفشل التفعيل إن فشل هو - الاشتراك محفوظ
+// فعلاً بالفعل بغض النظر عن نجاح هذا الإشعار التجريبي تحديداً؛ أي خطأ هنا
+// يُسجَّل بصمت في الطرفية فقط (console.error)، لا يظهر للمستخدم كفشل.
+function triggerWelcomePush(lang) {
+  if (!hasSupabase) return;
+  (async () => {
+    try {
+      const { data } = await supabase.auth.getSession();
+      const accessToken = data?.session?.access_token;
+      if (!accessToken) return;
+      const res = await fetch(SEND_TEST_PUSH_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ lang: lang === "en" ? "en" : "ar" }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        console.error("[push] welcome test push failed:", res.status, body.error);
+      }
+    } catch (e) {
+      console.error("[push] welcome test push failed:", e);
+    }
+  })();
+}
+
 async function subscribeToPush() {
   const registration = await navigator.serviceWorker.ready;
   const existing = await registration.pushManager.getSubscription();
@@ -97,7 +128,7 @@ async function subscribeToPush() {
 //   - PUSH_NOT_SIGNED_IN: الاشتراك نجح لكن المستخدم ضيف محلي (owner='solo')
 //     بلا حساب حقيقي - لا هوية خادم لحفظ الاشتراك لها، فلا فائدة منه.
 //   - PUSH_SAVE_FAILED: الاشتراك نجح لكن حفظه في Supabase فشل (شبكة/خادم).
-export async function requestNotificationPermission() {
+export async function requestNotificationPermission(lang) {
   if (!pushSupported()) {
     return { granted: false, subscribed: false, saved: false, error: "PUSH_NOT_SUPPORTED" };
   }
@@ -123,6 +154,7 @@ export async function requestNotificationPermission() {
     console.error("[push] save subscription failed:", saveRes.error);
     return { granted: true, subscribed: true, saved: false, error: saveRes.error === "NOT_SIGNED_IN" ? "PUSH_NOT_SIGNED_IN" : "PUSH_SAVE_FAILED" };
   }
+  triggerWelcomePush(lang);
   return { granted: true, subscribed: true, saved: true };
 }
 

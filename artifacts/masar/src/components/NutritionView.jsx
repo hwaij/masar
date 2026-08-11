@@ -2073,7 +2073,7 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
   }
 
   async function enableNotifications() {
-    const result = await requestNotificationPermission();
+    const result = await requestNotificationPermission(i18n.language);
     // نفس شرط SettingsView: "مفعّلة" فقط إذا حُفظ اشتراك push حقيقي فعلاً.
     const enabled = !!result.saved;
     setProfile?.((p) => ({ ...p, notificationsEnabled: enabled, notificationsAsked: true }));

@@ -1802,6 +1802,69 @@ alter table push_subscriptions enable row level security;
 drop policy if exists push_subscriptions_user_own on push_subscriptions;
 create policy push_subscriptions_user_own on push_subscriptions for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
 
+-- ============================================================
+-- نظام الإشعارات الذكي والمجدول (Smart, Polite & Human Push
+-- Notification System) - Phase 1: الجداول فقط (تفضيلات + سجل منع
+-- التكرار)، بلا أي إرسال فعلي بعد - الإرسال الحقيقي (دوال Netlify
+-- مجدولة تستخدم notification-engine.js) يُبنى في مراحل لاحقة منفصلة.
+-- ============================================================
+
+-- تفضيلات كل مستخدم لنظام الإشعارات: نطاق الهدوء (Quiet Hours)، الحد
+-- الأقصى اليومي، وتفعيل/تعطيل كل فئة تذكير على حدة. صف واحد لكل مستخدم،
+-- يُنشأ بقيم افتراضية معقولة عند الحاجة إليه أول مرة (upsert من الكود
+-- لاحقاً، لا حاجة لإدخال يدوي هنا). quiet_hours_start/end نص "HH:MM" بسيط
+-- (بتوقيت الكويت الثابت المستخدم في كل حسابات الوقت بالتطبيق أصلاً، لا
+-- منطقة زمنية لكل مستخدم - مطابق لما يفعله src/lib/prayer.js اليوم).
+-- category_prayer إلخ: مفاتيح تفعيل مستقلة لكل فئة، افتراضياً مفعّلة كلها
+-- (نموذج opt-out) - المُتحكّم الفعلي الأعلى يبقى profile.notifications_enabled
+-- الموجود أصلاً؛ لو كان مُطفأً هناك، لا شيء من هذه الفئات يُرسِل شيئاً على
+-- الإطلاق بصرف النظر عن قيمتها هنا.
+create table if not exists notification_preferences (
+  owner              text primary key,
+  quiet_hours_start  text not null default '22:00',
+  quiet_hours_end    text not null default '06:00',
+  daily_cap          integer not null default 8,
+  category_prayer    boolean not null default true,
+  category_water     boolean not null default true,
+  category_meals     boolean not null default true,
+  category_sleep     boolean not null default true,
+  category_quran     boolean not null default true,
+  category_tasks     boolean not null default true,
+  updated_at         timestamptz not null default now()
+);
+alter table notification_preferences enable row level security;
+drop policy if exists notification_preferences_user_own on notification_preferences;
+create policy notification_preferences_user_own on notification_preferences for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
+-- سجل كل إشعار ذكي أُرسل فعلياً - الغرض الأساسي: منع تكرار نفس الإشعار
+-- (قيد unique (owner, category, occurrence_key) أدناه هو الحارس الحقيقي،
+-- لا منطق الكود وحده - يحمي حتى لو تشغّلت دالة الجدولة مرتين بالخطأ لنفس
+-- النافذة الزمنية). الغرض الثانوي: تحليل الاستخدام لاحقاً (الأكثر إزعاجاً،
+-- معدل التفعيل/الإيقاف بعد فئة معيّنة...) بلا حاجة لإعادة هيكلة الجدول.
+-- occurrence_key مثال: "2026-08-11:dhuhr" لصلاة الظهر ليوم بعينه، أو
+-- "2026-08-11:water" لتذكير ماء يوم بعينه - التفاصيل الدقيقة لبنائه في
+-- notification-engine.js (buildOccurrenceKey)، لا هنا.
+-- الكتابة هنا تكون حصراً من الخادم (Netlify Function بصلاحية service_role)
+-- في مراحل لاحقة، لا من الواجهة مباشرة أبداً - لذا لا سياسة insert/update/
+-- delete لدور authenticated أدناه عمداً (تُرفض تلقائياً بمجرد تفعيل RLS،
+-- بنفس نمط جدول subscriptions الحالي)؛ فقط قراءة صفوفه الخاصة مسموحة
+-- للمستخدم، تحضيراً لواجهة "آخر الإشعارات" مستقبلية إن أُريدت.
+create table if not exists notification_log (
+  id              uuid primary key default gen_random_uuid(),
+  owner           text not null,
+  category        text not null check (category in ('prayer', 'water', 'meals', 'sleep', 'quran', 'tasks')),
+  occurrence_key  text not null,
+  lang            text not null default 'ar',
+  sent_at         timestamptz not null default now(),
+  status          text not null default 'sent' check (status in ('sent', 'failed')),
+  unique (owner, category, occurrence_key)
+);
+create index if not exists notification_log_owner on notification_log (owner);
+create index if not exists notification_log_owner_sent_at on notification_log (owner, sent_at);
+alter table notification_log enable row level security;
+drop policy if exists notification_log_user_read_own on notification_log;
+create policy notification_log_user_read_own on notification_log for select to authenticated using (owner = auth.uid()::text);
+
 -- إجبار طبقة PostgREST (التي تُعرِّض RPC عبر supabase.rpc(...)) على إعادة
 -- تحميل ذاكرتها المؤقتة للمخطط فوراً، بدل انتظار إعادة التحميل التلقائية
 -- (تحدث عادة خلال ثوانٍ، لكن قد تتأخر) - يضمن أن get_group_by_invite_code

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { useReducedMotion } from "framer-motion";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
@@ -206,6 +207,7 @@ function BreathingExercise() {
 
 export default function MentalHealthView({ setView, showToast }) {
   const { t, i18n } = useTranslation();
+  const reduceMotion = useReducedMotion();
   const [loaded, setLoaded] = useState(false);
   const [log, setLog] = useState({});
   const [fitnessLog, setFitnessLog] = useState({});
@@ -384,9 +386,9 @@ export default function MentalHealthView({ setView, showToast }) {
             <XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: 10, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} />
             <YAxis domain={[1, 5]} ticks={[1, 2, 3, 4, 5]} tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
             <Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} />
-            <Line type="monotone" dataKey="mood" name={t("mentalHealth.legendMood")} stroke="#5FA8A0" strokeWidth={2} dot={{ fill: "#5FA8A0", r: 3 }} connectNulls />
-            <Line type="monotone" dataKey="stress" name={t("mentalHealth.legendStress")} stroke="#D17B5F" strokeWidth={2} dot={{ fill: "#D17B5F", r: 3 }} connectNulls />
-            <Line type="monotone" dataKey="energy" name={t("mentalHealth.legendEnergy")} stroke="#7FAEEE" strokeWidth={2} dot={{ fill: "#7FAEEE", r: 3 }} connectNulls />
+            <Line type="monotone" dataKey="mood" name={t("mentalHealth.legendMood")} stroke="#5FA8A0" strokeWidth={2} dot={{ fill: "#5FA8A0", r: 3 }} connectNulls isAnimationActive={!reduceMotion} animationDuration={450} />
+            <Line type="monotone" dataKey="stress" name={t("mentalHealth.legendStress")} stroke="#D17B5F" strokeWidth={2} dot={{ fill: "#D17B5F", r: 3 }} connectNulls isAnimationActive={!reduceMotion} animationDuration={450} />
+            <Line type="monotone" dataKey="energy" name={t("mentalHealth.legendEnergy")} stroke="#7FAEEE" strokeWidth={2} dot={{ fill: "#7FAEEE", r: 3 }} connectNulls isAnimationActive={!reduceMotion} animationDuration={450} />
           </LineChart>
         </ResponsiveContainer>
         <div style={MHS.chartLegendRow}>

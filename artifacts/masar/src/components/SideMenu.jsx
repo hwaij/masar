@@ -1,5 +1,5 @@
 import React from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import {
   X, Moon, Eye, User, Utensils, Dumbbell, HeartHandshake, Salad, ClipboardList,
@@ -94,6 +94,7 @@ const MS = {
 
 export default function SideMenu({ open, onClose, view, setView, customColorsEnabled, sectionColors, onHelp }) {
   const { t, i18n } = useTranslation();
+  const reduceMotion = useReducedMotion();
 
   // "المساعدة" ليس قسماً فعلياً (لا setView له) - يفتح لوحة المساعدة بدلاً
   // من التنقّل، لذا يُعامَل استثناءً هنا فقط دون تغيير سلوك أي عنصر آخر.
@@ -120,18 +121,18 @@ export default function SideMenu({ open, onClose, view, setView, customColorsEna
         <>
           <motion.div
             style={MS.overlay}
-            initial={{ opacity: 0 }}
+            initial={reduceMotion ? false : { opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            exit={reduceMotion ? undefined : { opacity: 0 }}
+            transition={{ duration: reduceMotion ? 0 : 0.2 }}
             onClick={onClose}
           />
           <motion.div
             style={MS.panel}
-            initial={{ x: hiddenX }}
+            initial={reduceMotion ? false : { x: hiddenX }}
             animate={{ x: 0 }}
-            exit={{ x: hiddenX }}
-            transition={{ type: "tween", duration: 0.28, ease: "easeOut" }}
+            exit={reduceMotion ? undefined : { x: hiddenX }}
+            transition={{ type: "tween", duration: reduceMotion ? 0 : 0.28, ease: "easeOut" }}
           >
             <div style={MS.head}>
               <span style={MS.headTitle}>{t("nav.menu")}</span>

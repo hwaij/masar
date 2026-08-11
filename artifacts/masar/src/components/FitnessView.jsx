@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { useReducedMotion } from "framer-motion";
 import {
   Dumbbell, PersonStanding, Footprints, HeartPulse, Bike, Wind, Flame, Settings2, StretchHorizontal,
   AlertTriangle, Edit3, Check, Repeat, TrendingUp, X, ChevronLeft, ChevronRight,
@@ -532,7 +533,7 @@ function FinishSummaryView({ summary, isEn, gender, t, showToast, onClose }) {
   }
 
   return (
-    <div style={S.view}>
+    <div style={S.view} className="sheet-in">
       <div style={FS.summaryHeroIcon}><PartyPopper size={26} color="var(--on-accent)" /></div>
       <div style={FS.summaryTitle}>{t("fitness.summaryTitle")}</div>
 
@@ -592,6 +593,7 @@ function FinishSummaryView({ summary, isEn, gender, t, showToast, onClose }) {
 // الجلسات لتمرين يختاره المستخدم من قائمة التمارين التي له سجل أداء فيها فعلاً.
 function StatisticsView({ isEn, isRtl, t, progressChartData, exerciseOptions, selectedExerciseId, onSelectExercise, exerciseProgressionData, onBack }) {
   const BackChevron = isRtl ? ChevronRight : ChevronLeft;
+  const reduceMotion = useReducedMotion();
   return (
     <div style={S.view}>
       <button onClick={onBack} style={FS.backRow}><BackChevron size={16} /> {t("fitness.backToProgram")}</button>
@@ -605,7 +607,7 @@ function StatisticsView({ isEn, isRtl, t, progressChartData, exerciseOptions, se
               <XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: 10, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} />
               <YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
               <Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} />
-              <Bar dataKey="volume" fill="#5FA8A0" radius={[3, 3, 0, 0]} maxBarSize={22} />
+              <Bar dataKey="volume" fill="#5FA8A0" radius={[3, 3, 0, 0]} maxBarSize={22} isAnimationActive={!reduceMotion} animationDuration={450} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -634,7 +636,7 @@ function StatisticsView({ isEn, isRtl, t, progressChartData, exerciseOptions, se
                   <XAxis dataKey="date" tick={{ fill: "var(--muted)", fontSize: 9, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} />
                   <YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
                   <Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} />
-                  <Line type="monotone" dataKey="weight" stroke="#C9A24B" strokeWidth={2.5} dot={{ r: 3, fill: "#C9A24B" }} />
+                  <Line type="monotone" dataKey="weight" stroke="#C9A24B" strokeWidth={2.5} dot={{ r: 3, fill: "#C9A24B" }} isAnimationActive={!reduceMotion} animationDuration={450} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -653,6 +655,7 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
   const { t, i18n } = useTranslation();
   const isEn = i18n.language === "en";
   const isRtl = !isEn;
+  const reduceMotion = useReducedMotion();
   // مصدر واحد للحقيقة لجنس المستخدم: من ملف "أنت" (health_profile) دون
   // تكرار السؤال في الرياضة - افتراضي "male" فقط إن لم يُحدَّد بعد هناك.
   const gender = healthProfile?.gender === "female" ? "female" : "male";
@@ -1308,7 +1311,7 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
               <XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: 10, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} />
               <YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
               <Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} />
-              <Bar dataKey="volume" fill="#5FA8A0" radius={[3, 3, 0, 0]} maxBarSize={22} />
+              <Bar dataKey="volume" fill="#5FA8A0" radius={[3, 3, 0, 0]} maxBarSize={22} isAnimationActive={!reduceMotion} animationDuration={450} />
             </BarChart>
           </ResponsiveContainer>
         </div>

@@ -170,9 +170,15 @@ button:active:not(:disabled) {
 .spotlight-pulse { animation: spotlightPulse 1.8s ease-in-out infinite; }
 @keyframes spotlightPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(201,162,75,0.45); } 50% { box-shadow: 0 0 0 6px rgba(201,162,75,0); } }
 
+/* رسالة التوست (نجاح حفظ/حذف/خطأ) - كانت تظهر/تختفي فجأة بلا أي حركة رغم
+   أنها أكثر تغذية راجعة يراها المستخدم تكراراً عبر التطبيق كله. حركة
+   صعود+تلاشي قصيرة فقط (0.22s) تكفي لإحساس "premium" دون أي تأخير محسوس. */
+.toast-in { animation: toastIn 0.22s cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes toastIn { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
 @media (prefers-reduced-motion: reduce) {
   .view-fade, .stagger-in > *, button,
-  .overlay-in, .sheet-in, .modal-card-in, .spotlight-pulse { animation: none !important; transition: none !important; }
+  .overlay-in, .sheet-in, .modal-card-in, .spotlight-pulse, .toast-in { animation: none !important; transition: none !important; }
 }
 
 /* ============================================================

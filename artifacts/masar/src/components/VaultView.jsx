@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { useReducedMotion } from "framer-motion";
 import {
   Wallet, Landmark, Plus, Trash2, ArrowDownCircle, ArrowUpCircle,
   Repeat, Sparkles, Download, X, Check, Loader2,
@@ -191,6 +192,7 @@ function buildFinanceBarSvg(data, { width = 620, height = 190 } = {}) {
 export default function VaultView({ showToast }) {
   const { t, i18n } = useTranslation();
   const isEn = i18n.language === "en";
+  const reduceMotion = useReducedMotion();
   const [loaded, setLoaded] = useState(false);
   const [subTab, setSubTab] = useState("overview"); // overview | transactions | budgets | goals | bills
   const [accounts, setAccounts] = useState([]);
@@ -998,8 +1000,8 @@ export default function VaultView({ showToast }) {
                     <YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
                     <Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
-                    <Bar dataKey="income" name={t("vault.pdfIncome")} fill="#5FA8A0" radius={[3, 3, 0, 0]} maxBarSize={16} />
-                    <Bar dataKey="expense" name={t("vault.pdfExpense")} fill="#D17B5F" radius={[3, 3, 0, 0]} maxBarSize={16} />
+                    <Bar dataKey="income" name={t("vault.pdfIncome")} fill="#5FA8A0" radius={[3, 3, 0, 0]} maxBarSize={16} isAnimationActive={!reduceMotion} animationDuration={450} />
+                    <Bar dataKey="expense" name={t("vault.pdfExpense")} fill="#D17B5F" radius={[3, 3, 0, 0]} maxBarSize={16} isAnimationActive={!reduceMotion} animationDuration={450} />
                   </BarChart>
                 </ResponsiveContainer>
               )}
@@ -1011,7 +1013,7 @@ export default function VaultView({ showToast }) {
                 <div style={S.pieRow}>
                   <ResponsiveContainer width={140} height={140}>
                     <PieChart>
-                      <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={38} outerRadius={62} paddingAngle={2} stroke="none">
+                      <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={38} outerRadius={62} paddingAngle={2} stroke="none" isAnimationActive={!reduceMotion} animationDuration={450}>
                         {pieData.map((c, i) => <Cell key={i} fill={c.color} />)}
                       </Pie>
                       <Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v, n) => [formatVaultAmount(v, primaryCurrency), n]} />

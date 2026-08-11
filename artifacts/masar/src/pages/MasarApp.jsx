@@ -782,7 +782,7 @@ export default function MasarApp() {
         {view === "settings" && <SettingsView categories={categories} setCategories={setCategories} gamify={gamify} hasCloud={store.hasCloud} showToast={showToast} profile={profile} setProfile={setProfile} pointsLog={pointsLog} onStartTour={startTour} subscription={subscription} theme={theme} toggleTheme={toggleTheme} fontSize={fontSize} changeFontSize={changeFontSize} highContrast={highContrast} toggleHighContrast={toggleHighContrast} spacious={spacious} toggleSpacious={toggleSpacious} />}
       </div>
       </div>
-      {toast && <div style={S.toast}>{toast}</div>}
+      {toast && <div style={S.toast} className="toast-in">{toast}</div>}
       {tourOpen && (
         <MasarJourney
           view={view} setView={setView} profile={profile} healthProfile={healthProfile} isSub={isSub}
@@ -2008,6 +2008,7 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
   const { t, i18n } = useTranslation();
   const language = i18n.language;
   const RC = useRecharts();
+  const reduceMotion = useReducedMotion();
   const [range, setRange] = useState("week");
   // رؤية Masar السابقة تُبنى على أرقام فترة محدَّدة (أسبوع/شهر) - تغيير
   // الفترة يُبطلها فوراً حتى لا تُعرض رؤية عن فترة مختلفة عن المعروضة حالياً.
@@ -2630,7 +2631,7 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
                   <RC.XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: range === "week" ? 11 : 8, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} interval={range === "week" ? 0 : 3} />
                   <RC.YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
                   <RC.Tooltip cursor={{ fill: "rgba(201,162,75,0.08)" }} contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [`${v} ${t("common.units.hours")}`, ""]} />
-                  <RC.Bar dataKey="hours" radius={[3, 3, 3, 3]} fill="url(#repOverviewBar)" maxBarSize={range === "week" ? 28 : 12} />
+                  <RC.Bar dataKey="hours" radius={[3, 3, 3, 3]} fill="url(#repOverviewBar)" maxBarSize={range === "week" ? 28 : 12} isAnimationActive={!reduceMotion} animationDuration={450} />
                 </RC.BarChart>
               </RC.ResponsiveContainer>
             )}
@@ -2641,7 +2642,7 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
               <div style={S.pieRow}>
                 <RC.ResponsiveContainer width={140} height={140}>
                   <RC.PieChart>
-                    <RC.Pie data={catTotals} dataKey="value" nameKey="name" innerRadius={38} outerRadius={62} paddingAngle={2} stroke="none">
+                    <RC.Pie data={catTotals} dataKey="value" nameKey="name" innerRadius={38} outerRadius={62} paddingAngle={2} stroke="none" isAnimationActive={!reduceMotion} animationDuration={450}>
                       {catTotals.map((c, i) => <RC.Cell key={i} fill={c.color} />)}
                     </RC.Pie>
                     <RC.Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v, n) => [fmtHM(v, language), n]} />
@@ -2670,7 +2671,7 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
                   <RC.XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: range === "week" ? 11 : 8, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} interval={range === "week" ? 0 : 3} />
                   <RC.YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
                   <RC.Tooltip cursor={{ stroke: "var(--border2)" }} contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [`${v} ${t("common.units.hours")}`, ""]} />
-                  <RC.Line type="monotone" dataKey="hours" stroke="url(#repTrendLine)" strokeWidth={2.5} dot={{ fill: "#C9A24B", r: range === "week" ? 3 : 0 }} />
+                  <RC.Line type="monotone" dataKey="hours" stroke="url(#repTrendLine)" strokeWidth={2.5} dot={{ fill: "#C9A24B", r: range === "week" ? 3 : 0 }} isAnimationActive={!reduceMotion} animationDuration={450} />
                 </RC.LineChart>
               </RC.ResponsiveContainer>
             )}
@@ -2700,7 +2701,7 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
                   <RC.XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: range === "week" ? 11 : 8, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} interval={range === "week" ? 0 : 3} />
                   <RC.YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
                   <RC.Tooltip cursor={{ fill: "rgba(95,168,160,0.08)" }} contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [fmtHM(v, language), ""]} />
-                  <RC.Bar dataKey="minutes" radius={[3, 3, 3, 3]} fill="url(#repStudyBar)" maxBarSize={range === "week" ? 28 : 12} />
+                  <RC.Bar dataKey="minutes" radius={[3, 3, 3, 3]} fill="url(#repStudyBar)" maxBarSize={range === "week" ? 28 : 12} isAnimationActive={!reduceMotion} animationDuration={450} />
                 </RC.BarChart>
               </RC.ResponsiveContainer>
             )}
@@ -2737,7 +2738,7 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
                     <RC.XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: range === "week" ? 11 : 8, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} interval={range === "week" ? 0 : 3} />
                     <RC.YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
                     <RC.Tooltip cursor={{ fill: "rgba(201,162,75,0.08)" }} contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [`${v} ${t("common.units.kcal")}`, ""]} />
-                    <RC.Bar dataKey="calories" radius={[3, 3, 3, 3]} fill="url(#repNutritionBar)" maxBarSize={range === "week" ? 28 : 12} />
+                    <RC.Bar dataKey="calories" radius={[3, 3, 3, 3]} fill="url(#repNutritionBar)" maxBarSize={range === "week" ? 28 : 12} isAnimationActive={!reduceMotion} animationDuration={450} />
                   </RC.BarChart>
                 </RC.ResponsiveContainer>
               )}
@@ -2748,7 +2749,7 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
                 <div style={S.pieRow}>
                   <RC.ResponsiveContainer width={140} height={140}>
                     <RC.PieChart>
-                      <RC.Pie data={macroData} dataKey="value" nameKey="name" innerRadius={38} outerRadius={62} paddingAngle={2} stroke="none">
+                      <RC.Pie data={macroData} dataKey="value" nameKey="name" innerRadius={38} outerRadius={62} paddingAngle={2} stroke="none" isAnimationActive={!reduceMotion} animationDuration={450}>
                         {macroData.map((c, i) => <RC.Cell key={i} fill={c.color} />)}
                       </RC.Pie>
                       <RC.Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v, n) => [`${v}${t("common.units.g")}`, n]} />
@@ -2782,7 +2783,7 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
                         contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }}
                         formatter={(v, n, p) => [isolateNumbers(`${v} ${t("common.units.kcal")} · ${t("reportsView.mealLoggedDays", { n: p.payload.daysLogged })}`), ""]}
                       />
-                      <RC.Bar dataKey="avgCalories" radius={[3, 3, 3, 3]} fill="url(#repMealTypeBar)" maxBarSize={40} />
+                      <RC.Bar dataKey="avgCalories" radius={[3, 3, 3, 3]} fill="url(#repMealTypeBar)" maxBarSize={40} isAnimationActive={!reduceMotion} animationDuration={450} />
                     </RC.BarChart>
                   </RC.ResponsiveContainer>
                   <div style={S.emptyHint}>{isolateNumbers(t("reportsView.mealTypeDistributionNote", { n: days.length }))}</div>
@@ -2862,6 +2863,7 @@ function SleepSection({ sleepLog, setSleepLog, days, range, showToast }) {
   const { t, i18n } = useTranslation();
   const language = i18n.language;
   const RC = useRecharts();
+  const reduceMotion = useReducedMotion();
   const [mode, setMode] = useState("hours"); // 'hours' | 'times'
   const [sleepTime, setSleepTime] = useState("23:00");
   const [wakeTime, setWakeTime] = useState("07:00");
@@ -2963,7 +2965,7 @@ function SleepSection({ sleepLog, setSleepLog, days, range, showToast }) {
             <RC.XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: range === "week" ? 11 : 8, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} interval={range === "week" ? 0 : 3} />
             <RC.YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
             <RC.Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [`${v} ${t("common.units.hours")}`, ""]} />
-            <RC.Bar dataKey="hours" radius={[3, 3, 3, 3]} fill="#5FA8A0" maxBarSize={range === "week" ? 28 : 12} />
+            <RC.Bar dataKey="hours" radius={[3, 3, 3, 3]} fill="#5FA8A0" maxBarSize={range === "week" ? 28 : 12} isAnimationActive={!reduceMotion} animationDuration={450} />
           </RC.BarChart>
         </RC.ResponsiveContainer>
       )}
@@ -4770,6 +4772,7 @@ function FocusReport({ focus, title, color, emptyMsg, studyEntries }) {
   const { t, i18n } = useTranslation();
   const language = i18n.language;
   const RC = useRecharts();
+  const reduceMotion = useReducedMotion();
   const entryMinutes = (studyEntries || []).reduce((s, e) => s + diffMinutes(e.start, e.end), 0);
   const totalMin = focus.reduce((s, f) => s + f.minutes, 0) + entryMinutes;
   const todayEntryMin = (studyEntries || []).filter((e) => e.date === todayKey()).reduce((s, e) => s + diffMinutes(e.start, e.end), 0);
@@ -4815,7 +4818,7 @@ function FocusReport({ focus, title, color, emptyMsg, studyEntries }) {
               <RC.XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: 9, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} interval={1} />
               <RC.YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
               <RC.Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [`${v} ${t("common.units.minutes")}`, ""]} />
-              <RC.Bar dataKey="mins" radius={[3, 3, 3, 3]} fill={color} maxBarSize={18} />
+              <RC.Bar dataKey="mins" radius={[3, 3, 3, 3]} fill={color} maxBarSize={18} isAnimationActive={!reduceMotion} animationDuration={450} />
             </RC.BarChart>
           </RC.ResponsiveContainer>
         )}

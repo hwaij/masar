@@ -25,6 +25,7 @@ import { pickDailyTip, TIP_CATEGORY_LABELS, localDayKey, TIPS, FALLBACK_TIP } fr
 import { pickDailyMoneyTip, MONEY_TIP_CATEGORY_LABELS } from "../lib/money-tips";
 import { isActiveSubscriber } from "../lib/subscription";
 import { requestNotificationPermission, disablePush, getNotificationStatus } from "../lib/push";
+import { supabase } from "../lib/supabase";
 import { ACTIVITY_LEVELS, HEALTH_CONDITIONS, NO_CONDITION, computeHealthMetrics } from "../lib/health";
 import { createGoal, isReviewDue, GOAL_PERIODS, GOAL_POINTS_SUCCESS, GOAL_POINTS_FAILURE } from "../lib/goals";
 import { FITNESS_GOALS } from "../lib/exercises-db";
@@ -5520,6 +5521,9 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
   const [showModuleReplays, setShowModuleReplays] = useState(false);
   // TEMP: للاختبار اليدوي فقط - إزالة لاحقاً (انظر AccountIdDebugModal أعلاه).
   const [showAccountIdDebug, setShowAccountIdDebug] = useState(false);
+  // TEMP: للاختبار اليدوي فقط - إزالة لاحقاً (استدعاء prayer-reminder-test.js، Phase 2).
+  const [prayerTestLoading, setPrayerTestLoading] = useState(false);
+  const [prayerTestResult, setPrayerTestResult] = useState(null);
 
   // إعادة تشغيل جولة سياقية واحدة (Onboarding - Phase E): يصفّر علم اكتمال
   // تلك الوحدة فقط في tour_progress.modules، بلا مساس بـtourSeen أو بقية
@@ -5546,6 +5550,39 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
     setProfile((p) => ({ ...p, notificationsEnabled: false, notificationsAsked: true }));
     await store.saveNotificationsPreference(false, true);
     showToast(t("settings.notifDisabled"));
+  }
+  // TEMP: للاختبار اليدوي فقط - إزالة لاحقاً. يستدعي دالة
+  // prayer-reminder-test.js (Phase 2) بتوكن الجلسة الحالية الحقيقي تلقائياً
+  // - بلا أي إدخال يدوي (allowlist محصورة خادمياً بـPRAYER_TEST_ALLOWLIST،
+  // لن يصل شيء فعلياً إن لم يكن معرّف الحساب الحالي مُدرَجاً هناك).
+  async function handlePrayerReminderTest() {
+    setPrayerTestLoading(true);
+    setPrayerTestResult(null);
+    try {
+      const { data } = await supabase.auth.getSession();
+      const accessToken = data?.session?.access_token;
+      if (!accessToken) {
+        setPrayerTestResult({ ok: false, message: isEn ? "You're not signed in." : "لست مسجَّل الدخول." });
+        return;
+      }
+      const res = await fetch("/.netlify/functions/prayer-reminder-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ lang: isEn ? "en" : "ar", prayerId: "dhuhr" }),
+      });
+      let body = {};
+      try { body = await res.json(); } catch { /* رد غير JSON - يُعامَل كفشل أدناه */ }
+      if (res.ok && body.sent) {
+        setPrayerTestResult({ ok: true, message: isEn ? `Sent successfully (${body.prayer?.id || "dhuhr"}).` : `أُرسل بنجاح (${body.prayer?.id || "dhuhr"}).` });
+      } else {
+        setPrayerTestResult({ ok: false, message: body.error || (isEn ? `Failed (HTTP ${res.status}).` : `فشل (HTTP ${res.status}).`) });
+      }
+    } catch (e) {
+      console.error("[prayer-reminder-test] request failed:", e);
+      setPrayerTestResult({ ok: false, message: isEn ? "Network error." : "خطأ في الشبكة." });
+    } finally {
+      setPrayerTestLoading(false);
+    }
   }
   async function toggleCustomColors() {
     const prev = profile.customColorsEnabled;
@@ -5708,6 +5745,14 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
         <div style={S.catEditorCard}>
           <div style={S.catEditorHeader}><span style={{ fontSize: 14 }}>🔧</span><span>{isEn ? "Technical info (temporary)" : "معلومات تقنية (مؤقت)"}</span></div>
           <button onClick={() => setShowAccountIdDebug(true)} style={{ ...S.exportBtn, marginBottom: 0 }}>{isEn ? "Show my account ID" : "عرض معرّف حسابي"}</button>
+          <button onClick={handlePrayerReminderTest} disabled={prayerTestLoading} style={{ ...S.exportBtn, marginTop: 8, marginBottom: 0, opacity: prayerTestLoading ? 0.6 : 1 }}>
+            {prayerTestLoading ? <Loader2 size={14} className="spin" /> : null} {isEn ? "Send test prayer reminder" : "إرسال تذكير صلاة تجريبي"}
+          </button>
+          {prayerTestResult && (
+            <div style={{ marginTop: 10, padding: "10px 12px", borderRadius: 10, fontSize: 12.5, lineHeight: 1.6, background: "var(--surface-raised)", border: `1px solid ${prayerTestResult.ok ? "#5FA8A0" : "#E05252"}`, color: prayerTestResult.ok ? "#5FA8A0" : "#E05252" }}>
+              {prayerTestResult.ok ? "✅ " : "❌ "}{prayerTestResult.message}
+            </div>
+          )}
         </div>
       )}
       {showAccountIdDebug && <AccountIdDebugModal onClose={() => setShowAccountIdDebug(false)} showToast={showToast} isEn={isEn} />}

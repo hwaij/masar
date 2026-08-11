@@ -16,7 +16,7 @@ import {
   Wallet, ArrowDownCircle, ArrowUpCircle, Crown,
   Utensils, Dumbbell, Menu, Users,
   Accessibility, ALargeSmall, Contrast, StretchHorizontal, Volume2,
-  Smartphone,
+  Smartphone, Copy,
 } from "lucide-react";
 import { fivePrayers, nextPrayer, to12h } from "../lib/prayer";
 import { ADHKAR_CATEGORIES, ADHKAR } from "../lib/adhkar";
@@ -5480,11 +5480,46 @@ function NotificationStatusCard({ profile, onEnable, onDisable }) {
   );
 }
 
+// TEMP: للاختبار اليدوي فقط - إزالة لاحقاً. تعرض معرّف حساب المستخدم
+// الحالي (نفس user.id في Supabase، وهو owner المخزَّن فعلياً عبر
+// getOwner()) لإضافته يدوياً إلى PRAYER_TEST_ALLOWLIST في Netlify - أُضيفت
+// خصيصاً لأن المستخدم يعمل من الموبايل بلا وصول سهل لأدوات المطوّر
+// (Developer Console) على حاسوب لقراءة القيمة من localStorage مباشرة.
+function AccountIdDebugModal({ onClose, showToast, isEn }) {
+  const ownerId = getOwner();
+  async function copyId() {
+    try {
+      await navigator.clipboard.writeText(ownerId);
+      showToast(isEn ? "Copied" : "تم النسخ");
+    } catch {
+      showToast(isEn ? "Couldn't copy - select and copy manually" : "تعذّر النسخ - حدّد النص وانسخه يدوياً");
+    }
+  }
+  return (
+    <div style={S.modalOverlay} onClick={onClose}>
+      <div style={S.modal} onClick={(e) => e.stopPropagation()}>
+        <div style={S.modalHeader}>
+          <span>{isEn ? "My account ID" : "معرّف حسابي"}</span>
+          <button onClick={onClose} style={S.iconBtn}><X size={18} /></button>
+        </div>
+        <div style={S.modalBody}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", wordBreak: "break-all", background: "var(--surface-raised)", border: "1px solid var(--border2)", borderRadius: 10, padding: "12px 14px", direction: "ltr", textAlign: "center" }}>
+            {ownerId}
+          </div>
+          <button onClick={copyId} style={{ ...S.saveBtn, marginTop: 12 }}><Copy size={14} /> {isEn ? "Copy" : "نسخ"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, profile, setProfile, pointsLog, onStartTour, subscription, theme, toggleTheme, fontSize, changeFontSize, highContrast, toggleHighContrast, spacious, toggleSpacious }) {
   const { t, i18n } = useTranslation();
   const isEn = i18n.language === "en";
   const isSub = isActiveSubscriber(subscription);
   const [showModuleReplays, setShowModuleReplays] = useState(false);
+  // TEMP: للاختبار اليدوي فقط - إزالة لاحقاً (انظر AccountIdDebugModal أعلاه).
+  const [showAccountIdDebug, setShowAccountIdDebug] = useState(false);
 
   // إعادة تشغيل جولة سياقية واحدة (Onboarding - Phase E): يصفّر علم اكتمال
   // تلك الوحدة فقط في tour_progress.modules، بلا مساس بـtourSeen أو بقية
@@ -5668,6 +5703,14 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
         </div>
       )}
       <RoadmapCard />
+      {/* TEMP: للاختبار اليدوي فقط - إزالة لاحقاً (هذه البطاقة كاملة + AccountIdDebugModal أعلاه). */}
+      {hasCloud && (
+        <div style={S.catEditorCard}>
+          <div style={S.catEditorHeader}><span style={{ fontSize: 14 }}>🔧</span><span>{isEn ? "Technical info (temporary)" : "معلومات تقنية (مؤقت)"}</span></div>
+          <button onClick={() => setShowAccountIdDebug(true)} style={{ ...S.exportBtn, marginBottom: 0 }}>{isEn ? "Show my account ID" : "عرض معرّف حسابي"}</button>
+        </div>
+      )}
+      {showAccountIdDebug && <AccountIdDebugModal onClose={() => setShowAccountIdDebug(false)} showToast={showToast} isEn={isEn} />}
     </div>
   );
 }

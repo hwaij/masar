@@ -102,3 +102,19 @@ export async function disablePush() {
     console.error("[push] unsubscribe failed:", e);
   }
 }
+
+// الـService Worker (public/sw.js) يستمع لـpushsubscriptionchange (تدوير
+// نادر للاشتراك من المتصفح نفسه) ويُرسل الاشتراك الجديد هنا عبر postMessage
+// - هو نفسه لا يملك جلسة مصادقة المستخدم اللازمة للكتابة المباشرة في
+// Supabase. يُسجَّل مرة واحدة عند تحميل الوحدة (كل الصفحة تستورد هذا
+// الملف أصلاً)، ويُحفظ بنفس مسار savePushSubscription المُختبَر في Phase B.
+if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+  navigator.serviceWorker.addEventListener("message", (event) => {
+    if (event.data?.type === "masar-push-subscription-changed" && event.data.subscription) {
+      store.savePushSubscription(event.data.subscription).then((res) => {
+        if (!res.ok) console.error("[push] failed to save rotated subscription:", res.error);
+      });
+    }
+  });
+}
+

@@ -1,0 +1,42 @@
+name: Prayer Reminders Cron (Netlify scheduler backup)
+
+# سبب وجود هذا الملف: دالة Netlify المجدولة scheduled-prayer-reminders
+# (netlify.toml: [functions."scheduled-prayer-reminders"] schedule = "*/5 * * * *")
+# صيغتها مطابقة حرفياً لتوثيق Netlify الرسمي وبنية TOML سليمة 100% (تم
+# التحقق من الاثنين)، لكن هناك بلاغات حديثة (2026) متعددة على منتدى دعم
+# Netlify الرسمي نفسه تصف عطلاً منصّياً في محرك الجدولة الداخلي بنفس
+# الأعراض حرفياً: دالة مُعدَّة بشكل صحيح، تظهر كمجدولة، التشغيل اليدوي
+# يعمل، لكن لا استدعاء تلقائي واحد يحدث. بما أن هذا عطل من جهة Netlify لا
+# يمكن إصلاحه من هذا الكود، هذا مُشغِّل بديل مستقل تماماً يستدعي نفس رابط
+# الدالة عبر HTTP كل 5 دقائق بمعزل عن جدولة Netlify. الدالة نفسها محمية من
+# الإرسال المزدوج (فحص notification_log)، فتشغيل المُشغِّلين معاً (لو
+# أصلحت Netlify عطلها لاحقاً) لا يسبب أي إشعار مكرر.
+#
+# مُعطَّل تلقائياً حالياً بالتصميم (workflow_dispatch يدوي فقط أدناه، لا
+# جدولة تلقائية) - انظر التعليقات أسفل لتفعيل الجدولة كل 5 دقائق فعلياً.
+
+on:
+  workflow_dispatch: {}
+  # لتفعيل الاستدعاء التلقائي كل 5 دقائق: احذف "#" من السطرين التاليين
+  # (وتأكد من ضبط NETLIFY_SITE_URL كما هو موضح أدناه أولاً):
+  # schedule:
+  #   - cron: "*/5 * * * *"
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call scheduled-prayer-reminders function
+        run: |
+          if [ -z "${{ vars.NETLIFY_SITE_URL }}" ]; then
+            echo "::error::NETLIFY_SITE_URL repository variable is not set (Settings > Secrets and variables > Actions > Variables). It must be the site's real production URL, e.g. https://your-site.netlify.app - no default is assumed."
+            exit 1
+          fi
+          url="${{ vars.NETLIFY_SITE_URL }}/.netlify/functions/scheduled-prayer-reminders"
+          status=$(curl -sS -o /tmp/response.txt -w "%{http_code}" -X POST "$url")
+          echo "HTTP status: $status"
+          cat /tmp/response.txt
+          if [ "$status" -ge 300 ]; then
+            echo "::error::scheduled-prayer-reminders returned HTTP $status"
+            exit 1
+          fi

@@ -26,12 +26,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Call scheduled-prayer-reminders function
+        env:
+          # يُمرَّر عبر env بدل تضمينه مباشرة في نص run (${{ }} هنا يُستبدَل
+          # حرفياً في نص السكربت قبل التشغيل، لا عبر command substitution)،
+          # فأي سطر جديد زائد داخل قيمة المتغيّر (شائع عند اللصق من المتصفح)
+          # ينكسر إلى سطرين فعليين داخل الاقتباس المزدوج بدل أن يُقتطع - هذا
+          # بالضبط ما يُنتج "curl: URL rejected: Malformed input to a URL
+          # function" رغم أن الرابط المُدخَل نفسه صحيح تماماً. تمريره كمتغيّر
+          # بيئة عادي (env) ثم تنظيفه بـtr/sed أدناه يُصلح ذلك بغض النظر عن
+          # القيمة المُدخَلة، طالما كانت رابطاً صحيحاً.
+          SITE_URL: ${{ vars.NETLIFY_SITE_URL }}
         run: |
-          if [ -z "${{ vars.NETLIFY_SITE_URL }}" ]; then
+          if [ -z "$SITE_URL" ]; then
             echo "::error::NETLIFY_SITE_URL repository variable is not set (Settings > Secrets and variables > Actions > Variables). It must be the site's real production URL, e.g. https://your-site.netlify.app - no default is assumed."
             exit 1
           fi
-          url="${{ vars.NETLIFY_SITE_URL }}/.netlify/functions/scheduled-prayer-reminders"
+          # يزيل أي فراغات/أسطر جديدة/عودة أسطر (لا يجوز وجودها داخل رابط
+          # صحيح أصلاً)، ثم أي "/" زائدة من النهاية لتفادي "//" مزدوجة قبل المسار.
+          clean_url=$(printf '%s' "$SITE_URL" | tr -d '[:space:]' | sed 's:/*$::')
+          url="${clean_url}/.netlify/functions/scheduled-prayer-reminders"
+          echo "Calling: $url"
           status=$(curl -sS -o /tmp/response.txt -w "%{http_code}" -X POST "$url")
           echo "HTTP status: $status"
           cat /tmp/response.txt

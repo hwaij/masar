@@ -6,7 +6,7 @@ import {
 import { store } from "../lib/store";
 import { analyze, todayKey } from "../lib/helpers";
 import { sumNutritionEntries, waterGoalCups } from "../lib/nutrition";
-import { computeDailyTargets, distributeMeals, computeLiveStatus } from "../lib/nutrition-plan";
+import { computeDailyTargets, distributeMeals, getDailyNutritionSummary } from "../lib/nutrition-plan";
 import { FITNESS_GOALS } from "../lib/exercises-db";
 import { isActiveSubscriber } from "../lib/subscription";
 import { S } from "./styles";
@@ -128,10 +128,14 @@ export default function NutritionPlanView({ healthProfile, showToast, subscripti
     return { dailyCalories: plan.dailyCalories, proteinG: plan.proteinG, carbsG: plan.carbsG, fatG: plan.fatG, fiberG: plan.fiberG };
   }, [plan]);
 
+  // ملخّص يومي موحَّد (getDailyNutritionSummary, nutrition-plan.js) - يعيد
+  // إنتاج نفس ما كانت computeLiveStatus(targets, todayTotals) تُرجعه بالحرف
+  // (مُضمَّنة كاملة عبر spread داخل الدالة الموحَّدة) بلا أي تغيير في القيم
+  // المعروضة، بالإضافة لحقول موحَّدة إضافية (calorieGoal إلخ) لا تُستخدَم هنا حالياً.
   const liveStatus = useMemo(() => {
     if (!targets) return null;
-    return computeLiveStatus(targets, todayTotals);
-  }, [targets, todayTotals]);
+    return getDailyNutritionSummary({ totals: todayTotals, healthProfile, nutritionPlan: plan });
+  }, [targets, todayTotals, healthProfile, plan]);
 
   const waterGoal = waterGoalCups(healthProfile?.weightKg);
   const todayCups = waterLog[today] || 0;

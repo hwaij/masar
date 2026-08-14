@@ -19,6 +19,7 @@ import {
   scaleMicronutrients, MICRONUTRIENT_META, personalizedRDI, compressImageToBlob,
   MEAL_TYPES, guessMealType,
 } from "../lib/nutrition";
+import { getDailyNutritionSummary } from "../lib/nutrition-plan";
 import { requestNotificationPermission } from "../lib/push";
 import { searchGenericFoods, genericFoodToProduct } from "../lib/generic-foods";
 import { isolateNumbers } from "../lib/bidi";
@@ -1979,16 +1980,21 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
     const approx = !!totals.microApprox?.[key];
     return { key, label: t(`nutrition.micronutrients.${key}`), unit: meta.unit, rdi, value, approx, pct: Math.min(100, Math.round((value / rdi) * 100)) };
   });
-  const tee = healthProfile?.tee || null;
-  const teePercent = tee ? Math.min(100, Math.round((totals.calories / tee) * 100)) : 0;
+  // ملخّص يومي موحَّد (getDailyNutritionSummary, nutrition-plan.js) - مصدر
+  // الهدف هنا يبقى tee دوماً (nutritionPlan: null عمداً) لمطابقة سلوك هذه
+  // الشاشة الحالي بالحرف؛ لو مُرِّرت خطة نشطة هنا لاحقاً سيتغيّر مصدر
+  // الهدف فعلياً - قرار مقصود لا يُتَّخذ هنا الآن.
+  const dailySummary = getDailyNutritionSummary({ totals, healthProfile, nutritionPlan: null });
+  const tee = dailySummary.calorieGoal;
+  const teePercent = dailySummary.adherencePct;
   // أهداف الماكروز لدوائر التقدم: نسبة عامة معروفة (بروتين 30%، كارب 40%،
   // دهون 30% من السعرات) وليست حساباً شخصياً دقيقاً - نفس مبدأ "تقديرية"
   // المستخدم فعلاً في إرشادات الألياف/السكر/الصوديوم أعلاه. تُحسب فقط إن
   // أكمل المستخدم بياناته في "أنت" (وإلا لا يوجد TEE أصلاً لتقسيمه).
   const macroTargets = tee ? {
-    protein: Math.round((tee * 0.3) / 4),
-    carbs: Math.round((tee * 0.4) / 4),
-    fat: Math.round((tee * 0.3) / 9),
+    protein: dailySummary.proteinGoal,
+    carbs: dailySummary.carbsGoal,
+    fat: dailySummary.fatGoal,
   } : null;
   const todayCups = waterLog[selectedDate] || 0;
   const cupsGoal = waterGoalCups(healthProfile?.weightKg);

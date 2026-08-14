@@ -90,3 +90,71 @@ export function computeLiveStatus(targets, todayTotals) {
     adherencePct: targets.dailyCalories > 0 ? Math.round(Math.min(150, (consumed.calories / targets.dailyCalories) * 100)) : 0,
   };
 }
+
+// ملخّص غذائي يومي موحَّد (سعرات/بروتين/كارب/دهون: استهلاك + هدف + متبقٍّ) -
+// نقطة الدخول الموصى بها لأي مستهلك جديد (شاشة، مساعد AI، أو أي عميل
+// مستقبلي كـWidget iOS) بدل إعادة اختيار مصدر الهدف يدوياً في كل مكان.
+// تُعيد إنتاج نفس صيغ الحساب المُستخدَمة اليوم بالحرف حسب المصدر المتاح
+// (لا تخترع صيغة "أدق" جديدة، حتى لا يتغيّر أي رقم معروض حالياً):
+//   - nutritionPlan مُمرَّر وdailyCalories موجودة → أهداف الخطة (عبر
+//     computeLiveStatus أعلاه - النتيجة كاملة مُضمَّنة عبر spread، فتبقى
+//     .consumed.fiber/.fiberRemaining متاحة لمن يعتمد عليها اليوم).
+//   - وإلا وhealthProfile.tee موجود → تقسيم 30/40/30 من tee (نفس صيغة
+//     NutritionView.jsx بالحرف).
+//   - وإلا (لا بيانات كافية) → استهلاك بلا هدف (source:"none").
+// القيم consumed/remaining هنا خام غير مقرَّبة عمداً في مسار tee (التقريب
+// مسؤولية العرض، كما هو الحال اليوم) - لتفادي أي فرق تقريب طفيف عن السلوك
+// الحالي المُختبَر فعلياً؛ مسار الخطة يبقى مقرَّباً كما computeLiveStatus
+// دائماً (سلوكها الأصلي بلا تغيير).
+export function getDailyNutritionSummary({ totals, healthProfile, nutritionPlan }) {
+  if (nutritionPlan?.dailyCalories) {
+    const targets = {
+      dailyCalories: nutritionPlan.dailyCalories,
+      proteinG: nutritionPlan.proteinG,
+      carbsG: nutritionPlan.carbsG,
+      fatG: nutritionPlan.fatG,
+      fiberG: nutritionPlan.fiberG,
+    };
+    const status = computeLiveStatus(targets, totals);
+    return {
+      source: "plan",
+      ...status,
+      calorieGoal: targets.dailyCalories,
+      proteinGoal: targets.proteinG,
+      carbsGoal: targets.carbsG,
+      fatGoal: targets.fatG,
+      fiberGoal: targets.fiberG,
+      caloriesConsumed: status.consumed.calories,
+      proteinConsumed: status.consumed.protein,
+      carbsConsumed: status.consumed.carbs,
+      fatConsumed: status.consumed.fat,
+    };
+  }
+
+  const tee = healthProfile?.tee || null;
+  const caloriesConsumed = totals?.calories || 0;
+  const proteinConsumed = totals?.protein || 0;
+  const carbsConsumed = totals?.carbs || 0;
+  const fatConsumed = totals?.fat || 0;
+  if (!tee) {
+    return {
+      source: "none",
+      caloriesConsumed, calorieGoal: null, caloriesRemaining: null,
+      proteinConsumed, proteinGoal: null, proteinRemaining: null,
+      carbsConsumed, carbsGoal: null, carbsRemaining: null,
+      fatConsumed, fatGoal: null, fatRemaining: null,
+      adherencePct: 0,
+    };
+  }
+  const proteinGoal = Math.round((tee * 0.3) / 4);
+  const carbsGoal = Math.round((tee * 0.4) / 4);
+  const fatGoal = Math.round((tee * 0.3) / 9);
+  return {
+    source: "tee",
+    caloriesConsumed, calorieGoal: tee, caloriesRemaining: tee - caloriesConsumed,
+    proteinConsumed, proteinGoal, proteinRemaining: proteinGoal - proteinConsumed,
+    carbsConsumed, carbsGoal, carbsRemaining: carbsGoal - carbsConsumed,
+    fatConsumed, fatGoal, fatRemaining: fatGoal - fatConsumed,
+    adherencePct: Math.min(100, Math.round((caloriesConsumed / tee) * 100)),
+  };
+}

@@ -30,6 +30,7 @@ import { ACTIVITY_LEVELS, HEALTH_CONDITIONS, NO_CONDITION, computeHealthMetrics 
 import { createGoal, isReviewDue, GOAL_PERIODS, GOAL_POINTS_SUCCESS, GOAL_POINTS_FAILURE } from "../lib/goals";
 import { FITNESS_GOALS } from "../lib/exercises-db";
 import { sumNutritionEntries, waterGoalCups, MEAL_TYPES, analyzeMealPatterns, MICRONUTRIENT_META } from "../lib/nutrition";
+import { getDailyNutritionSummary } from "../lib/nutrition-plan";
 import { playSaveSound, playAchievementSound } from "../lib/sound";
 import { getSession, onAuthChange, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut, userFromSession, hasAuth } from "../lib/auth";
 import {
@@ -3095,10 +3096,14 @@ function AssistantView({ entries, tasks, categories, focus, prayerLog, religious
       // كافية للمقارنة)، بغض النظر عن كون رقم اليوم صفراً (صفر رقم حقيقي
       // وليس افتراضاً).
       if (healthProfile?.tee) {
-        const caloriesToday = Math.round(sumNutritionEntries((extra.nutritionLog || []).filter((e) => e.date === today)).calories);
+        // ملخّص يومي موحَّد (getDailyNutritionSummary) - nutritionPlan: null
+        // عمداً هنا أيضاً (مطابقة سلوك NutritionView.jsx الحالي: tee دوماً).
+        const todayTotals = sumNutritionEntries((extra.nutritionLog || []).filter((e) => e.date === today));
+        const daySummary = getDailyNutritionSummary({ totals: todayTotals, healthProfile, nutritionPlan: null });
+        const caloriesToday = Math.round(daySummary.caloriesConsumed);
         lines.push(isEn
-          ? `Nutrition today: ${caloriesToday} kcal out of ${Math.round(healthProfile.tee)} kcal (TEE)`
-          : `التغذية اليوم: ${caloriesToday} سعرة من أصل ${Math.round(healthProfile.tee)} سعرة (TEE)`);
+          ? `Nutrition today: ${caloriesToday} kcal out of ${Math.round(daySummary.calorieGoal)} kcal (TEE)`
+          : `التغذية اليوم: ${caloriesToday} سعرة من أصل ${Math.round(daySummary.calorieGoal)} سعرة (TEE)`);
       }
       const goalCups = waterGoalCups(healthProfile?.weightKg);
       if (goalCups) {

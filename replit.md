@@ -36,6 +36,8 @@ Arabic, RTL personal time + religious habit tracker (prayers, azkar, Quran, focu
 - Auth is Supabase Auth (Google) — chosen because the app already runs on Supabase.
 - AI uses the user's own Anthropic key via the raw SDK (the Replit AI integration path was declined).
 - See `.agents/memory/masar-auth-data.md` for the full owner/RLS rules.
+- **Deep-link contract**: `/?view=<id>` is the one entry point for opening the app directly on a given section — read once on initial mount (`MasarApp.jsx`, `VALID_SHORTCUT_VIEWS`), then scrubbed from the address bar; there's no real client-side router (no react-router, no URL changes during in-app navigation). Already used by `public/manifest.json` shortcuts and by `public/sw.js`'s push-notification click handler (`resolveTargetUrl`). Any future external entry point (a home-screen widget, a different deep link source, etc.) should reuse this same `?view=<id>` convention rather than inventing a new one — valid ids are the `VALID_SHORTCUT_VIEWS` array in `MasarApp.jsx` (today/prayer/nutrition/fitness/... 19 total).
+- **Unified daily nutrition summary**: `getDailyNutritionSummary({ totals, healthProfile, nutritionPlan })` in `src/lib/nutrition-plan.js` is the one place that turns raw `nutrition_log` totals into consumed/goal/remaining for calories+macros, picking the goal source (an active `user_nutrition_plan` if passed, otherwise a 30/40/30 split of `health_profile.tee`). `NutritionView.jsx`, `NutritionPlanView.jsx`, and `MasarApp.jsx`'s AI-coach context builder all call it instead of recomputing goals/remaining inline — any new consumer (a widget, another screen) should do the same instead of re-deriving targets from `health_profile`/`user_nutrition_plan` directly.
 
 ## Product
 

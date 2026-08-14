@@ -12,15 +12,14 @@ name: Prayer Reminders Cron (Netlify scheduler backup)
 # الإرسال المزدوج (فحص notification_log)، فتشغيل المُشغِّلين معاً (لو
 # أصلحت Netlify عطلها لاحقاً) لا يسبب أي إشعار مكرر.
 #
-# مُعطَّل تلقائياً حالياً بالتصميم (workflow_dispatch يدوي فقط أدناه، لا
-# جدولة تلقائية) - انظر التعليقات أسفل لتفعيل الجدولة كل 5 دقائق فعلياً.
+# الجدولة التلقائية مُفعَّلة (كل 5 دقائق، UTC) - NETLIFY_SITE_URL مضبوط
+# في GitHub Actions Variables. workflow_dispatch يبقى متاحاً أيضاً كخيار
+# اختبار يدوي فوري بلا انتظار الجدولة.
 
 on:
   workflow_dispatch: {}
-  # لتفعيل الاستدعاء التلقائي كل 5 دقائق: احذف "#" من السطرين التاليين
-  # (وتأكد من ضبط NETLIFY_SITE_URL كما هو موضح أدناه أولاً):
-  # schedule:
-  #   - cron: "*/5 * * * *"
+  schedule:
+    - cron: "*/5 * * * *"
 
 jobs:
   trigger:

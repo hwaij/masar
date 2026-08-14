@@ -91,9 +91,13 @@ function shouldSend({ category, preferences, nowHHMM, sentTodayCount, alreadySen
 // بأسلوب "أنجز"/مسار نفسه. context اختياري (مثل اسم الصلاة) لتخصيص بسيط
 // بلا استخدام فشل/تقصير المستخدم كمادة للرسالة أبداً.
 const MESSAGES = {
+  // لا نص "بعد N دقائق" ثابت هنا عمداً - نافذة الإرسال الفعلية في
+  // scheduled-prayer-reminders.js تمتد قبل الأذان وبعده (تسامحاً مع تأخير
+  // GitHub Actions cron الطبيعي)، فأي وعد زمني محدد قد يصل بعد الأذان فعلاً
+  // ويكون خاطئاً حينها.
   prayer: {
-    ar: (ctx) => ({ title: "🕌 اقترب وقت الصلاة", body: `صلاة ${ctx?.prayerName || ""} بعد 5 دقائق تقريباً.` }),
-    en: (ctx) => ({ title: "🕌 Prayer time is near", body: `${ctx?.prayerName || "Prayer"} is in about 5 minutes.` }),
+    ar: (ctx) => ({ title: "🕌 حان وقت الصلاة", body: `حان وقت صلاة ${ctx?.prayerName || ""}.` }),
+    en: (ctx) => ({ title: "🕌 It's prayer time", body: `It's time for ${ctx?.prayerName || "prayer"}.` }),
   },
   water: {
     ar: () => ({ title: "💧 وقت كوب ماء؟", body: "لا تنسَ ترطيب جسمك اليوم." }),

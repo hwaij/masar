@@ -1,8 +1,11 @@
 // Netlify Scheduled Function (كل 5 دقائق، مُجدولة عبر netlify.toml:
 // [functions."scheduled-prayer-reminders"] schedule = "*/5 * * * *") -
-// ترسل تذكير صلاة حقيقياً تلقائياً بلا أي تفاعل بشري، لمستخدمين حقيقيين
-// مؤهَّلين فعلاً، بلا استدعاء يدوي أو allowlist اختبار (تلك تبقى في
-// prayer-reminder-test.js بلا أي تعديل - أداة اختبار منفصلة ومستمرة الفائدة).
+// ترسل تذكيرات حقيقية تلقائياً بلا أي تفاعل بشري (صلاة/وجبات/ماء)،
+// لمستخدمين حقيقيين مؤهَّلين فعلاً، بلا استدعاء يدوي أو allowlist اختبار
+// (تلك تبقى في prayer-reminder-test.js بلا أي تعديل - أداة اختبار منفصلة
+// ومستمرة الفائدة). الاسم "scheduled-prayer-reminders" تاريخي من Phase 3
+// الأولى (صلاة فقط) - أُبقي عليه عمداً بلا إعادة تسمية لتفادي أي احتمال
+// كسر لجدولة Netlify/GitHub Actions القائمة فعلياً على هذا المسار بالذات.
 //
 // جدولة Netlify الداخلية لهذا الرابط بالذات أثبتت أنها غير موثوقة على
 // الأقل مؤقتاً (بلاغات عطل منصّي حديثة من Netlify نفسها) - لذا يوجد أيضاً
@@ -10,7 +13,11 @@
 // عادي، بلا أي فرق في السلوك (هذه الدالة لا تميّز مصدر الاستدعاء إطلاقاً -
 // الأمان الحقيقي الوحيد يبقى app_flags.prayer_reminders_live كما هو موثَّق
 // أدناه، ومنع التكرار عبر notification_log يجعل استدعاءين متزامنين من
-// مصدرين مختلفين لنفس المناسبة آمناً بلا إرسال مضاعف).
+// مصدرين مختلفين لنفس المناسبة آمناً بلا إرسال مضاعف). GitHub Actions نفسه
+// أثبت أيضاً أنه قد يُسقط أغلب التشغيلات المجدولة تحت الحمل العام (لاحظنا
+// تشغيلتين فعليتين فقط خلال ساعتين رغم جدولة كل 5 دقائق) - لذا كل نافذة
+// "مستحقة الآن" أدناه (صلاة/وجبة/ماء) واسعة عمداً حول وقتها المستهدف، لا
+// نافذة ضيقة تنغلق فور تجاوز الوقت المثالي.
 //
 // الأمان - الأهم في هذا الملف بالكامل: محكوم كلياً بمفتاح
 // app_flags.prayer_reminders_live (افتراضياً false). طالما هذا العلم
@@ -18,7 +25,8 @@
 // الجدولة الحقيقية كل 5 دقائق) لكنها تخرج فوراً بلا قراءة أي بيانات مستخدم
 // وبلا إرسال أي شيء لأي أحد. هذا هو الخط الفاصل الحقيقي الوحيد بين "منشور
 // على Netlify ويعمل بجدول زمني" و"يرسل فعلياً لمستخدمين حقيقيين" - لا شيء
-// آخر في هذا الملف أو في النشر نفسه يوقف الإرسال الفعلي عدا هذا العلم.
+// آخر في هذا الملف أو في النشر نفسه يوقف الإرسال الفعلي عدا هذا العلم. هذا
+// العلم يحكم كل الفئات معاً (صلاة/وجبات/ماء) - لا مفتاح منفصل لكل فئة بعد.
 //
 // يستخدم SUPABASE_SERVICE_ROLE_KEY (لا توكن مستخدم) لأنه يقرأ/يكتب عبر كل
 // المستخدمين معاً دفعة واحدة، لا اشتراك مستخدم واحد كما في
@@ -35,6 +43,30 @@ const PRAYER_NAMES = {
   maghrib: { ar: "المغرب", en: "Maghrib" },
   isha: { ar: "العشاء", en: "Isha" },
 };
+
+const MEAL_LABELS = {
+  breakfast: { ar: "الفطور", en: "Breakfast" },
+  lunch: { ar: "الغداء", en: "Lunch" },
+  dinner: { ar: "العشاء", en: "Dinner" },
+};
+
+// أوقات تقديرية عامة معقولة (لا معيار طبي، لا حاجة لدقة فلكية كالصلاة) -
+// قابلة للتعديل لاحقاً بلا أي تغيير بنيوي. نافذة ±15 دقيقة أوسع عمداً من
+// نافذة الصلاة (±10) - نفس درس تأخير GitHub Actions cron ينطبق هنا بنفس
+// القوة، ولا حساسية زمنية دقيقة لوجبة/كوب ماء كما للصلاة، فلا مانع من هامش
+// أكبر. الشرط الحقيقي للإرسال ليس الوقت وحده بل عدم وجود تسجيل فعلي بعد
+// (nutrition_log/water_log) - الوقت هنا مجرد نافذة إتاحة، لا وعد صارم.
+const REMINDER_WINDOW_HALF_MIN = 15;
+const PRAYER_WINDOW_HALF_MIN = 10;
+const MEAL_ANCHORS_MIN = { breakfast: 8 * 60, lunch: 13 * 60, dinner: 19 * 60 };
+// تذكيرا ماء يوميان مستقلان (occurrence_key مختلف لكل منهما) - لا تذكير كل
+// ساعة؛ كل منهما يُرسَل فقط إن لم يُسجَّل أي كوب ماء بعد اليوم (checked في
+// processWater)، فلو سجّل المستخدم كوباً بين الاثنين، الثاني لا يُرسَل أصلاً.
+const WATER_ANCHORS_MIN = { water_midday: 12 * 60 + 30, water_afternoon: 16 * 60 + 30 };
+
+function isDueNow(nowMin, anchorMin, halfWidth) {
+  return nowMin >= anchorMin - halfWidth && nowMin < anchorMin + halfWidth;
+}
 
 function readSupabaseEnv() {
   const url = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").trim();
@@ -118,38 +150,60 @@ exports.handler = async (event) => {
   const todayKey = todayDateKeyKuwait();
   const prayers = todayFivePrayers();
 
-  // صلاة "مستحقة" الآن: نافذة ±10 دقائق حول وقتها (لا 5 قبله فقط كما كانت
-  // سابقاً). السبب: المُشغِّل الحقيقي هو GitHub Actions cron كل 5 دقائق، وهو
-  // موثَّق رسمياً بتأخير شائع 5-30 دقيقة تحت الحمل العام على المنصة (كل
-  // نقاط الشبكة كل 5 دقائق تتنافس عالمياً) - راقبنا هذا فعلياً: تشغيلة وصلاة
-  // المغرب فاتت بالكامل لأن أقرب تشغيلتين فعليتين وقعتا الساعة 17:18 (بعيدة
-  // جداً قبل 18:30) والساعة ~18:39 (بعد النافذة القديمة [18:25,18:30) بـ9
-  // دقائق). نافذة ±10 (20 دقيقة إجمالاً حول كل صلاة) تحتمل تأخيراً واقعياً
-  // في أي من التشغيلتين الأقرب (على الأقل تشغيلة واحدة من ~4 تشغيلات
-  // متوقَّعة كل 5 دقائق ضمن هذا المدى ستقع فعلياً ضمنه حتى مع تأخير معتاد).
-  // notification_log (occurrence_key = تاريخ+معرّف الصلاة، لا وقت) يمنع أي
-  // تكرار بغض النظر عن كم تشغيلة وقعت فعلياً ضمن النافذة الموسَّعة.
+  // صلاة "مستحقة" الآن: نافذة ±10 دقائق حول وقتها. السبب: المُشغِّل الحقيقي
+  // هو GitHub Actions cron كل 5 دقائق، وهو موثَّق رسمياً بتأخير شائع 5-30
+  // دقيقة تحت الحمل العام على المنصة - راقبنا هذا فعلياً: صلاة المغرب فاتت
+  // بالكامل يوماً لأن أقرب تشغيلتين فعليتين وقعتا بعيداً جداً قبل وبعد
+  // النافذة القديمة الضيقة (5 دقائق قبل فقط). notification_log (occurrence_key
+  // = تاريخ+معرّف الصلاة، لا وقت) يمنع أي تكرار بغض النظر عن كم تشغيلة وقعت
+  // فعلياً ضمن النافذة الموسَّعة.
   const duePrayers = prayers.filter((p) => {
     const [ph, pm] = p.time.split(":").map(Number);
-    const pMin = ph * 60 + pm;
-    return nowMin >= pMin - 10 && nowMin < pMin + 10;
+    return isDueNow(nowMin, ph * 60 + pm, PRAYER_WINDOW_HALF_MIN);
   });
+  const dueMeals = Object.keys(MEAL_ANCHORS_MIN).filter((mealType) =>
+    isDueNow(nowMin, MEAL_ANCHORS_MIN[mealType], REMINDER_WINDOW_HALF_MIN),
+  );
+  const dueWaterKeys = Object.keys(WATER_ANCHORS_MIN).filter((key) =>
+    isDueNow(nowMin, WATER_ANCHORS_MIN[key], REMINDER_WINDOW_HALF_MIN),
+  );
 
-  if (duePrayers.length === 0) {
-    console.log(`[scheduled-prayer-reminders] no prayer due right now (${nowHHMM} Kuwait).`);
-    return { statusCode: 200, body: "no prayer due" };
+  if (duePrayers.length === 0 && dueMeals.length === 0 && dueWaterKeys.length === 0) {
+    console.log(`[scheduled-prayer-reminders] nothing due right now (${nowHHMM} Kuwait).`);
+    return { statusCode: 200, body: "nothing due" };
   }
 
   const headers = serviceHeaders(serviceRoleKey);
   const summary = [];
+
   for (const prayer of duePrayers) {
     const occurrenceKey = buildOccurrenceKey(todayKey, prayer.id);
     try {
-      const result = await processPrayer({ url, headers, prayer, occurrenceKey, todayKey });
-      summary.push({ prayer: prayer.id, ...result });
+      const result = await processPrayer({ url, headers, prayer, occurrenceKey, todayKey, nowHHMM });
+      summary.push({ type: "prayer", id: prayer.id, ...result });
     } catch (e) {
-      console.error(`[scheduled-prayer-reminders] processing ${prayer.id} failed:`, e);
-      summary.push({ prayer: prayer.id, error: String(e) });
+      console.error(`[scheduled-prayer-reminders] processing prayer ${prayer.id} failed:`, e);
+      summary.push({ type: "prayer", id: prayer.id, error: String(e) });
+    }
+  }
+  for (const mealType of dueMeals) {
+    const occurrenceKey = buildOccurrenceKey(todayKey, mealType);
+    try {
+      const result = await processMeal({ url, headers, mealType, occurrenceKey, todayKey, nowHHMM });
+      summary.push({ type: "meal", id: mealType, ...result });
+    } catch (e) {
+      console.error(`[scheduled-prayer-reminders] processing meal ${mealType} failed:`, e);
+      summary.push({ type: "meal", id: mealType, error: String(e) });
+    }
+  }
+  for (const waterKey of dueWaterKeys) {
+    const occurrenceKey = buildOccurrenceKey(todayKey, waterKey);
+    try {
+      const result = await processWater({ url, headers, occurrenceKey, todayKey, nowHHMM });
+      summary.push({ type: "water", id: waterKey, ...result });
+    } catch (e) {
+      console.error(`[scheduled-prayer-reminders] processing water ${waterKey} failed:`, e);
+      summary.push({ type: "water", id: waterKey, error: String(e) });
     }
   }
 
@@ -157,11 +211,19 @@ exports.handler = async (event) => {
   return { statusCode: 200, body: JSON.stringify(summary) };
 };
 
-async function processPrayer({ url, headers, prayer, occurrenceKey, todayKey }) {
+// جوهر مشترك بين كل الفئات (صلاة/وجبات/ماء): يبني قائمة المؤهَّلين فعلياً
+// عبر نفس الخطوات (منع تكرار، تفعيل عام، اشتراك Push فعّال، تفضيلات
+// المستخدم عبر shouldSend مركزياً)، ثم يرسل ويسجّل. الفرق الوحيد بين الفئات
+// هو "من أنجز الفعل بالفعل" (fulfilledOwners) الذي تجلبه كل دالة غلاف
+// (processPrayer/processMeal/processWater) من مصدر بياناتها الخاص
+// (prayer_log/nutrition_log/water_log) قبل استدعاء هذه - غير مُصفّاة مسبقاً
+// بمن يملك اشتراك Push فعلي (تُصفّى هنا لاحقاً عبر fulfilledOwners.has)،
+// تبسيطاً مقبولاً بحجم المستخدمين الحالي لهذا التطبيق.
+async function processReminder({ url, headers, category, occurrenceKey, nowHHMM, fulfilledOwners, message, linkPath }) {
   // 1) من أُرسل له بالفعل هذه المناسبة تحديداً - منع تكرار حقيقي حتى لو
   // تشغّلت الدالة مرتين لنفس النافذة (تداخل تشغيل، إعادة محاولة تلقائية...).
   const alreadySent = await fetchJson(
-    `${url}/rest/v1/notification_log?category=eq.prayer&occurrence_key=eq.${encodeURIComponent(occurrenceKey)}&select=owner`,
+    `${url}/rest/v1/notification_log?category=eq.${category}&occurrence_key=eq.${encodeURIComponent(occurrenceKey)}&select=owner`,
     headers,
   );
   const alreadySentOwners = new Set(alreadySent.map((r) => r.owner));
@@ -187,23 +249,18 @@ async function processPrayer({ url, headers, prayer, occurrenceKey, todayKey }) 
   const ownersWithSubs = [...subsByOwner.keys()];
   if (ownersWithSubs.length === 0) return { eligible: 0, sent: 0 };
 
-  // 4) من صلّى هذه الصلاة بعينها اليوم بالفعل - لا داعي لتذكيره بها.
-  const prayed = await fetchJson(
-    `${url}/rest/v1/prayer_log?date=eq.${todayKey}&prayer_id=eq.${prayer.id}&owner=in.${inList(ownersWithSubs)}&select=owner`,
-    headers,
-  );
-  const prayedOwners = new Set(prayed.map((r) => r.owner));
-
-  // 5) تفضيلاتهم (حد يومي/تفعيل فئة الصلاة تحديداً) - غياب صف تفضيلات لمستخدم
-  // (لم يُنشَأ له واحد بعد) يُعامَل بالقيم الافتراضية داخل shouldSend نفسها.
+  // 4) تفضيلاتهم (حد يومي/Quiet Hours/تفعيل كل الفئات معاً - عمود واحد لكل
+  // فئة، تُقرأ كلها دفعة واحدة بصرف النظر عن الفئة الحالية، فتُستخدَم نفس
+  // الاستعلامات لكل الفئات بلا تفرّع). غياب صف تفضيلات لمستخدم (لم يُنشَأ له
+  // واحد بعد) يُعامَل بالقيم الافتراضية أدناه (مطابقة لقيم العمود الافتراضية
+  // في المخطط).
   const prefsRows = await fetchJson(
-    `${url}/rest/v1/notification_preferences?owner=in.${inList(ownersWithSubs)}&select=owner,daily_cap,category_prayer`,
+    `${url}/rest/v1/notification_preferences?owner=in.${inList(ownersWithSubs)}&select=owner,daily_cap,quiet_hours_start,quiet_hours_end,category_prayer,category_water,category_meals`,
     headers,
   );
   const prefsByOwner = new Map(prefsRows.map((r) => [r.owner, r]));
 
-  // 6) عدد إشعاراتهم اليوم (لفحص الحد اليومي) - فئة الصلاة فقط موجودة فعلياً
-  // في هذه المرحلة، فهذا يكفي تماماً لحساب سقف اليوم الحقيقي حالياً.
+  // 5) عدد إشعاراتهم اليوم (كل الفئات معاً) لفحص الحد اليومي.
   const { startUtc, endUtc } = kuwaitDayBoundsUtc();
   const todayLog = await fetchJson(
     `${url}/rest/v1/notification_log?owner=in.${inList(ownersWithSubs)}&sent_at=gte.${encodeURIComponent(startUtc)}&sent_at=lt.${encodeURIComponent(endUtc)}&select=owner`,
@@ -212,18 +269,25 @@ async function processPrayer({ url, headers, prayer, occurrenceKey, todayKey }) 
   const sentTodayCountByOwner = new Map();
   for (const row of todayLog) sentTodayCountByOwner.set(row.owner, (sentTodayCountByOwner.get(row.owner) || 0) + 1);
 
-  // القرار: نفس محرك القرار المركزي من Phase 1، بلا أي منطق قرار مواز -
-  // منع التكرار (5)، الحد اليومي (6)، تفعيل الفئة (5)، واستثناء الصلاة من
-  // Quiet Hours (مُطبَّق داخل shouldSend نفسها، لا حاجة لتمرير وقت حقيقي هنا).
+  // القرار: نفس محرك القرار المركزي من Phase 1، بلا أي منطق قرار مواز - منع
+  // التكرار، الحد اليومي، تفعيل الفئة، وQuiet Hours (الصلاة وحدها مُستثناة
+  // منها داخل shouldSend نفسها؛ الوجبات والماء تحترمانها بصرامة عبر nowHHMM
+  // الحقيقي الممرَّر هنا، بخلاف الصلاة التي كانت تمرّر قيمة وهمية سابقاً).
+  const categoryPrefKey = `category_${category}`;
   const eligibleOwners = ownersWithSubs.filter((owner) => {
-    if (prayedOwners.has(owner)) return false;
+    if (fulfilledOwners.has(owner)) return false;
     const prefs = prefsByOwner.get(owner);
     const decision = shouldSend({
-      category: "prayer",
+      category,
       preferences: prefs
-        ? { dailyCap: prefs.daily_cap, categoryEnabled: { prayer: prefs.category_prayer } }
-        : { dailyCap: 8, categoryEnabled: { prayer: true } },
-      nowHHMM: "12:00", // غير مؤثِّر فعلياً - الصلاة مُستثناة من Quiet Hours دوماً
+        ? {
+            dailyCap: prefs.daily_cap,
+            quietHoursStart: prefs.quiet_hours_start,
+            quietHoursEnd: prefs.quiet_hours_end,
+            categoryEnabled: { [category]: prefs[categoryPrefKey] },
+          }
+        : { dailyCap: 8, quietHoursStart: "22:00", quietHoursEnd: "06:00", categoryEnabled: { [category]: true } },
+      nowHHMM,
       sentTodayCount: sentTodayCountByOwner.get(owner) || 0,
       alreadySentThisOccurrence: alreadySentOwners.has(owner),
     });
@@ -233,10 +297,9 @@ async function processPrayer({ url, headers, prayer, occurrenceKey, todayKey }) 
   if (eligibleOwners.length === 0) return { eligible: 0, sent: 0 };
 
   // إرسال متوازٍ لكل (مستخدم × جهاز) معاً - لا تسلسل. اللغة عربية افتراضياً
-  // (لا عمود لغة يُقرأ خادمياً بسهولة بعد في هذه النسخة الأولى من الجدولة؛
-  // يمكن ربطها بـprofile.language لاحقاً بلا تغيير في هذا المسار).
-  const message = buildMessage("prayer", "ar", { prayerName: PRAYER_NAMES[prayer.id].ar });
-  const notificationPayload = JSON.stringify({ title: message.title, body: message.body, url: "/prayer" });
+  // (لا عمود لغة يُقرأ خادمياً بسهولة بعد؛ يمكن ربطها بـprofile.language
+  // لاحقاً بلا تغيير في هذا المسار).
+  const notificationPayload = JSON.stringify({ title: message.title, body: message.body, url: linkPath });
 
   const results = await Promise.all(
     eligibleOwners.map(async (owner) => {
@@ -252,12 +315,86 @@ async function processPrayer({ url, headers, prayer, occurrenceKey, todayKey }) 
         await fetch(`${url}/rest/v1/notification_log`, {
           method: "POST",
           headers: { ...headers, "Content-Type": "application/json", Prefer: "return=minimal,resolution=ignore-duplicates" },
-          body: JSON.stringify({ owner, category: "prayer", occurrence_key: occurrenceKey, lang: "ar" }),
-        }).catch((e) => console.error("[scheduled-prayer-reminders] notification_log insert failed:", e));
+          body: JSON.stringify({ owner, category, occurrence_key: occurrenceKey, lang: "ar" }),
+        }).catch((e) => console.error(`[scheduled-prayer-reminders] notification_log insert failed (${category}):`, e));
       }
       return { owner, sent: anySent };
     }),
   );
 
   return { eligible: eligibleOwners.length, sent: results.filter((r) => r.sent).length };
+}
+
+async function processPrayer({ url, headers, prayer, occurrenceKey, todayKey, nowHHMM }) {
+  // من صلّى هذه الصلاة بعينها اليوم بالفعل - لا داعي لتذكيره بها.
+  const prayed = await fetchJson(
+    `${url}/rest/v1/prayer_log?date=eq.${todayKey}&prayer_id=eq.${prayer.id}&select=owner`,
+    headers,
+  );
+  const message = buildMessage("prayer", "ar", { prayerName: PRAYER_NAMES[prayer.id].ar });
+  return processReminder({
+    url,
+    headers,
+    category: "prayer",
+    occurrenceKey,
+    nowHHMM,
+    fulfilledOwners: new Set(prayed.map((r) => r.owner)),
+    message,
+    linkPath: "/prayer",
+  });
+}
+
+async function processMeal({ url, headers, mealType, occurrenceKey, nowHHMM }) {
+  // من سجّل هذه الوجبة بعينها اليوم بالفعل في nutrition_log (أي مصدر: باركود/
+  // بحث/يدوي/تصوير/ملصق) - لا داعي لتذكيره بها. نستخدم created_at (طابع زمني
+  // حقيقي) بدل عمود date النصي عمداً: date يُكتَب من العميل بتاريخ UTC للحظة
+  // الحفظ (src/lib/helpers.js: todayKey()، لا بتاريخ الكويت المحلي)، فقد
+  // يتخلّف يوماً كاملاً عن يوم الكويت الحقيقي بين منتصف الليل الكويتي
+  // والساعة 03:00 (نافذة تشمل وقت سحور رمضان الحقيقي) - لو اعتمدنا date هنا
+  // فقد نرسل تذكيراً خاطئاً لمن سجّل وجبته بالفعل في تلك النافذة تحديداً.
+  // created_at بلا هذا الالتباس؛ مقارنته بحدود يوم الكويت الحقيقية
+  // (kuwaitDayBoundsUtc، نفس المستخدَمة لسقف الإشعارات اليومي) صحيحة دوماً.
+  const { startUtc: mealStartUtc, endUtc: mealEndUtc } = kuwaitDayBoundsUtc();
+  const logged = await fetchJson(
+    `${url}/rest/v1/nutrition_log?meal_type=eq.${mealType}&created_at=gte.${encodeURIComponent(mealStartUtc)}&created_at=lt.${encodeURIComponent(mealEndUtc)}&select=owner`,
+    headers,
+  );
+  const message = buildMessage("meals", "ar", { mealLabel: MEAL_LABELS[mealType].ar });
+  return processReminder({
+    url,
+    headers,
+    category: "meals",
+    occurrenceKey,
+    nowHHMM,
+    fulfilledOwners: new Set(logged.map((r) => r.owner)),
+    message,
+    linkPath: "/nutrition",
+  });
+}
+
+async function processWater({ url, headers, occurrenceKey, todayKey, nowHHMM }) {
+  // من سجّل كوب ماء واحداً على الأقل اليوم بالفعل (water_log صف واحد لكل
+  // (owner, date) - cups_count>0 يكفي، بصرف النظر عن العدد الدقيق). بخلاف
+  // nutrition_log، هذا الجدول لا يملك created_at (صف واحد يُحدَّث بمكانه، لا
+  // سجل أحداث)، وdate هو المفتاح الأساسي نفسه (لا بديل عنه للاستعلام) - يبقى
+  // معرَّضاً نظرياً لنفس التباس UTC/الكويت بين منتصف الليل والساعة 03:00
+  // الموصوف أعلاه (قد يُرسَل تذكير ماء خاطئ لمن سجّل كوباً في تلك النافذة
+  // تحديداً) بلا حل نظيف بلا تغيير بنيوي في طريقة كتابة الجدول نفسها - أثر
+  // عملي محدود (تذكير زائد لا معلومة خاطئة)، تُرك كما هو عمداً بدل تعقيد غير
+  // مضمون النتيجة.
+  const logged = await fetchJson(
+    `${url}/rest/v1/water_log?date=eq.${todayKey}&cups_count=gt.0&select=owner`,
+    headers,
+  );
+  const message = buildMessage("water", "ar", {});
+  return processReminder({
+    url,
+    headers,
+    category: "water",
+    occurrenceKey,
+    nowHHMM,
+    fulfilledOwners: new Set(logged.map((r) => r.owner)),
+    message,
+    linkPath: "/nutrition",
+  });
 }

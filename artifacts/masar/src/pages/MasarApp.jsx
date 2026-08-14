@@ -5552,10 +5552,12 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
     showToast(t("settings.notifDisabled"));
   }
   // TEMP: للاختبار اليدوي فقط - إزالة لاحقاً. يستدعي دالة
-  // prayer-reminder-test.js (Phase 2) بتوكن الجلسة الحالية الحقيقي تلقائياً
-  // - بلا أي إدخال يدوي (allowlist محصورة خادمياً بـPRAYER_TEST_ALLOWLIST،
-  // لن يصل شيء فعلياً إن لم يكن معرّف الحساب الحالي مُدرَجاً هناك).
-  async function handlePrayerReminderTest() {
+  // prayer-reminder-test.js (Phase 2، وُسِّعت لاحقاً لتشمل وجبات/ماء بنفس
+  // الآلية) بتوكن الجلسة الحالية الحقيقي تلقائياً - بلا أي إدخال يدوي
+  // (allowlist محصورة خادمياً بـPRAYER_TEST_ALLOWLIST، لن يصل شيء فعلياً إن
+  // لم يكن معرّف الحساب الحالي مُدرَجاً هناك). category/extra اختياريان -
+  // بلا تمريرهما يبقى السلوك مطابقاً تماماً للزر الأصلي (صلاة الظهر).
+  async function handlePrayerReminderTest(category, extra) {
     setPrayerTestLoading(true);
     setPrayerTestResult(null);
     try {
@@ -5568,12 +5570,13 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
       const res = await fetch("/.netlify/functions/prayer-reminder-test", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ lang: isEn ? "en" : "ar", prayerId: "dhuhr" }),
+        body: JSON.stringify({ lang: isEn ? "en" : "ar", prayerId: "dhuhr", category, ...extra }),
       });
       let body = {};
       try { body = await res.json(); } catch { /* رد غير JSON - يُعامَل كفشل أدناه */ }
       if (res.ok && body.sent) {
-        setPrayerTestResult({ ok: true, message: isEn ? `Sent successfully (${body.prayer?.id || "dhuhr"}).` : `أُرسل بنجاح (${body.prayer?.id || "dhuhr"}).` });
+        const label = body.prayer?.id || body.meal?.type || (category === "water" ? "water" : "dhuhr");
+        setPrayerTestResult({ ok: true, message: isEn ? `Sent successfully (${label}).` : `أُرسل بنجاح (${label}).` });
       } else {
         // TEMP: تشخيص مؤقت - إزالة لاحقاً مع بقية هذا الزر (انظر debug في
         // prayer-reminder-test.js). يُعرَض فقط إن أرسله الخادم فعلاً (لن
@@ -5753,8 +5756,21 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
         <div style={S.catEditorCard}>
           <div style={S.catEditorHeader}><span style={{ fontSize: 14 }}>🔧</span><span>{isEn ? "Technical info (temporary)" : "معلومات تقنية (مؤقت)"}</span></div>
           <button onClick={() => setShowAccountIdDebug(true)} style={{ ...S.exportBtn, marginBottom: 0 }}>{isEn ? "Show my account ID" : "عرض معرّف حسابي"}</button>
-          <button onClick={handlePrayerReminderTest} disabled={prayerTestLoading} style={{ ...S.exportBtn, marginTop: 8, marginBottom: 0, opacity: prayerTestLoading ? 0.6 : 1 }}>
+          <button onClick={() => handlePrayerReminderTest()} disabled={prayerTestLoading} style={{ ...S.exportBtn, marginTop: 8, marginBottom: 0, opacity: prayerTestLoading ? 0.6 : 1 }}>
             {prayerTestLoading ? <Loader2 size={14} className="spin" /> : null} {isEn ? "Send test prayer reminder" : "إرسال تذكير صلاة تجريبي"}
+          </button>
+          {/* TEMP: نفس أداة الاختبار أعلاه، مُوسَّعة لتغطية الوجبات/الماء (نفس آلية Push الحقيقية) - إزالة لاحقاً معاً. */}
+          <button onClick={() => handlePrayerReminderTest("meals", { mealType: "breakfast" })} disabled={prayerTestLoading} style={{ ...S.exportBtn, marginTop: 8, marginBottom: 0, opacity: prayerTestLoading ? 0.6 : 1 }}>
+            {isEn ? "Send test breakfast reminder" : "إرسال تذكير فطور تجريبي"}
+          </button>
+          <button onClick={() => handlePrayerReminderTest("meals", { mealType: "lunch" })} disabled={prayerTestLoading} style={{ ...S.exportBtn, marginTop: 8, marginBottom: 0, opacity: prayerTestLoading ? 0.6 : 1 }}>
+            {isEn ? "Send test lunch reminder" : "إرسال تذكير غداء تجريبي"}
+          </button>
+          <button onClick={() => handlePrayerReminderTest("meals", { mealType: "dinner" })} disabled={prayerTestLoading} style={{ ...S.exportBtn, marginTop: 8, marginBottom: 0, opacity: prayerTestLoading ? 0.6 : 1 }}>
+            {isEn ? "Send test dinner reminder" : "إرسال تذكير عشاء تجريبي"}
+          </button>
+          <button onClick={() => handlePrayerReminderTest("water", {})} disabled={prayerTestLoading} style={{ ...S.exportBtn, marginTop: 8, marginBottom: 0, opacity: prayerTestLoading ? 0.6 : 1 }}>
+            {isEn ? "Send test water reminder" : "إرسال تذكير ماء تجريبي"}
           </button>
           {prayerTestResult && (
             <div style={{ marginTop: 10, padding: "10px 12px", borderRadius: 10, fontSize: 12.5, lineHeight: 1.6, background: "var(--surface-raised)", border: `1px solid ${prayerTestResult.ok ? "#5FA8A0" : "#E05252"}`, color: prayerTestResult.ok ? "#5FA8A0" : "#E05252" }}>

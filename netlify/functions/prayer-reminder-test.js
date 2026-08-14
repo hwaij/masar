@@ -1,8 +1,11 @@
-// Netlify Function: اختبار يدوي فقط (Phase 2) - لا cron، لا جدولة، لا
-// إرسال لأي مستخدم غير مُدرَج صراحة في PRAYER_TEST_ALLOWLIST. الهدف
-// الوحيد: إثبات أن خط الأنابيب الكامل (حساب وقت الصلاة الفعلي على الخادم
-// -> بناء نص ودود -> إرسال Push حقيقي عبر البنية الموجودة أصلاً من
-// Phase C) يعمل صحيحاً قبل بناء أي جدولة تلقائية (Phase 3).
+// Netlify Function: اختبار يدوي فقط (Phase 2، وُسِّع لاحقاً ليشمل
+// وجبات/ماء بنفس الآلية) - لا cron، لا جدولة، لا إرسال لأي مستخدم غير
+// مُدرَج صراحة في PRAYER_TEST_ALLOWLIST (اسم المتغيّر بقي كما هو تاريخياً
+// رغم أنه يحكم كل الفئات التجريبية هنا الآن، لا الصلاة فقط - إعادة تسميته
+// تكسر إعداد أي بيئة Netlify فعلية مضبوطة عليه بالفعل بلا أي فائدة حقيقية).
+// الهدف: إثبات أن خط الأنابيب الكامل (فحص أهلية حقيقي -> بناء نص ودود ->
+// إرسال Push حقيقي) يعمل صحيحاً فورياً بلا انتظار نافذة زمنية حقيقية -
+// نفس بنية القرار المستخدمة في scheduled-prayer-reminders.js تماماً.
 //
 // أمان: يتحقق من هوية المستخدم عبر توكن Supabase الحقيقي (نفس نمط
 // gemini.js/send-test-push.js)، ثم يرفض أي هوية غير موجودة صراحة في
@@ -19,6 +22,12 @@ const PRAYER_NAMES = {
   asr: { ar: "العصر", en: "Asr" },
   maghrib: { ar: "المغرب", en: "Maghrib" },
   isha: { ar: "العشاء", en: "Isha" },
+};
+
+const MEAL_LABELS = {
+  breakfast: { ar: "الفطور", en: "Breakfast" },
+  lunch: { ar: "الغداء", en: "Lunch" },
+  dinner: { ar: "العشاء", en: "Dinner" },
 };
 
 function readSupabaseEnv() {
@@ -111,24 +120,41 @@ exports.handler = async (event) => {
   let body = {};
   try { body = JSON.parse(event.body || "{}"); } catch { /* بلا body صالح - نستخدم الصلاة القادمة تلقائياً */ }
   const lang = body?.lang === "en" ? "en" : "ar";
+  const category = body?.category === "meals" || body?.category === "water" ? body.category : "prayer";
 
-  // يسمح بتحديد صلاة بعينها صراحة (لاختبار فوري بلا انتظار الوقت الحقيقي)،
-  // وإلا يستخدم الصلاة القادمة فعلياً الآن بتوقيت الكويت - كلا المسارين
-  // يعتمدان حساب وقت حقيقي فعلي من lib/prayer-times.js، لا قيمة وهمية.
-  let prayer;
-  if (body?.prayerId && PRAYER_NAMES[body.prayerId]) {
-    const today = todayFivePrayers();
-    prayer = today.find((p) => p.id === body.prayerId);
+  // بناء الرسالة ومعلومات الاستجابة حسب الفئة المطلوبة - لا فحص أهلية حقيقي
+  // هنا (لا notification_log/nutrition_log/water_log) عمداً: هذه أداة اختبار
+  // "هل يصل Push فعلياً لجهازي الآن؟" فقط، بمعزل تام عن منطق القرار الحقيقي
+  // المُختبَر بالفعل في scheduled-prayer-reminders.js نفسها.
+  let message, notificationPayload, responseExtra;
+  if (category === "meals") {
+    const mealType = MEAL_LABELS[body?.mealType] ? body.mealType : "breakfast";
+    message = buildMessage("meals", lang, { mealLabel: MEAL_LABELS[mealType][lang] });
+    notificationPayload = JSON.stringify({ title: message.title, body: message.body, url: "/nutrition" });
+    responseExtra = { meal: { type: mealType } };
+  } else if (category === "water") {
+    message = buildMessage("water", lang, {});
+    notificationPayload = JSON.stringify({ title: message.title, body: message.body, url: "/nutrition" });
+    responseExtra = {};
   } else {
-    prayer = nextPrayerNow();
+    // يسمح بتحديد صلاة بعينها صراحة (لاختبار فوري بلا انتظار الوقت الحقيقي)،
+    // وإلا يستخدم الصلاة القادمة فعلياً الآن بتوقيت الكويت - كلا المسارين
+    // يعتمدان حساب وقت حقيقي فعلي من lib/prayer-times.js، لا قيمة وهمية.
+    let prayer;
+    if (body?.prayerId && PRAYER_NAMES[body.prayerId]) {
+      const today = todayFivePrayers();
+      prayer = today.find((p) => p.id === body.prayerId);
+    } else {
+      prayer = nextPrayerNow();
+    }
+    if (!prayer) {
+      return { statusCode: 400, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ error: "تعذّر تحديد الصلاة المطلوبة." }) };
+    }
+    const prayerName = PRAYER_NAMES[prayer.id][lang];
+    message = buildMessage("prayer", lang, { prayerName });
+    notificationPayload = JSON.stringify({ title: message.title, body: message.body, url: "/prayer" });
+    responseExtra = { prayer: { id: prayer.id, time: prayer.time, tomorrow: !!prayer.tomorrow } };
   }
-  if (!prayer) {
-    return { statusCode: 400, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ error: "تعذّر تحديد الصلاة المطلوبة." }) };
-  }
-
-  const prayerName = PRAYER_NAMES[prayer.id][lang];
-  const message = buildMessage("prayer", lang, { prayerName });
-  const notificationPayload = JSON.stringify({ title: message.title, body: message.body, url: "/prayer" });
 
   configureVapid(vapidSubject, vapidPublicKey, vapidPrivateKey);
 
@@ -149,7 +175,7 @@ exports.handler = async (event) => {
     body: JSON.stringify({
       sent: sendResult.sent,
       results: sendResult.results,
-      prayer: { id: prayer.id, time: prayer.time, tomorrow: !!prayer.tomorrow },
+      ...responseExtra,
       error: sendResult.sent ? undefined : "تعذّر إرسال الإشعار لأي من أجهزتك المحفوظة.",
     }),
   };

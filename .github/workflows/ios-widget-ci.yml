@@ -1,0 +1,109 @@
+name: iOS Nutrition Widget CI Proof
+
+# يبني Widget التغذية (artifacts/masar-ios/) فعلياً على macOS runner مجاني،
+# يُشغّله في محاكي iOS حقيقي، يسجّل دخول تلقائياً بحساب اختباري، ويلتقط
+# لقطة شاشة حقيقية لنفس الواجهة (NutritionSummaryView) المستخدَمة في
+# الـWidget الفعلي حرفياً - إثبات أن الكود يُصرَّف وينفّذ ويعرض بيانات
+# حقيقية بشكل صحيح، بلا حاجة لجهاز Mac محلي. راجع artifacts/masar-ios/README.md
+# للتفاصيل والقيود (هذا ليس إثباتاً أن الـwidget "مُثبَّت على هاتف حقيقي" -
+# تلك الخطوة الأخيرة تحتاج Mac فعلي لا بديل تقني له).
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths:
+      - "artifacts/masar-ios/**"
+      - ".github/workflows/ios-widget-ci.yml"
+
+jobs:
+  build-and-screenshot:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show active Xcode version (diagnostic)
+        run: xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Write Secrets.swift from GitHub Secrets
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::error::SUPABASE_URL/SUPABASE_ANON_KEY repo secrets are not set (Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
+          cat > artifacts/masar-ios/MasarWidgetHost/Secrets.swift <<EOF
+          enum Secrets {
+              static let supabaseURL = "$SUPABASE_URL"
+              static let supabaseAnonKey = "$SUPABASE_ANON_KEY"
+          }
+          EOF
+
+      - name: Generate Xcode project
+        working-directory: artifacts/masar-ios
+        run: xcodegen generate
+
+      - name: Boot an iOS Simulator
+        id: sim
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c "
+          import json,sys
+          data = json.load(sys.stdin)
+          for runtime, devices in data['devices'].items():
+              for d in devices:
+                  if d.get('isAvailable') and 'iPhone' in d.get('name', ''):
+                      print(d['udid'])
+                      sys.exit(0)
+          sys.exit(1)
+          ")
+          echo "Booting simulator $UDID"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
+      - name: Build for Simulator
+        working-directory: artifacts/masar-ios
+        run: |
+          xcodebuild build \
+            -project MasarWidgetHost.xcodeproj \
+            -scheme MasarWidgetHost \
+            -configuration Debug \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Install & launch app with test credentials
+        env:
+          TEST_ACCOUNT_EMAIL: ${{ secrets.TEST_ACCOUNT_EMAIL }}
+          TEST_ACCOUNT_PASSWORD: ${{ secrets.TEST_ACCOUNT_PASSWORD }}
+        run: |
+          if [ -z "$TEST_ACCOUNT_EMAIL" ] || [ -z "$TEST_ACCOUNT_PASSWORD" ]; then
+            echo "::error::TEST_ACCOUNT_EMAIL/TEST_ACCOUNT_PASSWORD repo secrets are not set."
+            exit 1
+          fi
+          APP_PATH=$(find artifacts/masar-ios/build/Build/Products/Debug-iphonesimulator -maxdepth 1 -name "*.app" | head -n1)
+          echo "Installing $APP_PATH"
+          xcrun simctl install "${{ steps.sim.outputs.udid }}" "$APP_PATH"
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP_PATH/Info.plist")
+          echo "Launching $BUNDLE_ID with CI auto-login"
+          SIMCTL_CHILD_MASAR_CI_EMAIL="$TEST_ACCOUNT_EMAIL" \
+          SIMCTL_CHILD_MASAR_CI_PASSWORD="$TEST_ACCOUNT_PASSWORD" \
+          xcrun simctl launch "${{ steps.sim.outputs.udid }}" "$BUNDLE_ID"
+
+      - name: Wait for login + data fetch
+        run: sleep 12
+
+      - name: Screenshot
+        run: xcrun simctl io "${{ steps.sim.outputs.udid }}" screenshot artifacts/masar-ios/ci-screenshot.png
+
+      - name: Upload screenshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: nutrition-widget-screenshot
+          path: artifacts/masar-ios/ci-screenshot.png
+          if-no-files-found: error

@@ -1,0 +1,82 @@
+name: MasarWidgetHost
+options:
+  bundleIdPrefix: com.masar.app
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: ""
+    TARGETED_DEVICE_FAMILY: "1"
+    ENABLE_PREVIEWS: "YES"
+
+targets:
+  MasarWidgetHost:
+    type: application
+    platform: iOS
+    sources:
+      - path: MasarWidgetHost
+        excludes:
+          - "**/*.entitlements"
+    info:
+      path: MasarWidgetHost/Info.plist
+      properties:
+        CFBundleDisplayName: "Masar Widget Host"
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+    entitlements:
+      path: MasarWidgetHost/MasarWidgetHost.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.masar.app.shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.masar.app
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: "NO"
+    dependencies:
+      - target: MasarNutritionWidgetExtension
+        embed: true
+
+  MasarNutritionWidgetExtension:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: MasarNutritionWidget
+        excludes:
+          - "**/*.entitlements"
+      # الـWidget يحتاج نفس منطق الملخّص وعميل REST المستخدَمين في التطبيق
+      # المضيف - لا نسخة موازية؛ يُشارَك الملف نفسه بين الهدفين بدل تكراره.
+      - path: MasarWidgetHost/Services/NutritionSummary.swift
+      - path: MasarWidgetHost/Services/SharedSession.swift
+      - path: MasarWidgetHost/Services/SupabaseClient.swift
+      - path: MasarWidgetHost/Secrets.swift
+        optional: true
+    info:
+      path: MasarNutritionWidget/Info.plist
+      properties:
+        CFBundleDisplayName: "Masar Nutrition Widget"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: MasarNutritionWidget/MasarNutritionWidget.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.masar.app.shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.masar.app.NutritionWidget
+        SKIP_INSTALL: "NO"
+
+schemes:
+  MasarWidgetHost:
+    build:
+      targets:
+        MasarWidgetHost: all
+        MasarNutritionWidgetExtension: all
+    run:
+      config: Debug
+    archive:
+      config: Release

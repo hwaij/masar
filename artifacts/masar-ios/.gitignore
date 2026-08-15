@@ -1,0 +1,12 @@
+# يحوي بيانات Supabase الحقيقية (URL + anon key) - انسخ Secrets.swift.example
+# إليه واملأه محلياً، لا يُرفع أبداً.
+MasarWidgetHost/Secrets.swift
+
+# يُنشَأ بالكامل من project.yml عبر `xcodegen generate` - لا يُرفع (مصدر
+# الحقيقة الوحيد هو project.yml نفسه، يتفادى تعارضات دمج في ملف .pbxproj
+# الضخم شبه الثنائي).
+*.xcodeproj/
+
+DerivedData/
+.build/
+*.xcuserstate

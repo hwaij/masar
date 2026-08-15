@@ -4,6 +4,7 @@ import {
   Plus, X, Trash2, Camera, Search, Loader2, Droplet, Flame, Check, Bell, Info,
   Hash, Sparkles, ImagePlus, ClipboardList, Edit3, ChevronLeft, ChevronRight, SkipForward,
   Egg, Drumstick, Beef, Fish, Wheat, Carrot, Apple, Bean, Milk, Nut, Coffee, Cookie, Salad,
+  History,
 } from "lucide-react";
 import { store } from "../lib/store";
 import SpotlightTour from "./SpotlightTour";
@@ -11,13 +12,13 @@ import { todayKey, uid, analyze, parseJsonLoose, arabicDate } from "../lib/helpe
 import { isActiveSubscriber } from "../lib/subscription";
 import {
   fetchProductByBarcode, searchProductsByName, searchUSDAFoods, scaleNutrients,
-  sumNutritionEntries, waterGoalCups, servingPresets,
+  sumNutritionEntries, waterGoalCups, servingPresets, quantityInProductBasis,
   isSecureContextForCamera, describeCameraError,
   normalizeSearchTerm, recognizeMealFromImage, readNutritionLabel,
   labelToPer100Product, DAILY_GUIDELINES,
   UNIT_OPTIONS, unitById, unitToGrams, unitServingSize,
   scaleMicronutrients, MICRONUTRIENT_META, personalizedRDI, compressImageToBlob,
-  MEAL_TYPES, guessMealType,
+  MEAL_TYPES, guessMealType, estimateMicronutrientsAI,
 } from "../lib/nutrition";
 import { getDailyNutritionSummary } from "../lib/nutrition-plan";
 import { requestNotificationPermission } from "../lib/push";
@@ -125,6 +126,15 @@ const NS = {
   unitQtyInput: { width: 90, minHeight: 44, background: "var(--surface-sunken)", border: "1px solid var(--border2)", borderRadius: 10, padding: "0 10px", color: "var(--ink)", fontSize: 14, fontFamily: "inherit", textAlign: "center" },
   unitApproxNote: { fontSize: 11.5, color: "var(--muted2)", lineHeight: 1.6, marginTop: -4, marginBottom: 10 },
 
+  qtyStepperRow: { display: "flex", alignItems: "center", gap: 10, marginBottom: 4 },
+  qtyStepperBtn: { minWidth: 44, minHeight: 44, borderRadius: 12, border: "1px solid var(--border2)", background: "var(--surface-sunken)", color: "var(--gold)", fontSize: 20, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", flexShrink: 0 },
+  qtyStepperInput: { flex: 1, minWidth: 0, minHeight: 44, borderRadius: 12, border: "1px solid var(--border2)", background: "var(--surface-sunken)", color: "var(--ink)", fontSize: 16, fontWeight: 700, textAlign: "center", fontFamily: "inherit" },
+  // تحت الصف (لا داخله) عمداً - عنوان وحدة طويل ببعض اللغات (مثال "Milliliter
+  // (ml)" بالإنجليزية) كان يدفع زر "+" خارج شاشات 390px عندما كان عنصراً
+  // ثالثاً في نفس الصف المرن؛ سطر مستقل بعرض كامل يستوعب أي طول نص بأمان.
+  qtyStepperUnit: { fontSize: 12.5, fontWeight: 600, color: "var(--muted2)", textAlign: "center", marginBottom: 10 },
+  qtyPreviewGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10, fontSize: 12.5, color: "var(--ink-soft)" },
+
   wizardProgress: { marginBottom: 14 },
   wizardProgressLabel: { fontSize: 12, fontWeight: 700, color: "var(--gold)", marginBottom: 6 },
   wizardNavRow: { display: "flex", gap: 8, marginTop: 16 },
@@ -145,6 +155,11 @@ const NS = {
   mealGroupHead: { display: "flex", justifyContent: "space-between", alignItems: "baseline", fontSize: 12.5, fontWeight: 700, color: "var(--ink-soft)", margin: "14px 0 8px" },
   mealGroupCalories: { fontSize: 12, fontWeight: 700, color: "var(--gold)" },
   approxBadge: { color: "var(--gold)", cursor: "help", fontWeight: 700 },
+  // شارة "تقدير AI عام" (تحسينات التغذية #4) - مختلفة تماماً بصرياً عن
+  // approxBadge الذهبية أعلاه (بنفسجي/أزرق بدل ذهبي، pill بخلفية بدل نص عادٍ)
+  // حتى تبقى العلامتان مميَّزتين بوضوح بلا لبس بين "بيانات مرجعية" و"تخمين AI".
+  aiEstimatedBadge: { display: "inline-flex", alignItems: "center", gap: 3, color: "#7C6FE0", background: "rgba(124,111,224,0.14)", border: "1px solid rgba(124,111,224,0.35)", borderRadius: 20, padding: "1px 7px", fontSize: 10.5, fontWeight: 700, cursor: "help" },
+  aiEstimateBtn: { display: "flex", alignItems: "center", gap: 5, background: "rgba(124,111,224,0.12)", border: "1px solid rgba(124,111,224,0.35)", color: "#7C6FE0", borderRadius: 20, padding: "6px 12px", fontSize: 11.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", minHeight: 36, marginTop: 6 },
 
   // ===== Priority 5: بطاقة وجبة (Meal Card) =====
   mealCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "14px 14px", marginBottom: 12 },
@@ -415,6 +430,7 @@ function ProductEditForm({ product, onSaved, onCancel, showToast }) {
       brand: product.brand || "", country: product.country || "", servingSizeLabel: product.servingSizeLabel || "",
       servingGrams: product.servingGrams || null, imageUrl: product.imageUrl || "",
       micronutrients: cleanMicro,
+      per100Basis: product.per100Basis === "ml" ? "ml" : "g",
     });
     setSaving(false);
     if (!res.ok) { showToast(t("nutrition.correctionSaveFailed")); return; }
@@ -426,6 +442,7 @@ function ProductEditForm({ product, onSaved, onCancel, showToast }) {
       fiberPer100g: Number(draft.fiber) || 0, sugarPer100g: Number(draft.sugar) || 0,
       sodiumPer100gMg: Number(draft.sodium) || 0, cholesterolPer100gMg: Number(draft.cholesterol) || 0,
       micronutrientsPer100g: cleanMicro,
+      per100Basis: product.per100Basis === "ml" ? "ml" : "g",
     });
   }
 
@@ -497,11 +514,25 @@ const MEAL_TYPE_EMOJI = { breakfast: "🌅", lunch: "☀️", dinner: "🌙", sn
 // الذي كان يُخفي المجموعة تماماً إن لم تحتوِ أي صنف. التوسّع السطري
 // (accordion) والتعديل السريع حالة محلية لكل بطاقة - لا حاجة لرفعها لأعلى
 // المكوّن لأنها لا تؤثر إلا على عرض هذه البطاقة نفسها.
-function MealCard({ mealType, items, dayTotalCalories, usualTimeLabel, isCurrent, isEn, t, onAddFood, onDeleteItem, onEditSave }) {
+// خطوة أزرار +/- السريعة حسب الوحدة - غم/مل بخطوات "محسوسة" (10)، كيلوغرام/
+// لتر بخطوات عشرية صغيرة (0.01) لأنها وحدات كبيرة أصلاً، وقطعة/حصة/ملاعق/كوب
+// بخطوة وحدة واحدة كاملة (لا معنى لنصف ملعقة عملياً).
+const QTY_STEP = { g: 10, kg: 0.01, ml: 10, l: 0.01, tbsp: 1, tsp: 1, cup: 1, piece: 1, serving: 1 };
+
+function MealCard({ mealType, items, dayTotalCalories, usualTimeLabel, isCurrent, isEn, t, onAddFood, onDeleteItem, onEditSave, onEstimateAI }) {
   const [expandedId, setExpandedId] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [editDraft, setEditDraft] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [estimatingId, setEstimatingId] = useState(null);
+
+  // زر تقدير الفيتامينات بالذكاء الاصطناعي (تحسينات التغذية #4) - يعمل على
+  // مستوى الصنف الواحد فقط، اختياري وصريح دائماً (لا استدعاء تلقائي).
+  async function handleEstimateAI(item) {
+    setEstimatingId(item.id);
+    await onEstimateAI(item);
+    setEstimatingId(null);
+  }
 
   const groupCalories = Math.round(sumNutritionEntries(items).calories);
   const contributionPct = dayTotalCalories > 0 ? Math.min(100, Math.round((groupCalories / dayTotalCalories) * 100)) : 0;
@@ -512,24 +543,63 @@ function MealCard({ mealType, items, dayTotalCalories, usualTimeLabel, isCurrent
     setExpandedId((cur) => (cur === id ? null : id));
   }
 
+  // تعديل الكمية بأزرار +/- (Priority: 4 تحسينات التغذية #1) يعمل فقط
+  // للإدخالات التي تملك productBasis/quantity محفوظَين (بعد هذا التحديث) -
+  // تُعاد حساب القيم الغذائية حياً بنفس محرك quantityInProductBasis/
+  // scaleNutrients المُستخدَم في شاشة الإضافة، بلا تكرار منطق. الإدخالات
+  // القديمة (قبل هذا التحديث) لا تملك productBasis فتبقى بنموذج التعديل
+  // اليدوي الخام القديم كما هو تماماً - لا كسر لأي بيانات موجودة.
   function startEdit(item) {
     setEditingId(item.id);
     setExpandedId(item.id);
     setConfirmDeleteId(null);
-    setEditDraft({
-      calories: item.calories, protein: item.protein, carbs: item.carbs, fat: item.fat,
-      fiber: item.fiber || 0, sugar: item.sugar || 0, sodium: item.sodium || 0, cholesterol: item.cholesterol || 0,
-    });
+    if (item.productBasis && item.quantity != null) {
+      setEditDraft({ mode: "quantity", unit: item.unit || "g", qty: item.quantity });
+    } else {
+      setEditDraft({
+        mode: "legacy",
+        calories: item.calories, protein: item.protein, carbs: item.carbs, fat: item.fat,
+        fiber: item.fiber || 0, sugar: item.sugar || 0, sodium: item.sodium || 0, cholesterol: item.cholesterol || 0,
+      });
+    }
   }
   function changeDraft(field, val) { setEditDraft((d) => ({ ...d, [field]: val })); }
-  function saveEdit(item) {
-    onEditSave({
-      ...item,
-      calories: Number(editDraft.calories) || 0, protein: Number(editDraft.protein) || 0,
-      carbs: Number(editDraft.carbs) || 0, fat: Number(editDraft.fat) || 0,
-      fiber: Number(editDraft.fiber) || 0, sugar: Number(editDraft.sugar) || 0,
-      sodium: Number(editDraft.sodium) || 0, cholesterol: Number(editDraft.cholesterol) || 0,
+  function stepQty(delta) {
+    const step = QTY_STEP[editDraft.unit] ?? 1;
+    setEditDraft((d) => {
+      const next = Math.round((Number(d.qty || 0) + delta * step) * 100) / 100;
+      return { ...d, qty: Math.max(0, next) };
     });
+  }
+  // معاينة حيّة لتعديل الكمية - نفس المحرك المُستخدَم في ConfirmQuantityCard
+  // بالضبط (quantityInProductBasis يحوّل للـ"عملة" الصحيحة g/ml حسب أساس
+  // المنتج المحفوظ، ثم scaleNutrients/scaleMicronutrients). item.foodName
+  // يُمرَّر كـname لأن productBasis المحفوظة لا تخزّن الاسم (تكرار غير لازم
+  // مع foodName الموجود أصلاً على مستوى الإدخال نفسه).
+  function quantityPreview(item, draft) {
+    const productLike = { ...item.productBasis, name: item.foodName };
+    const conversion = quantityInProductBasis(draft.unit, draft.qty, productLike);
+    const macros = scaleNutrients(productLike, conversion.value || 0);
+    const micronutrients = scaleMicronutrients(productLike.micronutrientsPer100g, conversion.value || 0);
+    return { ...macros, micronutrients, approxDensity: conversion.approxDensity };
+  }
+  function saveEdit(item) {
+    if (editDraft.mode === "quantity") {
+      const preview = quantityPreview(item, editDraft);
+      onEditSave({
+        ...item, ...preview,
+        quantity: editDraft.qty,
+        servingInfo: `${editDraft.qty} ${t(`nutrition.unitOptions.${editDraft.unit}`)}`,
+      });
+    } else {
+      onEditSave({
+        ...item,
+        calories: Number(editDraft.calories) || 0, protein: Number(editDraft.protein) || 0,
+        carbs: Number(editDraft.carbs) || 0, fat: Number(editDraft.fat) || 0,
+        fiber: Number(editDraft.fiber) || 0, sugar: Number(editDraft.sugar) || 0,
+        sodium: Number(editDraft.sodium) || 0, cholesterol: Number(editDraft.cholesterol) || 0,
+      });
+    }
     setEditingId(null);
     setEditDraft(null);
   }
@@ -581,6 +651,16 @@ function MealCard({ mealType, items, dayTotalCalories, usualTimeLabel, isCurrent
                       <button onClick={() => startEdit(item)} style={NS.mealItemActionBtn}><Edit3 size={13} /> {t("common.buttons.edit")}</button>
                       <button onClick={() => setConfirmDeleteId(item.id)} style={{ ...NS.mealItemActionBtn, color: "#E05252" }}><Trash2 size={13} /> {t("common.buttons.delete")}</button>
                     </div>
+                    {(!item.micronutrients || Object.keys(item.micronutrients).length === 0) && (
+                      <button
+                        onClick={() => handleEstimateAI(item)}
+                        disabled={estimatingId === item.id}
+                        style={NS.aiEstimateBtn}
+                      >
+                        {estimatingId === item.id ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} />}
+                        {t("nutrition.estimateVitaminsAI")}
+                      </button>
+                    )}
                     {confirmDeleteId === item.id && (
                       <div style={NS.mealItemConfirmRow}>
                         <span>{t("nutrition.confirmDeleteItem")}</span>
@@ -591,7 +671,37 @@ function MealCard({ mealType, items, dayTotalCalories, usualTimeLabel, isCurrent
                   </div>
                 )}
 
-                {isEditing && (
+                {isEditing && editDraft.mode === "quantity" && (() => {
+                  const preview = quantityPreview(item, editDraft);
+                  return (
+                    <div style={NS.mealItemDetail}>
+                      <label style={S.label}>{t("nutrition.editQuantityLabel")}</label>
+                      <div style={NS.qtyStepperRow}>
+                        <button type="button" onClick={() => stepQty(-1)} style={NS.qtyStepperBtn} aria-label={t("nutrition.decreaseQty")}>−</button>
+                        <input
+                          type="number" inputMode="decimal" value={editDraft.qty}
+                          onChange={(e) => setEditDraft((d) => ({ ...d, qty: Math.max(0, Number(e.target.value) || 0) }))}
+                          style={NS.qtyStepperInput}
+                        />
+                        <button type="button" onClick={() => stepQty(1)} style={NS.qtyStepperBtn} aria-label={t("nutrition.increaseQty")}>+</button>
+                      </div>
+                      <div style={NS.qtyStepperUnit}>{t(`nutrition.unitOptions.${editDraft.unit}`)}</div>
+                      {preview.approxDensity && <p style={NS.unitApproxNote}>{t("nutrition.approxDensityNote")}</p>}
+                      <div style={NS.qtyPreviewGrid}>
+                        <span>{t("nutrition.calories")}: <NumericValue value={preview.calories} unit={t("common.units.kcal")} /></span>
+                        <span>{t("common.units.protein")}: <NumericValue value={preview.protein} unit={t("common.units.g")} /></span>
+                        <span>{t("common.units.carbs")}: <NumericValue value={preview.carbs} unit={t("common.units.g")} /></span>
+                        <span>{t("common.units.fat")}: <NumericValue value={preview.fat} unit={t("common.units.g")} /></span>
+                      </div>
+                      <div style={NS.mealItemActionsRow}>
+                        <button onClick={() => saveEdit(item)} style={{ ...S.saveBtn, marginTop: 0, flex: 1 }}>{t("common.buttons.save")}</button>
+                        <button onClick={() => { setEditingId(null); setEditDraft(null); }} style={{ ...S.exportBtn, marginTop: 0, marginBottom: 0, flex: 1 }}>{t("common.buttons.cancel")}</button>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {isEditing && editDraft.mode === "legacy" && (
                   <div style={NS.mealItemDetail}>
                     <div style={NS.editableGrid}>
                       <div><label style={S.label}>{t("nutrition.calories")}</label><input type="number" inputMode="decimal" value={editDraft.calories} onChange={(e) => changeDraft("calories", e.target.value)} style={S.input} /></div>
@@ -667,7 +777,9 @@ function ConfirmQuantityCard({ product: initialProduct, source, onAdd, onCancel,
   const [product, setProduct] = useState(initialProduct);
   const [editing, setEditing] = useState(false);
   const hasServing = !!product.servingGrams;
-  const [unit, setUnit] = useState("g");
+  // الوحدة الافتراضية تطابق أساس بيانات المنتج نفسه (وزن أم حجم) - أدق
+  // مسار ممكن (بلا أي تحويل كثافة تقريبي)؛ المستخدم يبقى حراً بتغييرها.
+  const [unit, setUnit] = useState(product.per100Basis === "ml" ? "ml" : "g");
   const [multiplier, setMultiplier] = useState(1);
   const [grams, setGrams] = useState(hasServing ? Math.round(product.servingGrams) : 100);
   const [unitQty, setUnitQty] = useState(1);
@@ -691,10 +803,13 @@ function ConfirmQuantityCard({ product: initialProduct, source, onAdd, onCancel,
   // [one serving] only when the product has a known serving size, then
   // [cup ~240g] last.
   const presetIds = product.servingGrams ? ["grams100", "oneServing", "cupApprox"] : ["grams100", "cupApprox"];
-  // أي وحدة غير الغرام تُحوَّل داخلياً لغرام/مليلتر مكافئ (تقدير تقريبي
-  // لغير الأوزان المباشرة) قبل حساب القيم الغذائية، حتى يبقى scaleNutrients
-  // بمعامل غرام/100 وحيد بغض النظر عن الوحدة التي اختارها المستخدم.
-  const gramsEquivalent = unit === "g" ? grams : unitToGrams(unit, unitQty, product.servingGrams);
+  // كل وحدة تُحوَّل لنفس "عملة" أساس بيانات المنتج (غرام أو مليلتر -
+  // quantityInProductBasis) قبل حساب القيم الغذائية - تمرير مباشر بلا أي
+  // تغيير عند تطابق الوحدة مع الأساس (الحالة الأشيع)، أو تحويل كثافة تقريبي
+  // مُعلَّم (approxDensity) عند التعارض فقط (مثال: وزن حليب بالغرام).
+  const enteredQty = unit === "g" ? grams : unitQty;
+  const conversion = quantityInProductBasis(unit, enteredQty, product);
+  const gramsEquivalent = conversion.value;
   const preview = scaleNutrients(product, gramsEquivalent || 0);
   const unitMeta = unitById(unit);
   const unitBaseQty = unitServingSize(unit, product.servingGrams);
@@ -773,6 +888,7 @@ function ConfirmQuantityCard({ product: initialProduct, source, onAdd, onCancel,
           {unitMeta.approx && <p style={NS.unitApproxNote}>{t("nutrition.approxConversionNote")}</p>}
         </>
       )}
+      {conversion.approxDensity && <p style={NS.unitApproxNote}>{t("nutrition.approxDensityNote")}</p>}
       <div style={NS.previewGrid}>
         <div style={NS.previewChip}><div style={NS.macroValue}><NumericValue value={preview.calories} /></div><div style={NS.macroLabel}>{t("common.units.kcal")}</div></div>
         <div style={NS.previewChip}><div style={NS.macroValue}><NumericValue value={preview.protein} unit={t("common.units.g")} /></div><div style={NS.macroLabel}>{t("common.units.protein")}</div></div>
@@ -809,6 +925,19 @@ function ConfirmQuantityCard({ product: initialProduct, source, onAdd, onCancel,
           // بلا علامة تقريب لأنها دقيقة فعلياً لهذا المنتج بعينه.
           microApprox: product.origin === "generic",
           micronutrients: scaleMicronutrients(product.micronutrientsPer100g, gramsEquivalent || 0),
+          // quantity + productBasis: لقطة أساس الحساب وقت الإضافة - تُحفَظ في
+          // nutrition_log (Feature 1) لتمكين تعديل الكمية لاحقاً بأزرار +/-
+          // بإعادة حساب دقيقة، بدل فقدان هذه البيانات فور الحفظ كما كان.
+          quantity: enteredQty,
+          productBasis: {
+            caloriesPer100g: product.caloriesPer100g, proteinPer100g: product.proteinPer100g,
+            carbsPer100g: product.carbsPer100g, fatPer100g: product.fatPer100g,
+            fiberPer100g: product.fiberPer100g, sugarPer100g: product.sugarPer100g,
+            sodiumPer100gMg: product.sodiumPer100gMg, cholesterolPer100gMg: product.cholesterolPer100gMg,
+            micronutrientsPer100g: product.micronutrientsPer100g || {},
+            per100Basis: product.per100Basis === "ml" ? "ml" : "g",
+            servingGrams: product.servingGrams || null,
+          },
         })}
         style={S.saveBtn}
         disabled={!gramsEquivalent || gramsEquivalent <= 0}
@@ -995,6 +1124,8 @@ function AddProductWizard({ initialBarcode, onSave, onManual, showToast }) {
     setBasisValues({ calories: res.calories, protein: res.protein, carbs: res.carbs, fat: res.fat, fiber: res.fiber, sugar: res.sugar, sodium: res.sodium, cholesterol: res.cholesterol });
     setMicroValues({ ...res.micronutrients });
     if (res.productName) setName((n) => n || res.productName);
+    // الوحدة الافتراضية تطابق طبيعة الأساس المرجعي المقروء - نفس نمط LabelPhotoPanel.
+    setQtyUnit(res.basis === "100ml" ? "ml" : "g");
   }
   // تعذّرت قراءة الملصق (أو لا صورة أصلاً) - يبدأ المستخدم بقيم فارغة قابلة
   // للتعديل يدوياً بدل إخراجه من المعالج كلياً، نفس مبدأ "كل القيم قابلة
@@ -1039,7 +1170,9 @@ function AddProductWizard({ initialBarcode, onSave, onManual, showToast }) {
   const per100 = (basisValues && label)
     ? labelToPer100Product({ ...basisValues, basis: label.basis, servingGrams: label.servingGrams, micronutrients: microValues })
     : null;
-  const gramsEquivalent = qtyUnit === "g" ? qtyGrams : unitToGrams(qtyUnit, qtyUnitQty, per100?.servingGrams);
+  const wizardEnteredQty = qtyUnit === "g" ? qtyGrams : qtyUnitQty;
+  const wizardConversion = per100 ? quantityInProductBasis(qtyUnit, wizardEnteredQty, per100) : { value: 0, approxDensity: false };
+  const gramsEquivalent = wizardConversion.value;
   const qtyPreview = per100 ? scaleNutrients(per100, gramsEquivalent || 0) : null;
 
   const step1Valid = !!basisValues;
@@ -1073,9 +1206,20 @@ function AddProductWizard({ initialBarcode, onSave, onManual, showToast }) {
         fat: per100.fatPer100g, fiber: per100.fiberPer100g, sugar: per100.sugarPer100g, sodium: per100.sodiumPer100gMg,
         cholesterol: per100.cholesterolPer100gMg,
         micronutrients: cleanMicro,
+        per100Basis: per100.per100Basis === "ml" ? "ml" : "g",
       },
       brand: "", country: "", servingSizeLabel: "", servingGrams: per100.servingGrams || null, imageUrl,
       micronutrients: scaleMicronutrients(per100.micronutrientsPer100g, gramsEquivalent || 0),
+      quantity: wizardEnteredQty,
+      productBasis: {
+        caloriesPer100g: per100.caloriesPer100g, proteinPer100g: per100.proteinPer100g,
+        carbsPer100g: per100.carbsPer100g, fatPer100g: per100.fatPer100g,
+        fiberPer100g: per100.fiberPer100g, sugarPer100g: per100.sugarPer100g,
+        sodiumPer100gMg: per100.sodiumPer100gMg, cholesterolPer100gMg: per100.cholesterolPer100gMg,
+        micronutrientsPer100g: per100.micronutrientsPer100g || {},
+        per100Basis: per100.per100Basis === "ml" ? "ml" : "g",
+        servingGrams: per100.servingGrams || null,
+      },
       logToday,
     });
     setSaving(false);
@@ -1244,6 +1388,7 @@ function AddProductWizard({ initialBarcode, onSave, onManual, showToast }) {
                   <input type="number" inputMode="decimal" value={qtyUnitQty} onChange={(e) => setQtyUnitQty(Number(e.target.value) || 0)} style={S.input} />
                 </>
               )}
+              {wizardConversion.approxDensity && <p style={NS.unitApproxNote}>{t("nutrition.approxDensityNote")}</p>}
               {qtyPreview && (
                 <div style={NS.previewGrid}>
                   <div style={NS.previewChip}><div style={NS.macroValue}><NumericValue value={qtyPreview.calories} /></div><div style={NS.macroLabel}>{t("common.units.kcal")}</div></div>
@@ -1313,6 +1458,53 @@ function sortUsdaResults(products) {
     if (rankA !== rankB) return rankA - rankB;
     return (a.name?.length || 0) - (b.name?.length || 0);
   });
+}
+
+// "أطعمة سابقة" (تحسينات التغذية #3) - وصول سريع لما سجّله هذا المستخدم
+// فعلياً من قبل، ولو قبل أسابيع (ضمن نافذة الـ90 يوماً المحمَّلة أصلاً في
+// nutritionLog - كافية، لا حاجة لتوسيعها). لا ميزة "أطعمة شائعة" سابقة
+// كانت تُبنى من nutrition_log لإعادة استخدام نمط استعلامها (كانت قائمة
+// ثابتة محلية من generic-foods.js فقط) - هذه منطق تجميع جديد كلياً.
+// التجميع بمفتاح source+اسم الصنف المُطبَّع (لا معرّف/باركود حقيقي مخزَّن في
+// nutrition_log - أدق ما هو متاح)، يُبقي فقط أحدث ظهور لكل مفتاح (إزالة
+// التكرار). الترتيب بالأحدث استخداماً لا الأكثر تكراراً: يعكس فعلياً ما
+// يأكله المستخدم *الآن* (صنف أُكل بكثافة قبل شهرين ثم تُرك أقل فائدة من صنف
+// أُكل مرتين الأسبوع الماضي)، وأبسط شرحاً للمستخدم ("آخر ما استخدمته").
+function PreviousFoodsPanel({ nutritionLog, onPickPrevious, t }) {
+  const items = useMemo(() => {
+    const map = new Map();
+    for (const entry of nutritionLog) {
+      const key = `${entry.source || "manual"}::${normalizeSearchTerm(entry.foodName || "")}`;
+      const existing = map.get(key);
+      if (!existing || new Date(entry.createdAt || 0) > new Date(existing.createdAt || 0)) {
+        map.set(key, entry);
+      }
+    }
+    return [...map.values()].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  }, [nutritionLog]);
+
+  if (items.length === 0) {
+    return <p style={NS.notFoundNote}>{t("nutrition.noPreviousFoods")}</p>;
+  }
+
+  return (
+    <>
+      {items.map((item) => {
+        const SourceIcon = SOURCE_ICONS[item.source] || Hash;
+        return (
+          <button key={item.id} onClick={() => onPickPrevious(item)} style={NS.resultRow}>
+            <div style={{ ...NS.resultImg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <SourceIcon size={16} color="var(--muted2)" />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={NS.resultName}>{item.foodName}</div>
+              <div style={NS.resultMeta}>{item.servingInfo} · <NumericValue value={Math.round(item.calories)} unit={t("common.units.kcal")} /></div>
+            </div>
+          </button>
+        );
+      })}
+    </>
+  );
 }
 
 function SearchPanel({ onPick, onManual }) {
@@ -1733,7 +1925,9 @@ function LabelPhotoPanel({ onSave, onManual, preselectedMealType }) {
   const per100 = labelToPer100Product({ ...basisValues, basis: label.basis, servingGrams: label.servingGrams, micronutrients: label.micronutrients });
   const unitMeta = unitById(unit);
   const unitBaseQty = unitServingSize(unit, per100.servingGrams);
-  const gramsEquivalent = unit === "g" ? grams : unitToGrams(unit, unitQty, per100.servingGrams);
+  const labelEnteredQty = unit === "g" ? grams : unitQty;
+  const labelConversion = quantityInProductBasis(unit, labelEnteredQty, per100);
+  const gramsEquivalent = labelConversion.value;
   const preview2 = scaleNutrients(per100, gramsEquivalent || 0);
 
   return (
@@ -1816,6 +2010,7 @@ function LabelPhotoPanel({ onSave, onManual, preselectedMealType }) {
           {unitMeta.approx && <p style={NS.unitApproxNote}>{t("nutrition.approxConversionNote")}</p>}
         </>
       )}
+      {labelConversion.approxDensity && <p style={NS.unitApproxNote}>{t("nutrition.approxDensityNote")}</p>}
 
       <div style={NS.previewGrid}>
         <div style={NS.previewChip}><div style={NS.macroValue}><NumericValue value={preview2.calories} /></div><div style={NS.macroLabel}>{t("common.units.kcal")}</div></div>
@@ -1839,6 +2034,16 @@ function LabelPhotoPanel({ onSave, onManual, preselectedMealType }) {
             : `${fmtQty(unitQty)} ${t(`nutrition.unitOptions.${unit}`)}`,
           source: "label",
           micronutrients: scaleMicronutrients(per100.micronutrientsPer100g, gramsEquivalent || 0),
+          quantity: labelEnteredQty,
+          productBasis: {
+            caloriesPer100g: per100.caloriesPer100g, proteinPer100g: per100.proteinPer100g,
+            carbsPer100g: per100.carbsPer100g, fatPer100g: per100.fatPer100g,
+            fiberPer100g: per100.fiberPer100g, sugarPer100g: per100.sugarPer100g,
+            sodiumPer100gMg: per100.sodiumPer100gMg, cholesterolPer100gMg: per100.cholesterolPer100gMg,
+            micronutrientsPer100g: per100.micronutrientsPer100g || {},
+            per100Basis: per100.per100Basis === "ml" ? "ml" : "g",
+            servingGrams: per100.servingGrams || null,
+          },
         })}
         style={S.saveBtn}
         disabled={!gramsEquivalent || gramsEquivalent <= 0}
@@ -1978,7 +2183,11 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
     // من generic-foods.js) في مجموع هذا العنصر اليوم؟ انظر microApprox في
     // sumNutritionEntries (nutrition.js) - يُعرض بعلامة "≈" واضحة أدناه.
     const approx = !!totals.microApprox?.[key];
-    return { key, label: t(`nutrition.micronutrients.${key}`), unit: meta.unit, rdi, value, approx, pct: Math.min(100, Math.round((value / rdi) * 100)) };
+    // aiEstimated: نفس approx أعلاه لكن لمصدر "تقدير AI عام" (تحسينات
+    // التغذية #4) - شارة مختلفة تماماً بصرياً عن "≈" أدناه، تمييزاً واضحاً
+    // بين بيانات مرجعية وتخمين ذكاء اصطناعي غير موثَّق علمياً.
+    const aiEstimated = !!totals.microAiEstimated?.[key];
+    return { key, label: t(`nutrition.micronutrients.${key}`), unit: meta.unit, rdi, value, approx, aiEstimated, pct: Math.min(100, Math.round((value / rdi) * 100)) };
   });
   // ملخّص يومي موحَّد (getDailyNutritionSummary, nutrition-plan.js) - مصدر
   // الهدف هنا يبقى tee دوماً (nutritionPlan: null عمداً) لمطابقة سلوك هذه
@@ -2049,6 +2258,39 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
     }
   }
 
+  // اختيار صنف من "أطعمة سابقة" (تحسينات التغذية #3). إن حُفظت productBasis
+  // معه (بعد هذا التحديث) - فتح شاشة تأكيد الكمية بنفس بيانات المنتج، جاهزاً
+  // لتعديل الكمية كأي مصدر آخر. صف قديم بلا productBasis (قبل هذا التحديث) -
+  // لا بيانات "لكل 100" محفوظة لإعادة الحساب منها، فتسجيل فوري بنفس القيم
+  // المحفوظة بالضبط (نقرة واحدة، بلا شاشة تأكيد كمية) يبقى مفيداً بلا اختلاق
+  // بيانات غير موجودة.
+  function pickPreviousFood(item) {
+    if (item.productBasis) {
+      const product = {
+        name: item.foodName,
+        caloriesPer100g: item.productBasis.caloriesPer100g, proteinPer100g: item.productBasis.proteinPer100g,
+        carbsPer100g: item.productBasis.carbsPer100g, fatPer100g: item.productBasis.fatPer100g,
+        fiberPer100g: item.productBasis.fiberPer100g, sugarPer100g: item.productBasis.sugarPer100g,
+        sodiumPer100gMg: item.productBasis.sodiumPer100gMg, cholesterolPer100gMg: item.productBasis.cholesterolPer100gMg,
+        micronutrientsPer100g: item.productBasis.micronutrientsPer100g || {},
+        per100Basis: item.productBasis.per100Basis === "ml" ? "ml" : "g",
+        servingGrams: item.productBasis.servingGrams || null,
+        origin: "previous",
+      };
+      setPendingProduct({ product, source: item.source || "manual" });
+      setSheet("confirm");
+    } else {
+      addEntry({
+        id: uid(), foodName: item.foodName, calories: item.calories, protein: item.protein,
+        carbs: item.carbs, fat: item.fat, fiber: item.fiber || 0, sugar: item.sugar || 0,
+        sodium: item.sodium || 0, cholesterol: item.cholesterol || 0,
+        servingInfo: item.servingInfo || "", source: item.source || "manual", unit: item.unit || "g",
+        micronutrients: item.micronutrients || {}, mealType: preselectedMealType || guessMealType(),
+        microApprox: !!item.microApprox,
+      });
+    }
+  }
+
   async function removeEntry(id) {
     setNutritionLog((prev) => prev.filter((e) => e.id !== id));
     await store.deleteNutritionEntry(id);
@@ -2068,6 +2310,25 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
       console.error("[NutritionView] updateNutritionEntry failed:", result);
       showToast(t("nutrition.entrySaveFailed"));
     }
+  }
+
+  // تقدير AI للفيتامينات لصنف بعينه بلا بيانات مرجعية (تحسينات التغذية #4) -
+  // يُستدعى فقط بضغطة صريحة من المستخدم (لا تلقائي إطلاقاً). عند نجاحه
+  // يُحفَظ عبر نفس مسار updateEntry الموحَّد ({ok,error}) أعلاه، بعلامة
+  // microAiEstimated:true بدل microApprox حتى تُعرض بشارة مختلفة تماماً في
+  // الواجهة (لا خلط مع "≈" المرجعية). القيمة تبقى للعرض الإرشادي فقط - لا
+  // تُستخدَم في أي حساب سعرات/ماكروز (تلك تبقى كما هي تماماً، لم تتغيّر).
+  async function estimateItemVitaminsAI(item) {
+    const result = await estimateMicronutrientsAI(item.foodName, i18n.language);
+    if (!result.ok) {
+      showToast(i18n.language === "en" ? result.errorEn : result.error);
+      return;
+    }
+    if (Object.keys(result.micronutrients).length === 0) {
+      showToast(t("nutrition.aiMicroNoResult"));
+      return;
+    }
+    await updateEntry({ ...item, micronutrients: result.micronutrients, microAiEstimated: true });
   }
 
   async function addWaterCup() {
@@ -2106,6 +2367,7 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
           imageUrl: cached.imageUrl || null, servingGrams: cached.servingGrams || null,
           micronutrientsPer100g: cached.micronutrients || {},
           brand: cached.brand || "", country: cached.country || "", servingSizeLabel: cached.servingSizeLabel || "",
+          per100Basis: cached.per100Basis || "g",
           // origin="custom_foods" يميّز هذا المنتج كمساهمة مستخدم مشتركة
           // (قابلة للتصحيح عبر زر "تعديل البيانات")، بخلاف بيانات Open Food
           // Facts الخام أدناه التي ليست "بياناتنا" لنعرض تصحيحها بنفس الآلية.
@@ -2321,6 +2583,7 @@ ${missingMealsLine}
               <div style={NS.guidelineHead}>
                 <span>
                   <span style={NS.guidelineName}>{m.label}</span> — {m.approx && <span style={NS.approxBadge} title={t("nutrition.approxMicroHint")}>≈ </span>}<NumericValue value={m.value} unit={m.unit} />
+                  {m.aiEstimated && <span style={NS.aiEstimatedBadge} title={t("nutrition.aiMicroHint")}>{t("nutrition.aiMicroBadge")}</span>}
                 </span>
                 <span>{isolateNumbers(t("nutrition.microPercent", { pct: m.pct, rdi: m.rdi, unit: m.unit }))}</span>
               </div>
@@ -2375,6 +2638,7 @@ ${missingMealsLine}
           onAddFood={openAddFoodFor}
           onDeleteItem={removeEntry}
           onEditSave={updateEntry}
+          onEstimateAI={estimateItemVitaminsAI}
         />
       ))}
       {selectedLog.some((e) => !e.mealType) && (
@@ -2406,6 +2670,7 @@ ${missingMealsLine}
                   {sheet === "choose" && t("nutrition.sheetTitles.addFood")}
                   {sheet === "barcodeManual" && t("nutrition.sheetTitles.barcodeEntry")}
                   {sheet === "search" && t("nutrition.sheetTitles.searchByName")}
+                  {sheet === "previous" && t("nutrition.sheetTitles.previousFoods")}
                   {sheet === "aiPhoto" && t("nutrition.sheetTitles.photographMeal")}
                   {sheet === "labelPhoto" && t("nutrition.sheetTitles.photographLabel")}
                   {sheet === "addProduct" && t("nutrition.sheetTitles.addNewProduct")}
@@ -2436,6 +2701,9 @@ ${missingMealsLine}
                 </button>
                 <button onClick={() => setSheet("search")} style={NS.chooserBtn}>
                   <span style={NS.chooserIcon}><Search size={19} /></span> {t("nutrition.searchByNameOption")}
+                </button>
+                <button onClick={() => setSheet("previous")} style={NS.chooserBtn}>
+                  <span style={NS.chooserIcon}><History size={19} /></span> {t("nutrition.previousFoodsOption")}
                 </button>
                 <button
                   onClick={() => setSheet(isSub ? "aiPhoto" : "aiPhotoLocked")}
@@ -2473,6 +2741,10 @@ ${missingMealsLine}
                 onPick={(product) => { setPendingProduct({ product, source: "search" }); setSheet("confirm"); }}
                 onManual={() => setSheet("manual")}
               />
+            )}
+
+            {sheet === "previous" && (
+              <PreviousFoodsPanel nutritionLog={nutritionLog} onPickPrevious={pickPreviousFood} t={t} />
             )}
 
             {sheet === "aiPhotoLocked" && (

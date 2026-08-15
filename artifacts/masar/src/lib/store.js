@@ -785,6 +785,11 @@ export const store = {
         // لبناء "الوقت المعتاد" التقديري لكل نوع وجبة من نمط تسجيل المستخدم
         // الحقيقي (Priority 5)، بلا أي دور في حسابات الماكروز/التغذية نفسها.
         createdAt: r.created_at || null,
+        // الكمية وأساس الحساب وقت الإضافة (nullable - صفوف قديمة قبل هذا
+        // التحديث تبقى بلا قيمة، تُعامَل كـ"غير قابلة لإعادة الحساب" في
+        // واجهة تعديل الكمية بـMealCard).
+        quantity: r.quantity ?? null, productBasis: r.product_basis || null,
+        microAiEstimated: !!r.micro_ai_estimated,
       }));
       lsSet("masar_nutrition_log", items);
       markCloudFetched("masar_nutrition_log");
@@ -803,6 +808,8 @@ export const store = {
       serving_info: entry.servingInfo || "", source: entry.source, unit: entry.unit || "g",
       micronutrients: entry.micronutrients || {},
       meal_type: entry.mealType || null, micro_approx: !!entry.microApprox,
+      quantity: entry.quantity ?? null, product_basis: entry.productBasis || null,
+      micro_ai_estimated: !!entry.microAiEstimated,
     };
     try {
       const { error } = await supabase.from("nutrition_log").insert(payload);
@@ -840,6 +847,8 @@ export const store = {
       carbs: entry.carbs, fat: entry.fat, fiber: entry.fiber || 0, sugar: entry.sugar || 0,
       sodium: entry.sodium || 0, cholesterol: entry.cholesterol || 0,
       serving_info: entry.servingInfo || "",
+      quantity: entry.quantity ?? null, product_basis: entry.productBasis || null,
+      micronutrients: entry.micronutrients || {}, micro_ai_estimated: !!entry.microAiEstimated,
     };
     try {
       const { error } = await supabase.from("nutrition_log").update(payload).eq("id", entry.id).eq("owner", CURRENT_OWNER);
@@ -883,6 +892,7 @@ export const store = {
         cholesterol: data.cholesterol || 0,
         brand: data.brand || "", country: data.country || "", servingSizeLabel: data.serving_size_label || "",
         servingGrams: data.serving_grams || null, imageUrl: data.image_url || "", micronutrients: data.micronutrients || {},
+        per100Basis: data.per100_basis === "ml" ? "ml" : "g",
       };
       lsSet("masar_custom_foods", { ...local, [barcode]: food });
       return food;
@@ -910,6 +920,7 @@ export const store = {
         cholesterol: d.cholesterol || 0,
         brand: d.brand || "", country: d.country || "", servingSizeLabel: d.serving_size_label || "",
         servingGrams: d.serving_grams || null, imageUrl: d.image_url || "", micronutrients: d.micronutrients || {},
+        per100Basis: d.per100_basis === "ml" ? "ml" : "g",
       }));
     } catch (e) { console.error("[searchCustomFoodsByName] read failed:", e); return []; }
   },
@@ -929,7 +940,8 @@ export const store = {
           cholesterol: food.cholesterol || 0,
           brand: food.brand || "", country: food.country || "", serving_size_label: food.servingSizeLabel || "",
           serving_grams: food.servingGrams || null, image_url: food.imageUrl || "",
-          micronutrients: food.micronutrients || {}, updated_at: new Date().toISOString(),
+          micronutrients: food.micronutrients || {}, per100_basis: food.per100Basis === "ml" ? "ml" : "g",
+          updated_at: new Date().toISOString(),
         });
         if (error) { console.error("[saveCustomFood] Supabase error:", error.message); return { ok: false, error: error.message }; }
       } catch (e) { console.error("[saveCustomFood] write failed:", e); return { ok: false, error: String(e) }; }

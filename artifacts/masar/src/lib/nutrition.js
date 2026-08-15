@@ -135,6 +135,17 @@ function extractMicronutrients(n) {
   return result;
 }
 
+// تخمين أساس القيم الغذائية (وزن g أم حجم ml) من نص حجم الحصة الموثَّق في
+// Open Food Facts نفسها (serving_size، يُقرَأ أصلاً هنا لاستخراج رقم
+// الحصة) - Open Food Facts لا تعرض حقلاً صريحاً منفصلاً لهذا التمييز في كل
+// الاستجابات، فهذا أفضل إشارة متاحة فعلياً بلا تخمين من فراغ. افتراضي "g"
+// عند الغموض (الغالبية العظمى من المنتجات صلبة/شبه صلبة أصلاً).
+function guessPer100Basis(servingSizeText) {
+  const text = String(servingSizeText || "");
+  if (/\d\s*(ml|l)\b/i.test(text) || /مل|لتر/.test(text)) return "ml";
+  return "g";
+}
+
 // تُطبَّع بيانات Open Food Facts (اسم مختلف الحقول واختلاف توفّرها) إلى
 // شكل موحّد يفهمه بقية القسم، بغضّ النظر عن مصدرها (منتج أو نتيجة بحث).
 function normalizeProduct(p, barcode) {
@@ -173,6 +184,7 @@ function normalizeProduct(p, barcode) {
     servingSizeLabel: p.serving_size || null,
     servingGrams: servingGrams && servingGrams > 0 ? servingGrams : null,
     micronutrientsPer100g: extractMicronutrients(n),
+    per100Basis: guessPer100Basis(p.serving_size),
   };
 }
 
@@ -295,6 +307,7 @@ function normalizeUsdaProduct(p) {
     micronutrientsPer100g: p.micronutrientsPer100g || {},
     origin: "usda",
     dataType: p.dataType || "",
+    per100Basis: "g", // USDA FoodData Central لا توثّق أساس حجم/مل بشكل مميَّز - افتراض وزن دائماً.
   };
 }
 
@@ -328,16 +341,19 @@ export function servingPresets(servingGrams) {
 // "serving" ليس لهما تحويل ثابت لأن وزنهما يعتمد على المنتج نفسه، فتُحسب
 // عبر servingGrams إن كان معروفاً (وإلا افتراض معقول 100غم). "approx"
 // يُستخدم لعرض ملاحظة "تقدير تقريبي" بجانب أي وحدة ليست وزناً مباشراً.
+// "kind" (وزن/حجم/عدد) يُستخدم في quantityInProductBasis أدناه للتمييز بين
+// الجرام (وزن) والمليلتر (حجم) - لا تحويل تلقائي 1:1 بينهما بعد الآن إلا
+// عند تطابقهما فعلياً مع أساس بيانات المنتج نفسه.
 export const UNIT_OPTIONS = [
-  { id: "g", label: "غرام (g)", factor: 1, approx: false },
-  { id: "kg", label: "كيلوغرام (kg)", factor: 1000, approx: false },
-  { id: "ml", label: "مليلتر (ml)", factor: 1, approx: true },
-  { id: "l", label: "لتر (L)", factor: 1000, approx: true },
-  { id: "tbsp", label: "ملعقة كبيرة", factor: 15, approx: true },
-  { id: "tsp", label: "ملعقة صغيرة", factor: 5, approx: true },
-  { id: "cup", label: "كوب", factor: 240, approx: true },
-  { id: "piece", label: "قطعة", factor: null, approx: true },
-  { id: "serving", label: "حصة", factor: null, approx: true },
+  { id: "g", label: "غرام (g)", factor: 1, approx: false, kind: "weight" },
+  { id: "kg", label: "كيلوغرام (kg)", factor: 1000, approx: false, kind: "weight" },
+  { id: "ml", label: "مليلتر (ml)", factor: 1, approx: true, kind: "volume" },
+  { id: "l", label: "لتر (L)", factor: 1000, approx: true, kind: "volume" },
+  { id: "tbsp", label: "ملعقة كبيرة", factor: 15, approx: true, kind: "volume" },
+  { id: "tsp", label: "ملعقة صغيرة", factor: 5, approx: true, kind: "volume" },
+  { id: "cup", label: "كوب", factor: 240, approx: true, kind: "volume" },
+  { id: "piece", label: "قطعة", factor: null, approx: true, kind: "count" },
+  { id: "serving", label: "حصة", factor: null, approx: true, kind: "count" },
 ];
 
 export function unitById(unitId) {
@@ -369,6 +385,53 @@ export function unitServingSize(unitId, servingGrams) {
   const unit = unitById(unitId);
   if (servingGrams && servingGrams > 0 && unit.factor != null) return servingGrams / unit.factor;
   return 1;
+}
+
+// كثافات تقريبية معروفة لسوائل شائعة (غم/مل) - تُستخدم فقط في
+// quantityInProductBasis أدناه، وفقط عند تعارض حقيقي بين وحدة الإدخال
+// وأساس بيانات المنتج (مثال: وزن حليب بالغرام رغم أن قيمه الغذائية
+// موثَّقة لكل 100مل). ليست قيماً دقيقة لكل منتج بعينه (كثافة الحليب تختلف
+// قليلاً حسب نسبة الدسم مثلاً) - تقدير عام معقول أفضل من افتراض كثافة
+// الماء (1.0) للجميع دون تمييز، لا أكثر. أي طعام غير مطابق لهذه الكلمات
+// يستخدم الافتراضي 1.0 (قريب من أغلب السوائل الغذائية المائية الشائعة).
+const DENSITY_G_PER_ML = [
+  { keywords: ["حليب", "milk"], density: 1.03 },
+  { keywords: ["زيت زيتون", "olive oil"], density: 0.92 },
+  { keywords: ["زيت", "oil"], density: 0.92 },
+  { keywords: ["عسل", "honey"], density: 1.42 },
+  { keywords: ["ماء", "water"], density: 1.0 },
+];
+
+function estimateDensityGPerMl(foodName) {
+  const name = normalizeSearchTerm(foodName || "");
+  for (const entry of DENSITY_G_PER_ML) {
+    if (entry.keywords.some((k) => name.includes(normalizeSearchTerm(k)))) return entry.density;
+  }
+  return 1.0;
+}
+
+// يحوّل كمية مُدخلة بأي وحدة إلى القيمة المكافئة بنفس "عملة" أساس بيانات
+// المنتج (غرام إن كانت قيمه الغذائية موثَّقة لكل 100غم، أو مليلتر إن كانت
+// موثَّقة لكل 100مل - product.per100Basis) - طبقة تحويل جديدة تُغلِّف
+// unitToGrams أعلاه بلا تعديلها. عند تطابق نوع الوحدة مع أساس المنتج (وزن
+// + أساس غم، أو حجم + أساس مل - الحالة الأشيع فعلياً)، تمرير مباشر بلا أي
+// تغيير في النتيجة القائمة أصلاً (approxDensity:false). عند التعارض فقط
+// (وزن الطعام بالغرام رغم أن بياناته موثَّقة لكل 100مل، أو العكس)، تحويل
+// تقريبي بالكثافة المعروفة/المقدَّرة أعلاه (approxDensity:true - تُستخدم في
+// الواجهة لعرض ملاحظة "تحويل تقريبي" في هذه الحالة تحديداً فقط). القيمة
+// المُعادة تُستخدَم مباشرة كمعامل scaleNutrients/scaleMicronutrients (التي
+// لا تفرّق أصلاً بين غرام ومليلتر - تحسب دوماً ÷100 من "أساس المنتج"، أياً
+// كان)، فلا حاجة لتعديلهما.
+export function quantityInProductBasis(unitId, qty, product) {
+  const unit = unitById(unitId);
+  const basis = product?.per100Basis === "ml" ? "ml" : "g";
+  const natural = unitToGrams(unitId, qty, product?.servingGrams);
+  if (unit.kind === "count") return { value: natural, approxDensity: false, basis };
+  const unitCurrency = unit.kind === "volume" ? "ml" : "g";
+  if (unitCurrency === basis) return { value: natural, approxDensity: false, basis };
+  const density = estimateDensityGPerMl(product?.name);
+  const value = unitCurrency === "g" ? natural / density : natural * density;
+  return { value, approxDensity: true, basis };
 }
 
 // يحسب القيم الفعلية لكمية معيّنة بالغرام انطلاقاً من قيم كل 100غم.
@@ -427,15 +490,22 @@ export function sumNutritionEntries(entries) {
   // فيُعرض بعلامة "≈" في الواجهة بدل الإيحاء بدقة كاملة لكل مساهمة فيه.
   const micronutrients = {};
   const microApprox = {};
+  // نفس شكل microApprox أعلاه بالضبط، بمفتاح مختلف: true لكل عنصر ساهم فيه
+  // إدخال واحد على الأقل مصدره "تقدير عام بالذكاء الاصطناعي" (تحسينات
+  // التغذية #4، estimateMicronutrientsAI) - عمود منفصل تماماً عن microApprox
+  // (ذاك لمصدر generic-foods.js فقط) حتى تبقى شارة "≈" المرجعية الموثوقة
+  // مختلفة تماماً عن شارة "تقدير AI عام" في الواجهة، بلا خلط بين المصدرين.
+  const microAiEstimated = {};
   for (const e of entries) {
     if (!e.micronutrients) continue;
     for (const [key, val] of Object.entries(e.micronutrients)) {
       if (val == null) continue;
       micronutrients[key] = (micronutrients[key] || 0) + Number(val);
       if (e.microApprox) microApprox[key] = true;
+      if (e.microAiEstimated) microAiEstimated[key] = true;
     }
   }
-  return { ...totals, micronutrients, microApprox };
+  return { ...totals, micronutrients, microApprox, microAiEstimated };
 }
 
 // ===== تحليل أنماط الوجبات (فطور/غداء/عشاء/سناك) عبر فترة من الأيام =====
@@ -765,12 +835,58 @@ If the label can't be read clearly enough, return exactly: {"error":"unreadable"
   }
 }
 
+// تقدير عام بالذكاء الاصطناعي لفيتامينات/معادن صنف لا يملك بيانات مرجعية
+// دقيقة (لا generic-foods.js ولا USDA ولا ملصق واضح) - مصدر ثانٍ اختياري
+// صريح تماماً (زر واحد لكل صنف مسجَّل بعينه، لا تلقائي/صامت إطلاقاً أبداً)
+// يكمّل المصدر الأول (علامة "≈" المرجعية) دون خلط بينهما. القيمة المُعادة
+// هنا لغرض العرض الإرشادي للمستخدم فقط - يجب ألا تُستخدم أبداً كأساس لأي
+// حساب غذائي أو توصية طبية أو تقرير (يُطبَّق هذا القيد في NutritionView.jsx
+// بعزل نتيجتها عن أي حساب فعلي، وبشارة مختلفة تماماً بصرياً عن "≈"). نفس
+// قالب geminiAnalyze (نص فقط، لا صورة) ونفس حارس المفاتيح المسموحة
+// (MICRONUTRIENT_META) وفحص الأرقام الصالحة المُستخدَمين في
+// recognizeMealFromImage/readNutritionLabel أعلاه بالضبط - بلا أي تعديل على
+// netlify/functions/gemini.js (الحدود/الأمان/الاشتراك الحالية تُغطي هذا
+// تلقائياً لأنها نفس نقطة النهاية).
+export async function estimateMicronutrientsAI(foodName, lang = "ar") {
+  try {
+    const prompt = lang === "en"
+      ? `Based only on your general knowledge of this food item's typical nutritional composition, give a cautious estimate of its vitamin/mineral content. Item: "${foodName}".
+Return only valid JSON with no extra text or markdown, in exactly this shape:
+{"micronutrients":{}}
+Using only these exact keys where relevant, for a normal single serving of this item: vitamin_d (mcg), vitamin_c (mg), vitamin_a (mcg), vitamin_b12 (mcg), iron (mg), calcium (mg), potassium (mg), zinc (mg), magnesium (mg). Do not invent false precision — if you aren't reasonably confident about a specific element for this item, omit that key entirely instead of guessing a number. Return {"micronutrients":{}} if you aren't confident about any of them.`
+      : `بناءً فقط على معرفتك العامة بالتركيب الغذائي النموذجي لهذا الصنف، أعطِ تقديراً حذراً لمحتواه من الفيتامينات/المعادن. الصنف: "${foodName}".
+أرجع فقط JSON صالحاً بدون أي نص أو markdown إضافي، بهذا الشكل بالضبط:
+{"micronutrients":{}}
+بهذه المفاتيح فقط حيث تكون ذات صلة، لحصة واحدة عادية من هذا الصنف: vitamin_d (بالميكروغرام mcg)، vitamin_c (بالميليغرام mg)، vitamin_a (بالميكروغرام mcg)، vitamin_b12 (بالميكروغرام mcg)، iron (بالميليغرام mg)، calcium (بالميليغرام mg)، potassium (بالميليغرام mg)، zinc (بالميليغرام mg)، magnesium (بالميليغرام mg). لا تخترع دقة زائفة - إن لم تكن واثقاً بشكل معقول من عنصر معيّن لهذا الصنف، احذف ذلك المفتاح تماماً بدل تخمين رقم. أرجع {"micronutrients":{}} إن لم تكن واثقاً بشكل معقول من أي منها.`;
+    const { geminiAnalyze } = await import("./gemini.js");
+    const text = await geminiAnalyze(prompt, 400);
+    const parsed = parseJsonLoose(text);
+    const rawMicros = parsed.micronutrients && typeof parsed.micronutrients === "object" ? parsed.micronutrients : {};
+    const micronutrients = {};
+    for (const key of Object.keys(MICRONUTRIENT_META)) {
+      const v = rawMicros[key];
+      if (v != null && !Number.isNaN(Number(v))) micronutrients[key] = Number(v);
+    }
+    return { ok: true, micronutrients };
+  } catch (e) {
+    console.error("[nutrition] estimateMicronutrientsAI failed:", e);
+    const chunkError = isChunkLoadError(e);
+    const error = chunkError ? CHUNK_LOAD_ERROR_MESSAGE : "تعذّر تقدير الفيتامينات بالذكاء الاصطناعي الآن. جرّب مرة أخرى لاحقاً.";
+    const errorEn = chunkError ? CHUNK_LOAD_ERROR_MESSAGE_EN : "Couldn't estimate vitamins with AI right now. Try again later.";
+    return { ok: false, error, errorEn };
+  }
+}
+
 // يحوّل نتيجة readNutritionLabel (أياً كان أساسها المرجعي) إلى "منتج لكل
 // 100g" قياسي - نفس الشكل الذي يتوقعه scaleNutrients/unitToGrams أصلاً
 // (caloriesPer100g...)، حتى تُستخدم آلية الحصص/الوحدات الموحّدة نفسها بلا
 // أي تفريع خاص. عند basis="serving"، يُطبَّق تحويل نسبي بسيط (القيمة لكل
 // حصة × 100/حجم الحصة)؛ servingGrams تفترض 100 إن كانت غير معروفة (نفس
 // افتراض unitToGrams الافتراضي الموجود أصلاً لوحدات "قطعة"/"حصة" المجهولة).
+// per100Basis: "ml" فقط عند basis="100ml" الصريح من Gemini؛ "serving"
+// يبقى مُعامَلاً كوزن (g) حتى لو كانت الحصة سائلة فعلياً - قيد معروف (لا
+// نطلب من Gemini حالياً تمييز وحدة الحصة نفسها وزناً كانت أم حجماً)، لا
+// يُخفى، أدق مما كان (كان الوضع السابق يخلط بلا تمييز مطلقاً).
 export function labelToPer100Product(label) {
   const servingGrams = label.basis === "serving" ? (label.servingGrams && label.servingGrams > 0 ? label.servingGrams : 100) : null;
   const factor = label.basis === "serving" ? 100 / servingGrams : 1;
@@ -791,5 +907,6 @@ export function labelToPer100Product(label) {
     cholesterolPer100gMg: (label.cholesterol || 0) * factor,
     servingGrams: label.basis === "serving" ? servingGrams : null,
     micronutrientsPer100g,
+    per100Basis: label.basis === "100ml" ? "ml" : "g",
   };
 }

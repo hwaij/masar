@@ -306,6 +306,24 @@ alter table nutrition_log add column if not exists micro_approx boolean not null
 -- تماماً كصفر الصوديوم الافتراضي أعلاه.
 alter table nutrition_log add column if not exists cholesterol numeric not null default 0;
 
+-- تحسينات التغذية (4 نقاط): تعديل كمية صنف مسجَّل بدقة، فصل حقيقي بين
+-- الوزن (g) والحجم (ml)، وتمييز تقدير الذكاء الاصطناعي للفيتامينات عن
+-- المصدر المرجعي الموثوق.
+-- quantity/product_basis: لقطة الكمية المُدخَلة وأساس حساب المنتج (لكل
+-- 100غ أو لكل 100مل) وقت الإضافة - تتيح إعادة حساب دقيقة لاحقاً عند تعديل
+-- الكمية من بطاقة الوجبة. nullable لأن الصفوف قبل هذا التحديث لا تملك هذه
+-- اللقطة؛ تلك الصفوف تبقى قابلة للتعديل بالطريقة القديمة (كتابة الأرقام
+-- يدوياً) فقط، بلا كسر لأي بيانات موجودة.
+alter table nutrition_log add column if not exists quantity numeric;
+alter table nutrition_log add column if not exists product_basis jsonb;
+-- true فقط لتقدير عام بالذكاء الاصطناعي (Gemini) لفيتامينات/معادن صنف لا
+-- يملك بيانات مرجعية دقيقة (لا generic-foods.js ولا USDA ولا ملصق واضح).
+-- عمود منفصل تماماً عن micro_approx أعلاه (ذاك موثَّق صراحة بأنه لمصدر
+-- generic-foods.js فقط) حتى تبقى شارة "≈ تقريبي" الموثوقة مختلفة تماماً
+-- بصرياً ونصياً عن شارة "تقدير AI عام - غير موثّق علمياً" الجديدة. القيمة
+-- هنا لغرض العرض الإرشادي فقط، ولا تُستخدم أبداً في أي حساب أو توصية طبية.
+alter table nutrition_log add column if not exists micro_ai_estimated boolean not null default false;
+
 -- مفتاحها (owner, barcode) — لو أدخل المستخدم منتجاً يدوياً لباركود غير
 -- موجود في Open Food Facts، يُستخدم هذا الصف تلقائياً في المرة القادمة
 -- لنفس الباركود قبل حتى محاولة الاتصال بالـ API.
@@ -338,6 +356,10 @@ alter table custom_foods add column if not exists sodium numeric not null defaul
 alter table custom_foods add column if not exists cholesterol numeric not null default 0;
 alter table custom_foods add column if not exists image_url text default '';
 alter table custom_foods add column if not exists micronutrients jsonb not null default '{}'::jsonb;
+-- "g" أو "ml" - هل القيم الغذائية المخزَّنة لكل 100غ أو لكل 100مل (سائل).
+-- بلا هذا العمود، كل إعادة مسح لمنتج سائل مُصحَّح سابقاً (عبر ProductEditForm)
+-- كانت ستفقد وسم "مل" الصحيح وتعود لافتراض "غ" الخاطئ من جديد في كل مرة.
+alter table custom_foods add column if not exists per100_basis text default 'g';
 
 -- فهرسة على الباركود بمفرده (منفصلة عن المفتاح الأساسي المركّب owner+barcode
 -- الذي لا يخدم بحثاً "بالباركود فقط بغض النظر عن المالك" بكفاءة)، وعلى اسم

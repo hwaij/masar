@@ -790,6 +790,9 @@ export const store = {
         // واجهة تعديل الكمية بـMealCard).
         quantity: r.quantity ?? null, productBasis: r.product_basis || null,
         microAiEstimated: !!r.micro_ai_estimated,
+        // مزاج/توتر لحظة تسجيل هذا الطعام تحديداً (nullable - تُملآن فقط بعد
+        // إجابة المستخدم على شاشة "كيف تشعر الآن؟" التالية للتسجيل الناجح).
+        mood: r.mood ?? null, stress: r.stress ?? null,
       }));
       lsSet("masar_nutrition_log", items);
       markCloudFetched("masar_nutrition_log");
@@ -810,6 +813,7 @@ export const store = {
       meal_type: entry.mealType || null, micro_approx: !!entry.microApprox,
       quantity: entry.quantity ?? null, product_basis: entry.productBasis || null,
       micro_ai_estimated: !!entry.microAiEstimated,
+      mood: entry.mood ?? null, stress: entry.stress ?? null,
     };
     try {
       const { error } = await supabase.from("nutrition_log").insert(payload);
@@ -849,6 +853,7 @@ export const store = {
       serving_info: entry.servingInfo || "",
       quantity: entry.quantity ?? null, product_basis: entry.productBasis || null,
       micronutrients: entry.micronutrients || {}, micro_ai_estimated: !!entry.microAiEstimated,
+      mood: entry.mood ?? null, stress: entry.stress ?? null,
     };
     try {
       const { error } = await supabase.from("nutrition_log").update(payload).eq("id", entry.id).eq("owner", CURRENT_OWNER);

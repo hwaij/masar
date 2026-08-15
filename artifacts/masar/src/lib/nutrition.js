@@ -564,6 +564,77 @@ export function analyzeMealPatterns(entriesInRange, daysInRange) {
   };
 }
 
+// ربط المزاج/التوتر بالاستهلاك الغذائي عبر أيام فترة معيّنة (قسم جديد في
+// التقرير الأسبوعي) - دالة حسابية بحتة بلا أي ذكاء اصطناعي، بنفس أسلوب
+// عتبات analyzeMealPatterns أعلاه بالضبط: لا استنتاج بلا عيّنة كافية، ولا
+// "نمط" يُعرض بلا فرق واضح فعلاً في الأرقام.
+// entriesInRange: صفوف nutrition_log ضمن الفترة (قد تحمل mood/stress أو لا -
+// الصفوف بلا هذه القيم لا تُسهم في المتوسط اليومي، بلا افتراض قيمة لها).
+// days: مصفوفة تواريخ الفترة كاملة - تُستخدم لبناء dailySeries كاملة (حتى
+// الأيام بلا أي تسجيل تظهر بقيم null بدل حذفها من السلسلة الزمنية للرسم).
+export function computeMoodNutritionCorrelation(entriesInRange, days) {
+  const byDate = new Map();
+  for (const day of days) byDate.set(day, []);
+  for (const e of entriesInRange) {
+    if (byDate.has(e.date)) byDate.get(e.date).push(e);
+  }
+
+  const dailySeries = days.map((day) => {
+    const dayEntries = byDate.get(day) || [];
+    const moodVals = dayEntries.filter((e) => typeof e.mood === "number").map((e) => e.mood);
+    const stressVals = dayEntries.filter((e) => typeof e.stress === "number").map((e) => e.stress);
+    const totals = dayEntries.reduce(
+      (acc, e) => ({
+        calories: acc.calories + (e.calories || 0),
+        sugar: acc.sugar + (e.sugar || 0),
+        fat: acc.fat + (e.fat || 0),
+        sodium: acc.sodium + (e.sodium || 0),
+      }),
+      { calories: 0, sugar: 0, fat: 0, sodium: 0 },
+    );
+    return {
+      day,
+      avgMood: moodVals.length ? moodVals.reduce((a, b) => a + b, 0) / moodVals.length : null,
+      avgStress: stressVals.length ? stressVals.reduce((a, b) => a + b, 0) / stressVals.length : null,
+      ...totals,
+    };
+  });
+
+  const daysWithMood = dailySeries.filter((d) => d.avgStress != null);
+  // عتبة بيانات صريحة - أقل من 3 أيام تملك توتر مُسجَّل فعلياً لا تكفي لأي
+  // استنتاج موثوق (نفس مبدأ عتبة loggedDays.size < 3 في analyzeMealPatterns).
+  if (daysWithMood.length < 3) {
+    return { enoughData: false, dailySeries, avgMoodWeek: null, avgStressWeek: null, correlations: [] };
+  }
+
+  const avgMoodWeek = daysWithMood.reduce((s, d) => s + d.avgMood, 0) / daysWithMood.length;
+  const avgStressWeek = daysWithMood.reduce((s, d) => s + d.avgStress, 0) / daysWithMood.length;
+
+  // مقارنة الأيام الأعلى توتراً من متوسط الأسبوع مقابل باقي الأيام - عيّنة
+  // ≥2 لكل مجموعة قبل أي مقارنة (نفس مبدأ withWorkout/withoutWorkout في
+  // computeMoodFitnessInsight السابق قبل حذف mentalHealth.js).
+  const higherStressDays = daysWithMood.filter((d) => d.avgStress > avgStressWeek);
+  const otherDays = daysWithMood.filter((d) => d.avgStress <= avgStressWeek);
+
+  const correlations = [];
+  if (higherStressDays.length >= 2 && otherDays.length >= 2) {
+    const METRIC_KEYS = ["calories", "sugar", "fat", "sodium"];
+    for (const key of METRIC_KEYS) {
+      const avgHigh = higherStressDays.reduce((s, d) => s + d[key], 0) / higherStressDays.length;
+      const avgOther = otherDays.reduce((s, d) => s + d[key], 0) / otherDays.length;
+      if (avgOther <= 0) continue;
+      const pct = Math.round(((avgHigh - avgOther) / avgOther) * 100);
+      // فرق ≥15% فقط يُعتبر نمطاً يستحق العرض - عتبة متحفّظة تفادياً لاستنتاج
+      // من فروق عشوائية طبيعية بين الأيام.
+      if (Math.abs(pct) >= 15) {
+        correlations.push({ metric: key, direction: pct > 0 ? "higher" : "lower", pct: Math.abs(pct) });
+      }
+    }
+  }
+
+  return { enoughData: true, dailySeries, avgMoodWeek, avgStressWeek, correlations };
+}
+
 // الكاميرا تحتاج سياقاً آمناً (HTTPS) لتعمل في أي متصفح — localhost مستثنى
 // دائماً لأغراض التطوير المحلي.
 export function isSecureContextForCamera() {

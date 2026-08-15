@@ -324,6 +324,19 @@ alter table nutrition_log add column if not exists product_basis jsonb;
 -- هنا لغرض العرض الإرشادي فقط، ولا تُستخدم أبداً في أي حساب أو توصية طبية.
 alter table nutrition_log add column if not exists micro_ai_estimated boolean not null default false;
 
+-- ربط المزاج/التوتر بتسجيل الطعام: عمودان مباشران على nutrition_log (لا
+-- جدول منفصل) لأن العلاقة 1:1 صارمة (كل "طعام مسجَّل" له مزاج/توتر واحد
+-- بالضبط وقت تسجيله، لا أكثر) - جدول منفصل كان سيحتاج قيد UNIQUE على معرّف
+-- الصف بلا أي فائدة إضافية حقيقية. والأهم: تحليل الأسبوع (الربط بين
+-- المزاج/التوتر والاستهلاك الغذائي) يحتاج القيمتين مع الماكروز/السعرات
+-- لنفس الصف بالضبط - عمودان مباشران يعنيان استعلاماً واحداً بلا JOIN. كلا
+-- العمودين nullable: يُملآن فقط بعد إجابة المستخدم على شاشة المزاج/التوتر
+-- التالية لكل تسجيل طعام ناجح (عبر تحديث لاحق، لا وقت الإضافة الأولى) -
+-- صف لم يُجَب عنه بعد أو مسجَّل قبل هذا التحديث يبقى ببساطة بلا هاتين
+-- القيمتين، بلا أي كسر لأي حساب/عرض قائم.
+alter table nutrition_log add column if not exists mood smallint check (mood between 0 and 5);
+alter table nutrition_log add column if not exists stress smallint check (stress between 0 and 5);
+
 -- مفتاحها (owner, barcode) — لو أدخل المستخدم منتجاً يدوياً لباركود غير
 -- موجود في Open Food Facts، يُستخدم هذا الصف تلقائياً في المرة القادمة
 -- لنفس الباركود قبل حتى محاولة الاتصال بالـ API.

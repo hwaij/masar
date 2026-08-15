@@ -29,7 +29,7 @@ import { supabase } from "../lib/supabase";
 import { ACTIVITY_LEVELS, HEALTH_CONDITIONS, NO_CONDITION, computeHealthMetrics } from "../lib/health";
 import { createGoal, isReviewDue, GOAL_PERIODS, GOAL_POINTS_SUCCESS, GOAL_POINTS_FAILURE } from "../lib/goals";
 import { FITNESS_GOALS } from "../lib/exercises-db";
-import { sumNutritionEntries, waterGoalCups, MEAL_TYPES, analyzeMealPatterns, MICRONUTRIENT_META } from "../lib/nutrition";
+import { sumNutritionEntries, waterGoalCups, MEAL_TYPES, analyzeMealPatterns, MICRONUTRIENT_META, computeMoodNutritionCorrelation } from "../lib/nutrition";
 import { getDailyNutritionSummary } from "../lib/nutrition-plan";
 import { playSaveSound, playAchievementSound } from "../lib/sound";
 import { getSession, onAuthChange, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut, userFromSession, hasAuth } from "../lib/auth";
@@ -46,12 +46,10 @@ import { S } from "../components/styles";
 import NumericValue from "../components/NumericValue";
 import DayWheel from "../components/DayWheel";
 // محمَّلة عند الطلب فقط (React.lazy) لا مع الحزمة الرئيسية: هذه أقسام
-// أقل زيارة من "اليوم"/"المهام"، وNutritionView وMentalHealthView تسحبان
-// مكتبات ثقيلة (html5-qrcode، recharts) لا حاجة لتحميلها إلا عند فتح
-// القسم فعلاً.
+// أقل زيارة من "اليوم"/"المهام"، وNutritionView تسحب مكتبات ثقيلة
+// (html5-qrcode، recharts) لا حاجة لتحميلها إلا عند فتح القسم فعلاً.
 const NutritionView = lazy(() => import("../components/NutritionView"));
 const FitnessView = lazy(() => import("../components/FitnessView"));
-const MentalHealthView = lazy(() => import("../components/MentalHealthView"));
 const GroupsView = lazy(() => import("../components/GroupsView"));
 const VaultView = lazy(() => import("../components/VaultView"));
 const DietPlansView = lazy(() => import("../components/DietPlansView"));
@@ -287,7 +285,7 @@ export default function MasarApp() {
   // التطبيق برابط "/?view=X" - لا علاقة له بأي منطق بيانات، مجرد قراءة
   // لمرة واحدة عند التحميل الأول لتحديد الشاشة الافتتاحية، مع قائمة بيضاء
   // صريحة حتى لا يقود رابط خارجي المستخدم لشاشة غير موجودة.
-  const VALID_SHORTCUT_VIEWS = ["today", "prayer", "adhkar", "tips", "you", "nutrition", "nutritionPlan", "dietPlans", "fitness", "mental", "focus", "tasks", "goals", "vault", "reports", "groups", "assistant", "achieve", "settings"];
+  const VALID_SHORTCUT_VIEWS = ["today", "prayer", "adhkar", "tips", "you", "nutrition", "nutritionPlan", "dietPlans", "fitness", "focus", "tasks", "goals", "vault", "reports", "groups", "assistant", "achieve", "settings"];
   const [view, setView] = useState(() => {
     try {
       const requested = new URLSearchParams(window.location.search).get("view");
@@ -766,14 +764,13 @@ export default function MasarApp() {
           <div style={S.view}><UpsellCard icon={MessageCircle} title={i18n.language === "en" ? "Your AI assistant in Masar Premium" : "مساعدك الذكي في مسار الكامل"} message={i18n.language === "en" ? "A personal coach who analyzes your day and habits and suggests practical steps based on your actual data." : "مدرّب شخصي يحلّل يومك وعاداتك ويقترح خطوات عملية بناءً على بياناتك الفعلية."} /></div>
         ))}
         {view === "you" && <YouView healthProfile={healthProfile} setHealthProfile={setHealthProfile} showToast={showToast} />}
-        {(view === "nutrition" || view === "nutritionPlan" || view === "dietPlans" || view === "fitness" || view === "mental" || (view === "groups" && isSub) || (view === "vault" && isSub)) && (
+        {(view === "nutrition" || view === "nutritionPlan" || view === "dietPlans" || view === "fitness" || (view === "groups" && isSub) || (view === "vault" && isSub)) && (
           <LazySectionErrorBoundary key={view} isEn={i18n.language === "en"}>
             <Suspense fallback={<div style={{ ...S.view, display: "flex", justifyContent: "center", padding: 40 }}><Loader2 size={24} color="#C9A24B" className="spin" /></div>}>
               {view === "nutrition" && <NutritionView healthProfile={healthProfile} showToast={showToast} profile={profile} setProfile={setProfile} subscription={subscription} journeyActive={tourOpen} />}
               {view === "nutritionPlan" && <NutritionPlanView healthProfile={healthProfile} showToast={showToast} subscription={subscription} setView={setView} />}
               {view === "dietPlans" && <DietPlansView healthProfile={healthProfile} showToast={showToast} subscription={subscription} />}
               {view === "fitness" && <FitnessView healthProfile={healthProfile} showToast={showToast} profile={profile} setProfile={setProfile} journeyActive={tourOpen} />}
-              {view === "mental" && <MentalHealthView setView={setView} showToast={showToast} />}
               {view === "groups" && isSub && <GroupsView showToast={showToast} />}
               {view === "vault" && isSub && <VaultView showToast={showToast} />}
             </Suspense>
@@ -860,9 +857,7 @@ const JOURNEY_STAGES = [
       { view: "fitness", target: '[data-tour="fitness-equipment-row"]' }, // 6: اختيار المعدات المتاحة
       { view: "fitness" }, // 7: البرنامج الناتج + وضع التركيز والمؤقّت - شرحاً بلا إنشاء برنامج فعلي
       { view: "nutritionPlan" }, // 8
-      { view: "dietPlans" }, // 9
-      { view: "mental", target: '[data-tour="mental-mood-card"]' }, // 10
-      { view: "mental", target: '[data-tour="mental-breathing-start"]', neverLast: true }, // 11: آخر خطوة بالمرحلة
+      { view: "dietPlans", neverLast: true }, // 9: آخر خطوة بالمرحلة
     ],
   },
   {
@@ -2035,6 +2030,9 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
   const [insightText, setInsightText] = useState("");
   const [insightLoading, setInsightLoading] = useState(false);
   const [insightError, setInsightError] = useState(false);
+  const [moodInsightText, setMoodInsightText] = useState("");
+  const [moodInsightLoading, setMoodInsightLoading] = useState(false);
+  const [moodInsightError, setMoodInsightError] = useState(false);
 
   // سجل التغذية ليس محمَّلاً مركزياً في MasarApp (نفس نمط "العرض المستقل"
   // المستخدم في NutritionView وAssistantView) - يُجلب مرة واحدة هنا فقط
@@ -2133,6 +2131,20 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
   // ملاحظات أنماط حقيقية مبنية فقط على ما سُجِّل فعلاً (meal_type) - null إن
   // كانت البيانات غير كافية لأي استنتاج موثوق (انظر عتبات analyzeMealPatterns).
   const mealPatterns = useMemo(() => analyzeMealPatterns(nutritionInRange, days), [nutritionInRange, days]);
+  // ربط المزاج/التوتر بالاستهلاك الغذائي - أسبوعي فقط (range==="week")،
+  // حسابياً بحتاً عبر computeMoodNutritionCorrelation (بلا أي استدعاء
+  // ذكاء اصطناعي)؛ Gemini يُستخدَم فقط لاحقاً لصياغة تعليق على هذه الأرقام
+  // المحسوبة، لا لاختراعها.
+  const moodCorrelation = useMemo(
+    () => (range === "week" ? computeMoodNutritionCorrelation(nutritionInRange, days) : null),
+    [range, nutritionInRange, days],
+  );
+  const moodChartData = moodCorrelation?.dailySeries.map((d) => ({
+    day: d.day,
+    label: arabicDate(d.day, { weekday: "short" }, language === "en" ? "en-US" : undefined),
+    mood: d.avgMood,
+    stress: d.avgStress,
+  })) || [];
 
   const rangeEntries = useMemo(() => sleepLog.filter((s) => days.includes(s.date)), [sleepLog, days]);
   const sleepAvgHours = rangeEntries.length ? rangeEntries.reduce((sum, s) => sum + s.hours, 0) / rangeEntries.length : null;
@@ -2278,6 +2290,46 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
       setInsightError(true);
     } finally {
       setInsightLoading(false);
+    }
+  }
+
+  // صياغة تعليق إنساني قصير على أرقام موجودة أصلاً محسوبة بالكامل عبر
+  // computeMoodNutritionCorrelation (nutrition.js) - نفس مبدأ generateInsight
+  // أعلاه بالحرف: Gemini يصوغ فقط، لا يخترع رقماً أو نمطاً غير مذكور. لا
+  // تُستدعى هذه الدالة إطلاقاً إن كانت moodCorrelation.enoughData=false (تلك
+  // الحالة تُعرض بنص ثابت صادق في الواجهة مباشرة، بلا أي استدعاء شبكة).
+  const METRIC_LABEL = {
+    calories: isEnLang ? "calories" : "السعرات",
+    sugar: isEnLang ? "sugar" : "السكر",
+    fat: isEnLang ? "fat" : "الدهون",
+    sodium: isEnLang ? "sodium" : "الصوديوم",
+  };
+  async function generateMoodInsight() {
+    if (!moodCorrelation || !moodCorrelation.enoughData) return;
+    setMoodInsightLoading(true);
+    setMoodInsightError(false);
+    try {
+      const lines = [
+        `${isEnLang ? "Average mood this week (0-5)" : "متوسط المزاج هذا الأسبوع (0-5)"}: ${moodCorrelation.avgMoodWeek.toFixed(1)}`,
+        `${isEnLang ? "Average stress this week (0-5)" : "متوسط التوتر هذا الأسبوع (0-5)"}: ${moodCorrelation.avgStressWeek.toFixed(1)}`,
+        ...moodCorrelation.correlations.map((c) =>
+          isEnLang
+            ? `On higher-stress days, ${METRIC_LABEL[c.metric]} intake was ${c.pct}% ${c.direction === "higher" ? "higher" : "lower"} than other days`
+            : `في الأيام الأعلى توتراً، كان استهلاك ${METRIC_LABEL[c.metric]} أعلى بنسبة ${c.pct}% مما هو ${c.direction === "higher" ? "أعلى" : "أقل"} في باقي الأيام`
+        ),
+      ].join("\n");
+
+      const prompt = isEnLang
+        ? `You are a gentle, non-judgmental wellness assistant. Using ONLY the real numbers below about this user's mood, stress, and eating this week, write a short (2-3 sentences), warm, human comment. Do NOT invent any number or pattern not stated below. If no correlation is listed below, just comment kindly on the mood/stress averages alone.\n\n${lines}`
+        : `أنت مساعد رفاهية لطيف وغير حكمي. باستخدام الأرقام الحقيقية أدناه فقط عن مزاج وتوتر وأكل هذا المستخدم هذا الأسبوع، اكتب تعليقاً قصيراً (2-3 جمل) دافئاً وإنسانياً. لا تخترع أي رقم أو نمط غير مذكور أدناه. إن لم يُذكر أي ربط أدناه، علِّق بلطف على متوسطات المزاج/التوتر فقط.\n\n${lines}`;
+
+      const text = (await analyze(prompt, 220)).trim();
+      setMoodInsightText(text);
+    } catch (err) {
+      console.error("[ReportsView] generateMoodInsight failed:", err);
+      setMoodInsightError(true);
+    } finally {
+      setMoodInsightLoading(false);
     }
   }
 
@@ -2806,6 +2858,57 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
                 </>
               )}
             </div>
+
+            {moodCorrelation && (
+              <div style={S.chartCard}>
+                <div style={S.chartTitle}>{t("reportsView.moodNutrition.title")}</div>
+                {!moodCorrelation.enoughData ? (
+                  <div style={S.emptyHint}>{t("reportsView.moodNutrition.notEnoughData")}</div>
+                ) : (
+                  <>
+                    {!RC ? <ChartLoading /> : (
+                      <RC.ResponsiveContainer width="100%" height={170}>
+                        <RC.LineChart data={moodChartData} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
+                          <RC.CartesianGrid strokeDasharray="2 4" stroke="var(--surface-raised)" vertical={false} />
+                          <RC.XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: 11, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} />
+                          <RC.YAxis domain={[0, 5]} tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
+                          <RC.Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} />
+                          <RC.Line type="monotone" dataKey="mood" stroke="#5FA8A0" strokeWidth={2} dot={{ r: 3 }} connectNulls isAnimationActive={!reduceMotion} animationDuration={450} />
+                          <RC.Line type="monotone" dataKey="stress" stroke="#D17B5F" strokeWidth={2} dot={{ r: 3 }} connectNulls isAnimationActive={!reduceMotion} animationDuration={450} />
+                        </RC.LineChart>
+                      </RC.ResponsiveContainer>
+                    )}
+                    <div style={S.pieLegend}>
+                      <div style={S.legendChip}><span style={{ ...S.legendDot, background: "#5FA8A0" }} /><span>{t("reportsView.moodNutrition.moodLegend")}</span></div>
+                      <div style={S.legendChip}><span style={{ ...S.legendDot, background: "#D17B5F" }} /><span>{t("reportsView.moodNutrition.stressLegend")}</span></div>
+                    </div>
+
+                    {moodCorrelation.correlations.length > 0 ? (
+                      <div style={{ ...S.tipBox, marginTop: 10, flexDirection: "column", gap: 6, alignItems: "stretch" }}>
+                        {moodCorrelation.correlations.map((c) => (
+                          <span key={c.metric}>
+                            {isolateNumbers(t(`reportsView.moodNutrition.correlation.${c.direction}`, { metric: t(`reportsView.moodNutrition.metrics.${c.metric}`), pct: c.pct }))}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p style={S.emptyHint}>{t("reportsView.moodNutrition.noPattern")}</p>
+                    )}
+
+                    {moodInsightLoading ? (
+                      <p style={{ ...RS.insightText, color: "var(--muted2)", marginTop: 10 }}><Loader2 size={14} className="spin" style={{ marginInlineEnd: 6 }} />{t("reportsView.moodNutrition.insightLoading")}</p>
+                    ) : moodInsightText ? (
+                      <p style={{ ...RS.insightText, marginTop: 10 }}>{isolateNumbers(moodInsightText)}</p>
+                    ) : moodInsightError ? (
+                      <p style={{ ...RS.insightText, color: "var(--muted2)", marginTop: 10 }}>{t("reportsView.moodNutrition.insightFailed")}</p>
+                    ) : null}
+                    <button onClick={generateMoodInsight} disabled={moodInsightLoading} style={{ ...S.saveBtn, marginTop: 12, marginBottom: 0 }}>
+                      <Sparkles size={14} /> {moodInsightText ? t("reportsView.moodNutrition.refreshInsightBtn") : t("reportsView.moodNutrition.getInsightBtn")}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
           </>
         )
       )}
@@ -4142,12 +4245,11 @@ const HELP_SEARCH_INDEX = [
   { viewId: "tips", keywords: ["wisdom", "tip", "بصيرة", "حكمة", "نصيحة"] },
   { viewId: "focus", keywords: ["focus", "study", "timer", "تركيز", "دراسة", "مؤقت"] },
   { viewId: "vault", keywords: ["money", "expense", "budget", "خزنة", "مال", "مصروف", "ميزانية"] },
-  { viewId: "mental", keywords: ["mental", "mood", "mind", "نفسية", "مزاج"] },
   { viewId: "nutritionPlan", keywords: ["diet plan", "نظام غذائي", "خطة تغذية"] },
   { viewId: "dietPlans", keywords: ["diet plans", "انظمة غذائية", "أنظمة"] },
   { viewId: "settings", keywords: ["settings", "hobbies", "theme", "اعدادات", "إعدادات", "تخصيص"] },
 ];
-const HELP_NAV_LABEL_KEY = { mental: "mentalHealth", focus: "focusStudy", groups: "studyGroups" };
+const HELP_NAV_LABEL_KEY = { focus: "focusStudy", groups: "studyGroups" };
 // قائمة الجولات السياقية القابلة لإعادة التشغيل الفردية من الإعدادات -
 // نفس معرّفات tour_progress.modules.<id> المستخدَمة في كل قسم (راجع
 // useModuleTour في كل من NutritionView/FitnessView/MasarApp).

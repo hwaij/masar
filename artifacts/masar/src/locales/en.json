@@ -13,7 +13,6 @@
     "nutritionPlan": "Nutrition Plan",
     "dietPlans": "Diet Plans",
     "fitness": "Fitness",
-    "mentalHealth": "Mental Health",
     "comingSoon": "Coming soon",
     "productivity": "Productivity",
     "focusStudy": "Focus / Study",
@@ -384,14 +383,6 @@
         {
           "title": "Diet Plans",
           "body": "Ready-made diet systems (like DASH) — Masar checks their suitability for your health conditions before suggesting anything."
-        },
-        {
-          "title": "Your mood today",
-          "body": "Log your mood, stress, and energy daily — Masar suggests a fitting activity based on them."
-        },
-        {
-          "title": "The breathing exercise",
-          "body": "This is where you start a guided breathing exercise to calm your nerves in minutes — pick any duration that suits you."
         }
       ]
     },
@@ -459,7 +450,6 @@
       "nutritionPlan": "A personalized nutrition plan based on your goals and health data.",
       "dietPlans": "Browse ready-made diet plan templates.",
       "fitness": "Build a personalized workout plan and run guided training sessions.",
-      "mental": "Track your mood and mental wellbeing over time.",
       "focus": "Run focus and study sessions with a timer.",
       "tasks": "Your daily to-do list, organized by day of the week.",
       "goals": "Set weekly, monthly, or yearly goals and track them on a review calendar.",
@@ -532,6 +522,27 @@
     "noBreakfastPattern": "No breakfast was logged on {{count}} of the {{total}} days you logged food this period.",
     "lowCalorieMealPattern": "{{meal}} is noticeably lower in calories than your other meals on average this period.",
     "lowProteinMealPattern": "{{meal}} is noticeably lower in protein than your other meals on average this period.",
+    "moodNutrition": {
+      "title": "Mood & Stress vs. Eating",
+      "notEnoughData": "Not enough data to spot a clear pattern this week yet. Log your mood/stress after a few more meals to see an analysis here.",
+      "moodLegend": "Mood",
+      "stressLegend": "Stress",
+      "noPattern": "Your mood and stress are logged this week, but no clear link with your eating has shown up yet.",
+      "correlation": {
+        "higher": "On higher-stress days, your {{metric}} intake was {{pct}}% higher compared to the rest of the week.",
+        "lower": "On higher-stress days, your {{metric}} intake was {{pct}}% lower compared to the rest of the week."
+      },
+      "metrics": {
+        "calories": "calories",
+        "sugar": "sugar",
+        "fat": "fat",
+        "sodium": "sodium"
+      },
+      "insightLoading": "Writing the note...",
+      "insightFailed": "Couldn't generate the note right now, try again later.",
+      "getInsightBtn": "Get a note",
+      "refreshInsightBtn": "Refresh note"
+    },
     "comprehensive": {
       "fitnessTitle": "Fitness Activity",
       "workoutsCompleted": "Workouts completed",
@@ -1386,6 +1397,7 @@
       "barcodeEntry": "Enter Barcode",
       "searchByName": "Search by Name",
       "previousFoods": "Previous Foods",
+      "moodCheck": "How do you feel right now?",
       "photographMeal": "Photograph Meal",
       "photographLabel": "Photograph Nutrition Label",
       "addNewProduct": "Add New Product",
@@ -1397,6 +1409,23 @@
     "enterBarcodeManually": "Enter Barcode Manually",
     "previousFoodsOption": "Previous Foods",
     "noPreviousFoods": "No previously logged foods yet. Anything you add will show up here later.",
+    "moodCheck": {
+      "intro": "Your food is saved. One quick thing before you go:",
+      "moodLabel": "Your mood right now?",
+      "stressLabel": "Your stress right now?",
+      "moodValue0": "Very bad",
+      "moodValue1": "Bad",
+      "moodValue2": "Okay",
+      "moodValue3": "Good",
+      "moodValue4": "Very good",
+      "moodValue5": "Excellent",
+      "stressValue0": "Totally calm",
+      "stressValue1": "Calm",
+      "stressValue2": "Okay",
+      "stressValue3": "A little tense",
+      "stressValue4": "Tense",
+      "stressValue5": "Very tense"
+    },
     "previousDay": "Previous day",
     "nextDay": "Next day",
     "viewingPastDay": "You're viewing a past day. Any food or water you add will be logged for this date, not today.",
@@ -1592,60 +1621,6 @@
     "shareTemplateStats": "Stats grid",
     "shareTemplateStatsDesc": "The numbers in a clean grid layout",
     "photoOptionalHint": "The photo is optional - tap \"Photo + achievement\" and pick one, or choose another design without a photo"
-  },
-  "mentalHealth": {
-    "moodLevels": {
-      "very_bad": "Very bad",
-      "bad": "Bad",
-      "okay": "Okay",
-      "good": "Good",
-      "excellent": "Excellent"
-    },
-    "stressLevels": {
-      "low": "Low",
-      "mild": "Mild",
-      "moderate": "Moderate",
-      "high": "High",
-      "very_high": "Very high"
-    },
-    "energyLevels": {
-      "low": "Low",
-      "mild": "Mild",
-      "moderate": "Moderate",
-      "high": "High",
-      "very_high": "Very high"
-    },
-    "breathingDurations": {
-      "1min": "One minute",
-      "3min": "3 minutes",
-      "5min": "5 minutes"
-    },
-    "breathingPhases": {
-      "inhale": "Inhale...",
-      "hold": "Hold...",
-      "exhale": "Exhale..."
-    },
-    "crisisTitle": "We're here for you",
-    "confirmRead": "I understand, I confirm I've read this",
-    "breathingExercise": "Calm Breathing Exercise (4-7-8)",
-    "stop": "Stop",
-    "selectMoodStressEnergy": "Select your mood, stress, and energy",
-    "saveFailed": "Couldn't save the entry, try again",
-    "saved": "Today's entry has been saved",
-    "heroTitle": "Mental Health",
-    "heroSub": "A simple daily moment to check in with yourself",
-    "howsMoodToday": "How's your mood today?",
-    "stressLevel": "Stress level?",
-    "energyLevel": "Energy level?",
-    "whatAffectedYou": "What affected you today? (optional)",
-    "notePlaceholder": "Write here if you'd like...",
-    "updateEntry": "Update Today's Entry",
-    "saveEntry": "Save Today's Entry",
-    "patternTitle": "Your pattern over the last 7 days",
-    "legendMood": "Mood",
-    "legendStress": "Stress",
-    "legendEnergy": "Energy",
-    "logMoreDays": "Log a few more days to see insights about your pattern"
   },
   "groups": {
     "errors": {

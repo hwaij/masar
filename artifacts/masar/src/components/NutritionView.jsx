@@ -135,6 +135,14 @@ const NS = {
   qtyStepperUnit: { fontSize: 12.5, fontWeight: 600, color: "var(--muted2)", textAlign: "center", marginBottom: 10 },
   qtyPreviewGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10, fontSize: 12.5, color: "var(--ink-soft)" },
 
+  // ===== شاشة "كيف تشعر الآن؟" (ربط المزاج/التوتر بتسجيل الطعام) =====
+  moodCheckIntro: { fontSize: 13, color: "var(--muted2)", textAlign: "center", marginBottom: 18, lineHeight: 1.6 },
+  moodCheckSection: { marginBottom: 20 },
+  moodCheckLabel: { fontSize: 13, fontWeight: 700, color: "var(--ink-soft)", marginBottom: 10, textAlign: "center" },
+  moodCheckRow: { display: "flex", justifyContent: "center", gap: 6, flexWrap: "wrap" },
+  moodCheckBtn: { minWidth: 44, minHeight: 44, borderRadius: 12, border: "1px solid var(--border2)", background: "var(--surface-sunken)", fontSize: 20, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center" },
+  moodCheckBtnActive: { border: "1.5px solid var(--gold)", background: "rgba(201,162,75,0.14)", transform: "scale(1.08)" },
+
   wizardProgress: { marginBottom: 14 },
   wizardProgressLabel: { fontSize: 12, fontWeight: 700, color: "var(--gold)", marginBottom: 6 },
   wizardNavRow: { display: "flex", gap: 8, marginTop: 16 },
@@ -507,6 +515,64 @@ function ProductEditForm({ product, onSaved, onCancel, showToast }) {
 }
 
 const MEAL_TYPE_EMOJI = { breakfast: "🌅", lunch: "☀️", dinner: "🌙", snack: "🍎" };
+
+// مقياس 0-5 (6 مستويات) للمزاج والتوتر لحظة تسجيل الطعام - مختلف عمداً عن
+// مقياس 1-5 القديم لقسم "الصحة النفسية" المحذوف (كان بأيقونات Lucide لا
+// إيموجي حقيقية)؛ هذا مقياس جديد كلياً بصرياً ونطاقاً حسب الطلب.
+const MOOD_EMOJI = ["😞", "😕", "😐", "🙂", "😊", "😁"];
+const STRESS_EMOJI = ["🧘", "😌", "😐", "😬", "😰", "🤯"];
+
+// شاشة "كيف تشعر الآن؟" - تظهر بعد كل تسجيل طعام ناجح (عبر addEntry، نقطة
+// دمج واحدة تغطّي كل مسارات الإضافة). صفّان فقط (مزاج ثم توتر)، ضغطة واحدة
+// على كل إيموجي تُبرزها، وبمجرد اختيار الاثنين معاً يُستدعى onDone تلقائياً
+// (بلا زر "حفظ"/"التالي" إضافي) - أقصى تفاعل ممكن: ضغطتان، لا أكثر.
+function MoodCheckPanel({ onDone, t }) {
+  const [mood, setMood] = useState(null);
+  const [stress, setStress] = useState(null);
+
+  function pickMood(v) {
+    setMood(v);
+    if (stress != null) onDone(v, stress);
+  }
+  function pickStress(v) {
+    setStress(v);
+    if (mood != null) onDone(mood, v);
+  }
+
+  return (
+    <>
+      <p style={NS.moodCheckIntro}>{t("nutrition.moodCheck.intro")}</p>
+      <div style={NS.moodCheckSection}>
+        <div style={NS.moodCheckLabel}>{t("nutrition.moodCheck.moodLabel")}</div>
+        <div style={NS.moodCheckRow}>
+          {MOOD_EMOJI.map((emoji, v) => (
+            <button
+              key={v} type="button" onClick={() => pickMood(v)}
+              style={{ ...NS.moodCheckBtn, ...(mood === v ? NS.moodCheckBtnActive : {}) }}
+              aria-label={t(`nutrition.moodCheck.moodValue${v}`)}
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div style={NS.moodCheckSection}>
+        <div style={NS.moodCheckLabel}>{t("nutrition.moodCheck.stressLabel")}</div>
+        <div style={NS.moodCheckRow}>
+          {STRESS_EMOJI.map((emoji, v) => (
+            <button
+              key={v} type="button" onClick={() => pickStress(v)}
+              style={{ ...NS.moodCheckBtn, ...(stress === v ? NS.moodCheckBtnActive : {}) }}
+              aria-label={t(`nutrition.moodCheck.stressValue${v}`)}
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
 
 // ===== Priority 5: بطاقة وجبة (Meal Card) =====
 // بطاقة واحدة لكل نوع وجبة (فطور/غداء/عشاء/سناك) - تُعرض دائماً حتى بلا
@@ -2060,8 +2126,12 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
   const [loaded, setLoaded] = useState(false);
   const [nutritionLog, setNutritionLog] = useState([]);
   const [waterLog, setWaterLog] = useState({});
-  const [sheet, setSheet] = useState(null); // null | "choose" | "scan" | "search" | "manual" | "confirm"
+  const [sheet, setSheet] = useState(null); // null | "choose" | "scan" | "search" | "manual" | "confirm" | "moodCheck"
   const [pendingProduct, setPendingProduct] = useState(null); // { product, source }
+  // معرّف آخر صنف طعام حُفظ بنجاح - يُستخدَم فقط عند sheet==="moodCheck"
+  // لمعرفة أي صف يُحدَّث بـmood/stress بعد إجابة المستخدم (ربط المزاج/التوتر
+  // بتسجيل الطعام). null في كل الحالات الأخرى.
+  const [moodCheckEntryId, setMoodCheckEntryId] = useState(null);
   // وجبة مُعيَّنة مسبقاً عند الضغط على "+ إضافة لـ[اسم الوجبة]" من بطاقة
   // وجبة معيّنة (Priority 5) - null يعني الاعتماد على تخمين الوقت الحالي
   // (guessMealType) كالسابق تماماً في كل نماذج الإضافة الأربعة.
@@ -2216,6 +2286,7 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
     setLookupError(null);
     setSaveError(null);
     setPreselectedMealType(null);
+    setMoodCheckEntryId(null);
   }
 
   // يفتح شاشة الإضافة الموحّدة مباشرة بالوجبة المطلوبة معيَّنة مسبقاً - يُستدعى
@@ -2246,7 +2317,13 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
     const result = await store.addNutritionEntry(full);
     if (result.ok) {
       showToast(t("nutrition.addedToLog"));
-      closeSheet();
+      // ربط المزاج/التوتر بتسجيل الطعام: نقطة دمج واحدة تغطّي كل مسارات
+      // الإضافة الأربعة (كلها تصل هنا عبر addEntry) بلا لمس أي من مكوّنات
+      // نماذج الإضافة نفسها. يظهر سؤال سريع (شاشة MoodCheckPanel) بدل
+      // إغلاق الشاشة مباشرة؛ الطعام محفوظ بالفعل في هذه اللحظة، فإغلاق هذه
+      // الشاشة لاحقاً بلا إجابة لا يفقد أي بيانات.
+      setMoodCheckEntryId(full.id);
+      setSheet("moodCheck");
     } else {
       setNutritionLog((prev) => prev.filter((e) => e.id !== full.id));
       // التفاصيل الكاملة (message/code/details/hint) إلى console المطوّر
@@ -2308,6 +2385,24 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
     } else {
       setNutritionLog(prev);
       console.error("[NutritionView] updateNutritionEntry failed:", result);
+      showToast(t("nutrition.entrySaveFailed"));
+    }
+  }
+
+  // حفظ إجابة "كيف تشعر الآن؟" (ربط المزاج/التوتر بتسجيل الطعام) - بلا
+  // توست نجاح صريح عمداً (إغلاق الشاشة نفسه هو التأكيد المرئي، حتى تبقى
+  // التجربة "ثانيتين كحد أقصى" كما طُلب، بلا رسالة إضافية تُبطئ الإحساس
+  // بالسرعة)؛ فشل الحفظ الفعلي يبقى مُعلَناً بوضوح (نفس نمط {ok,error}).
+  async function saveMoodStress(id, mood, stress) {
+    const target = nutritionLog.find((e) => e.id === id);
+    if (!target) return;
+    const updated = { ...target, mood, stress };
+    const prev = nutritionLog;
+    setNutritionLog((list) => list.map((e) => (e.id === id ? updated : e)));
+    const result = await store.updateNutritionEntry(updated);
+    if (!result.ok) {
+      setNutritionLog(prev);
+      console.error("[NutritionView] saveMoodStress failed:", result);
       showToast(t("nutrition.entrySaveFailed"));
     }
   }
@@ -2676,6 +2771,7 @@ ${missingMealsLine}
                   {sheet === "addProduct" && t("nutrition.sheetTitles.addNewProduct")}
                   {sheet === "manual" && t("nutrition.sheetTitles.manualEntry")}
                   {sheet === "confirm" && t("nutrition.sheetTitles.confirmQuantity")}
+                  {sheet === "moodCheck" && t("nutrition.sheetTitles.moodCheck")}
                   {sheet === "lookup" && t("nutrition.sheetTitles.searching")}
                 </span>
                 <button onClick={closeSheet} style={NS.closeBtn}><X size={16} /></button>
@@ -2806,6 +2902,13 @@ ${missingMealsLine}
                 onCancel={closeSheet}
                 showToast={showToast}
                 preselectedMealType={preselectedMealType}
+              />
+            )}
+
+            {sheet === "moodCheck" && moodCheckEntryId && (
+              <MoodCheckPanel
+                onDone={(mood, stress) => { saveMoodStress(moodCheckEntryId, mood, stress); closeSheet(); }}
+                t={t}
               />
             )}
           </div>

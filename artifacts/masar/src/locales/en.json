@@ -69,8 +69,8 @@
     "studySession": "Study session",
     "mandatoryTasks": {
       "bed": "Make the bed",
-      "teeth_morning": "Morning teeth",
-      "teeth_evening": "Evening teeth"
+      "teeth_morning": "Brush teeth (morning)",
+      "teeth_evening": "Brush teeth (evening)"
     },
     "evolution": {
       "title": "Your day's progress",
@@ -1345,9 +1345,9 @@
     "mealFallbackName": "Meal (AI photo)",
     "aiEstimateTimes": "AI estimate (×{{n}})",
     "aiEstimate": "AI estimate",
-    "per100gLabel": "These values are per 100 grams per the label.",
-    "per100mlLabel": "These values are per 100 milliliters per the label.",
-    "perServingLabel": "These values are per one serving ({{g}} grams) per the label.",
+    "per100gLabel": "These values are per 100 grams, as shown on the label.",
+    "per100mlLabel": "These values are per 100 milliliters, as shown on the label.",
+    "perServingLabel": "These values are per one serving ({{g}} grams), as shown on the label.",
     "labelReviewNote": "These values were read automatically from the label photo and may need review. Double-check the numbers before saving.",
     "howMuchDidYouEat": "How much did you actually eat?",
     "labelFoodFallback": "Food (nutrition label)",
@@ -1584,14 +1584,14 @@
     "comparisonSame": "Same weight as last time",
     "trainingVolumeTitle": "Training volume by muscle - last session",
     "volumeUnit": "kg",
-    "noWeightedVolumeNote": "No numeric load logged in the last session - bodyweight and cardio exercises aren't counted in training volume, since it's defined as weight x reps x sets.",
+    "noWeightedVolumeNote": "No weight logged in the last session - bodyweight and cardio exercises aren't counted in training volume, since it's defined as weight x reps x sets.",
     "estimatedCaloriesValue": "~{{value}} estimated calories for this session",
     "estimatedCaloriesNeedWeight": "Enter your weight on the \"You\" page to see an estimated calorie count",
     "summaryTitle": "Workout Summary",
     "summaryDurationLabel": "Duration",
     "summaryDurationValue": "{{minutes}}m {{seconds}}s",
     "summaryVolumeLabel": "Training Volume",
-    "summaryBestLabel": "Best Number",
+    "summaryBestLabel": "Personal Best",
     "summaryBestWeightValue": "{{exercise}} — {{weight}} kg x {{reps}} reps",
     "summaryBestRepsValue": "{{exercise}} — {{reps}} reps",
     "summaryNoBest": "No numbers logged this session",
@@ -1731,7 +1731,7 @@
     "allergiesPlaceholder": "e.g. nut allergy",
     "buildBtn": "Build the plan now",
     "buildingPlan": "Building your plan...",
-    "aiPlanDisclaimer": "This is general guided plan based on your data and the chosen system's principles, not professional medical or nutrition advice - see a nutrition specialist for a precise plan.",
+    "aiPlanDisclaimer": "This is a general guided plan based on your data and the chosen system's principles, not professional medical or nutrition advice - see a nutrition specialist for a precise plan.",
     "planBuilt": "Your personal plan was built",
     "planBuildFailed": "Couldn't build the plan right now, try again",
     "planSaveFailed": "Couldn't save the plan, try again",
@@ -1826,6 +1826,6 @@
     "premiumRequiredTitle": "Meal suggestions and daily tips in Masar Premium",
     "premiumRequiredMessage": "Subscribe to Masar Premium so AI can suggest actual food items within your plan's numbers, and give you a daily nutrition tip based on your real data.",
     "noEntriesToday": "No meals logged yet today",
-    "noAdviceYet": "Tap \"Update today's advice\" to get your first tip."
+    "noAdviceYet": "Tap \"Refresh today's tip\" to get your first tip."
   }
 }

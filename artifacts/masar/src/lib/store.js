@@ -31,6 +31,7 @@ const LS = {
   tasks: "masar_tasks",
   reports: "masar_reports",
   gamify: "masar_gamify",
+  languagePicked: "masar_language_picked",
 };
 
 function nsKey(key) {
@@ -252,6 +253,24 @@ export const store = {
   // تفضيل المستخدم الفعلي.
   getLocalLanguage() {
     return lsGet("masar_profile", { language: "ar" }).language === "en" ? "en" : "ar";
+  },
+  // شاشة اختيار اللغة الأولى - "لا تُظهرها" إذا سبق لهذا المتصفح اختيار
+  // اللغة صراحةً (masar_language_picked)، أو حتى مجرد استخدام التطبيق من
+  // قبل ولو مرة (masar_profile أو masar_categories موجودان بالفعل). لماذا
+  // كلاهما لا masar_profile وحده: masar_profile لا يُكتب إلا بعد لمس
+  // المستخدم فعلياً لإعداد ما (theme/language/tourSeen...، انظر save* أدناه)
+  // - مستخدم قديم لم يُغيّر أي إعداد قط لن يملك هذا المفتاح إطلاقاً. أما
+  // masar_categories فيُكتب بلا شرط في أول تحميل ناجح لأي زائر (انظر
+  // loadCategories أعلاه) - وهو ما يضمن فعلياً عدم إظهار هذه الشاشة أبداً
+  // لأي مستخدم فتح التطبيق من قبل، بصرف النظر عمّا لمسه فعلياً.
+  hasLanguagePicked() {
+    if (lsGet(LS.languagePicked, false)) return true;
+    if (lsGet("masar_profile", null) !== null) return true;
+    if (lsGet(LS.categories, null) !== null) return true;
+    return false;
+  },
+  markLanguagePicked() {
+    lsSet(LS.languagePicked, true);
   },
   // نفس فكرة getLocalTheme لثلاثة إعدادات إتاحة الوصول - تُقرأ متزامنة قبل
   // أول رسم حتى لا تظهر ومضة بلا تباعد/تباين/حجم خط قبل اكتمال loadProfile().

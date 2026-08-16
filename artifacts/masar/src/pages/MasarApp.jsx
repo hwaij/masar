@@ -280,6 +280,11 @@ const YS = {
 export default function MasarApp() {
   const { t, i18n } = useTranslation();
   const [loaded, setLoaded] = useState(false);
+  // شاشة اختيار اللغة الأولى (قبل أي شيء آخر حتى شاشة البداية) - قراءة
+  // متزامنة لحظية (نفس نمط showSplash أدناه) حتى لا تظهر ومضة شاشة أخرى
+  // قبلها لزائر جديد، ولا ومضة لها لمستخدم عائد. راجع store.hasLanguagePicked
+  // للمنطق الكامل لمن يراها.
+  const [showLanguagePicker, setShowLanguagePicker] = useState(() => !store.hasLanguagePicked());
   const [showSplash, setShowSplash] = useState(() => !sessionStorage.getItem("masar_splash_done"));
   // يدعم اختصارات الشاشة الرئيسية (manifest.json → shortcuts) التي تفتح
   // التطبيق برابط "/?view=X" - لا علاقة له بأي منطق بيانات، مجرد قراءة
@@ -707,6 +712,18 @@ export default function MasarApp() {
     sessionStorage.setItem("masar_splash_done", "1");
   }, []);
 
+  // نفس مسار SideMenu.jsx's setLanguage بالحرف (i18n.changeLanguage +
+  // store.saveLanguage) - لا آلية موازية جديدة. لا انتظار للحفظ السحابي
+  // (best-effort تماماً كالموجود هناك) حتى يبدو الانتقال فورياً؛ lsSet
+  // المتزامن داخل saveLanguage يكفي لضمان دوام الاختيار محلياً فوراً.
+  const handlePickLanguage = useCallback((lang) => {
+    i18n.changeLanguage(lang);
+    store.saveLanguage(lang);
+    store.markLanguagePicked();
+    setShowLanguagePicker(false);
+  }, []);
+
+  if (showLanguagePicker) return <LanguagePicker onPick={handlePickLanguage} />;
   if (showSplash) return <SplashScreen onDone={dismissSplash} />;
   if (!loaded) return <div style={{ ...S.app, ...S.loaderWrap }}><Loader2 size={28} color="#C9A24B" className="spin" /></div>;
   if (hasAuth && !user) return <LandingPage onSignIn={handleSignIn} onEmailSignIn={handleEmailSignIn} onEmailSignUp={handleEmailSignUp} />;
@@ -1115,6 +1132,37 @@ function MasarJourney({ view, setView, profile, healthProfile, isSub, resumeStag
         back: t("common.buttons.back"), tapHere: t("onboarding.tapHere"), later: t("onboarding.later"),
       }}
     />
+  );
+}
+
+// شاشة اختيار اللغة الأولى - أول شيء يراه زائر جديد تماماً (حتى قبل شاشة
+// البداية)، ولذلك عمداً بلا أي اعتماد على i18next: لا توجد "لغة حالية" ذات
+// معنى بعد لم تُختَر بعد، والمحتوى نفسه ثنائي اللغة بتصميمه (كلا الخيارين
+// يظهران معاً، كل بخطه ونصه) فلا يحتاج ترجمة أصلاً. لمس أي زر يحفظ الاختيار
+// فوراً بنفس المسار المستخدم لاحقاً من SideMenu بالضبط.
+function LanguagePicker({ onPick }) {
+  return (
+    <div style={{ ...S.app, ...S.loaderWrap, flexDirection: "column", gap: 32, padding: "24px", textAlign: "center" }}>
+      <div style={{ fontFamily: "'Amiri', serif", fontSize: 38, fontWeight: 700, letterSpacing: 2 }}>
+        Masar · مسار
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14, width: "100%", maxWidth: 320 }}>
+        <button
+          type="button"
+          onClick={() => onPick("ar")}
+          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, background: "rgba(201,162,75,0.14)", border: "1px solid rgba(201,162,75,0.4)", color: "#C9A24B", borderRadius: 14, padding: "18px 0", fontSize: 18, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+        >
+          🇰🇼 العربية
+        </button>
+        <button
+          type="button"
+          onClick={() => onPick("en")}
+          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.16)", color: "var(--ink)", borderRadius: 14, padding: "18px 0", fontSize: 18, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+        >
+          🇬🇧 English
+        </button>
+      </div>
+    </div>
   );
 }
 

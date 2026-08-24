@@ -1520,6 +1520,7 @@
     "noInjuriesSelected": "None",
     "yourAssessmentNote": "We automatically use your \"You\" profile data (age/gender/height/weight) - no need to re-enter it here.",
     "injuryDisclaimer": "Your program was adjusted based on what you mentioned, but this is general guidance, not a substitute for a doctor's or rehab specialist's advice. Consult a specialist before training with any injury.",
+    "injurySubstitutionNote": "Because of the injury you mentioned, at least one targeted muscle group in this program was replaced with a safer neighboring muscle group.",
     "varyProgram": "Vary program",
     "varyProgramApplied": "Your program was varied with alternative exercises",
     "weeklyRotation": "Auto-rotate exercises",

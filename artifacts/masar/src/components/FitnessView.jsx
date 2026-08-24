@@ -21,7 +21,7 @@ import {
 import {
   buildProgram, pickAlternatives, suggestProgression, seedFromOwner, estimateOneRepMax,
   getLastPerformance, computeSessionVolumeByMuscle, estimateSessionCalories, mostRecentLoggedDate,
-  aggregateLogsByDate, setVolume,
+  aggregateLogsByDate, setVolume, restSecondsForGoalAndType,
 } from "../lib/fitness-engine";
 import { NO_CONDITION } from "../lib/health";
 import { playRestEndSound, primeAudioContext } from "../lib/sound";
@@ -902,7 +902,14 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
     if (!programEntry) return;
     const exercise = programEntry.program.days[dayIndex].exercises[exIndex];
     const prevEntry = programEntry;
-    const newExercise = { ...alt, sets: exercise.sets, reps: exercise.reps, restSeconds: exercise.restSeconds };
+    // البديل قد يكون من نوع مختلف لنفس العضلة (مركّب↔عزل) - راحة التمرين
+    // القديم (سواء الافتراضية أو مُعدَّلة يدوياً) كانت محسوبة لنوعه هو، لا
+    // للبديل الجديد. لا نُعيد الحساب إلا عند تغيّر النوع فعلياً حتى لا نُلغي
+    // تعديل راحة يدوي سابق للمستخدم بلا داعٍ حين يبقى النوع نفسه.
+    const newRestSeconds = alt.type !== exercise.type
+      ? restSecondsForGoalAndType(programEntry.program.goal, alt.type)
+      : exercise.restSeconds;
+    const newExercise = { ...alt, sets: exercise.sets, reps: exercise.reps, restSeconds: newRestSeconds };
     const newDays = programEntry.program.days.map((d, di) => (di !== dayIndex ? d : { ...d, exercises: d.exercises.map((e, ei) => (ei !== exIndex ? e : newExercise)) }));
     const entry = { ...programEntry, program: { ...programEntry.program, days: newDays } };
     setProgramEntry(entry);
@@ -1274,6 +1281,7 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
           <div style={FS.summaryLabel}>{t("fitness.yourProgram")}</div>
           <div style={FS.summaryValue}>{isolateNumbers(t("fitness.programSummary", { goal: goalLabel, equipment: equipmentLabel, days: fitnessProfile.daysPerWeek }))}</div>
           {programEntry?.program?.genderAdjusted && <p style={FS.noteText}>{t("fitness.genderAdjustedNote")}</p>}
+          {programEntry?.program?.hasInjurySubstitutions && <p style={FS.noteText}>{t("fitness.injurySubstitutionNote")}</p>}
         </div>
         <button onClick={() => setEditing(true)} style={{ ...S.exportBtn, width: "auto", padding: "9px 14px", marginBottom: 0 }}><Edit3 size={14} /> {t("fitness.editProgram")}</button>
       </div>

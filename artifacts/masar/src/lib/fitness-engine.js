@@ -89,6 +89,16 @@ function restSecondsForType(baseRest, type) {
   return baseRest;
 }
 
+// مصدر حقيقة واحد لحساب راحة تمرين معيَّن حسب هدف المستخدم ونوع التمرين -
+// يُستخدَم عند بناء البرنامج، ويجب استخدامه أيضاً عند استبدال تمرين واحد
+// يدوياً (Swap) بدل إبقاء راحة التمرين القديم: البديل قد يكون من نوع مختلف
+// تماماً لنفس العضلة (مثال: ضغط بار مركّب ← فتح صدر بالكابل عزل) فيحتاج
+// راحة مختلفة علمياً حتى لو استهدف نفس العضلة بالضبط.
+export function restSecondsForGoalAndType(goal, type) {
+  const volume = VOLUME_BY_GOAL[goal] || VOLUME_BY_GOAL.general_fitness;
+  return restSecondsForType(volume.restSeconds, type);
+}
+
 // المبتدئ يبدأ بحجم أقل (إتقان الأداء أولاً)، المتقدم يتحمّل حجماً أعلى.
 const SETS_ADJUST_BY_EXPERIENCE = { beginner: -1, intermediate: 0, advanced: 1 };
 
@@ -158,19 +168,32 @@ function candidatesFor(muscle, equipment, injuries, experience) {
 // المستخدَم بالفعل هذا الأسبوع (تنويع بين الأيام) - مع تراجع لعضلة بديلة
 // آمنة إن لم يبقَ أي مرشح صالح (انظر MUSCLE_FALLBACK أعلاه).
 //
+// visitedMuscles (داخلي فقط - لا يُمرَّر من أي نداء خارجي): يمنع الدخول في
+// حلقة تراجع لا نهائية. MUSCLE_FALLBACK يحوي أزواجاً متبادلة عمداً
+// (chest↔shoulders، biceps↔triceps، hamstrings↔glutes) لأن كل عضلة فيها
+// بديل آمن معقول للأخرى - لكن هذا يعني أنه إن أصبحت مجموعتا التمارين
+// المسموحتين لكلتا العضلتين فارغتين معاً في آن واحد (تركيبة معدات/خبرة/
+// إصابة معيّنة - مؤكَّد حدوثه فعلياً: مبتدئ في نادي رياضي كامل مصاب
+// بالمرفق)، كان التراجع يتنقّل بين العضلتين إلى ما لا نهاية ويُسقط
+// التطبيق (Maximum call stack size exceeded). تتبّع العضلات المُجرَّبة في
+// نفس سلسلة التراجع الحالية يوقف الحلقة بأمان (يعيد null لهذه الفتحة بدل
+// الانهيار - المستدعي (buildProgram) يتجاهل بالفعل أي نتيجة null).
+//
 // usedPatternsToday (اختياري): مجموعة أنماط الحركة (movementPattern) المستخدَمة
 // بالفعل في نفس جلسة اليوم - مبدأ تدريبي عام معروف: استهداف العضلة عبر أكثر
 // من نمط حركة واحد ضمن نفس اليوم (دفع أفقي + رأسي مثلاً) يعطي تطوراً أعمّ من
 // تكرار نفس النمط الحركي بأدوات مختلفة فقط. يُستخدَم فقط كتفضيل ثانوي بعد
 // المركّب/العزل - لا يستبعد أي مرشح، فقط يعيد ترتيب الأولوية بينها.
-function pickOneForMuscle(muscle, equipment, injuries, experience, usedIds, rng, substitutionFlag, usedPatternsToday, goal, avoidExerciseId) {
+function pickOneForMuscle(muscle, equipment, injuries, experience, usedIds, rng, substitutionFlag, usedPatternsToday, goal, avoidExerciseId, visitedMuscles) {
+  const visited = visitedMuscles || new Set();
+  visited.add(muscle);
   let pool = candidatesFor(muscle, equipment, injuries, experience).filter((e) => !usedIds.has(e.id));
   if (pool.length === 0) pool = candidatesFor(muscle, equipment, injuries, experience);
   if (pool.length === 0) {
     const fallbackMuscle = MUSCLE_FALLBACK[muscle];
-    if (fallbackMuscle) {
+    if (fallbackMuscle && !visited.has(fallbackMuscle)) {
       substitutionFlag.value = true;
-      return pickOneForMuscle(fallbackMuscle, equipment, injuries, experience, usedIds, rng, substitutionFlag, usedPatternsToday, goal, avoidExerciseId);
+      return pickOneForMuscle(fallbackMuscle, equipment, injuries, experience, usedIds, rng, substitutionFlag, usedPatternsToday, goal, avoidExerciseId, visited);
     }
     return null;
   }
@@ -181,7 +204,6 @@ function pickOneForMuscle(muscle, equipment, injuries, experience, usedIds, rng,
     const withoutAvoided = pool.filter((e) => e.id !== avoidExerciseId);
     if (withoutAvoided.length > 0) pool = withoutAvoided;
   }
-  if (injuries.length > 0) substitutionFlag.value = true;
   const shuffled = seededShuffle(pool, rng);
   const bias = GOAL_COMPOUND_BIAS[goal] || "default";
 
@@ -340,7 +362,14 @@ export function buildProgram(assessment, seed, hasPerformanceHistory = false, pr
     sessionMinutes,
     equipment,
     injuries,
-    hasInjurySubstitutions: substitutionFlag.value || injuries.length > 0,
+    // ملاحظة: هذا العلم يعكس فقط استبدال عضلة مستهدَفة كاملة بأخرى فعلياً
+    // (تراجع MUSCLE_FALLBACK حين تفرغ كل مجموعة العضلة الأصلية) - لا يعني
+    // مجرد وجود إصابة في الملف الشخصي (ذلك مغطّى بتنبيه injuryDisclaimer
+    // العام المنفصل في الواجهة). كان هذا العلم محسوباً سابقاً لكنه لم
+    // يُعرَض في أي واجهة إطلاقاً - أصبح الآن يغذّي ملاحظة مخصَّصة في شاشة
+    // البرنامج (انظر FitnessView.jsx) تُعلم المستخدم تحديداً أن عضلة
+    // مستهدَفة استُبدلت بعضلة مجاورة آمنة بسبب إصابته.
+    hasInjurySubstitutions: substitutionFlag.value,
     genderAdjusted: genderAdjustedFlag.value,
     seed: actualSeed,
     generatedAt: new Date().toISOString(),

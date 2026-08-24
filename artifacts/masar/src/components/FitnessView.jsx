@@ -21,7 +21,7 @@ import {
 import {
   buildProgram, pickAlternatives, suggestProgression, seedFromOwner, estimateOneRepMax,
   getLastPerformance, computeSessionVolumeByMuscle, estimateSessionCalories, mostRecentLoggedDate,
-  aggregateLogsByDate,
+  aggregateLogsByDate, setVolume,
 } from "../lib/fitness-engine";
 import { NO_CONDITION } from "../lib/health";
 import { playRestEndSound, primeAudioContext } from "../lib/sound";
@@ -736,7 +736,7 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
         if (Date.now() - last >= interval) {
           const weekIndex = Math.floor(Date.now() / interval);
           const seed = (seedFromOwner(getOwner()) + weekIndex) >>> 0;
-          entry = { ...entry, program: buildProgram({ ...fp, gender }, seed, hasPerformanceHistory), seed, lastRotatedAt: new Date().toISOString() };
+          entry = { ...entry, program: buildProgram({ ...fp, gender }, seed, hasPerformanceHistory, entry.program), seed, lastRotatedAt: new Date().toISOString() };
           await store.saveWorkoutProgram(entry);
         }
       }
@@ -801,7 +801,7 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
       const d = new Date(`${log.date}T00:00:00`);
       if (Number.isNaN(d.getTime())) continue;
       const weekIndex = Math.floor(d.getTime() / (7 * 24 * 3600 * 1000));
-      const vol = (log.weight || 1) * (log.reps || 0) * (log.setsCompleted || 0);
+      const vol = setVolume(log);
       weeks[weekIndex] = (weeks[weekIndex] || 0) + vol;
     }
     return Object.entries(weeks).sort((a, b) => Number(a[0]) - Number(b[0])).slice(-8)
@@ -875,7 +875,7 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
     if (!programEntry) return;
     const prevEntry = programEntry;
     const seed = Math.floor(Math.random() * 2 ** 31);
-    const entry = { ...programEntry, program: buildProgram({ ...fitnessProfile, gender }, seed, workoutLog.length > 0), seed };
+    const entry = { ...programEntry, program: buildProgram({ ...fitnessProfile, gender }, seed, workoutLog.length > 0, programEntry.program), seed };
     setProgramEntry(entry);
     const res = await store.saveWorkoutProgram(entry);
     if (!res.ok) { setProgramEntry(prevEntry); showToast(t("common.errors.saveFailed")); return; }

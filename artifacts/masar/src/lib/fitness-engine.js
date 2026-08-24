@@ -58,6 +58,22 @@ const VOLUME_BY_GOAL = {
   maintain_weight: { sets: 3, reps: "10-12", restSeconds: 60 },
 };
 
+// ===== 1ب) ميل اختيار نوع التمرين حسب الهدف =====
+// "default": بلا أي تغيير سلوكي - نفس مسار الاختيار الأصلي بالحرف
+// (مركّب أولاً دائماً، مع ثغرة تفضيل النمط الحركي الجديد الحالية).
+// "strict_compound" (تنشيف): إغلاق تلك الثغرة تحديداً - يبقى التركيز على
+// التمارين المركّبة (طلب أيضي/حرق أعلى - مبدأ عام)، لا يفشل أبداً حتى لو
+// لم يبقَ تمرين مركّب (يتراجع للمجموعة الكاملة).
+// "balanced" (بناء عضل): تجاوز الفرز الصارم "مركّب أولاً" كلياً، استخدام
+// ترتيب الخلط المحسوب أصلاً كما هو - تمثيل حقيقي مختلط بين مركّب/عزل
+// (تدريب العزل جزء علمي معتبر في تضخيم العضل)، بلا أي استدعاء rng إضافي.
+const GOAL_COMPOUND_BIAS = {
+  lose_weight: "strict_compound",
+  build_muscle: "balanced",
+  general_fitness: "default",
+  maintain_weight: "default",
+};
+
 // مبدأ علمي عام معروف في تصميم برامج التمارين: التمارين المركّبة (تشغّل
 // عدة مفاصل/عضلات كبرى معاً) تحتاج راحة أطول للتعافي العصبي-عضلي الكافي
 // قبل المجموعة التالية، بينما تمارين العزل (عضلة واحدة صغيرة) تحتاج راحة
@@ -147,23 +163,45 @@ function candidatesFor(muscle, equipment, injuries, experience) {
 // من نمط حركة واحد ضمن نفس اليوم (دفع أفقي + رأسي مثلاً) يعطي تطوراً أعمّ من
 // تكرار نفس النمط الحركي بأدوات مختلفة فقط. يُستخدَم فقط كتفضيل ثانوي بعد
 // المركّب/العزل - لا يستبعد أي مرشح، فقط يعيد ترتيب الأولوية بينها.
-function pickOneForMuscle(muscle, equipment, injuries, experience, usedIds, rng, substitutionFlag, usedPatternsToday) {
+function pickOneForMuscle(muscle, equipment, injuries, experience, usedIds, rng, substitutionFlag, usedPatternsToday, goal, avoidExerciseId) {
   let pool = candidatesFor(muscle, equipment, injuries, experience).filter((e) => !usedIds.has(e.id));
   if (pool.length === 0) pool = candidatesFor(muscle, equipment, injuries, experience);
   if (pool.length === 0) {
     const fallbackMuscle = MUSCLE_FALLBACK[muscle];
     if (fallbackMuscle) {
       substitutionFlag.value = true;
-      return pickOneForMuscle(fallbackMuscle, equipment, injuries, experience, usedIds, rng, substitutionFlag, usedPatternsToday);
+      return pickOneForMuscle(fallbackMuscle, equipment, injuries, experience, usedIds, rng, substitutionFlag, usedPatternsToday, goal, avoidExerciseId);
     }
     return null;
   }
+  // تنويع بين إعادات التوليد: استبعاد التمرين المستخدَم سابقاً لنفس الفتحة
+  // فقط إن بقي مرشَّح حقيقي واحد على الأقل بعد الاستبعاد - وإلا تكرار صادق
+  // (لا بديل مُختلَق حين لا يوجد بديل فعلي).
+  if (avoidExerciseId) {
+    const withoutAvoided = pool.filter((e) => e.id !== avoidExerciseId);
+    if (withoutAvoided.length > 0) pool = withoutAvoided;
+  }
   if (injuries.length > 0) substitutionFlag.value = true;
   const shuffled = seededShuffle(pool, rng);
-  const compoundFirst = [...shuffled.filter((e) => e.type === "compound" || e.type === "cardio"), ...shuffled.filter((e) => e.type === "isolation" || e.type === "mobility")];
+  const bias = GOAL_COMPOUND_BIAS[goal] || "default";
+
+  // "balanced": تجاوز فرز "مركّب أولاً" كلياً - استخدام ترتيب الخلط كما هو.
+  if (bias === "balanced") return shuffled[0];
+
+  const compoundOnly = shuffled.filter((e) => e.type === "compound" || e.type === "cardio");
+  const compoundFirst = [...compoundOnly, ...shuffled.filter((e) => e.type === "isolation" || e.type === "mobility")];
+
   if (usedPatternsToday) {
-    const novelPattern = compoundFirst.find((e) => e.movementPattern && !usedPatternsToday.has(e.movementPattern));
-    if (novelPattern) return novelPattern;
+    if (bias === "strict_compound") {
+      // إغلاق الثغرة: البحث عن نمط جديد ضمن المركّب فقط (يتراجع للمجموعة
+      // الكاملة إن لم يبقَ أي تمرين مركّب - لا فشل صلب أبداً).
+      const searchPool = compoundOnly.length > 0 ? compoundOnly : compoundFirst;
+      const novelPattern = searchPool.find((e) => e.movementPattern && !usedPatternsToday.has(e.movementPattern));
+      if (novelPattern) return novelPattern;
+    } else {
+      const novelPattern = compoundFirst.find((e) => e.movementPattern && !usedPatternsToday.has(e.movementPattern));
+      if (novelPattern) return novelPattern;
+    }
   }
   return compoundFirst[0] || shuffled[0];
 }
@@ -199,7 +237,14 @@ const UPPER_BODY_MUSCLES = new Set(["chest", "back", "shoulders", "biceps", "tri
 // hasPerformanceHistory: هل يملك المستخدم أي سجل أداء فعلي مسجَّل سابقاً؟
 // (انظر التعليق أعلاه - يعطّل الافتراض الجنسي العام كلياً بمجرد توفّر
 // بيانات حقيقية عن هذا المستخدم تحديداً).
-export function buildProgram(assessment, seed, hasPerformanceHistory = false) {
+// previousProgram (اختياري): البرنامج الحالي قبل الاستبدال - يُستخدَم فقط
+// لتجنّب تكرار نفس التمرين في نفس "الفتحة" (نفس ترتيب اليوم/العضلة) إن
+// وُجد بديل حقيقي (انظر avoidExerciseId في pickOneForMuscle أعلاه). لا
+// يغيّر الحتمية - نفس (assessment, seed, previousProgram) يُعطي نفس النتيجة
+// دائماً. آمن للتمرير فقط حين تكون بنية الأيام/العضلات للمدخلات الجديدة
+// مطابقة للبرنامج السابق (نفس المستخدم يعيد توليد بنفس ملفه الرياضي) -
+// لا يُمرَّر عند تغيّر الملف الشخصي فعلياً (معدات/أيام/هدف مختلفة).
+export function buildProgram(assessment, seed, hasPerformanceHistory = false, previousProgram = null) {
   const { goal, experience, daysPerWeek, sessionMinutes, equipment, injuries = [], gender } = assessment;
   const actualSeed = Number.isFinite(seed) ? seed : seedFromOwner("solo");
   const split = pickSplit(daysPerWeek, experience);
@@ -217,12 +262,30 @@ export function buildProgram(assessment, seed, hasPerformanceHistory = false) {
     const picked = [];
     const usedPatternsToday = new Set();
     const addPicked = (ex) => { picked.push(ex); usedThisWeek.add(ex.id); if (ex.movementPattern) usedPatternsToday.add(ex.movementPattern); };
+
+    // فهرسة معرّفات اليوم المقابل من البرنامج السابق حسب العضلة (بترتيب
+    // ظهورها) - لاستبعاد نفس التمرين في نفس "الفتحة" الترتيبية لهذه العضلة
+    // إن وُجد بديل حقيقي (انظر التعليق أعلى buildProgram).
+    const prevDay = previousProgram?.days?.[dayIndex];
+    const prevIdsByMuscle = {};
+    if (prevDay) {
+      for (const e of prevDay.exercises) {
+        (prevIdsByMuscle[e.muscle] || (prevIdsByMuscle[e.muscle] = [])).push(e.id);
+      }
+    }
+    const muscleOccurrence = {};
+    const avoidIdFor = (muscle) => {
+      const idx = muscleOccurrence[muscle] || 0;
+      muscleOccurrence[muscle] = idx + 1;
+      const list = prevIdsByMuscle[muscle];
+      return list ? list[idx] : undefined;
+    };
     // مرحلة أولى: تمرين واحد لكل عضلة مستهدَفة (تغطية متوازنة أولاً) - بنفس
     // الترتيب الأصلي المحايد دائماً (لا تأثير جنسي هنا) حتى تبقى تغطية كل
     // عضلات اليوم الأساسية مضمونة بالتساوي لكل مستخدم بغض النظر عن جنسه.
     for (const muscle of muscles) {
       if (picked.length >= exerciseCount) break;
-      const ex = pickOneForMuscle(muscle, equipment, injuries, experience, usedThisWeek, dayRng, substitutionFlag, usedPatternsToday);
+      const ex = pickOneForMuscle(muscle, equipment, injuries, experience, usedThisWeek, dayRng, substitutionFlag, usedPatternsToday, goal, avoidIdFor(muscle));
       if (ex) addPicked(ex);
     }
     // مرحلة ثانية: إن سمحت مدة الحصة بتمارين إضافية، أضف تمريناً ثانياً
@@ -232,14 +295,14 @@ export function buildProgram(assessment, seed, hasPerformanceHistory = false) {
     let round = 0;
     while (picked.length < exerciseCount && round < muscles.length) {
       const muscle = muscles[round % muscles.length];
-      const ex = pickOneForMuscle(muscle, equipment, injuries, experience, usedThisWeek, dayRng, substitutionFlag, usedPatternsToday);
+      const ex = pickOneForMuscle(muscle, equipment, injuries, experience, usedThisWeek, dayRng, substitutionFlag, usedPatternsToday, goal, avoidIdFor(muscle));
       if (ex) addPicked(ex);
       round++;
     }
     // إن كان الهدف تنشيفاً، أضف تمريناً كارديو ختامياً قصيراً (مبدأ عام:
     // عجز سعرات أكبر باستهلاك إضافي، لا يستبدل تمارين المقاومة الأساسية).
     if (goal === "lose_weight" && picked.length < exerciseCount + 1) {
-      const cardioEx = pickOneForMuscle("cardio", equipment, injuries, experience, usedThisWeek, dayRng, substitutionFlag, usedPatternsToday);
+      const cardioEx = pickOneForMuscle("cardio", equipment, injuries, experience, usedThisWeek, dayRng, substitutionFlag, usedPatternsToday, goal, avoidIdFor("cardio"));
       if (cardioEx) addPicked(cardioEx);
     }
     // تمرين تهدئة/مرونة واحد في ختام كل يوم بغضّ النظر عن الهدف - مبدأ
@@ -247,7 +310,7 @@ export function buildProgram(assessment, seed, hasPerformanceHistory = false) {
     // هذا فعلياً مجموعة تمارين "المرونة" في قاعدة البيانات التي لم تكن تظهر
     // لأي مستخدم من قبل (لا split يستهدف mobility كعضلة رئيسية) - بيانات
     // كانت ميتة فعلياً حتى الآن.
-    const cooldownEx = pickOneForMuscle("mobility", equipment, injuries, experience, usedThisWeek, dayRng, substitutionFlag, usedPatternsToday);
+    const cooldownEx = pickOneForMuscle("mobility", equipment, injuries, experience, usedThisWeek, dayRng, substitutionFlag, usedPatternsToday, goal, avoidIdFor("mobility"));
     if (cooldownEx) addPicked(cooldownEx);
 
     const exercises = picked.map((e) => ({
@@ -407,7 +470,7 @@ export function getLastPerformance(exerciseId, workoutLog, excludeDate) {
 // نجمعه فقط للتمارين التي بها وزن رقمي فعلي مسجَّل - الحجم بتعريفه العلمي هو
 // "حمل × تكرار × مجموعات"، وتمارين وزن الجسم بلا وزن مسجَّل ليس لها حمل رقمي
 // حقيقي لتضمينه بأمانة (لا نستخدم رقماً وهمياً كبديل عن الوزن).
-function setVolume(log) {
+export function setVolume(log) {
   return log.weight && log.weight > 0 ? log.weight * (log.reps || 0) * (log.setsCompleted || 0) : 0;
 }
 

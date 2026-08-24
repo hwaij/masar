@@ -143,6 +143,21 @@ function seededShuffle(arr, rng) {
   return a;
 }
 
+// يدوّر مصفوفة العضلات المستهدَفة بإزاحة ثابتة - يُستخدَم فقط حين لا تتسع
+// مدة الحصة لكل عضلات اليوم (انظر التعليق عند استخدامها في buildProgram):
+// بلا تدوير، كانت آخر عضلة/عضلتين في DAY_TYPE_MUSCLES (مثال: hamstrings/abs
+// في full_body) تُهمَلان دائماً، في كل توليدة، لكل مستخدم يختار حصة قصيرة -
+// عيب حقيقي مؤكَّد بالاختبار (30 دقيقة "جسم كامل" لا تلمس الأرجل الخلفية أو
+// البطن إطلاقاً مهما تغيّر seed). التدوير لا يضمن تغطية الكل في يوم واحد
+// (هذا مستحيل رياضياً حين تكون عضلات اليوم أكثر من عدد التمارين المتاحة)،
+// لكنه يضمن أن العضلة المُهمَلة تتغيّر بين توليدات مختلفة (تنويع أسبوعي/
+// إعادة توليد) بدل أن تكون نفس العضلة مُهمَلة للأبد.
+function rotateArray(arr, offset) {
+  if (arr.length === 0) return arr;
+  const o = ((offset % arr.length) + arr.length) % arr.length;
+  return [...arr.slice(o), ...arr.slice(0, o)];
+}
+
 // بذرة افتراضية مشتقّة من هوية المستخدم (owner) - ثابتة عبر الزيارات لنفس
 // المستخدم (لا يتغيّر برنامجه عشوائياً بلا سبب)، لكنها مختلفة عن أي مستخدم
 // آخر بنفس بالضبط نفس الملف الرياضي - هذا ما يحقق "لا يرى الجميع نفس
@@ -279,7 +294,15 @@ export function buildProgram(assessment, seed, hasPerformanceHistory = false, pr
   const genderAdjustedFlag = { value: false };
 
   const days = split.map((dayType, dayIndex) => {
-    const muscles = DAY_TYPE_MUSCLES[dayType] || DAY_TYPE_MUSCLES.full_body;
+    const dayMuscles = DAY_TYPE_MUSCLES[dayType] || DAY_TYPE_MUSCLES.full_body;
+    // إزاحة تدوير مستقلة عن dayRng (بذرة مختلفة، لا تستهلك من مسار العشوائية
+    // المستخدَم لاختيار التمارين نفسها) - صفر دائماً حين تتسع مدة الحصة لكل
+    // عضلات اليوم أصلاً (لا تغيير سلوكي هنا)، وقيمة حقيقية فقط حين يوجد
+    // احتمال إهمال دائم لعضلة (انظر rotateArray أعلاه).
+    const rotationOffset = dayMuscles.length > exerciseCount
+      ? (actualSeed + dayIndex * 613) % dayMuscles.length
+      : 0;
+    const muscles = rotateArray(dayMuscles, rotationOffset);
     const dayRng = mulberry32((actualSeed + dayIndex * 977) >>> 0);
     const picked = [];
     const usedPatternsToday = new Set();
@@ -460,6 +483,13 @@ export function aggregateLogsByDate(logsForExercise) {
 }
 
 export function suggestProgression(exercise, logsForExercise) {
+  // التطوّر التدريجي (وزن/تكرار إضافي) مفهوم خاص بتمارين المقاومة - حقل
+  // "reps" في الكارديو/المرونة هو في الحقيقة مدة بالثواني (مثال: "20-30
+  // seconds per side")، فاقتراح "جرّب رقماً+1 تكراراً" كان يعرض رقم الثواني
+  // على أنه تكرار (مربك وغير دقيق علمياً - "جرّب 31" لتمديد كان يبدو وكأنه
+  // 31 تكراراً بدل 31 ثانية). لا معنى علمياً لإيقاف الحساب هنا بديل صحيح -
+  // ببساطة لا نقترح شيئاً لهذين النوعين.
+  if (exercise.type === "cardio" || exercise.type === "mobility") return null;
   const aggregated = aggregateLogsByDate(logsForExercise);
   if (aggregated.length === 0) return null;
   const last = aggregated[aggregated.length - 1];

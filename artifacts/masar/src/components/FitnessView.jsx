@@ -5,7 +5,7 @@ import {
   Dumbbell, PersonStanding, Footprints, HeartPulse, Bike, Wind, Flame, Settings2, StretchHorizontal,
   AlertTriangle, Edit3, Check, Repeat, TrendingUp, X, ChevronLeft, ChevronRight,
   Circle, Play, Pause, SkipForward, PartyPopper, Trophy, Clock, ListChecks, Share2, BarChart3, Youtube,
-  FileText, Camera, Sparkles, LayoutGrid,
+  FileText, Camera, Sparkles, LayoutGrid, Target, Trash2,
 } from "lucide-react";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { store, getOwner } from "../lib/store";
@@ -21,12 +21,13 @@ import {
 import {
   buildProgram, pickAlternatives, suggestProgression, seedFromOwner, estimateOneRepMax,
   getLastPerformance, computeSessionVolumeByMuscle, estimateSessionCalories, mostRecentLoggedDate,
-  aggregateLogsByDate, setVolume, restSecondsForGoalAndType,
+  aggregateLogsByDate, setVolume, restSecondsForGoalAndType, exercisesForMuscle,
 } from "../lib/fitness-engine";
 import { NO_CONDITION } from "../lib/health";
 import { playRestEndSound, primeAudioContext } from "../lib/sound";
 import { shareAchievementCard } from "../lib/achievementShare";
 import MuscleDiagram from "./MuscleDiagram";
+import InteractiveMuscleDiagram from "./InteractiveMuscleDiagram";
 import { S } from "./styles";
 
 const ICONS = { Dumbbell, PersonStanding, Footprints, HeartPulse, Bike, Wind, Flame, Settings2, StretchHorizontal };
@@ -214,14 +215,16 @@ function ExerciseRow({ exercise, isEn, gender, isLogging, onToggleLog, logWeight
         <button onClick={onOpenDetail} style={FS.smallBtn}>
           <ForwardChevron size={12} /> {t("fitness.detailsBtn")}
         </button>
-        <button onClick={onToggleSwap} style={{ ...FS.smallBtn, border: "1px solid var(--border2)", background: "transparent", color: "var(--muted2)" }}>
-          <Repeat size={12} /> {t("fitness.alternativeBtn")}
-        </button>
+        {onToggleSwap && (
+          <button onClick={onToggleSwap} style={{ ...FS.smallBtn, border: "1px solid var(--border2)", background: "transparent", color: "var(--muted2)" }}>
+            <Repeat size={12} /> {t("fitness.alternativeBtn")}
+          </button>
+        )}
         <button onClick={onToggleLog} style={FS.smallBtn}>
           <TrendingUp size={12} /> {t("fitness.logPerformance")}
         </button>
       </div>
-      {isSwapping && (
+      {onToggleSwap && isSwapping && (
         <div style={FS.alternativesPanel}>
           <div style={FS.alternativesTitle}>{t("fitness.chooseAlternativeTitle")}</div>
           {alternatives.length === 0 ? (
@@ -341,6 +344,71 @@ function ExerciseDetailView({ exercise, isEn, isRtl, gender, onBack, t }) {
           </a>
         )}
       </div>
+    </div>
+  );
+}
+
+// شاشة اختيار عضلة بالضغط المباشر على مخطط الجسم التشريحي التفاعلي (بدل
+// قائمة نصية) لبناء "جلسة تمرين مخصَّصة" لعضلة واحدة - قائمة التمارين
+// المعروضة أسفل المخطط هي فعلياً exercisesForMuscle() (نفس فلترة معدات/
+// إصابات/خبرة المستخدَمة في محرِّك بناء البرنامج التلقائي، بلا أي تكرار
+// لتلك الفلترة هنا).
+function MusclePickerScreen({ gender, isEn, isRtl, t, pickedMuscle, onSelectMuscle, candidates, pickedIds, onToggleId, onSave, onBack }) {
+  const BackChevron = isRtl ? ChevronRight : ChevronLeft;
+  return (
+    <div style={S.view}>
+      <button onClick={onBack} style={FS.backRow}><BackChevron size={16} /> {t("fitness.backToProgram")}</button>
+      <div style={FS.hero}>
+        <div style={FS.heroIcon}><Target size={22} color="var(--on-accent)" /></div>
+        <div>
+          <div style={FS.heroTitle}>{t("fitness.customSessionPickerTitle")}</div>
+          <div style={FS.heroSub}>{t("fitness.customSessionPickerSub")}</div>
+        </div>
+      </div>
+      <div style={FS.formCard}>
+        <InteractiveMuscleDiagram
+          selected={pickedMuscle}
+          onSelect={onSelectMuscle}
+          gender={gender}
+          muscleLabel={(k) => t(`fitness.muscleGroups.${k}`)}
+          frontLabel={t("fitness.bodyViewFront")}
+          backLabel={t("fitness.bodyViewBack")}
+          width={230}
+        />
+      </div>
+      {pickedMuscle && (
+        <div style={FS.formCard}>
+          <div style={{ ...FS.summaryLabel, marginBottom: 8 }}>{t(`fitness.muscleGroups.${pickedMuscle}`)}</div>
+          {candidates.length === 0 ? (
+            <p style={FS.noteText}>{t("fitness.customSessionNoExercises")}</p>
+          ) : (
+            candidates.map((ex) => {
+              const checked = pickedIds.has(ex.id);
+              return (
+                <label key={ex.id} style={{ ...FS.exerciseRow, display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => onToggleId(ex.id)}
+                    style={{ width: 20, height: 20, flexShrink: 0 }}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={FS.exerciseName}>{isEn ? (ex.nameEn || ex.name) : ex.name}</div>
+                    <div style={FS.exerciseMeta}>
+                      {isolateNumbers(t("fitness.setsReps", { sets: ex.sets, reps: isEn ? (ex.repsEn || ex.reps) : ex.reps }))} · {isolateNumbers(t("fitness.restLabel", { sec: ex.restSeconds }))}
+                    </div>
+                  </div>
+                </label>
+              );
+            })
+          )}
+          {candidates.length > 0 && (
+            <button onClick={onSave} disabled={pickedIds.size === 0} style={{ ...S.saveBtn, marginTop: 10, opacity: pickedIds.size === 0 ? 0.5 : 1 }}>
+              {t("fitness.saveCustomSessionBtn", { count: pickedIds.size })}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -669,6 +737,13 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
   const [draft, setDraft] = useState({ goal: null, equipment: null, daysPerWeek: 3, experience: null, sessionMinutes: 45, injuries: [] });
   const [loggingKey, setLoggingKey] = useState(null);
   const [swappingKey, setSwappingKey] = useState(null);
+  // اختيار عضلة بالضغط المباشر على المخطط التشريحي (بدل قوائم نصية) لبناء
+  // "جلسة تمرين مخصَّصة" لعضلة واحدة - شاشة منفصلة عن محرِّر الملف الرياضي
+  // (draft) وعن البرنامج التلقائي كلياً؛ pickedExerciseIds تُصفَّر عند كل
+  // تغيير عضلة (معرِّفات تمرين عضلة سابقة لا معنى لها لعضلة جديدة).
+  const [showMusclePicker, setShowMusclePicker] = useState(false);
+  const [pickedMuscle, setPickedMuscle] = useState(null);
+  const [pickedExerciseIds, setPickedExerciseIds] = useState(() => new Set());
   const [logWeight, setLogWeight] = useState("");
   const [logReps, setLogReps] = useState("");
   const [logSets, setLogSets] = useState("");
@@ -960,6 +1035,51 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
     if (!res.ok) setProgramEntry(prevEntry);
   }
 
+  function selectPickedMuscle(muscle) {
+    setPickedMuscle(muscle);
+    setPickedExerciseIds(new Set());
+  }
+
+  function toggleExercisePick(exerciseId) {
+    setPickedExerciseIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(exerciseId)) next.delete(exerciseId); else next.add(exerciseId);
+      return next;
+    });
+  }
+
+  // يبني "جلسة تمرين مخصَّصة" (تمارين عضلة واحدة، مختارة يدوياً من مخطط
+  // الجسم التفاعلي، بنفس فلترة المعدات/الإصابات/الخبرة وأرقام حجم التدريب
+  // المستخدَمة في البرنامج التلقائي تماماً - انظر exercisesForMuscle في
+  // fitness-engine.js) ويحفظها ضمن program.customSessions - حقل جديد داخل
+  // نفس عمود program (JSONB واحد بالكامل في قاعدة البيانات، انظر
+  // store.saveWorkoutProgram) لا نظام تخزين مواز، فلا حاجة لأي تعديل مخطط
+  // قاعدة بيانات (SQL) لهذه الميزة.
+  async function saveCustomSession() {
+    if (!programEntry || !pickedMuscle || pickedExerciseIds.size === 0) return;
+    const candidates = exercisesForMuscle(pickedMuscle, fitnessProfile);
+    const chosen = candidates.filter((e) => pickedExerciseIds.has(e.id));
+    if (chosen.length === 0) return;
+    const session = { id: uid(), muscle: pickedMuscle, createdAt: new Date().toISOString(), exercises: chosen };
+    const prevEntry = programEntry;
+    const entry = { ...programEntry, program: { ...programEntry.program, customSessions: [...(programEntry.program.customSessions || []), session] } };
+    setProgramEntry(entry);
+    const res = await store.saveWorkoutProgram(entry);
+    if (!res.ok) { setProgramEntry(prevEntry); showToast(t("common.errors.saveFailed")); return; }
+    setShowMusclePicker(false); setPickedMuscle(null); setPickedExerciseIds(new Set());
+    showToast(t("fitness.customSessionSaved"));
+  }
+
+  async function deleteCustomSession(sessionId) {
+    if (!programEntry) return;
+    const prevEntry = programEntry;
+    const nextSessions = (programEntry.program.customSessions || []).filter((s) => s.id !== sessionId);
+    const entry = { ...programEntry, program: { ...programEntry.program, customSessions: nextSessions } };
+    setProgramEntry(entry);
+    const res = await store.saveWorkoutProgram(entry);
+    if (!res.ok) { setProgramEntry(prevEntry); showToast(t("common.errors.saveFailed")); }
+  }
+
   // الوزن (خلافاً للتكرارات/المجموعات) لم يكن يُتحقَّق منه إطلاقاً - قيمة
   // غير رقمية (مثال: كتابة نص بالخطأ) تتحوّل لـ NaN، تُخزَّن كأنها وزن
   // حقيقي، وتنكشف لاحقاً كـ"بلا وزن مسجَّل" في كل حساب حجم/رقم قياسي (لأن
@@ -1211,6 +1331,24 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
     return <ExerciseDetailView exercise={selectedExercise} isEn={isEn} isRtl={isRtl} gender={gender} onBack={() => setSelectedExercise(null)} t={t} />;
   }
 
+  if (showMusclePicker) {
+    return (
+      <MusclePickerScreen
+        gender={gender}
+        isEn={isEn}
+        isRtl={isRtl}
+        t={t}
+        pickedMuscle={pickedMuscle}
+        onSelectMuscle={selectPickedMuscle}
+        candidates={pickedMuscle ? exercisesForMuscle(pickedMuscle, fitnessProfile) : []}
+        pickedIds={pickedExerciseIds}
+        onToggleId={toggleExercisePick}
+        onSave={saveCustomSession}
+        onBack={() => { setShowMusclePicker(false); setPickedMuscle(null); setPickedExerciseIds(new Set()); }}
+      />
+    );
+  }
+
   if (editing || !hasProfile) {
     return (
       <div style={S.view}>
@@ -1317,6 +1455,7 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
       <div style={FS.toolsRow}>
         <button onClick={varyProgram} style={FS.toolBtn}><Repeat size={14} /> {t("fitness.varyProgram")}</button>
         <button onClick={() => setShowStatistics(true)} style={FS.toolBtn} data-tour="fitness-statistics-btn"><BarChart3 size={14} /> {t("fitness.statisticsBtn")}</button>
+        <button onClick={() => setShowMusclePicker(true)} style={FS.toolBtn}><Target size={14} /> {t("fitness.buildCustomSessionBtn")}</button>
         <select
           value={programEntry?.weekRotationEnabled ? (programEntry.rotationFrequency || "weekly") : ""}
           onChange={(e) => setRotation(e.target.value || null)}
@@ -1424,6 +1563,54 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
           </div>
         ))}
       </div>
+
+      {/* جلسات مخصَّصة (عضلة واحدة، مُختارة من مخطط الجسم التفاعلي) - جزء من
+          نفس نظام "البرنامج" (program.customSessions) لا نظام موازٍ منفصل؛
+          لذا تظهر هنا كامتداد لقائمة أيام البرنامج، لا كصفحة/تبويب آخر. كل
+          صف تمرين هنا للعرض/التسجيل فقط (بلا استبدال أو تعديل راحة يدوي -
+          applySwap/adjustExerciseRest تفهرسان بمكان التمرين داخل
+          program.days، وهذا غير منطبق على جلسة مخصَّصة ليست جزءاً من تلك
+          الأيام)؛ "ابدأ التمرين" يستخدم بالضبط نفس startFocusWorkout/وضع
+          التركيز العام المستخدَم لأيام البرنامج التلقائي دون أي تعديل. */}
+      {programEntry?.program?.customSessions?.length > 0 && (
+        <div className="stagger-in responsive-card-list" style={{ marginTop: 14 }}>
+          {programEntry.program.customSessions.map((session) => (
+            <div key={session.id} style={FS.dayCard}>
+              <div style={{ ...FS.dayCardHead, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                <span>{t("fitness.customSessionLabel")} · {t(`fitness.muscleGroups.${session.muscle}`)}</span>
+                <button onClick={() => deleteCustomSession(session.id)} style={{ ...FS.smallBtn, border: "1px solid var(--border2)", background: "transparent", color: "var(--muted2)" }} aria-label={t("common.buttons.delete")}>
+                  <Trash2 size={12} />
+                </button>
+              </div>
+              {session.exercises.map((ex, exIndex) => {
+                const key = `custom-${session.id}-${exIndex}`;
+                const progression = suggestProgression(ex, workoutLog.filter((l) => l.exerciseId === ex.id));
+                return (
+                  <ExerciseRow
+                    key={`${key}-${ex.id}`}
+                    exercise={ex}
+                    isEn={isEn}
+                    gender={gender}
+                    isLogging={loggingKey === key}
+                    onToggleLog={() => {
+                      setLoggingKey((k) => (k === key ? null : key));
+                      setLogWeight(""); setLogReps(""); setLogSets("");
+                    }}
+                    onOpenDetail={() => setSelectedExercise(ex)}
+                    logWeight={logWeight} setLogWeight={setLogWeight}
+                    logReps={logReps} setLogReps={setLogReps}
+                    logSets={logSets} setLogSets={setLogSets}
+                    onSubmitPerformance={() => submitPerformance(ex)}
+                    progression={progression}
+                    t={t}
+                  />
+                );
+              })}
+              <button onClick={() => startFocusWorkout({ exercises: session.exercises })} style={FS.startWorkoutBtn}><Play size={15} /> {t("fitness.startWorkoutBtn")}</button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {(fitnessTour.step === 2 || fitnessTour.step === 3 || fitnessTour.step === 4) && (
         <SpotlightTour

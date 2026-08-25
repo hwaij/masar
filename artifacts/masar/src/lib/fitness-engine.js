@@ -169,7 +169,7 @@ export function seedFromOwner(owner) {
   return h >>> 0;
 }
 
-function candidatesFor(muscle, equipment, injuries, experience) {
+export function candidatesFor(muscle, equipment, injuries, experience) {
   const allowedDifficulties = DIFFICULTY_ALLOWED[experience] || DIFFICULTY_ALLOWED.beginner;
   return EXERCISES.filter((e) =>
     e.muscle === muscle &&
@@ -177,6 +177,32 @@ function candidatesFor(muscle, equipment, injuries, experience) {
     allowedDifficulties.includes(e.difficulty) &&
     !e.joints.some((j) => injuries.includes(j)),
   );
+}
+
+// نفس تحويل حجم التدريب (مجموعات/تكرارات/راحة) المطبَّق داخل buildProgram
+// أدناه بالضبط (سطر واحد مُستخرَج هنا ليُستخدَم من الاثنين معاً) - يضمن أن
+// أي تمرين يظهر لعضلة معيّنة (سواء ضمن برنامج مبني تلقائياً أو ضمن جلسة
+// مخصَّصة يبنيها المستخدم بنفسه من مخطط الجسم التفاعلي) يحمل نفس أرقام
+// المجموعات/التكرارات/الراحة المحسوبة علمياً حسب هدف ومستوى نفس المستخدم -
+// لا صيغة مختلفة أو مُكرَّرة في مكانين.
+function withVolume(e, volume, sets) {
+  return {
+    ...e,
+    sets: (e.muscle === "cardio" || e.muscle === "mobility") ? 1 : sets,
+    reps: (e.type === "cardio" || e.type === "mobility") ? e.reps : volume.reps,
+    restSeconds: restSecondsForType(volume.restSeconds, e.type),
+  };
+}
+
+// تمارين عضلة واحدة مفلترة بمعدات/إصابات/مستوى خبرة المستخدم فعلياً (نفس
+// candidatesFor المستخدَمة داخل بناء البرنامج التلقائي حرفياً - لا فلترة
+// موازية أو أقل صرامة) مع أرقام حجم تدريب جاهزة حسب هدف المستخدم - تُستخدَم
+// في اختيار عضلة من مخطط الجسم التفاعلي لبناء "جلسة مخصَّصة" لهذه العضلة.
+export function exercisesForMuscle(muscle, assessment) {
+  const { equipment, injuries = [], experience, goal } = assessment;
+  const volume = VOLUME_BY_GOAL[goal] || VOLUME_BY_GOAL.general_fitness;
+  const sets = Math.max(2, volume.sets + (SETS_ADJUST_BY_EXPERIENCE[experience] || 0));
+  return candidatesFor(muscle, equipment, injuries, experience).map((e) => withVolume(e, volume, sets));
 }
 
 // يختار تمريناً واحداً لعضلة معيّنة، مفضِّلاً المركّب على العزل ومستبعداً
@@ -378,12 +404,7 @@ export function buildProgram(assessment, seed, hasPerformanceHistory = false, pr
     const cooldownEx = pickOneForMuscle("mobility", equipment, injuries, experience, usedThisWeek, dayRng, substitutionFlag, usedPatternsToday, goal, avoidIdFor("mobility"));
     if (cooldownEx) addPicked(cooldownEx);
 
-    const exercises = picked.map((e) => ({
-      ...e,
-      sets: (e.muscle === "cardio" || e.muscle === "mobility") ? 1 : sets,
-      reps: (e.type === "cardio" || e.type === "mobility") ? e.reps : volume.reps,
-      restSeconds: restSecondsForType(volume.restSeconds, e.type),
-    }));
+    const exercises = picked.map((e) => withVolume(e, volume, sets));
 
     // نقطة انطلاق أولية فقط (انظر التعليق العلمي أعلاه UPPER_BODY_MUSCLES) -
     // مجموعة واحدة إضافية كحد أقصى، على تمرين مركّب واحد للجزء العلوي إن

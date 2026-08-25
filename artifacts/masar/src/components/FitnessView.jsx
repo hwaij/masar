@@ -506,6 +506,8 @@ function FinishSummaryView({ summary, isEn, gender, t, showToast, onClose }) {
       volumeText,
       exercisesText,
       totalSetsText,
+      bestText,
+      summaryBestLabel: t("fitness.summaryBestLabel"),
       targetMuscles: summary.musclesWorked,
       gender,
       heroNumber: summary.exercisesCompleted,
@@ -856,6 +858,17 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
 
   function toggleInjury(key) {
     setDraft((d) => ({ ...d, injuries: d.injuries.includes(key) ? d.injuries.filter((x) => x !== key) : [...d.injuries, key] }));
+  }
+
+  // "رجوع" بلا حفظ كان يترك draft كما هو (تعديلات لم تُحفَظ) - إعادة فتح
+  // "تعديل تقييمي" لاحقاً كانت تعرض تلك التعديلات المهجورة بدل الملف
+  // الفعلي المحفوظ، موحية بأن الملف الشخصي تغيّر رغم أنه لم يتغيّر إطلاقاً.
+  function cancelEditing() {
+    setDraft({
+      goal: fitnessProfile.goal || null, equipment: fitnessProfile.equipment || null, daysPerWeek: fitnessProfile.daysPerWeek || 3,
+      experience: fitnessProfile.experience || null, sessionMinutes: fitnessProfile.sessionMinutes || 45, injuries: fitnessProfile.injuries || [],
+    });
+    setEditing(false);
   }
 
   async function saveProfile() {
@@ -1248,7 +1261,7 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
           </div>
           <button onClick={saveProfile} style={S.saveBtn} data-tour="fitness-save-profile">{t("fitness.saveAndCreate")}</button>
           {hasProfile && (
-            <button onClick={() => setEditing(false)} style={{ ...S.exportBtn, marginTop: 8, marginBottom: 0 }}>{t("common.buttons.back")}</button>
+            <button onClick={cancelEditing} style={{ ...S.exportBtn, marginTop: 8, marginBottom: 0 }}>{t("common.buttons.back")}</button>
           )}
         </div>
         {fitnessTour.step === 1 && (
@@ -1349,7 +1362,7 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
               <div key={muscle} style={FS.volumeRow}>
                 <div style={FS.volumeRowHead}>
                   <span>{t(`fitness.muscleGroups.${muscle}`)}</span>
-                  <span style={FS.volumeValue}>{Math.round(vol).toLocaleString()} {t("fitness.volumeUnit")}</span>
+                  <span style={FS.volumeValue}>{isolateNumbers(`${formatNumberLatin(Math.round(vol), isEn ? "en" : "ar")} ${t("fitness.volumeUnit")}`)}</span>
                 </div>
                 <div style={FS.barTrack}><div style={{ ...FS.barFill, width: `${maxMuscleVolume > 0 ? Math.round((vol / maxMuscleVolume) * 100) : 0}%` }} /></div>
               </div>
@@ -1384,7 +1397,14 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
                   isEn={isEn}
                   gender={gender}
                   isLogging={loggingKey === key}
-                  onToggleLog={() => setLoggingKey(loggingKey === key ? null : key)}
+                  onToggleLog={() => {
+                    // إغلاق النموذج بلا حفظ (أو فتحه لتمرين آخر) كان يترك
+                    // الوزن/التكرار/المجموعات المكتوبة كما هي - تظهر لاحقاً
+                    // معبَّأة مسبقاً في نموذج تمرين مختلف تماماً، وقد تُحفَظ
+                    // بالخطأ كأداء التمرين الجديد دون أن ينتبه المستخدم.
+                    setLoggingKey((k) => (k === key ? null : key));
+                    setLogWeight(""); setLogReps(""); setLogSets("");
+                  }}
                   onOpenDetail={() => setSelectedExercise(ex)}
                   logWeight={logWeight} setLogWeight={setLogWeight}
                   logReps={logReps} setLogReps={setLogReps}

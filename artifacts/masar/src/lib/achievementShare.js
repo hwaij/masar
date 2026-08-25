@@ -72,6 +72,44 @@ function wrapText(ctx, text, x, y, maxWidth, lineHeight, align) {
   return lines;
 }
 
+// نفس wrapText لكن تُطبَّق علامتا عزل الاتجاه (RLI/PDI) على كل سطر مُقسَّم
+// على حدة بعد التقسيم لا قبله - نص طويل قد يتضمّن رقماً (وزن/تكرار) يقع في
+// أي سطر بعد اللف، فيحتاج كل سطر عزله المستقل بدل سلسلة واحدة يُقسَّمها
+// wrapText لاحقاً إلى نداءات fillText منفصلة تفقد فعالية علامة العزل بين
+// الأسطر الوسطى.
+function wrapTextBidi(ctx, text, x, y, maxWidth, lineHeight, align, isRtl) {
+  const words = String(text || "").split(" ");
+  let line = "";
+  let curY = y;
+  for (const word of words) {
+    const testLine = line ? `${line} ${word}` : word;
+    if (ctx.measureText(testLine).width > maxWidth && line) {
+      ctx.fillText(bidiSafe(line, isRtl), x, curY);
+      line = word;
+      curY += lineHeight;
+    } else {
+      line = testLine;
+    }
+  }
+  if (line) ctx.fillText(bidiSafe(line, isRtl), x, curY);
+}
+
+// يقصّر النص بعلامة حذف (…) إن تجاوز العرض المتاح - "الرقم القياسي" وحده
+// من بين كل القيم يتضمّن اسم تمرين متغيّر الطول (قد يطول كثيراً) بجانب
+// الوزن/التكرار الثابتَي الطول تقريباً - القوالب أحادية السطر (لا تتّسع
+// لالتفاف نص بلا إزاحة تخطيط كامل حسابياً) تحتاج ضماناً بعدم الخروج عن
+// حدود البطاقة أفقياً بدل الاعتماد على قِصَر النص افتراضاً.
+function fitTextEllipsis(ctx, text, maxWidth) {
+  const str = String(text || "");
+  if (ctx.measureText(str).width <= maxWidth) return str;
+  let lo = 0, hi = str.length;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (ctx.measureText(`${str.slice(0, mid)}…`).width <= maxWidth) lo = mid; else hi = mid - 1;
+  }
+  return `${str.slice(0, lo)}…`;
+}
+
 function drawBackground(ctx, colorA = "#0A0A0B", colorB = "#1C1710") {
   const grad = ctx.createLinearGradient(0, 0, CARD_WIDTH, CARD_HEIGHT);
   grad.addColorStop(0, colorA);
@@ -156,7 +194,7 @@ function loadImageFromFile(file) {
 
 // 1) ملخّص كامل: التمارين المنجزة، مخطط مصغَّر للعضلات المستهدَفة، المدة، الحجم.
 async function drawFullSummary(ctx, opts) {
-  const { brandLabel, title, footer, isRtl, durationText, volumeText, exercisesText, targetMuscles, gender } = opts;
+  const { brandLabel, title, footer, isRtl, durationText, volumeText, exercisesText, bestText, targetMuscles, gender } = opts;
   drawBackground(ctx);
   drawGoldGlow(ctx, isRtl ? CARD_WIDTH - 60 : 60, 100, 300);
   const align = isRtl ? "right" : "left";
@@ -167,29 +205,40 @@ async function drawFullSummary(ctx, opts) {
   ctx.font = "700 58px Tajawal, sans-serif";
   wrapText(ctx, title, x, 240, CARD_WIDTH - 160, 68, align);
 
+  // الرقم القياسي الشخصي (bestText) هو غالباً أكثر رقم يستحق الفخر/المشاركة
+  // فعلياً (إنجاز جديد) - كان محسوباً ومعروضاً في شاشة ملخّص التمرين لكنه لم
+  // يكن يصل إطلاقاً لأي من قوالب المشاركة الأربعة. تقليص تباعد الأسطر (140
+  // إلى 108) وحجم مخطط العضلات المصغَّر قليلاً (480 إلى 400) يفسحان المجال
+  // لعرضه دون تراكب.
   const stats = [
-    [opts.summaryExercisesLabel, exercisesText],
-    [opts.summaryDurationLabel, durationText],
-    [opts.summaryVolumeLabel, volumeText],
+    [opts.summaryExercisesLabel, exercisesText, false],
+    [opts.summaryDurationLabel, durationText, false],
+    [opts.summaryVolumeLabel, volumeText, false],
+    [opts.summaryBestLabel, bestText, true],
   ];
   let y = 400;
-  for (const [label, value] of stats) {
+  for (const [label, value, isLongValue] of stats) {
     ctx.fillStyle = MUTED;
     ctx.font = "400 32px Tajawal, sans-serif";
     ctx.fillText(bidiSafe(label, isRtl), x, y);
     ctx.fillStyle = "#FFFFFF";
     ctx.font = "700 50px Tajawal, sans-serif";
-    ctx.fillText(bidiSafe(value, isRtl), x, y + 58);
-    y += 140;
+    // اسم التمرين داخل "الرقم القياسي" متغيّر الطول (على عكس بقية القيم
+    // الرقمية القصيرة الثابتة تقريباً) - سطر واحد هنا فعلاً (لا وقت لتغيير
+    // ديناميكي لموضع مخطط العضلات أسفله) فيُقصَّر بعلامة حذف بدل الخروج عن
+    // حدود البطاقة أفقياً (مؤكَّد بصرياً أنه كان يحدث فعلاً قبل هذا الإصلاح).
+    const text = isLongValue ? fitTextEllipsis(ctx, value, CARD_WIDTH - 160) : value;
+    ctx.fillText(bidiSafe(text, isRtl), x, y + 50);
+    y += 108;
   }
 
   try {
     const svgMarkup = buildBodySvgMarkup(targetMuscles, gender);
     const img = await loadImageFromSvgMarkup(svgMarkup);
-    const boxH = 480;
+    const boxH = 400;
     const boxW = boxH * (img.width / img.height);
     const boxX = isRtl ? 90 : CARD_WIDTH - boxW - 90;
-    const boxY = CARD_HEIGHT - boxH - 190;
+    const boxY = CARD_HEIGHT - boxH - 170;
     ctx.drawImage(img, boxX, boxY, boxW, boxH);
   } catch (e) { console.error("[achievementShare] body diagram render failed:", e); }
 
@@ -198,7 +247,7 @@ async function drawFullSummary(ctx, opts) {
 
 // 2) صورة شخصية + إنجاز: صورة المستخدم (اختيارية) كخلفية مع تراكب نصي.
 async function drawPhotoCard(ctx, opts, photoImage) {
-  const { brandLabel, footer, isRtl, durationText, volumeText, exercisesText } = opts;
+  const { brandLabel, footer, isRtl, durationText, volumeText, exercisesText, bestText } = opts;
   const align = isRtl ? "right" : "left";
   const x = isRtl ? CARD_WIDTH - 80 : 80;
 
@@ -225,18 +274,20 @@ async function drawPhotoCard(ctx, opts, photoImage) {
   drawBrandRow(ctx, brandLabel, x, align);
 
   const stats = [
-    [opts.summaryExercisesLabel, exercisesText],
-    [opts.summaryDurationLabel, durationText],
-    [opts.summaryVolumeLabel, volumeText],
+    [opts.summaryExercisesLabel, exercisesText, false],
+    [opts.summaryDurationLabel, durationText, false],
+    [opts.summaryVolumeLabel, volumeText, false],
+    [opts.summaryBestLabel, bestText, true],
   ];
-  let y = CARD_HEIGHT - 460;
-  for (const [label, value] of stats) {
+  let y = CARD_HEIGHT - 570;
+  for (const [label, value, isLongValue] of stats) {
     ctx.fillStyle = MUTED;
     ctx.font = "400 30px Tajawal, sans-serif";
     ctx.fillText(bidiSafe(label, isRtl), x, y);
     ctx.fillStyle = "#FFFFFF";
     ctx.font = "700 48px Tajawal, sans-serif";
-    ctx.fillText(bidiSafe(value, isRtl), x, y + 54);
+    const text = isLongValue ? fitTextEllipsis(ctx, value, CARD_WIDTH - 160) : value;
+    ctx.fillText(bidiSafe(text, isRtl), x, y + 54);
     y += 110;
   }
 
@@ -268,7 +319,7 @@ function drawMinimalCard(ctx, opts) {
 
 // 4) إحصائي: الأرقام في تخطيط شبكي أنيق (2x2).
 function drawStatsGridCard(ctx, opts) {
-  const { brandLabel, title, footer, isRtl, durationText, volumeText, exercisesText, totalSetsText } = opts;
+  const { brandLabel, title, footer, isRtl, durationText, volumeText, exercisesText, totalSetsText, bestText } = opts;
   drawBackground(ctx, "#0A0A0B", "#15130F");
   const align = isRtl ? "right" : "left";
   const x = isRtl ? CARD_WIDTH - 80 : 80;
@@ -304,6 +355,27 @@ function drawStatsGridCard(ctx, opts) {
     ctx.font = "800 66px Tajawal, sans-serif";
     ctx.fillText(bidiSafe(cells[i][1], isRtl), cx + cellW / 2, cy + 150);
   }
+
+  // الرقم القياسي (bestText) نص أطول بكثير من بقية الخلايا الرقمية القصيرة
+  // (يتضمّن اسم التمرين + وزن + تكرار، مثال: "ضغط بار — ٤٠ كغ × ٨ تكرار")
+  // - وضعه كخلية سادسة بنفس عرض/خط الشبكة الضيّقة كان يفيض عن حدود البطاقة
+  // فعلياً (تأكَّد بصرياً بمعاينة الصورة المُصيَّرة). صف عريض منفصل بعرض
+  // البطاقة الكامل مع التفاف نص وخط أصغر يحلّ المشكلة دون تضييق الشبكة
+  // الأصلية للخلايا الأربع الأخرى.
+  const bestBoxTop = gridTop + 2 * cellH + 20;
+  ctx.strokeStyle = "rgba(201,162,75,0.25)";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(gridLeft + 10, bestBoxTop, CARD_WIDTH - 160 - 20, 190);
+  ctx.textAlign = "center";
+  ctx.fillStyle = MUTED;
+  ctx.font = "400 30px Tajawal, sans-serif";
+  ctx.fillText(bidiSafe(opts.summaryBestLabel, isRtl), CARD_WIDTH / 2, bestBoxTop + 55);
+  ctx.fillStyle = GOLD;
+  ctx.font = "700 42px Tajawal, sans-serif";
+  // wrapText يرسم كل سطر بنداء fillText مستقل - تغليف السلسلة الكاملة بعزل
+  // اتجاه واحد قبل التقسيم يترك الأسطر الوسطى بلا علامة فتح/إغلاق فعلية.
+  // العزل هنا لكل سطر مقسَّم على حدة بدل السلسلة الكاملة مرة واحدة.
+  wrapTextBidi(ctx, bestText, CARD_WIDTH / 2, bestBoxTop + 115, CARD_WIDTH - 220, 50, "center", isRtl);
 
   ctx.textAlign = align;
   drawFooter(ctx, footer, x, align);

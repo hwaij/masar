@@ -306,7 +306,17 @@ export function buildProgram(assessment, seed, hasPerformanceHistory = false, pr
     const dayRng = mulberry32((actualSeed + dayIndex * 977) >>> 0);
     const picked = [];
     const usedPatternsToday = new Set();
-    const addPicked = (ex) => { picked.push(ex); usedThisWeek.add(ex.id); if (ex.movementPattern) usedPatternsToday.add(ex.movementPattern); };
+    // حين تُستنفد كل المرشَّحين الحقيقيين لعضلة معيّنة هذا الأسبوع، يتراجع
+    // pickOneForMuscle لتجاهل الاستبعاد كلياً (fallback حين pool فارغ) - وهذا
+    // صحيح ومقصود عبر أيام مختلفة، لكنه قد يُعيد **نفس تمرين اليوم ذاته** إن
+    // استُنفدت العضلة خلال نفس اليوم (مؤكَّد بمحاكاة عشوائية: ~26% من الأيام
+    // كانت تحوي تمريناً مكرَّراً حرفياً مرّتين في نفس القائمة). استبعاد أي
+    // تكرار حرفي داخل نفس اليوم هنا مركزياً - يوم أقصر بتمارين حقيقية مختلفة
+    // كلها أصدق من تمرين مكرَّر يبدو وكأنه تمرينان منفصلان.
+    const addPicked = (ex) => {
+      if (picked.some((p) => p.id === ex.id)) return;
+      picked.push(ex); usedThisWeek.add(ex.id); if (ex.movementPattern) usedPatternsToday.add(ex.movementPattern);
+    };
 
     // فهرسة معرّفات اليوم المقابل من البرنامج السابق حسب العضلة (بترتيب
     // ظهورها) - لاستبعاد نفس التمرين في نفس "الفتحة" الترتيبية لهذه العضلة
@@ -337,8 +347,18 @@ export function buildProgram(assessment, seed, hasPerformanceHistory = false, pr
     // للعضلات الأساسية لليوم (أولوية للعضلات الكبرى) بالدوران عليها - بنفس
     // الترتيب المحايد دائماً، بلا أي تأثير جنسي هنا (انظر تعديل المجموعات
     // أدناه بعد بناء قائمة التمارين النهائية لليوم).
+    //
+    // حد الحلقة exerciseCount لا muscles.length: أيام "الدفع/السحب" (Push/
+    // Pull) لا تستهدف سوى 3 عضلات - بحد muscles.length القديم (3)، كانت
+    // الحلقة تكتفي بمحاولة واحدة إضافية لكل عضلة (3+3=6 كحد أقصى مطلق)،
+    // فتعجز بنيوياً عن بلوغ 8 تمارين (حصة 90 دقيقة) **مهما توفّر من تنوّع
+    // حقيقي في قاعدة البيانات** - مؤكَّد بمحاكاة مباشرة. exerciseCount حدٌّ
+    // أعلى آمن دائماً (لا نحتاج أكثر من ذلك أصلاً)، ومع حارس التكرار في
+    // addPicked أعلاه، أي محاولة زائدة على التنوّع الفعلي المتاح تُتجاهَل
+    // بأمان بدل تكرار تمرين - اليوم ينتهي بعدد صادق (قد يبقى أقل من الهدف
+    // حين تكون قاعدة البيانات نفسها محدودة، لا بسبب حد الحلقة).
     let round = 0;
-    while (picked.length < exerciseCount && round < muscles.length) {
+    while (picked.length < exerciseCount && round < exerciseCount) {
       const muscle = muscles[round % muscles.length];
       const ex = pickOneForMuscle(muscle, equipment, injuries, experience, usedThisWeek, dayRng, substitutionFlag, usedPatternsToday, goal, avoidIdFor(muscle));
       if (ex) addPicked(ex);

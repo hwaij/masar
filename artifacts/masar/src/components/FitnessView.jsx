@@ -11,7 +11,7 @@ import { BarChart, Bar, LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tool
 import { store, getOwner } from "../lib/store";
 import { useModuleTour } from "../lib/useModuleTour";
 import SpotlightTour from "./SpotlightTour";
-import { todayKey, uid, formatNumberLatin } from "../lib/helpers";
+import { uid, formatNumberLatin } from "../lib/helpers";
 import { isolateNumbers } from "../lib/bidi";
 import { localDayKey } from "../lib/tips";
 import {
@@ -705,7 +705,14 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nowTick, restEndsAt]);
 
-  const today = todayKey();
+  // localDayKey (تقويم محلي) لا todayKey (يعتمد UTC) - كل تسجيلات الأداء
+  // (workoutLog) والقائمة الأسبوعية أدناه (weekCompletedCount) تُخزَّن أصلاً
+  // بتاريخ محلي عبر localDayKey؛ استخدام todayKey هنا كان يُنتج مفتاحاً
+  // مختلفاً لعدة ساعات بعد كل منتصف ليل محلي لأي منطقة زمنية +UTC (تحديداً
+  // الكويت/الخليج +3 - جمهور مسار الأساسي) - فتفوّت مقارنة "آخر أداء" في
+  // وضع التركيز أداء اليوم نفسه بالخطأ، ويُسجَّل "إنجاز اليوم" تحت مفتاح
+  // تاريخ مختلف عن باقي بيانات نفس اليوم فعلياً.
+  const today = localDayKey();
 
   useEffect(() => {
     let active = true;
@@ -828,9 +835,13 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
   const [showStatistics, setShowStatistics] = useState(false);
   const [selectedStatsExerciseId, setSelectedStatsExerciseId] = useState(null);
 
+  // كارديو/المرونة تُسجَّل دائماً بلا وزن (مدتها بالثواني لا حمل رقمي) -
+  // ظهورها في قائمة اختيار "تطوّر الوزن عبر الجلسات" كان يعطي المستخدم
+  // خياراً يؤدي دائماً لرسم بياني فارغ بلا أي تفسير - استبعادها هنا حتى لا
+  // نعرض خياراً لا يمكنه إظهار شيء أصلاً.
   const exerciseOptions = useMemo(() => {
     const ids = Array.from(new Set(workoutLog.map((l) => l.exerciseId)));
-    return ids.map((id) => EXERCISES_BY_ID[id]).filter(Boolean);
+    return ids.map((id) => EXERCISES_BY_ID[id]).filter((e) => e && e.type !== "cardio" && e.type !== "mobility");
   }, [workoutLog]);
 
   const effectiveStatsExerciseId = selectedStatsExerciseId || (exerciseOptions[0]?.id ?? null);
@@ -936,11 +947,15 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
     if (!res.ok) setProgramEntry(prevEntry);
   }
 
+  // الوزن (خلافاً للتكرارات/المجموعات) لم يكن يُتحقَّق منه إطلاقاً - قيمة
+  // غير رقمية (مثال: كتابة نص بالخطأ) تتحوّل لـ NaN، تُخزَّن كأنها وزن
+  // حقيقي، وتنكشف لاحقاً كـ"بلا وزن مسجَّل" في كل حساب حجم/رقم قياسي (لأن
+  // NaN falsy) - تمثيل صامت وخاطئ لأداء المستخدم الفعلي بدل رفض واضح.
   async function submitPerformance(exercise) {
     const reps = parseInt(logReps, 10);
     const sets = parseInt(logSets, 10);
     const weight = logWeight.trim() !== "" ? parseFloat(logWeight) : null;
-    if (!Number.isFinite(reps) || reps <= 0 || !Number.isFinite(sets) || sets <= 0) {
+    if (!Number.isFinite(reps) || reps <= 0 || !Number.isFinite(sets) || sets <= 0 || (weight != null && (!Number.isFinite(weight) || weight < 0))) {
       showToast(t("fitness.invalidPerformance"));
       return;
     }
@@ -978,7 +993,7 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
     const exercise = focusDay.exercises[focusExIndex];
     const reps = parseInt(focusReps, 10);
     const weight = focusWeight.trim() !== "" ? parseFloat(focusWeight) : null;
-    if (!Number.isFinite(reps) || reps <= 0) { showToast(t("fitness.invalidPerformance")); return; }
+    if (!Number.isFinite(reps) || reps <= 0 || (weight != null && (!Number.isFinite(weight) || weight < 0))) { showToast(t("fitness.invalidPerformance")); return; }
     // تُستدعى من داخل ضغطة حقيقية - تهيّئ AudioContext مبكراً حتى يعمل صوت
     // انتهاء الراحة لاحقاً من المؤقّت (انظر primeAudioContext في sound.js).
     primeAudioContext();

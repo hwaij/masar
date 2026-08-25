@@ -2102,9 +2102,19 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
 
   const catMap = useMemo(() => Object.fromEntries(categories.map((c) => [c.id, c])), [categories]);
   const span = range === "week" ? 7 : 30;
+  // خلل حقيقي وُجد وأُصلح: كانت days/prevDays تُبنى بـtodayKey() (تاريخ UTC
+  // للحظة الحالية) بدل التاريخ المحلي الفعلي، بينما كل السجلات التي تُقارَن
+  // بها هذه المصفوفة (entries.date، nutritionLog.date بعد إصلاح مماثل في
+  // قسم التغذية، fitnessLog، waterLog، sleepLog.date عبر SleepSection الذي
+  // يستقبل days كخاصية) مؤرَّخة محلياً. لمستخدم بتوقيت أمامي عن UTC (كالكويت
+  // +3)، هذا يعني أن أول 3 ساعات من كل يوم محلي جديد لم تكن تُطابق أي عمود
+  // في الرسوم البيانية، وحساب "اليوم" في مقارنة المهام الفائتة أدناه، وتاريخ
+  // "صدر بتاريخ" في تصدير PDF، كلها كانت تُبنى على مرجع زمني مختلف عن بقية
+  // التطبيق. localDayKey (lib/tips.js) هي المصدر الصحيح الموحَّد المُستخدَم
+  // فعلاً في DietPlansView/SleepSection وبعد إصلاح قسم التغذية الأخير.
   const days = useMemo(() => {
     const arr = []; const today = new Date();
-    for (let i = span - 1; i >= 0; i--) { const d = new Date(today); d.setDate(d.getDate() - i); arr.push(todayKey(d)); }
+    for (let i = span - 1; i >= 0; i--) { const d = new Date(today); d.setDate(d.getDate() - i); arr.push(localDayKey(d)); }
     return arr;
   }, [span]);
   // نافذة الفترة السابقة مباشرة (نفس عدد الأيام قبل بداية الفترة الحالية) -
@@ -2112,7 +2122,7 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
   // بنفس منطق بناء days تماماً لكن مُزاحاً بمقدار span يوماً للخلف.
   const prevDays = useMemo(() => {
     const arr = []; const today = new Date();
-    for (let i = span * 2 - 1; i >= span; i--) { const d = new Date(today); d.setDate(d.getDate() - i); arr.push(todayKey(d)); }
+    for (let i = span * 2 - 1; i >= span; i--) { const d = new Date(today); d.setDate(d.getDate() - i); arr.push(localDayKey(d)); }
     return arr;
   }, [span]);
   const barData = days.map((day) => ({
@@ -2217,10 +2227,36 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
   const tasksInRange = useMemo(() => (tasks || []).filter((tk) => tk.due && days.includes(tk.due)), [tasks, days]);
   const tasksPrevInRange = useMemo(() => (tasks || []).filter((tk) => tk.due && prevDays.includes(tk.due)), [tasks, prevDays]);
   const tasksCompletedCount = tasksInRange.filter((tk) => tk.done).length;
-  const tasksMissedCount = tasksInRange.filter((tk) => !tk.done && tk.due < todayKey()).length;
+  const tasksMissedCount = tasksInRange.filter((tk) => !tk.done && tk.due < localDayKey()).length;
   const tasksPrevCompletedCount = tasksPrevInRange.filter((tk) => tk.done).length;
 
-  const nutritionLoggingStreak = useMemo(() => computeStreak(Array.from(new Set(nutritionLog.map((e) => e.date)))), [nutritionLog]);
+  // خلل حقيقي وُجد وأُصلح: nutritionLog يصل من store.loadNutritionLog() مُقيَّداً
+  // بآخر 90 يوماً من جهة الخادم (قيد صريح موثَّق هناك بحجة أن "لا ميزة سلسلة/
+  // streak تعتمد على سجل التغذية الكامل") - لكن هذه السلسلة تحديداً تعتمد
+  // عليه فعلاً. لمستخدم بسلسلة تسجيل حقيقية أطول من 90 يوماً، computeStreak
+  // يتوقف بصمت عند حافة النافذة المجلوبة فيعرض رقماً أقل من الحقيقة كأنه
+  // دقيق تماماً (مثال مُتحقَّق منه: سلسلة حقيقية 95 يوماً تُعرض كـ91). الإصلاح
+  // لا يوسّع الجلب (يتناقض مع سبب تحديد 90 يوماً أصلاً) بل يكتشف متى تصل
+  // السلسلة المحسوبة حتى حافة النافذة المتاحة فعلياً، ويعرضها كحد أدنى صادق
+  // ("+") بدل رقم قد يكون أقل من الحقيقة - نفس مبدأ mealsScopeNote الصادق
+  // المُستخدَم أصلاً لـtotalMealsLogged في تبويب "الرحلة الكاملة".
+  const nutritionDatesLogged = useMemo(() => Array.from(new Set(nutritionLog.map((e) => e.date))), [nutritionLog]);
+  const nutritionLoggingStreak = useMemo(() => computeStreak(nutritionDatesLogged), [nutritionDatesLogged]);
+  // نافذة الجلب من الخادم (90 يوماً - date >= isoDateDaysAgo(90) في store.js،
+  // شرط >= يعني أن آخر يوم لا يزال ضمنها هو "قبل 90 يوماً" نفسه، أي 91 يوماً
+  // متتالياً بالإجمالي بما فيها اليوم). السلسلة المحسوبة لا يمكن رياضياً أن
+  // تتجاوز هذا العدد أبداً مهما كان تاريخ المستخدم الحقيقي أطول - فبلوغها
+  // هذا السقف بالذات (لا أقل) هو الإشارة الوحيدة الموثوقة على أن البيانات
+  // الأقدم موجودة فعلاً لكنها لم تُجلَب، بخلاف مستخدم جديد ينتهي سجله
+  // الحقيقي قبل بلوغ السقف (لا اقتطاع هناك، الرقم المعروض دقيق فعلاً).
+  const nutritionStreakMayBeLonger = useMemo(() => {
+    if (nutritionLoggingStreak === 0) return false;
+    const streakOldestDay = new Date();
+    streakOldestDay.setDate(streakOldestDay.getDate() - (nutritionLoggingStreak - 1));
+    const fetchWindowEdge = new Date();
+    fetchWindowEdge.setDate(fetchWindowEdge.getDate() - 90);
+    return streakOldestDay <= fetchWindowEdge;
+  }, [nutritionLoggingStreak]);
   const taskCompletionStreak = useMemo(() => computeStreak((tasks || []).filter((tk) => tk.done && tk.due).map((tk) => tk.due)), [tasks]);
 
   const goalsDoneCount = (goals || []).filter((g) => g.status === "done").length;
@@ -2486,7 +2522,7 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
         ${nutritionActiveDays > 0 ? `<div class="kpi"><div class="v">${nutritionAvgCalories}</div><div class="l">متوسط السعرات اليومي</div></div>` : ""}
       </div>` : ""}
       ${smartTip ? `<h2>توصية مسار الذكية</h2><div class="smart-box">${escapeHtml(isolateNumbers(smartTip))}</div>` : ""}
-      <div class="footer">مسار · أداتك الشخصية للوقت وتطوير الذات · صدر بتاريخ ${arabicDate(todayKey(), { day: "numeric", month: "long", year: "numeric" })}</div>
+      <div class="footer">مسار · أداتك الشخصية للوقت وتطوير الذات · صدر بتاريخ ${arabicDate(localDayKey(), { day: "numeric", month: "long", year: "numeric" })}</div>
       </body></html>`;
     // فرع إنجليزي مواز كامل - نفس البنية والـCSS تماماً لكن بخصائص منطقية
     // معكوسة (LTR بدل RTL: border-left/padding-left بدل right، محاذاة نص
@@ -2535,7 +2571,7 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
         ${nutritionActiveDays > 0 ? `<div class="kpi"><div class="v">${nutritionAvgCalories}</div><div class="l">${t("pdfReport.averageDailyCalories")}</div></div>` : ""}
       </div>` : ""}
       ${smartTip ? `<h2>${t("pdfReport.smartRecommendation")}</h2><div class="smart-box">${escapeHtml(isolateNumbers(smartTip))}</div>` : ""}
-      <div class="footer">${t("pdfReport.footer", { date: arabicDate(todayKey(), { day: "numeric", month: "long", year: "numeric" }, "en-US") })}</div>
+      <div class="footer">${t("pdfReport.footer", { date: arabicDate(localDayKey(), { day: "numeric", month: "long", year: "numeric" }, "en-US") })}</div>
       </body></html>`;
     const html = isEn ? htmlEn : htmlAr;
     const w = window.open("", "_blank");
@@ -2673,9 +2709,12 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
               </div>
               <div style={RS.streakGrid}>
                 <div style={RS.streakCard}><div style={RS.streakValue}><NumericValue value={workoutStreak} /></div><div style={RS.streakLabel}>{t("reportsView.comprehensive.workoutStreak")}</div></div>
-                <div style={RS.streakCard}><div style={RS.streakValue}><NumericValue value={nutritionLoggingStreak} /></div><div style={RS.streakLabel}>{t("reportsView.comprehensive.nutritionStreak")}</div></div>
+                <div style={RS.streakCard}><div style={RS.streakValue}><NumericValue value={nutritionStreakMayBeLonger ? `${nutritionLoggingStreak}+` : nutritionLoggingStreak} /></div><div style={RS.streakLabel}>{t("reportsView.comprehensive.nutritionStreak")}</div></div>
                 <div style={RS.streakCard}><div style={RS.streakValue}><NumericValue value={taskCompletionStreak} /></div><div style={RS.streakLabel}>{t("reportsView.comprehensive.taskStreak")}</div></div>
               </div>
+              {nutritionStreakMayBeLonger && (
+                <p style={{ fontSize: 10.5, color: "var(--muted2)", marginTop: 8, lineHeight: 1.5 }}>{t("reportsView.comprehensive.nutritionStreakScopeNote")}</p>
+              )}
             </div>
 
             <div style={RS.sectionBlock}>

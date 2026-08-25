@@ -561,6 +561,7 @@
       "consistencyTitle": "الاتساق",
       "workoutStreak": "سلسلة الرياضة",
       "nutritionStreak": "سلسلة التغذية",
+      "nutritionStreakScopeNote": "سجل التغذية المتاح آخر 90 يوماً فقط - قد تكون سلسلتك الحقيقية أطول من الرقم أعلاه.",
       "taskStreak": "سلسلة المهام",
       "trendsTitle": "الاتجاهات مقابل الفترة الماضية",
       "trendFitness": "النشاط الرياضي",

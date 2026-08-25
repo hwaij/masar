@@ -1,3 +1,5 @@
+import { localDayKey } from "./tips";
+
 export function todayKey(d = new Date()) {
   return d.toISOString().slice(0, 10);
 }
@@ -68,16 +70,23 @@ export function formatNumberLatin(n, lang = "ar") {
   return Number(n).toLocaleString(locale);
 }
 
+// خلل حقيقي وُجد وأُصلح: كانت هذه الدالة تفحص "هل اليوم ضمن الأيام
+// المسجَّلة؟" عبر todayKey (تاريخ UTC للحظة الحالية)، بينما التواريخ التي
+// تُمرَّر لها فعلياً (fitnessLog، nutritionLog.date، tasks.due) مؤرَّخة
+// محلياً. لمستخدم بتوقيت أمامي عن UTC (كالكويت +3)، هذا يعني أن أول 3
+// ساعات من كل يوم محلي جديد كانت تجعل سلسلة نشاط حقيقية غير منقطعة تظهر
+// "منقطعة" (streak=0) رغم أن المستخدم سجَّل نشاطه اليوم فعلاً بالتوقيت
+// المحلي - تجربة مؤثرة سلباً في ميزة مبنية أصلاً على تحفيز الاستمرارية.
 export function computeStreak(dates) {
   if (!dates.length) return 0;
   const days = new Set(dates.map((d) => (typeof d === "string" ? d : d.date)));
   let streak = 0;
   let d = new Date();
-  if (!days.has(todayKey(d))) {
+  if (!days.has(localDayKey(d))) {
     d.setDate(d.getDate() - 1);
-    if (!days.has(todayKey(d))) return 0;
+    if (!days.has(localDayKey(d))) return 0;
   }
-  while (days.has(todayKey(d))) {
+  while (days.has(localDayKey(d))) {
     streak++;
     d.setDate(d.getDate() - 1);
   }

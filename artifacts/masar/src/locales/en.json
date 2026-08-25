@@ -561,6 +561,7 @@
       "consistencyTitle": "Consistency",
       "workoutStreak": "Workout streak",
       "nutritionStreak": "Nutrition streak",
+      "nutritionStreakScopeNote": "Your nutrition log only covers the last 90 days - your real streak may be longer than the number above.",
       "taskStreak": "Task streak",
       "trendsTitle": "Trends vs previous period",
       "trendFitness": "Fitness activity",

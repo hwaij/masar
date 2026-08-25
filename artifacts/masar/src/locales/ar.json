@@ -763,11 +763,11 @@
     "periods": {
       "weekly": {
         "label": "أسبوعي",
-        "reviewLabel": "منتصف الأسبوع"
+        "reviewLabel": "نهاية الأسبوع"
       },
       "monthly": {
         "label": "شهري",
-        "reviewLabel": "منتصف الشهر"
+        "reviewLabel": "نهاية الشهر"
       },
       "yearly": {
         "label": "سنوي",

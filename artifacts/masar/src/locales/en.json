@@ -763,11 +763,11 @@
     "periods": {
       "weekly": {
         "label": "Weekly",
-        "reviewLabel": "Midweek"
+        "reviewLabel": "End of week"
       },
       "monthly": {
         "label": "Monthly",
-        "reviewLabel": "Mid-month"
+        "reviewLabel": "End of month"
       },
       "yearly": {
         "label": "Yearly",

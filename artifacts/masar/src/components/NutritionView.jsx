@@ -199,6 +199,12 @@ const NS = {
   // مخصَّص له شخصياً (Priority 6/7).
   guidelineCard: { background: "var(--surface-sunken)", border: "1px dashed var(--border2)", borderRadius: 12, padding: "10px 12px", marginTop: 16 },
   guidelineCardNote: { fontSize: 10.5, color: "var(--muted2)", marginTop: 8, lineHeight: 1.5 },
+  // تفصيل "أهم المصادر" للكوليسترول اليوم - مبني حصراً من أصناف مسجَّلة
+  // فعلياً في سجل اليوم المعروض (لا اختراع)، أسفل شريط تقدّم الكوليسترول
+  // مباشرة (Priority: تفاصيل الكوليسترول).
+  guidelineContributors: { display: "flex", flexWrap: "wrap", gap: 6, marginTop: 7 },
+  guidelineContributorsLabel: { fontSize: 10.5, color: "var(--muted2)", width: "100%" },
+  guidelineContributorChip: { fontSize: 11, fontWeight: 600, color: "var(--ink-soft)", background: "var(--panel)", border: "1px solid var(--border2)", borderRadius: 20, padding: "3px 9px" },
 };
 
 const SOURCE_ICONS = { barcode: Hash, search: Search, manual: Edit3, ai_photo: Sparkles, label: Camera, common: ClipboardList };
@@ -2272,6 +2278,23 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
 
   const selectedLog = nutritionLog.filter((e) => e.date === selectedDate);
   const totals = sumNutritionEntries(selectedLog);
+  // تفصيل مصادر الكوليسترول لليوم المعروض - مبني فقط من أصناف سُجِّلت
+  // فعلياً وتحمل قيمة كوليسترول حقيقية (لا اختراع)، مجمَّعة حسب اسم الصنف
+  // (نفس الصنف المسجَّل أكثر من مرة في اليوم يُجمَع رقمه لا يتكرر سطراً
+  // منفصلاً)، وأعلى 3 مساهمين فقط - قائمة كاملة غير مفيدة هنا، فقط أبرز
+  // الأصناف التي تستحق انتباه المستخدم فعلياً.
+  const cholesterolContributors = useMemo(() => {
+    const byName = new Map();
+    for (const e of selectedLog) {
+      const chol = e.cholesterol || 0;
+      if (chol <= 0) continue;
+      byName.set(e.foodName, (byName.get(e.foodName) || 0) + chol);
+    }
+    return Array.from(byName.entries())
+      .map(([name, mg]) => ({ name, mg }))
+      .sort((a, b) => b.mg - a.mg)
+      .slice(0, 3);
+  }, [selectedLog]);
   // "الوقت المعتاد" لكل نوع وجبة - من كامل نطاق nutritionLog المحمَّل (90
   // يوماً) لا اليوم المعروض فقط، حتى يكون النمط ذا معنى حقيقياً.
   const usualMealTimes = useMemo(() => {
@@ -2706,6 +2729,16 @@ ${missingMealsLine}
                   <span>{isolateNumbers(g.goalLabel)}</span>
                 </div>
                 <div style={NS.barTrack}><div style={{ ...NS.barFill, width: `${pct}%`, background: g.color }} /></div>
+                {g.key === "cholesterol" && cholesterolContributors.length > 0 && (
+                  <div style={NS.guidelineContributors}>
+                    <span style={NS.guidelineContributorsLabel}>{t("nutrition.cholesterolTopSources")}</span>
+                    {cholesterolContributors.map((c) => (
+                      <span key={c.name} style={NS.guidelineContributorChip}>
+                        {c.name}: <NumericValue value={Math.round(c.mg)} unit={t("common.units.mg")} />
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}

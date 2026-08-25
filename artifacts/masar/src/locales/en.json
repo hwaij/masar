@@ -1392,6 +1392,7 @@
     "entryUpdated": "Entry updated",
     "usualMealTime": "Usually between {{range}}",
     "cholesterolGoal": "Less than {{max}}mg",
+    "cholesterolTopSources": "Today's top sources:",
     "guidelineNote": "Sodium and cholesterol limits shown here are a general guideline from common dietary references (~{{sodium}}mg sodium, ~{{cholesterol}}mg cholesterol per day) — not a value calculated for you personally, unlike the protein/carbs/fat targets above.",
     "sheetTitles": {
       "addFood": "Add Food",

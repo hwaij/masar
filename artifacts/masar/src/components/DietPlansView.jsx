@@ -4,7 +4,7 @@ import {
   Salad, ChevronLeft, ChevronRight, AlertTriangle, Sparkles, Loader2, Trash2, RefreshCw, Send, Crown, Check,
 } from "lucide-react";
 import { store } from "../lib/store";
-import { analyze } from "../lib/helpers";
+import { analyze, arabicDate } from "../lib/helpers";
 import { localDayKey } from "../lib/tips";
 import { DIET_SYSTEMS, getDietSystem, isDietUnsuitable } from "../lib/diet-systems";
 import { DAILY_GUIDELINES, sumNutritionEntries } from "../lib/nutrition";
@@ -312,7 +312,13 @@ export default function DietPlansView({ healthProfile, showToast, subscription }
 
   // ===== عرض الخطة الحالية =====
   if (plan && currentSystem) {
-    const dateLabel = plan.generatedAt ? new Date(plan.generatedAt).toLocaleDateString(isEn ? "en-US" : "ar", { year: "numeric", month: "short", day: "numeric" }) : "";
+    // خلل حقيقي وُجد وأُصلح: كان هذا يستدعي toLocaleDateString("ar") مباشرة
+    // (لغة عربية عامة بلا تحديد "ar-KW-u-nu-latn") بدل الدالة المشتركة
+    // arabicDate (lib/helpers.js) المبنية خصيصاً لمنع هذا - بعض محركات
+    // Intl/ICU (خصوصاً Safari/iOS، المنصة المستهدفة صراحة لهذا التطبيق)
+    // تُحوّل أرقام التاريخ لأرقام هندية عربية تلقائياً مع "ar" العامة، بخلاف
+    // كل تاريخ آخر معروض في التطبيق (يمر جميعاً عبر arabicDate).
+    const dateLabel = plan.generatedAt ? arabicDate(plan.generatedAt, { year: "numeric", month: "short", day: "numeric" }, isEn ? "en-US" : undefined) : "";
     return (
       <div style={S.view}>
         <div style={DS.hero}>

@@ -4,7 +4,8 @@ import {
   ClipboardList, AlertTriangle, Sparkles, Loader2, Trash2, RefreshCw, Crown, Send, Droplet, Plus,
 } from "lucide-react";
 import { store } from "../lib/store";
-import { analyze, todayKey } from "../lib/helpers";
+import { analyze } from "../lib/helpers";
+import { localDayKey } from "../lib/tips";
 import { sumNutritionEntries, waterGoalCups } from "../lib/nutrition";
 import { computeDailyTargets, distributeMeals, getDailyNutritionSummary } from "../lib/nutrition-plan";
 import { FITNESS_GOALS } from "../lib/exercises-db";
@@ -70,7 +71,7 @@ function dayKeysAgo(n) {
   for (let i = 0; i < n; i++) {
     const d = new Date();
     d.setDate(d.getDate() - i);
-    days.push(todayKey(d));
+    days.push(localDayKey(d));
   }
   return days;
 }
@@ -112,7 +113,10 @@ export default function NutritionPlanView({ healthProfile, showToast, subscripti
     return () => { active = false; };
   }, []);
 
-  const today = todayKey();
+  // خلل حقيقي وُجد وأُصلح: todayKey() (UTC) بدل localDayKey (محلي) - نفس
+  // خلل NutritionView.jsx (انظر تعليقه هناك)، يؤثر هنا على مطابقة todayEntries
+  // وlastAdviceDate ونافذة "تدرّب اليوم" (fitnessLog[today]) بنفس الطريقة.
+  const today = localDayKey();
   const hasHealthData = !!(healthProfile?.tee && healthProfile?.weightKg);
   const goal = fitnessProfile?.goal || "general_fitness";
   const goalLabel = useMemo(() => {

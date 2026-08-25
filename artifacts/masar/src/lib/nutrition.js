@@ -381,10 +381,30 @@ export function unitToGrams(unitId, qty, servingGrams) {
 // unitToGrams) أو عند غياب أي حجم حصة معروف، "حصة واحدة" تعني ببساطة وحدة
 // طبيعية واحدة من هذه الوحدة (كوب واحد، ملعقة واحدة، قطعة واحدة) - نفس
 // الافتراض الذي يستخدمه unitToGrams أصلاً.
-export function unitServingSize(unitId, servingGrams) {
+// خلل حقيقي وُجد وأُصلح: كانت هذه الدالة تقسم servingGrams على معامل
+// الوحدة مباشرة بلا أي وعي بالكثافة (product غير مُمرَّر أصلاً) - فحصة
+// عسل حقيقية وزنها 21غ (موثَّقة لكل 100غ) كانت تُعرض/تُملأ تلقائياً كـ"21
+// مل" عند اختيار وحدة "مل"، رغم أن حجمها الحقيقي (كثافة العسل ~1.42) هو
+// ~14.8مل فقط. الأخطر أن هذه القيمة المُعبَّأة تلقائياً (21) كانت تُمرَّر
+// بعدها إلى quantityInProductBasis التي *تطبّق* تحويل الكثافة بالاتجاه
+// الصحيح - فينتج جولة ذهاب وإياب خاطئة تحسب القيم الغذائية لكمية أكبر
+// فعلياً من الحصة الحقيقية (~42% زيادة وهمية في مثال العسل)، بلا أي تنبيه
+// "تحويل تقريبي" يلفت نظر المستخدم لأن الخلل في القيمة المُدخَلة نفسها لا
+// في تحويلها. الإصلاح: نفس منطق الكثافة المُستخدَم في quantityInProductBasis
+// بالضبط لكن بالاتجاه المعاكس (معكوس رياضياً)، حتى تبقى الدالتان دائماً
+// انعكاساً تاماً لبعضهما (round-trip) بغضّ النظر عن الوحدة/الأساس المُختارين.
+// product معامل جديد اختياري (servingGrams وحده يبقى كافياً حين تطابق
+// الوحدة أساس المنتج - الحالة الأشيع، بلا أي تغيير في نتيجتها) - أي نداء
+// قديم بلا product يستمر يعمل بالضبط كالسابق فقط عند هذا التطابق.
+export function unitServingSize(unitId, servingGrams, product) {
   const unit = unitById(unitId);
-  if (servingGrams && servingGrams > 0 && unit.factor != null) return servingGrams / unit.factor;
-  return 1;
+  if (!(servingGrams > 0) || unit.factor == null) return 1;
+  const basis = product?.per100Basis === "ml" ? "ml" : "g";
+  const unitCurrency = unit.kind === "volume" ? "ml" : "g";
+  if (unitCurrency === basis) return servingGrams / unit.factor;
+  const density = estimateDensityGPerMl(product?.name);
+  const naturalInUnitCurrency = unitCurrency === "ml" ? servingGrams / density : servingGrams * density;
+  return naturalInUnitCurrency / unit.factor;
 }
 
 // كثافات تقريبية معروفة لسوائل شائعة (غم/مل) - تُستخدم فقط في

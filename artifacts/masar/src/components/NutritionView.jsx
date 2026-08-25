@@ -8,7 +8,8 @@ import {
 } from "lucide-react";
 import { store } from "../lib/store";
 import SpotlightTour from "./SpotlightTour";
-import { todayKey, uid, analyze, parseJsonLoose, arabicDate } from "../lib/helpers";
+import { uid, analyze, parseJsonLoose, arabicDate } from "../lib/helpers";
+import { localDayKey } from "../lib/tips";
 import { isActiveSubscriber } from "../lib/subscription";
 import {
   fetchProductByBarcode, searchProductsByName, searchUSDAFoods, scaleNutrients,
@@ -856,13 +857,46 @@ function ConfirmQuantityCard({ product: initialProduct, source, onAdd, onCancel,
   // unitServingSize (حصة المنتج الحقيقية مُحوَّلة لهذه الوحدة إن عُرفت، أو
   // وحدة طبيعية واحدة كافتراض معقول خلاف ذلك) - فأزرار ×1..×5 تعمل بنفس
   // السهولة والمنطق في كل وحدة، لا الغرام فقط.
+  // خلل حقيقي وُجد وأُصلح: فرع "غرام" هنا كان يستخدم product.servingGrams
+  // مباشرة بلا أي وعي بالكثافة - لمنتج سائل موثَّق لكل 100مل (حليب مثلاً،
+  // servingGrams=240 تعني "240مل" فعلياً حسب اصطلاح هذا الملف)، اختيار وحدة
+  // "غرام" كان يملأ الحقل بـ240 غم رأساً، بينما الوزن الحقيقي لـ240مل حليب
+  // هو ~247غم (كثافة ~1.03) - نفس فئة خلل unitServingSize المُصلَح أعلاه في
+  // nutrition.js تحديداً، لكن هنا بصيغة مضمَّنة مباشرة بدل استدعاء الدالة.
+  // استخدام unitServingSize لكل الوحدات دون استثناء (بما فيها "غرام") يوحّد
+  // المسار ويطبّق نفس تصحيح الكثافة في كل الحالات بلا أي منطق مكرَّر.
+  //
+  // خلل حقيقي ثانٍ وُجد وأُصلح: هذا التأثير كان يُشغَّل أيضاً عند تغيّر
+  // unit وحده (بلا أي ضغطة ×N من المستخدم)، فيُعيد ضبط الحقل دوماً لـ
+  // "multiplier × حصة قياسية" - فإن كتب المستخدم كمية يدوية مخصَّصة (تخالف
+  // أي حصة قياسية، مثال: 250غم بدل 240غم) في حقل "أو عدّل الكمية"، ثم بدّل
+  // الوحدة لغرض آخر (مثال: ليرى كم يعادلها بالمل) ثم عاد لنفس الوحدة، كانت
+  // كميته المخصَّصة تُفقَد بصمت بلا أي تنبيه. الآن، عند تبديل الوحدة فعلياً
+  // (لا تغيّر multiplier فقط)، تُحفَظ الكمية الحقيقية المُدخَلة كما هي -
+  // تُحوَّل فقط لتعبيرها بالوحدة الجديدة (عبر نفس "عملة" أساس المنتج)، بلا
+  // أي تصفير لحصة افتراضية. الضغط الصريح على أزرار ×1..×5 يبقى يُعيد الضبط
+  // كسلوكه الأصلي دائماً (هذا فعل مقصود من المستخدم، لا فقدان بيانات).
+  const prevUnitRef = useRef(unit);
   useEffect(() => {
-    if (unit === "g") {
-      if (hasServing) setGrams(Math.round(product.servingGrams * multiplier));
-    } else {
-      setUnitQty(Math.round(unitServingSize(unit, product.servingGrams) * multiplier * 100) / 100);
+    const prevUnit = prevUnitRef.current;
+    prevUnitRef.current = unit;
+    if (prevUnit !== unit) {
+      const prevQty = prevUnit === "g" ? grams : unitQty;
+      const basisEquivalent = quantityInProductBasis(prevUnit, prevQty, product).value || 0;
+      if (unit === "g") {
+        setGrams(Math.round(unitServingSize("g", basisEquivalent, product)));
+      } else {
+        setUnitQty(Math.round(unitServingSize(unit, basisEquivalent, product) * 100) / 100);
+      }
+      return;
     }
-  }, [multiplier, hasServing, product.servingGrams, unit]);
+    if (unit === "g") {
+      if (hasServing) setGrams(Math.round(unitServingSize("g", product.servingGrams, product) * multiplier));
+    } else {
+      setUnitQty(Math.round(unitServingSize(unit, product.servingGrams, product) * multiplier * 100) / 100);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [multiplier, hasServing, product.servingGrams, product, unit]);
   const presets = servingPresets(product.servingGrams);
   // servingPresets() is positional (no .id field) — mirror its exact order
   // here without touching lib/nutrition.js: [100g] always first, then
@@ -878,7 +912,7 @@ function ConfirmQuantityCard({ product: initialProduct, source, onAdd, onCancel,
   const gramsEquivalent = conversion.value;
   const preview = scaleNutrients(product, gramsEquivalent || 0);
   const unitMeta = unitById(unit);
-  const unitBaseQty = unitServingSize(unit, product.servingGrams);
+  const unitBaseQty = unitServingSize(unit, product.servingGrams, product);
 
   if (editing) {
     return (
@@ -1910,9 +1944,14 @@ function LabelPhotoPanel({ onSave, onManual, preselectedMealType }) {
     if (!label || !basisValues) return;
     const per100Now = labelToPer100Product({ ...basisValues, basis: label.basis, servingGrams: label.servingGrams, micronutrients: label.micronutrients });
     if (unit === "g") {
-      if (label.basis === "serving") setGrams(Math.round((per100Now.servingGrams || 100) * multiplier));
+      // نفس استدعاء unitServingSize المُستخدَم في ConfirmQuantityCard أعلاه
+      // (توحيد المسار) - لا أثر فعلي حالياً لأن labelToPer100Product تُعامل
+      // basis="serving" كوزن (g) دائماً (قيد معروف موثَّق هناك)، فيبقى
+      // per100Now.per100Basis="g" هنا فتُطابق unitCurrency="g" ولا تحويل
+      // كثافة يُطبَّق - لكنه يبقى صحيحاً تلقائياً إن أُزيل هذا القيد لاحقاً.
+      if (label.basis === "serving") setGrams(Math.round(unitServingSize("g", per100Now.servingGrams || 100, per100Now) * multiplier));
     } else {
-      setUnitQty(Math.round(unitServingSize(unit, per100Now.servingGrams) * multiplier * 100) / 100);
+      setUnitQty(Math.round(unitServingSize(unit, per100Now.servingGrams, per100Now) * multiplier * 100) / 100);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [multiplier, unit, label]);
@@ -1990,7 +2029,7 @@ function LabelPhotoPanel({ onSave, onManual, preselectedMealType }) {
 
   const per100 = labelToPer100Product({ ...basisValues, basis: label.basis, servingGrams: label.servingGrams, micronutrients: label.micronutrients });
   const unitMeta = unitById(unit);
-  const unitBaseQty = unitServingSize(unit, per100.servingGrams);
+  const unitBaseQty = unitServingSize(unit, per100.servingGrams, per100);
   const labelEnteredQty = unit === "g" ? grams : unitQty;
   const labelConversion = quantityInProductBasis(unit, labelEnteredQty, per100);
   const gramsEquivalent = labelConversion.value;
@@ -2147,7 +2186,15 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
   const [analysisLoading, setAnalysisLoading] = useState(false);
 
   const isSub = isActiveSubscriber(subscription);
-  const today = todayKey();
+  // خلل حقيقي وُجد وأُصلح: كانت هذه القيمة تُبنى بـtodayKey() (يعتمد
+  // toISOString - أي التاريخ بتوقيت UTC للحظة الحالية)، لا التاريخ المحلي
+  // الفعلي. لأي مستخدم بتوقيت أمامي عن UTC (كالكويت +3)، هذا يعني أن أول 3
+  // ساعات من كل يوم محلي جديد كانت تُسجَّل فعلياً بتاريخ الأمس بالخطأ (طعام/
+  // ماء يُحفظان بـdate خاطئ في nutrition_log/water_log)، بينما DietPlansView
+  // (المُعتمِد أصلاً على localDayKey) يعتبرها بحق اليوم الجديد - تعارض
+  // حقيقي بين شاشتين لنفس البيانات. localDayKey (lib/tips.js، مبنية على
+  // getFullYear/getMonth/getDate المحلية) هي المصدر الصحيح الموحَّد.
+  const today = localDayKey();
   // اليوم المعروض حالياً (قد يكون سابقاً لليوم الحقيقي عبر التنقّل أدناه) -
   // كل قسم "سجل/مجاميع/ماء/فيتامينات" يُشتق منه، بينما "تحليل تغذية اليوم"
   // الذكي أدناه يبقى مرتبطاً بـ"اليوم" الحقيقي دائماً (متعمَّد، انظر تعليق
@@ -2212,9 +2259,13 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
   // لا تنقّل لأيام مستقبلية (لا سجل لها بعد) - يُقيَّد هنا لا فقط بتعطيل
   // الزر، حتى لا يتغيّر التاريخ حتى لو استُدعيت الدالة من مصدر آخر لاحقاً.
   function shiftDay(delta) {
-    const d = new Date(selectedDate);
+    // بناء التاريخ من مكوّناته محلياً مباشرة (لا new Date(selectedDate) التي
+    // تُفسَّر UTC) - يبقى متسقاً مع today أعلاه (localDayKey محلي بالكامل)
+    // بلا أي تحويل توقيت وسيط قد يُزيح اليوم بساعات قرب منتصف الليل.
+    const [y, m, dd] = selectedDate.split("-").map(Number);
+    const d = new Date(y, m - 1, dd);
     d.setDate(d.getDate() + delta);
-    const next = todayKey(d);
+    const next = localDayKey(d);
     if (next > today) return;
     setSelectedDate(next);
   }

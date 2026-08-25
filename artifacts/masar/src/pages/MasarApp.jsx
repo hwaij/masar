@@ -677,7 +677,12 @@ export default function MasarApp() {
     setGamify((g) => { prevGamify = g; return { ...g, points: Math.max(0, g.points + n) }; });
     // "missing locale key" لهذا السطر: common.pointsEarnedReason / common.pointsDeductedReason
     const logReason = reason || (n >= 0 ? (i18n.language === "en" ? "Points earned" : "نقاط مكتسبة") : (i18n.language === "en" ? "Points deducted" : "خصم نقاط"));
-    const logEntry = { id: uid(), date: todayKey(), amount: n, reason: logReason };
+    // خلل حقيقي وُجد وأُصلح: تاريخ سجل النقاط (يُعرض للمستخدم مباشرة في
+    // "سجل النقاط" بالإعدادات) كان يُبنى بـtodayKey() (UTC) بدل التوقيت
+    // المحلي - نفس خلل TasksView أعلاه بالضبط، وهذه الدالة تُستدعى مباشرة
+    // من كل إكمال/تراجع مهمة (toggle في TasksView)، فكانت مهمة تُنجَز الساعة
+    // 1 فجراً بتوقيت الكويت تظهر في السجل بتاريخ الأمس.
+    const logEntry = { id: uid(), date: localDayKey(), amount: n, reason: logReason };
     setPointsLog((prev) => [logEntry, ...prev].slice(0, 200));
     (async () => {
       const gRes = await store.saveGamify({ ...prevGamify, points: Math.max(0, prevGamify.points + n) });
@@ -1817,10 +1822,17 @@ function TasksView({ tasks, setTasks, categories, addPoints, showToast, subscrip
   const isSub = isActiveSubscriber(subscription);
   const [title, setTitle] = useState("");
   const [catId, setCatId] = useState(categories[0]?.id);
-  const [weekStart, setWeekStart] = useState(() => startOfWeekKey(todayKey()));
-  const [selectedDay, setSelectedDay] = useState(() => todayKey());
+  // خلل حقيقي وُجد وأُصلح: كانت "اليوم" هنا تُبنى بـtodayKey() (تاريخ UTC
+  // للحظة الحالية) - لمستخدم بتوقيت أمامي عن UTC (كالكويت +3)، أول 3 ساعات
+  // من كل يوم محلي جديد كانت تجعل التطبيق يفتح شاشة المهام على اليوم
+  // السابق فعلياً (اليوم المختار افتراضياً، ونقطة "اليوم" على شريط الأسبوع،
+  // كلاهما خاطئ)، وأي مهمة جديدة تُضاف دون تغيير اليوم يدوياً كانت تُسجَّل
+  // بتاريخ الأمس بالخطأ. localDayKey (تقويم محلي فعلي) هي المصدر الصحيح
+  // المُستخدَم فعلاً في باقي أقسام التطبيق بعد إصلاحات مماثلة سابقة.
+  const [weekStart, setWeekStart] = useState(() => startOfWeekKey(localDayKey()));
+  const [selectedDay, setSelectedDay] = useState(() => localDayKey());
   const catMap = useMemo(() => Object.fromEntries(categories.map((c) => [c.id, c])), [categories]);
-  const today = todayKey();
+  const today = localDayKey();
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDaysKey(weekStart, i)), [weekStart]);
 
   // جولة المهام السياقية (Onboarding - Phase D): تظهر أول مرة فقط، وتتقدّم
@@ -1855,7 +1867,7 @@ function TasksView({ tasks, setTasks, categories, addPoints, showToast, subscrip
       showToast(t("tasksView.upsellCategoriesTitle"));
       return;
     }
-    const newTask = { id: uid(), title: title.trim(), catId, due: selectedDay, done: false, created: todayKey() };
+    const newTask = { id: uid(), title: title.trim(), catId, due: selectedDay, done: false, created: localDayKey() };
     setTasks((prev) => [...prev, newTask]);
     const res = await store.saveTask(newTask);
     if (!res.ok) { setTasks((prev) => prev.filter((x) => x.id !== newTask.id)); showToast(t("common.errors.saveFailed")); return; }
@@ -1905,7 +1917,11 @@ function TasksView({ tasks, setTasks, categories, addPoints, showToast, subscrip
           return (
             <button key={d} onClick={() => setSelectedDay(d)} style={{ ...S.dayChip, ...(isSelected ? S.dayChipActive : {}) }}>
               <span style={S.dayChipWeekday}>{weekdayShort[i]}</span>
-              <span style={S.dayChipNum}>{new Date(d).getDate()}</span>
+              {/* رقم اليوم من مكوّنات مفتاح التاريخ مباشرة (d بصيغة YYYY-MM-DD)
+                  لا new Date(d).getDate() - ذاك يُفسَّر منتصف ليل UTC ثم يُقرأ
+                  برقم اليوم المحلي، فيُزيح الرقم يوماً كاملاً لمستخدم بتوقيت
+                  خلف UTC (سالب) حيث يقع منتصف ليل UTC مساء اليوم السابق محلياً. */}
+              <span style={S.dayChipNum}>{Number(d.slice(8, 10))}</span>
               {stats.complete ? <Check size={11} color="#5FA8A0" /> : isToday ? <span style={S.dayChipTodayDot} /> : <span style={{ height: 11 }} />}
             </button>
           );

@@ -21,145 +21,16 @@ import {
 import {
   buildProgram, pickAlternatives, suggestProgression, seedFromOwner, estimateOneRepMax,
   getLastPerformance, computeSessionVolumeByMuscle, estimateSessionCalories, mostRecentLoggedDate,
-  aggregateLogsByDate, setVolume, restSecondsForGoalAndType, exercisesForMuscle,
+  aggregateLogsByDate, setVolume, restSecondsForGoalAndType, exercisesForMuscle, youtubeSearchUrl,
 } from "../lib/fitness-engine";
 import { NO_CONDITION } from "../lib/health";
 import { playRestEndSound, primeAudioContext } from "../lib/sound";
 import { shareAchievementCard } from "../lib/achievementShare";
 import MuscleDiagram from "./MuscleDiagram";
 import InteractiveMuscleDiagram from "./InteractiveMuscleDiagram";
+import ManualProgramBuilder from "./ManualProgramBuilder";
 import { S } from "./styles";
-
-const ICONS = { Dumbbell, PersonStanding, Footprints, HeartPulse, Bike, Wind, Flame, Settings2, StretchHorizontal };
-const DIFFICULTY_ORDER = ["beginner", "intermediate", "advanced"];
-
-
-const FS = {
-  hero: { display: "flex", alignItems: "center", gap: 12, marginBottom: 16 },
-  heroIcon: { width: 44, height: 44, borderRadius: 14, background: "linear-gradient(140deg, #5FA8A0, #3E7E78)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
-  heroTitle: { fontFamily: "'Amiri', serif", fontSize: 22, fontWeight: 700 },
-  heroSub: { fontSize: 12, color: "var(--muted2)", marginTop: 2, lineHeight: 1.5 },
-  formCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "16px 14px", marginBottom: 16 },
-  noteText: { fontSize: 11.5, color: "var(--muted2)", lineHeight: 1.6, marginBottom: 8 },
-  chipRow: { display: "flex", flexWrap: "wrap", gap: 8, marginTop: 6, marginBottom: 4 },
-  chip: { border: "1px solid var(--border2)", borderRadius: 20, padding: "8px 14px", fontSize: 12.5, color: "var(--ink-soft)", cursor: "pointer", fontFamily: "inherit", background: "transparent" },
-  chipActive: { borderColor: "var(--gold)", background: "rgba(201,162,75,0.12)", color: "var(--gold)", fontWeight: 700 },
-  daysRow: { display: "flex", gap: 6, marginTop: 6, marginBottom: 4 },
-  dayChip: { flex: 1, border: "1px solid var(--border2)", borderRadius: 10, padding: "9px 0", fontSize: 13, fontWeight: 700, color: "var(--ink-soft)", cursor: "pointer", fontFamily: "inherit", background: "transparent", textAlign: "center" },
-  dayChipActive: { borderColor: "var(--gold)", background: "rgba(201,162,75,0.12)", color: "var(--gold)" },
-  warningCard: { display: "flex", gap: 10, alignItems: "flex-start", background: "rgba(209,123,95,0.1)", border: "1.5px solid rgba(209,123,95,0.4)", borderRadius: 14, padding: "14px 12px", marginBottom: 16 },
-  warningText: { fontSize: 13, color: "var(--ink)", lineHeight: 1.8, fontWeight: 600, margin: 0 },
-  summaryCard: { background: "linear-gradient(160deg, var(--warm-tint), var(--panel))", border: "1px solid var(--warm-border)", borderRadius: 14, padding: "14px 12px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 },
-  summaryLabel: { fontSize: 12.5, color: "var(--muted2)" },
-  summaryValue: { fontSize: 13.5, fontWeight: 700, color: "var(--ink)" },
-  weekProgressCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 12px", marginBottom: 16 },
-  weekProgressHead: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
-  weekProgressTitle: { fontSize: 13, fontWeight: 700, color: "var(--muted2)" },
-  weekProgressValue: { fontSize: 13, fontWeight: 700, color: "var(--gold)", direction: "ltr" },
-  barTrack: { height: 8, borderRadius: 4, background: "var(--surface-sunken)", overflow: "hidden" },
-  barFill: { height: "100%", borderRadius: 4, background: "linear-gradient(90deg, #5FA8A0, #C9A24B)", transition: "width 0.4s ease" },
-  todayDoneBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", border: "none", borderRadius: 12, padding: "12px 0", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", marginTop: 12 },
-  todayDoneBtnOff: { background: "var(--gold)", color: "var(--bg)" },
-  todayDoneBtnOn: { background: "rgba(95,168,160,0.14)", color: "#5FA8A0", border: "1px solid rgba(95,168,160,0.4)" },
-  toolsRow: { display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" },
-  toolBtn: { display: "flex", alignItems: "center", gap: 6, background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.3)", color: "var(--gold)", borderRadius: 12, padding: "9px 14px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
-  rotationSelect: { background: "var(--surface-sunken)", border: "1px solid var(--border2)", borderRadius: 10, padding: "8px 10px", fontSize: 12, color: "var(--ink)", fontFamily: "inherit" },
-  dayCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "12px 12px", marginBottom: 10 },
-  dayCardHead: { fontSize: 14, fontWeight: 700, color: "var(--gold)", marginBottom: 8 },
-  exerciseRow: { padding: "10px 0", borderBottom: "1px solid var(--line)" },
-  exerciseTop: { display: "flex", alignItems: "flex-start", gap: 10 },
-  diagramWrap: { width: 40, borderRadius: 10, background: "var(--surface-sunken)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: "5px 0" },
-  genericIconWrap: { width: 40, height: 40, borderRadius: 10, background: "var(--surface-sunken)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--gold)", flexShrink: 0 },
-  exerciseName: { fontSize: 13.5, fontWeight: 700, color: "var(--ink)" },
-  exerciseMeta: { fontSize: 11.5, color: "var(--muted2)", marginTop: 2 },
-  restEditGroup: { display: "inline-flex", alignItems: "center", gap: 4, marginInlineStart: 6, verticalAlign: "middle" },
-  restAdjustBtn: { width: 18, height: 18, lineHeight: "16px", padding: 0, textAlign: "center", borderRadius: 6, border: "1px solid var(--border2)", background: "var(--surface-sunken)", color: "var(--ink-soft)", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
-  badgeRow: { display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 },
-  badge: { display: "flex", alignItems: "center", gap: 3, fontSize: 10.5, fontWeight: 700, borderRadius: 20, padding: "3px 8px", background: "var(--surface-sunken)", color: "var(--muted2)", border: "1px solid var(--border2)" },
-  typeBadgeCompound: { background: "rgba(201,162,75,0.12)", color: "var(--gold)", border: "1px solid rgba(201,162,75,0.3)" },
-  typeBadgeIsolation: { background: "rgba(111,168,220,0.12)", color: "#6FA8DC", border: "1px solid rgba(111,168,220,0.3)" },
-  difficultyDots: { display: "flex", alignItems: "center", gap: 2 },
-  detailsSectionTitle: { fontSize: 11.5, fontWeight: 700, color: "var(--gold)", marginBottom: 4, marginTop: 10 },
-  detailsText: { fontSize: 12, color: "var(--ink-soft)", lineHeight: 1.7, margin: 0 },
-  stepsList: { margin: "0 0 0 0", paddingInlineStart: 18, fontSize: 12, color: "var(--ink-soft)", lineHeight: 1.9 },
-  watchVideoBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "rgba(224,82,82,0.1)", border: "1px solid rgba(224,82,82,0.35)", borderRadius: 10, padding: "11px 10px", marginTop: 10, fontSize: 13, color: "#E05252", fontWeight: 700, textDecoration: "none", cursor: "pointer", fontFamily: "inherit" },
-  videoPlayer: { width: "100%", borderRadius: 10, marginTop: 10, display: "block" },
-  actionsRow: { display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" },
-  smallBtn: { display: "flex", alignItems: "center", gap: 4, background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.3)", color: "var(--gold)", borderRadius: 10, padding: "6px 10px", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", textDecoration: "none", flexShrink: 0 },
-  progressionBadge: { display: "flex", alignItems: "center", gap: 4, background: "rgba(95,168,160,0.12)", color: "#5FA8A0", border: "1px solid rgba(95,168,160,0.35)", borderRadius: 10, padding: "6px 10px", fontSize: 11.5, fontWeight: 700, marginTop: 8 },
-  alternativesPanel: { marginTop: 8, background: "var(--surface-sunken)", borderRadius: 10, padding: "10px 10px" },
-  alternativesTitle: { fontSize: 12, fontWeight: 700, color: "var(--gold)", marginBottom: 8 },
-  alternativeOptionRow: { display: "flex", alignItems: "center", gap: 8, width: "100%", border: "1px solid var(--border2)", background: "var(--panel)", borderRadius: 10, padding: "8px 10px", marginBottom: 6, cursor: "pointer", fontFamily: "inherit" },
-  alternativeOptionName: { fontSize: 12.5, fontWeight: 700, color: "var(--ink)" },
-  logForm: { marginTop: 8, background: "var(--surface-sunken)", borderRadius: 10, padding: "10px 10px" },
-  logRow: { display: "flex", gap: 6, marginTop: 6 },
-  logInput: { flex: 1, background: "var(--panel)", border: "1px solid var(--border2)", borderRadius: 8, padding: "8px 10px", color: "var(--ink)", fontSize: 13, fontFamily: "inherit", minWidth: 0 },
-  backRow: { display: "flex", alignItems: "center", gap: 6, color: "var(--gold)", fontSize: 13, fontWeight: 700, cursor: "pointer", marginBottom: 14, background: "none", border: "none", fontFamily: "inherit", padding: 0 },
-  detailHero: { display: "flex", flexDirection: "column", alignItems: "center", gap: 10, marginBottom: 18 },
-  detailName: { fontSize: 18, fontWeight: 700, color: "var(--ink)", textAlign: "center" },
-  detailSectionCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 12px", marginBottom: 12 },
-  startWorkoutBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", border: "none", borderRadius: 12, padding: "12px 0", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", marginTop: 10, background: "linear-gradient(135deg, #5FA8A0, #3E7E78)", color: "#fff" },
-  focusWrap: { minHeight: "100%", display: "flex", flexDirection: "column" },
-  focusProgress: { fontSize: 12, color: "var(--muted2)", fontWeight: 700, marginBottom: 10, textAlign: "center" },
-  focusDiagramWrap: { display: "flex", justifyContent: "center", marginBottom: 12 },
-  focusExerciseName: { fontSize: 19, fontWeight: 700, color: "var(--ink)", textAlign: "center", marginBottom: 4 },
-  focusMeta: { fontSize: 12.5, color: "var(--muted2)", textAlign: "center", marginBottom: 16 },
-  focusCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "16px 14px", marginBottom: 14 },
-  focusSetTitle: { fontSize: 13, fontWeight: 700, color: "var(--gold)", marginBottom: 10, textAlign: "center" },
-  oneRepMaxBadge: { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.3)", color: "var(--gold)", borderRadius: 10, padding: "8px 0", fontSize: 12.5, fontWeight: 700, marginBottom: 12 },
-  lastPerformanceRow: { display: "flex", alignItems: "center", justifyContent: "center", gap: 5, fontSize: 11.5, color: "var(--muted2)", fontWeight: 600, marginBottom: 10 },
-  comparisonRow: { fontSize: 11.5, fontWeight: 700, marginTop: 4, textAlign: "center" },
-  volumeCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 12px", marginBottom: 16 },
-  volumeRow: { marginTop: 10 },
-  volumeRowHead: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5, fontSize: 12.5, color: "var(--ink-soft)" },
-  volumeValue: { fontWeight: 700, color: "var(--ink)", direction: "ltr" },
-  caloriesRow: { display: "flex", alignItems: "center", gap: 7, marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--line)", fontSize: 12.5, color: "var(--ink-soft)", fontWeight: 600 },
-  completeSetBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", border: "none", borderRadius: 12, padding: "13px 0", fontSize: 14.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", background: "var(--gold)", color: "var(--bg)" },
-  restCard: { background: "rgba(95,168,160,0.1)", border: "1.5px solid rgba(95,168,160,0.35)", borderRadius: 16, padding: "18px 14px", marginBottom: 14, textAlign: "center" },
-  restTitle: { fontSize: 12.5, fontWeight: 700, color: "#5FA8A0", marginBottom: 6 },
-  restSetProgress: { fontSize: 11.5, fontWeight: 600, color: "var(--muted2)", marginBottom: 8 },
-  restTime: { fontSize: 34, fontWeight: 700, color: "var(--ink)", direction: "ltr", marginBottom: 10 },
-  restProgressTrack: { width: "100%", height: 6, borderRadius: 20, background: "rgba(95,168,160,0.18)", overflow: "hidden", marginBottom: 14 },
-  restProgressFill: { height: "100%", borderRadius: 20, background: "#5FA8A0", transition: "width 0.25s linear" },
-  restControlsRow: { display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 12 },
-  restAdjustSecBtn: { minWidth: 46, padding: "8px 0", borderRadius: 10, border: "1px solid rgba(95,168,160,0.4)", background: "var(--panel)", color: "#5FA8A0", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
-  restPauseBtn: { display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 10, border: "none", background: "#5FA8A0", color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
-  restNextUp: { fontSize: 11.5, color: "var(--muted2)", marginBottom: 10 },
-  skipRestBtn: { display: "inline-flex", alignItems: "center", gap: 6, background: "transparent", border: "1px solid var(--border2)", color: "var(--muted2)", borderRadius: 10, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
-  focusFooterRow: { display: "flex", gap: 8, marginTop: "auto", paddingTop: 12 },
-  nextExerciseBtn: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, border: "1px solid var(--border2)", background: "transparent", color: "var(--ink)", borderRadius: 12, padding: "12px 0", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
-  finishWorkoutBtn: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, border: "none", background: "linear-gradient(135deg, #5FA8A0, #3E7E78)", color: "#fff", borderRadius: 12, padding: "12px 0", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
-  exitFocusBtn: { display: "flex", alignItems: "center", gap: 6, color: "var(--muted2)", fontSize: 12.5, fontWeight: 600, cursor: "pointer", background: "none", border: "none", fontFamily: "inherit", padding: 0, marginBottom: 14 },
-  setsCompletedRow: { display: "flex", justifyContent: "center", gap: 6, marginBottom: 14 },
-  setDot: { width: 10, height: 10, borderRadius: "50%" },
-  summaryHeroIcon: { width: 60, height: 60, borderRadius: "50%", background: "linear-gradient(135deg, #5FA8A0, #3E7E78)", display: "flex", alignItems: "center", justifyContent: "center", margin: "10px auto 14px" },
-  summaryTitle: { fontFamily: "'Amiri', serif", fontSize: 22, fontWeight: 700, textAlign: "center", marginBottom: 18 },
-  summaryStatCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "4px 14px", marginBottom: 18 },
-  summaryStatRow: { display: "flex", alignItems: "center", gap: 10, padding: "13px 0", borderBottom: "1px solid var(--line)" },
-  summaryStatLabel: { flex: 1, fontSize: 13, color: "var(--muted2)", fontWeight: 600 },
-  summaryStatValue: { fontSize: 13.5, fontWeight: 700, color: "var(--ink)", textAlign: "end", maxWidth: "55%" },
-  shareBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", border: "none", borderRadius: 12, padding: "13px 0", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", background: "var(--gold)", color: "var(--bg)" },
-  templatePickerCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 12px" },
-  templatePickerTitle: { fontSize: 13.5, fontWeight: 700, color: "var(--ink)", marginBottom: 10 },
-  templateOptionRow: { display: "flex", alignItems: "center", gap: 10, width: "100%", border: "1px solid var(--border2)", background: "transparent", borderRadius: 12, padding: "10px 12px", marginBottom: 8, cursor: "pointer", fontFamily: "inherit", textAlign: "start" },
-  templateOptionIcon: { width: 38, height: 38, borderRadius: 10, background: "rgba(201,162,75,0.12)", color: "var(--gold)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
-  templateOptionLabel: { fontSize: 13, fontWeight: 700, color: "var(--ink)" },
-  templateOptionDesc: { fontSize: 11, color: "var(--muted2)", marginTop: 2 },
-  templateHint: { fontSize: 11, color: "var(--muted2)", textAlign: "center", marginTop: 4 },
-  statsToolBar: { display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 },
-  exercisePickChip: { border: "1px solid var(--border2)", borderRadius: 20, padding: "8px 14px", fontSize: 12, color: "var(--ink-soft)", cursor: "pointer", fontFamily: "inherit", background: "transparent", whiteSpace: "nowrap" },
-  exercisePickChipActive: { borderColor: "var(--gold)", background: "rgba(201,162,75,0.12)", color: "var(--gold)", fontWeight: 700 },
-};
-
-const CARDIO_MOBILITY_ICON = { cardio: HeartPulse, mobility: Wind };
-
-// رابط بحث يوتيوب ديناميكي (لا رابط فيديو ثابت واحد قد يُحذف أو يكون غير
-// مناسب) - يعمل تلقائياً لكل تمرين بالاعتماد على اسمه الإنجليزي، بلا حاجة
-// لربط فيديو محدَّد يدوياً لكل تمرين من الـ~90 تمرين.
-function youtubeSearchUrl(exercise) {
-  const query = `${exercise.nameEn || exercise.name} exercise proper form`;
-  return `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
-}
+import { FS, ICONS, CARDIO_MOBILITY_ICON, DIFFICULTY_ORDER } from "./fitnessStyles";
 
 function DifficultyDots({ difficulty }) {
   const idx = DIFFICULTY_ORDER.indexOf(difficulty);
@@ -744,6 +615,12 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
   const [showMusclePicker, setShowMusclePicker] = useState(false);
   const [pickedMuscle, setPickedMuscle] = useState(null);
   const [pickedExerciseIds, setPickedExerciseIds] = useState(() => new Set());
+  // بناء برنامج أسبوعي يدوي كامل (بديل حقيقي للتوليد التلقائي، لا استبدال
+  // دائم له - المحرّك التلقائي يبقى خياراً متاحاً بجانبه دائماً). يستبدل
+  // البرنامج الحالي بالكامل عند الحفظ، لذا يمر أولاً بتأكيد صريح إن وُجد
+  // برنامج حالي فعلاً (انظر confirmManualBuilder أدناه).
+  const [showManualBuilder, setShowManualBuilder] = useState(false);
+  const [confirmManualBuilder, setConfirmManualBuilder] = useState(false);
   const [logWeight, setLogWeight] = useState("");
   const [logReps, setLogReps] = useState("");
   const [logSets, setLogSets] = useState("");
@@ -1080,6 +957,53 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
     if (!res.ok) { setProgramEntry(prevEntry); showToast(t("common.errors.saveFailed")); }
   }
 
+  // يستقبل days ({id, name, exercises}[]) من ManualProgramBuilder.jsx ويحوّلها
+  // لبنية program.days الفعلية - نفس بنية البرنامج التلقائي تماماً
+  // ({dayIndex, dayType, exercises} - customName إضافي هنا لعرض اسم اليوم
+  // اليدوي الحر بدل ترجمة dayType، انظر عرضه أدناه في شاشة البرنامج) - فتعمل
+  // تلقائياً مع وضع التركيز/تسجيل الأداء/التطوّر التلقائي بلا أي تعديل
+  // إضافي، ومع "بديل"/"تعديل راحة" أيضاً (فهرسة programEntry.program.days
+  // صحيحة هنا لأنها أيام حقيقية بخلاف "جلسة مخصَّصة" المنفصلة).
+  //
+  // weekRotationEnabled يُصفَّر دائماً هنا عمداً - التدوير الأسبوعي التلقائي
+  // (انظر مؤثّر تحميل البرنامج أعلاه) يستدعي buildProgram من جديد على فترات
+  // ويستبدل days كاملة؛ لو بقي مفعَّلاً من برنامج تلقائي سابق، كان سيمحو هذا
+  // البرنامج اليدوي بصمت عند أول موعد تدوير قادم.
+  async function saveManualProgram(builtDays) {
+    const program = {
+      days: builtDays.map((d, dayIndex) => ({ dayIndex, dayType: "custom", customName: d.name, exercises: d.exercises })),
+      goal: fitnessProfile.goal, experience: fitnessProfile.experience, daysPerWeek: builtDays.length,
+      sessionMinutes: fitnessProfile.sessionMinutes, equipment: fitnessProfile.equipment, injuries: fitnessProfile.injuries,
+      hasInjurySubstitutions: false, genderAdjusted: false, isManual: true,
+      customSessions: programEntry?.program?.customSessions || [],
+      seed: programEntry?.seed ?? seedFromOwner(getOwner()),
+      generatedAt: new Date().toISOString(),
+    };
+    const prevEntry = programEntry;
+    const entry = { ...programEntry, program, weekRotationEnabled: false, rotationFrequency: null, lastRotatedAt: null };
+    setProgramEntry(entry);
+    const res = await store.saveWorkoutProgram(entry);
+    if (!res.ok) { setProgramEntry(prevEntry); showToast(t("common.errors.saveFailed")); return; }
+
+    if (fitnessProfile.daysPerWeek !== builtDays.length) {
+      const prevProfile = fitnessProfile;
+      const updatedProfile = { ...fitnessProfile, daysPerWeek: builtDays.length };
+      setFitnessProfile(updatedProfile);
+      const profileRes = await store.saveFitnessProfile(updatedProfile);
+      if (!profileRes.ok) setFitnessProfile(prevProfile);
+    }
+    setShowManualBuilder(false);
+    showToast(t("fitness.manualBuilder.programSaved"));
+  }
+
+  function switchToAutoBuilder() {
+    setDraft({
+      goal: fitnessProfile.goal || null, equipment: fitnessProfile.equipment || null, daysPerWeek: fitnessProfile.daysPerWeek || 3,
+      experience: fitnessProfile.experience || null, sessionMinutes: fitnessProfile.sessionMinutes || 45, injuries: fitnessProfile.injuries || [],
+    });
+    setEditing(true);
+  }
+
   // الوزن (خلافاً للتكرارات/المجموعات) لم يكن يُتحقَّق منه إطلاقاً - قيمة
   // غير رقمية (مثال: كتابة نص بالخطأ) تتحوّل لـ NaN، تُخزَّن كأنها وزن
   // حقيقي، وتنكشف لاحقاً كـ"بلا وزن مسجَّل" في كل حساب حجم/رقم قياسي (لأن
@@ -1349,6 +1273,21 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
     );
   }
 
+  if (showManualBuilder) {
+    return (
+      <ManualProgramBuilder
+        gender={gender}
+        fitnessProfile={fitnessProfile}
+        isEn={isEn}
+        isRtl={isRtl}
+        t={t}
+        showToast={showToast}
+        onCancel={() => setShowManualBuilder(false)}
+        onSave={saveManualProgram}
+      />
+    );
+  }
+
   if (editing || !hasProfile) {
     return (
       <div style={S.view}>
@@ -1446,26 +1385,59 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
         <div>
           <div style={FS.summaryLabel}>{t("fitness.yourProgram")}</div>
           <div style={FS.summaryValue}>{isolateNumbers(t("fitness.programSummary", { goal: goalLabel, equipment: equipmentLabel, days: fitnessProfile.daysPerWeek }))}</div>
+          {programEntry?.program?.isManual && <p style={FS.noteText}>{t("fitness.manualBuilder.manualProgramNote")}</p>}
           {programEntry?.program?.genderAdjusted && <p style={FS.noteText}>{t("fitness.genderAdjustedNote")}</p>}
           {programEntry?.program?.hasInjurySubstitutions && <p style={FS.noteText}>{t("fitness.injurySubstitutionNote")}</p>}
         </div>
-        <button onClick={() => setEditing(true)} style={{ ...S.exportBtn, width: "auto", padding: "9px 14px", marginBottom: 0 }}><Edit3 size={14} /> {t("fitness.editProgram")}</button>
+        {/* برنامج يدوي: "تعديل البرنامج" (نموذج الهدف/المعدات/الأيام العام)
+            لا معنى حقيقياً له هنا - استبدلناه بمسار صريح "تلقائي بدلاً منه"
+            (switchToAutoBuilder يفتح نفس نموذج الإعداد الأصلي بلا أي تغيير
+            فيه؛ حفظه يستدعي buildProgram كالمعتاد تماماً = رجوع كامل
+            للمسار التلقائي). */}
+        {programEntry?.program?.isManual ? (
+          <button onClick={switchToAutoBuilder} style={{ ...S.exportBtn, width: "auto", padding: "9px 14px", marginBottom: 0 }}><Repeat size={14} /> {t("fitness.manualBuilder.switchToAutoBtn")}</button>
+        ) : (
+          <button onClick={() => setEditing(true)} style={{ ...S.exportBtn, width: "auto", padding: "9px 14px", marginBottom: 0 }}><Edit3 size={14} /> {t("fitness.editProgram")}</button>
+        )}
       </div>
 
       <div style={FS.toolsRow}>
-        <button onClick={varyProgram} style={FS.toolBtn}><Repeat size={14} /> {t("fitness.varyProgram")}</button>
+        {/* "نوّع البرنامج" وتدوير الأسبوع كلاهما يستدعيان buildProgram من
+            جديد - يستبدلان days بالكامل بمولَّد تلقائي، فلا معنى لهما
+            (وخطر حقيقي على عمل المستخدم) لبرنامج بُني يدوياً؛ نُخفيهما هنا
+            بدل تعطيلهما فقط لتفادي أي التباس. */}
+        {!programEntry?.program?.isManual && (
+          <button onClick={varyProgram} style={FS.toolBtn}><Repeat size={14} /> {t("fitness.varyProgram")}</button>
+        )}
         <button onClick={() => setShowStatistics(true)} style={FS.toolBtn} data-tour="fitness-statistics-btn"><BarChart3 size={14} /> {t("fitness.statisticsBtn")}</button>
         <button onClick={() => setShowMusclePicker(true)} style={FS.toolBtn}><Target size={14} /> {t("fitness.buildCustomSessionBtn")}</button>
-        <select
-          value={programEntry?.weekRotationEnabled ? (programEntry.rotationFrequency || "weekly") : ""}
-          onChange={(e) => setRotation(e.target.value || null)}
-          style={FS.rotationSelect}
-        >
-          <option value="">{t("fitness.rotationOff")}</option>
-          <option value="weekly">{t("fitness.rotationFrequency")} {t("fitness.rotationWeekly")}</option>
-          <option value="biweekly">{t("fitness.rotationFrequency")} {t("fitness.rotationBiweekly")}</option>
-        </select>
+        <button onClick={() => setConfirmManualBuilder(true)} style={FS.toolBtn}><ListChecks size={14} /> {t("fitness.manualBuilder.entryPointBtn")}</button>
+        {!programEntry?.program?.isManual && (
+          <select
+            value={programEntry?.weekRotationEnabled ? (programEntry.rotationFrequency || "weekly") : ""}
+            onChange={(e) => setRotation(e.target.value || null)}
+            style={FS.rotationSelect}
+          >
+            <option value="">{t("fitness.rotationOff")}</option>
+            <option value="weekly">{t("fitness.rotationFrequency")} {t("fitness.rotationWeekly")}</option>
+            <option value="biweekly">{t("fitness.rotationFrequency")} {t("fitness.rotationBiweekly")}</option>
+          </select>
+        )}
       </div>
+
+      {confirmManualBuilder && (
+        <div style={S.modalOverlay} className="overlay-in" onClick={() => setConfirmManualBuilder(false)}>
+          <div style={S.modal} className="sheet-in" onClick={(e) => e.stopPropagation()}>
+            <div style={S.modalHeader}>
+              <span>{t("fitness.manualBuilder.replaceConfirmTitle")}</span>
+              <button onClick={() => setConfirmManualBuilder(false)} style={S.iconBtn}><X size={18} /></button>
+            </div>
+            <p style={FS.noteText}>{t("fitness.manualBuilder.replaceConfirmBody")}</p>
+            <button onClick={() => { setConfirmManualBuilder(false); setShowManualBuilder(true); }} style={S.saveBtn}>{t("fitness.manualBuilder.replaceConfirmProceedBtn")}</button>
+            <button onClick={() => setConfirmManualBuilder(false)} style={{ ...S.exportBtn, marginTop: 8, marginBottom: 0 }}>{t("common.buttons.cancel")}</button>
+          </div>
+        </div>
+      )}
 
       <div style={FS.weekProgressCard}>
         <div style={FS.weekProgressHead}>
@@ -1520,7 +1492,7 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
       <div className="stagger-in responsive-card-list">
         {programEntry?.program.days.map((day) => (
           <div key={day.dayIndex} style={FS.dayCard}>
-            <div style={FS.dayCardHead}>{isolateNumbers(t("fitness.dayLabel", { n: day.dayIndex + 1, dayLabel: t(`fitness.dayTypes.${day.dayType}`) }))}</div>
+            <div style={FS.dayCardHead}>{isolateNumbers(t("fitness.dayLabel", { n: day.dayIndex + 1, dayLabel: day.customName || t(`fitness.dayTypes.${day.dayType}`) }))}</div>
             {day.exercises.map((ex, exIndex) => {
               const key = `${day.dayIndex}-${exIndex}`;
               const progression = suggestProgression(ex, workoutLog.filter((l) => l.exerciseId === ex.id));

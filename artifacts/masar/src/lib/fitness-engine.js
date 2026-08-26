@@ -169,12 +169,17 @@ export function seedFromOwner(owner) {
   return h >>> 0;
 }
 
+// experience: null/undefined يعني "لا تصفية حسب مستوى الصعوبة إطلاقاً" -
+// يُستخدَم في "ابنِ برنامجك بنفسك" (البناء اليدوي) حيث المستخدم يريد تصفّح
+// كل المستويات بنفسه (مبتدئ/متوسط/متقدم) بدل تقييده بمستواه العام المسجَّل
+// في الملف الرياضي؛ فلترة الإصابات/المعدات تبقى مطبَّقة دائماً (سلامة
+// المستخدم ليست خياراً اختيارياً في أي من المسارين).
 export function candidatesFor(muscle, equipment, injuries, experience) {
-  const allowedDifficulties = DIFFICULTY_ALLOWED[experience] || DIFFICULTY_ALLOWED.beginner;
+  const allowedDifficulties = experience ? (DIFFICULTY_ALLOWED[experience] || DIFFICULTY_ALLOWED.beginner) : null;
   return EXERCISES.filter((e) =>
     e.muscle === muscle &&
     e.equipment.includes(equipment) &&
-    allowedDifficulties.includes(e.difficulty) &&
+    (!allowedDifficulties || allowedDifficulties.includes(e.difficulty)) &&
     !e.joints.some((j) => injuries.includes(j)),
   );
 }
@@ -203,6 +208,17 @@ export function exercisesForMuscle(muscle, assessment) {
   const volume = VOLUME_BY_GOAL[goal] || VOLUME_BY_GOAL.general_fitness;
   const sets = Math.max(2, volume.sets + (SETS_ADJUST_BY_EXPERIENCE[experience] || 0));
   return candidatesFor(muscle, equipment, injuries, experience).map((e) => withVolume(e, volume, sets));
+}
+
+// نفس تحويل حجم التدريب أعلاه (withVolume) لكن لتمرين واحد مُختار مسبقاً -
+// تُستخدَم في "ابنِ برنامجك بنفسك" لتقديم أرقام مجموعات/تكرارات/راحة
+// مقترحة علمياً كنقطة انطلاق فور اختيار المستخدم تمريناً من القائمة، قبل
+// أن يخصّصها بنفسه بأزرار +/-. لا علاقة لها بمستوى صعوبة المستخدم العام
+// (بخلاف exercisesForMuscle) لأن هذا المسار يعرض كل المستويات أصلاً.
+export function suggestedVolumeFor(exercise, goal, experience) {
+  const volume = VOLUME_BY_GOAL[goal] || VOLUME_BY_GOAL.general_fitness;
+  const sets = Math.max(2, volume.sets + (SETS_ADJUST_BY_EXPERIENCE[experience] || 0));
+  return withVolume(exercise, volume, sets);
 }
 
 // يختار تمريناً واحداً لعضلة معيّنة، مفضِّلاً المركّب على العزل ومستبعداً
@@ -462,6 +478,16 @@ function scoreAlternative(candidate, original, goal, experience) {
   if (candidate.difficulty === experience) score += 1;
   if (candidate.gear !== original.gear) score += 1;
   return score;
+}
+
+// رابط بحث يوتيوب ديناميكي (لا رابط فيديو ثابت واحد قد يُحذف أو يكون غير
+// مناسب) - يعمل تلقائياً لكل تمرين بالاعتماد على اسمه الإنجليزي، بلا حاجة
+// لربط فيديو محدَّد يدوياً لكل تمرين. مكانها هنا (لا FitnessView.jsx) حتى
+// تُستخدَم من أي شاشة تعرض تفاصيل تمرين (بما فيها بناء البرنامج اليدوي في
+// ManualProgramBuilder.jsx) دون تكرارها.
+export function youtubeSearchUrl(exercise) {
+  const query = `${exercise.nameEn || exercise.name} exercise proper form`;
+  return `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
 }
 
 export function pickAlternatives(exercise, assessment, excludeIds = [], limit = 10) {

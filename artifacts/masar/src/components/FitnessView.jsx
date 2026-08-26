@@ -5,7 +5,7 @@ import {
   Dumbbell, PersonStanding, Footprints, HeartPulse, Bike, Wind, Flame, Settings2, StretchHorizontal,
   AlertTriangle, Edit3, Check, Repeat, TrendingUp, X, ChevronLeft, ChevronRight,
   Circle, Play, Pause, SkipForward, PartyPopper, Trophy, Clock, ListChecks, Share2, BarChart3, Youtube,
-  FileText, Camera, Sparkles, LayoutGrid, Target, Trash2,
+  FileText, Camera, Sparkles, LayoutGrid, Target, Trash2, Plus,
 } from "lucide-react";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { store, getOwner } from "../lib/store";
@@ -621,6 +621,10 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
   // برنامج حالي فعلاً (انظر confirmManualBuilder أدناه).
   const [showManualBuilder, setShowManualBuilder] = useState(false);
   const [confirmManualBuilder, setConfirmManualBuilder] = useState(false);
+  // "append": المستخدم يملك برنامجاً يدوياً محفوظاً بالفعل ويضيف يوماً جديداً
+  // فقط - بلا تأكيد استبدال (لا شيء يُستبدَل)، وقائمة الأيام تُحمَّل مسبقاً
+  // بأيامه الحالية (manualBuilderMode==="build" الافتراضي يبدأ بقائمة فارغة).
+  const [manualBuilderMode, setManualBuilderMode] = useState("build");
   const [logWeight, setLogWeight] = useState("");
   const [logReps, setLogReps] = useState("");
   const [logSets, setLogSets] = useState("");
@@ -957,6 +961,25 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
     if (!res.ok) { setProgramEntry(prevEntry); showToast(t("common.errors.saveFailed")); }
   }
 
+  // يحوّل أيام برنامج يدوي محفوظ فعلاً (program.days ببنيته الكاملة) إلى
+  // الشكل الداخلي البسيط الذي يتوقّعه ManualProgramBuilder.jsx ({id, name,
+  // exercises}) - عكس التحويل الذي تنفّذه saveManualProgram أدناه بالضبط.
+  // يُستخدَم فقط عند "أضف يوماً جديداً" (append) لتحميل الأيام المحفوظة
+  // كما هي في قائمة الباني، فتظهر جاهزة دون أي حاجة لإعادة بنائها.
+  function convertProgramDaysToBuilderDays(programDays) {
+    return (programDays || []).map((d) => ({ id: uid(), name: d.customName || t(`fitness.dayTypes.${d.dayType}`), exercises: d.exercises }));
+  }
+
+  function openManualBuilderFresh() {
+    setManualBuilderMode("build");
+    setShowManualBuilder(true);
+  }
+
+  function openManualBuilderAppend() {
+    setManualBuilderMode("append");
+    setShowManualBuilder(true);
+  }
+
   // يستقبل days ({id, name, exercises}[]) من ManualProgramBuilder.jsx ويحوّلها
   // لبنية program.days الفعلية - نفس بنية البرنامج التلقائي تماماً
   // ({dayIndex, dayType, exercises} - customName إضافي هنا لعرض اسم اليوم
@@ -994,6 +1017,29 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
     }
     setShowManualBuilder(false);
     showToast(t("fitness.manualBuilder.programSaved"));
+  }
+
+  // حذف يوم واحد من برنامج يدوي محفوظ فعلاً (بلا إعادة بناء كامل) - إعادة
+  // ترقيم dayIndex للأيام المتبقية إلزامية هنا (لا مجرّد تصفية) لأن
+  // applySwap/adjustExerciseRest/startFocusWorkout كلها تعتمد على dayIndex
+  // كفهرس حقيقي داخل المصفوفة - فهرس متقطّع (0،2،3 بعد حذف اليوم رقم 1)
+  // كان سيكسر تلك الفهرسة لأي يوم بعد الفجوة.
+  async function deleteManualDay(dayIndex) {
+    if (!programEntry?.program?.isManual) return;
+    if (!window.confirm(t("fitness.manualBuilder.removeDayConfirm"))) return;
+    const prevEntry = programEntry;
+    const newDays = programEntry.program.days.filter((d) => d.dayIndex !== dayIndex).map((d, i) => ({ ...d, dayIndex: i }));
+    const entry = { ...programEntry, program: { ...programEntry.program, days: newDays } };
+    setProgramEntry(entry);
+    const res = await store.saveWorkoutProgram(entry);
+    if (!res.ok) { setProgramEntry(prevEntry); showToast(t("common.errors.saveFailed")); return; }
+    if (fitnessProfile.daysPerWeek !== newDays.length) {
+      const prevProfile = fitnessProfile;
+      const updatedProfile = { ...fitnessProfile, daysPerWeek: newDays.length };
+      setFitnessProfile(updatedProfile);
+      const profileRes = await store.saveFitnessProfile(updatedProfile);
+      if (!profileRes.ok) setFitnessProfile(prevProfile);
+    }
   }
 
   function switchToAutoBuilder() {
@@ -1284,6 +1330,8 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
         showToast={showToast}
         onCancel={() => setShowManualBuilder(false)}
         onSave={saveManualProgram}
+        mode={manualBuilderMode}
+        initialDays={manualBuilderMode === "append" ? convertProgramDaysToBuilderDays(programEntry?.program?.days) : []}
       />
     );
   }
@@ -1433,7 +1481,7 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
               <button onClick={() => setConfirmManualBuilder(false)} style={S.iconBtn}><X size={18} /></button>
             </div>
             <p style={FS.noteText}>{t("fitness.manualBuilder.replaceConfirmBody")}</p>
-            <button onClick={() => { setConfirmManualBuilder(false); setShowManualBuilder(true); }} style={S.saveBtn}>{t("fitness.manualBuilder.replaceConfirmProceedBtn")}</button>
+            <button onClick={() => { setConfirmManualBuilder(false); openManualBuilderFresh(); }} style={S.saveBtn}>{t("fitness.manualBuilder.replaceConfirmProceedBtn")}</button>
             <button onClick={() => setConfirmManualBuilder(false)} style={{ ...S.exportBtn, marginTop: 8, marginBottom: 0 }}>{t("common.buttons.cancel")}</button>
           </div>
         </div>
@@ -1492,7 +1540,14 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
       <div className="stagger-in responsive-card-list">
         {programEntry?.program.days.map((day) => (
           <div key={day.dayIndex} style={FS.dayCard}>
-            <div style={FS.dayCardHead}>{isolateNumbers(t("fitness.dayLabel", { n: day.dayIndex + 1, dayLabel: day.customName || t(`fitness.dayTypes.${day.dayType}`) }))}</div>
+            <div style={{ ...FS.dayCardHead, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+              <span>{isolateNumbers(t("fitness.dayLabel", { n: day.dayIndex + 1, dayLabel: day.customName || t(`fitness.dayTypes.${day.dayType}`) }))}</span>
+              {programEntry?.program?.isManual && (
+                <button onClick={() => deleteManualDay(day.dayIndex)} style={{ ...FS.smallBtn, border: "1px solid var(--border2)", background: "transparent", color: "var(--muted2)" }} aria-label={t("common.buttons.delete")}>
+                  <Trash2 size={12} />
+                </button>
+              )}
+            </div>
             {day.exercises.map((ex, exIndex) => {
               const key = `${day.dayIndex}-${exIndex}`;
               const progression = suggestProgression(ex, workoutLog.filter((l) => l.exerciseId === ex.id));
@@ -1535,6 +1590,17 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
           </div>
         ))}
       </div>
+
+      {/* "أضف يوماً جديداً" لبرنامج يدوي محفوظ فعلاً - يفتح نفس تدفّق
+          البناء اليدوي (عضلة → معدات → تمرين → تفاصيل → مجموعات/راحة) محمَّلاً
+          مسبقاً بالأيام الحالية (openManualBuilderAppend)، فيُضاف اليوم
+          الجديد لنفس program.days دون أي تأثير على الأيام السابقة - بلا
+          حاجة لتأكيد استبدال (لا شيء يُستبدَل هنا). */}
+      {programEntry?.program?.isManual && (
+        <button onClick={openManualBuilderAppend} style={{ ...FS.toolBtn, width: "100%", justifyContent: "center", marginBottom: 16 }}>
+          <Plus size={14} /> {t("fitness.manualBuilder.addDayToProgramBtn")}
+        </button>
+      )}
 
       {/* جلسات مخصَّصة (عضلة واحدة، مُختارة من مخطط الجسم التفاعلي) - جزء من
           نفس نظام "البرنامج" (program.customSessions) لا نظام موازٍ منفصل؛

@@ -33,8 +33,54 @@ import {
 // (اختبار SVG الدقيق لنقطة داخل مسار bezier، لا صندوق تقريبي) بغض النظر عن
 // أي تداخل توسعة - التوسعة الشفافة تُستخدَم فقط في المسافة الميتة الحقيقية
 // بين عضلتين، لا كطبقة تتجاوز فوق شكل عضلة أخرى حقيقي.
-const FRONT_MUSCLES = ["chest", "shoulders", "biceps", "quads", "abs"];
-const BACK_MUSCLES = ["back", "triceps", "hamstrings", "glutes", "calves"];
+const FRONT_MUSCLES = ["chest", "shoulders", "biceps", "quads", "abs", "neck"];
+const BACK_MUSCLES = ["back", "triceps", "hamstrings", "glutes", "calves", "forearms", "grip"];
+
+// الرقبة/الساعدين/قوة القبضة (فئات عضلية أُضيفت لاحقاً لقاعدة التمارين) لا
+// تملك مسارات SVG تشريحية حقيقية في muscleAnatomyPaths.js (المصدر المفتوح
+// المُستخدَم لا يوفّر تفصيلاً لهذه المناطق تحديداً) - بدل قائمة نصية منفصلة
+// عن المخطط (كما كانت سابقاً)، نضيف علامة دائرية بسيطة فوق موضعها التشريحي
+// التقريبي الصحيح على نفس مخطط الجسم مباشرة، بنفس منطق التلوين والاختيار
+// المستخدَم لكل عضلة أخرى تماماً. الإحداثيات (بوحدات viewBox، لكل جنس على
+// حدة لأن viewBox الأنثوي بأبعاد مختلفة تماماً) قِيست فعلياً عبر تحميل
+// المسارات في متصفح حقيقي واستخدام getBBox() لتحديد أين تقع كتلة الرقبة/
+// الساعد/اليد ضمن الأشكال المحايدة (neutral) - لا تخمين بصري تقريبي.
+// الرقبة على المشهد الأمامي (أوضح رؤية)، والساعدين/القبضة على الخلفي معاً
+// (نفس الذراع، ليقرأهما المستخدم كجزأين متتاليين من ذراع واحدة بديهياً).
+const EXTRA_MARKERS = {
+  front: {
+    male: [{ key: "neck", cx: 364, cy: 280 }],
+    female: [{ key: "neck", cx: 320, cy: 290 }],
+  },
+  back: {
+    male: [
+      { key: "forearms", cx: 838, cy: 700 },
+      { key: "grip", cx: 812, cy: 796 },
+    ],
+    female: [
+      { key: "forearms", cx: 865, cy: 665 },
+      { key: "grip", cx: 861, cy: 745 },
+    ],
+  },
+};
+// نصف قطر أقصى للدائرة المرئية (لا لمنطقة اللمس - انظر markerRadius) -
+// يُصغَّر تلقائياً عند الحاجة فقط حين تكون علامتان متقاربتين (الساعدين/
+// القبضة) حتى لا تتلامسا بصرياً، عبر minPairwiseGap أدناه.
+const EXTRA_MARKER_RADIUS = 42;
+
+function minPairwiseGap(markers) {
+  if (markers.length < 2) return Infinity;
+  let min = Infinity;
+  for (let i = 0; i < markers.length; i++) {
+    for (let j = i + 1; j < markers.length; j++) {
+      const dx = markers[i].cx - markers[j].cx;
+      const dy = markers[i].cy - markers[j].cy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < min) min = dist;
+    }
+  }
+  return min;
+}
 
 const SELECTED_FILL = "#E05252";
 const UNSELECTED_FILL = "var(--surface-sunken)";
@@ -43,10 +89,19 @@ const SELECTED_STROKE = "var(--gold)";
 const NEUTRAL_STROKE = "var(--border2)";
 const MIN_TOUCH_PX = 44;
 
-function View({ viewBox, regions, neutralPaths, selected, onSelect, widthPx, muscleLabel }) {
+function View({ viewBox, regions, neutralPaths, markers = [], selected, onSelect, widthPx, muscleLabel }) {
   const pathElsRef = useRef({});
   const [overlays, setOverlays] = useState([]);
   const heightPx = widthPx * (viewBox.h / viewBox.w);
+  const scalePxPerUnit = widthPx / viewBox.w;
+  // منطقة اللمس (طبقة catch الشفافة) - تبلغ ≥44px فعلية دائماً بغض النظر عن
+  // الازدحام، بنفس معيار كل عضلة أخرى (قد تتداخل مع علامة مجاورة في مسافة
+  // ميتة بينهما فقط - انظر تعليق طبقة catch أدناه، تماماً كمنطق overlays).
+  const markerRadius = (MIN_TOUCH_PX / 2) / scalePxPerUnit;
+  // الدائرة المرئية - أصغر تلقائياً من طبقة اللمس عند وجود علامة قريبة
+  // (الساعدين/القبضة) حتى لا تتلامسا بصرياً، بلا أي أثر على دقة الضغط
+  // الفعلية (تلك من طبقة catch دائماً بحجمها الكامل).
+  const visibleRadius = Math.min(EXTRA_MARKER_RADIUS, minPairwiseGap(markers) / 2 - 4);
 
   useLayoutEffect(() => {
     const scalePxPerUnit = widthPx / viewBox.w;
@@ -102,6 +157,28 @@ function View({ viewBox, regions, neutralPaths, selected, onSelect, widthPx, mus
           onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(o.muscle); } }}
         />
       ))}
+      {/* مناطق لمس دائرية موسَّعة (≥44px) للعلامات الجديدة - بنفس منطق
+          overlays أعلاه (تُرسَم قبل الأشكال الحقيقية، تحتها في ترتيب DOM).
+          الرقبة/الساعدين/القبضة أحياناً متقاربة جداً على الرسم (الساعد
+          واليد طرف صغير من الذراع) فقد تتداخل توسعتاها ببعض - هذا مقبول
+          هنا تماماً كتداخل overlays فيما بينها: لا ضرر لأن الدائرة
+          الملوَّنة الحقيقية الصغيرة (أسفل) تُرسَم فوقها لاحقاً فتفوز دائماً
+          بأي ضغطة داخل حدودها الخاصة، والتداخل يقع فقط في مسافة ميتة بين
+          العلامتين لا داخل أي منهما. */}
+      {markers.map((m) => (
+        <circle
+          key={`marker-catch-${m.key}`}
+          cx={m.cx} cy={m.cy} r={markerRadius}
+          fill="transparent"
+          style={{ cursor: "pointer" }}
+          role="button"
+          tabIndex={0}
+          aria-label={muscleLabel(m.key)}
+          aria-pressed={selected === m.key}
+          onClick={() => onSelect(m.key)}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(m.key); } }}
+        />
+      ))}
       {Object.entries(regions).map(([key, paths]) => {
         const isSelected = selected === key;
         return paths.map((d, i) => (
@@ -116,6 +193,23 @@ function View({ viewBox, regions, neutralPaths, selected, onSelect, widthPx, mus
             onClick={() => onSelect(key)}
           />
         ));
+      })}
+      {/* الدائرة الملوَّنة الحقيقية الصغيرة (فوق كل شيء) - حجم مرئي ثابت
+          معقول (لا يكبر تلقائياً كالتوسعة أعلاه) حتى لا تتلامس دائرتا
+          الساعدين/القبضة بصرياً رغم قرب موضعيهما التشريحي؛ الدقة الفعلية
+          للضغط تأتي من طبقة اللمس الموسَّعة أدناها، لا من حجم هذه الدائرة. */}
+      {markers.map((m) => {
+        const isSelected = selected === m.key;
+        return (
+          <circle
+            key={`marker-${m.key}`}
+            cx={m.cx} cy={m.cy} r={visibleRadius}
+            fill={isSelected ? SELECTED_FILL : UNSELECTED_FILL}
+            stroke={isSelected ? SELECTED_STROKE : NEUTRAL_STROKE}
+            strokeWidth={isSelected ? 4 : 2.5}
+            style={{ pointerEvents: "none" }}
+          />
+        );
       })}
     </svg>
   );
@@ -137,10 +231,11 @@ export default function InteractiveMuscleDiagram({ selected, onSelect, gender = 
   const neutralPaths = view === "front"
     ? (isFemale ? FRONT_NEUTRAL_FEMALE : FRONT_NEUTRAL)
     : (isFemale ? BACK_NEUTRAL_FEMALE : BACK_NEUTRAL);
+  const markers = EXTRA_MARKERS[view][isFemale ? "female" : "male"];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
-      <View viewBox={viewBox} regions={regions} neutralPaths={neutralPaths} selected={selected} onSelect={onSelect} widthPx={width} muscleLabel={muscleLabel} />
+      <View viewBox={viewBox} regions={regions} neutralPaths={neutralPaths} markers={markers} selected={selected} onSelect={onSelect} widthPx={width} muscleLabel={muscleLabel} />
       <div style={{ display: "flex", gap: 8 }}>
         <button
           type="button"

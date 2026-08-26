@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ChevronLeft, ChevronRight, X, Plus, Trash2, Youtube, Dumbbell, Sparkles } from "lucide-react";
+import { ChevronLeft, ChevronRight, X, Plus, Trash2, Youtube, Dumbbell, Sparkles, Heart } from "lucide-react";
 import { S } from "./styles";
 import { FS, ICONS, CARDIO_MOBILITY_ICON, DIFFICULTY_ORDER } from "./fitnessStyles";
 import InteractiveMuscleDiagram from "./InteractiveMuscleDiagram";
@@ -10,12 +10,6 @@ import { isolateNumbers } from "../lib/bidi";
 import { uid } from "../lib/helpers";
 import { analyze } from "../lib/helpers";
 
-// عضلات لا تملك رسماً تشريحياً بعد على المخطط التفاعلي (لا بيانات مسار SVG
-// حقيقية لها في muscleAnatomyPaths.js - اختلاق شكل تشريحي غير حقيقي لها
-// كان سيناقض دقة مسار العلمية) - تُعرَض كرقائق نصية إضافية أسفل المخطط
-// بدل الضغط المباشر، بنفس تدفّق الاختيار تماماً.
-const EXTRA_MUSCLES = ["neck", "forearms", "grip"];
-
 // 3 بيئات معدات فقط لهذا الاختيار السريع لكل تمرين (بالضبط كما طُلب) -
 // "منزل بمعدات كاملة" تبقى متاحة فقط من إعداد الملف الرياضي العام
 // للمحرّك التلقائي، لا كخيار سريع هنا.
@@ -25,7 +19,7 @@ const QUICK_EQUIPMENT = [
   { key: "gym", emoji: "🏢" },
 ];
 
-function ExerciseListRow({ exercise, isEn, onOpen }) {
+function ExerciseListRow({ exercise, isEn, onOpen, t }) {
   const gear = GEAR_TYPES.find((g) => g.key === exercise.gear);
   const GearIcon = gear ? ICONS[gear.icon] || Dumbbell : Dumbbell;
   return (
@@ -37,6 +31,11 @@ function ExerciseListRow({ exercise, isEn, onOpen }) {
           <span style={{ ...FS.badge, ...(exercise.type === "compound" ? FS.typeBadgeCompound : exercise.type === "isolation" ? FS.typeBadgeIsolation : {}) }}>
             {exercise.type}
           </span>
+          {exercise.womenFriendly && (
+            <span style={{ ...FS.badge, color: "#D17B9E", borderColor: "rgba(209,123,158,0.35)", background: "rgba(209,123,158,0.1)" }}>
+              <Heart size={10} /> {t("fitness.manualBuilder.womenFriendlyBadge")}
+            </span>
+          )}
         </div>
       </div>
     </button>
@@ -137,15 +136,26 @@ function ExerciseDetailModal({ exercise, gender, isEn, isRtl, t, equipmentLabel,
 // والتطوّر التلقائي الموجودين، ومع "بديل"/"تعديل راحة" أيضاً (فهرسة
 // programEntry.program.days صحيحة هنا لأنها أيام حقيقية في المصفوفة، بخلاف
 // حالة "جلسة مخصَّصة" المنفصلة).
-export default function ManualProgramBuilder({ gender, fitnessProfile, isEn, isRtl, t, showToast, onCancel, onSave }) {
+// mode="build" (افتراضي): بناء برنامج جديد كامل من الصفر (يستبدل أي
+// برنامج حالي بالكامل عند الحفظ - انظر التأكيد الصريح قبل فتح هذا المكوّن
+// في FitnessView.jsx). mode="append": المستخدم يملك برنامجاً يدوياً محفوظاً
+// بالفعل ويريد إضافة يوم جديد فقط - initialDays تُمرَّر عندها محمَّلة
+// بأيامه الحالية (محوَّلة لنفس الشكل الداخلي البسيط هنا)، فتظهر جاهزة في
+// قائمة الأيام دون أي حاجة لإعادة بنائها أو "الموافقة" عليها من جديد، وأي
+// حفظ (حتى لو اختار "أنا بنفسي" فوراً) يُعيد كل الأيام (القديمة والجديدة
+// معاً) لنفس مسار onSave الموجود أصلاً - لا حاجة لمسار حفظ منفصل.
+export default function ManualProgramBuilder({ gender, fitnessProfile, isEn, isRtl, t, showToast, onCancel, onSave, initialDays = [], mode = "build" }) {
   const BackChevron = isRtl ? ChevronRight : ChevronLeft;
-  const [days, setDays] = useState([]);
+  const [days, setDays] = useState(initialDays);
   const [activeDayId, setActiveDayId] = useState(null);
   const [showAddDay, setShowAddDay] = useState(false);
   const [newDayName, setNewDayName] = useState("");
 
   // مسار الإضافة: null | {step:"muscle"} | {step:"equipment", muscle} | {step:"list", muscle, equipment, tab}
   const [picker, setPicker] = useState(null);
+  // فلتر اختياري ("مناسب خصوصاً للنساء" - انظر تعليق womenFriendly في
+  // exercises-db.js) - طبقة عرض فوق نفس القائمة الكاملة، لا قائمة بديلة.
+  const [womenFriendlyOnly, setWomenFriendlyOnly] = useState(false);
   const [detailExercise, setDetailExercise] = useState(null);
   const [customizing, setCustomizing] = useState(false);
   const [custSets, setCustSets] = useState(3);
@@ -262,12 +272,6 @@ export default function ManualProgramBuilder({ gender, fitnessProfile, isEn, isR
                 backLabel={t("fitness.bodyViewBack")}
                 width={230}
               />
-              <div style={{ ...FS.noteText, marginTop: 14, marginBottom: 4 }}>{t("fitness.manualBuilder.extraMusclesLabel")}</div>
-              <div style={FS.chipRow}>
-                {EXTRA_MUSCLES.map((m) => (
-                  <button key={m} onClick={() => selectMuscle(m)} style={FS.chip}>{t(`fitness.muscleGroups.${m}`)}</button>
-                ))}
-              </div>
             </div>
           </>
         )}
@@ -295,7 +299,7 @@ export default function ManualProgramBuilder({ gender, fitnessProfile, isEn, isR
 
         {picker.step === "list" && (() => {
           const candidates = candidatesFor(picker.muscle, picker.equipment, fitnessProfile.injuries || [], null);
-          const byTab = candidates.filter((e) => e.difficulty === picker.tab);
+          const byTab = candidates.filter((e) => e.difficulty === picker.tab && (!womenFriendlyOnly || e.womenFriendly));
           return (
             <>
               <div style={FS.hero}>
@@ -313,10 +317,17 @@ export default function ManualProgramBuilder({ gender, fitnessProfile, isEn, isR
                     </button>
                   ))}
                 </div>
+                {/* فلتر اختياري فوق القاعدة الكاملة - لا يقيّد أي تمرين آخر
+                    عن أي مستخدمة، فقط يبرز التمارين ذات الفائدة الموثَّقة
+                    الخاصة (انظر تعليق womenFriendly في exercises-db.js). */}
+                <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, cursor: "pointer" }}>
+                  <input type="checkbox" checked={womenFriendlyOnly} onChange={(e) => setWomenFriendlyOnly(e.target.checked)} style={{ width: 18, height: 18 }} />
+                  <span style={{ fontSize: 12.5, color: "var(--ink-soft)" }}>{t("fitness.manualBuilder.womenFriendlyFilter")}</span>
+                </label>
                 {byTab.length === 0 ? (
                   <p style={FS.noteText}>{t("fitness.customSessionNoExercises")}</p>
                 ) : (
-                  byTab.map((ex) => <ExerciseListRow key={ex.id} exercise={ex} isEn={isEn} onOpen={openDetail} />)
+                  byTab.map((ex) => <ExerciseListRow key={ex.id} exercise={ex} isEn={isEn} onOpen={openDetail} t={t} />)
                 )}
               </div>
             </>
@@ -395,8 +406,8 @@ export default function ManualProgramBuilder({ gender, fitnessProfile, isEn, isR
       <div style={FS.hero}>
         <div style={FS.heroIcon}><Dumbbell size={22} color="var(--on-accent)" /></div>
         <div>
-          <div style={FS.heroTitle}>{t("fitness.manualBuilder.title")}</div>
-          <div style={FS.heroSub}>{t("fitness.manualBuilder.subtitle")}</div>
+          <div style={FS.heroTitle}>{t(mode === "append" ? "fitness.manualBuilder.appendTitle" : "fitness.manualBuilder.title")}</div>
+          <div style={FS.heroSub}>{t(mode === "append" ? "fitness.manualBuilder.appendSubtitle" : "fitness.manualBuilder.subtitle")}</div>
         </div>
       </div>
 

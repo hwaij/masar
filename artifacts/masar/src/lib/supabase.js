@@ -28,3 +28,16 @@ function createSupabaseClient() {
 export const supabase = createSupabaseClient();
 
 export const hasSupabase = !!supabase;
+
+// نفس صيغة مفتاح التخزين المحلي التي يبنيها supabase-js داخلياً بالضبط
+// (sb-<اسم النطاق الفرعي>-auth-token) - مُصدَّرة هنا لاستخدامها في auth.js
+// كخط دفاع احتياطي (قراءة الجلسة المخزَّنة مباشرة من localStorage) حين
+// يتعلّق نداء supabase.auth.getSession() الحقيقي بسبب قفل مزامنة عالق، لا
+// لإعادة تطبيق أي منطق مصادقة بأنفسنا.
+export const authStorageKey = (() => {
+  try {
+    return `sb-${new URL(url).hostname.split(".")[0]}-auth-token`;
+  } catch {
+    return null;
+  }
+})();

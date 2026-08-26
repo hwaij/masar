@@ -32,7 +32,7 @@ import { FITNESS_GOALS } from "../lib/exercises-db";
 import { sumNutritionEntries, waterGoalCups, MEAL_TYPES, analyzeMealPatterns, MICRONUTRIENT_META, computeMoodNutritionCorrelation } from "../lib/nutrition";
 import { getDailyNutritionSummary } from "../lib/nutrition-plan";
 import { playSaveSound, playAchievementSound } from "../lib/sound";
-import { getSession, onAuthChange, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut, userFromSession, hasAuth } from "../lib/auth";
+import { getSession, getCachedSessionUser, onAuthChange, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut, userFromSession, hasAuth } from "../lib/auth";
 import {
   todayKey, fmtHM, uid, diffMinutes, arabicDate, computeStreak, longestStreak, escapeHtml,
   COLOR_CHOICES, BADGES, analyze, parseJsonLoose,
@@ -331,6 +331,11 @@ export default function MasarApp() {
   const [subscription, setSubscription] = useState({ isSubscriber: false, subscriptionEnd: null, isVip: false, subscriptionType: null });
   const isSub = isActiveSubscriber(subscription);
   const [user, setUser] = useState(null);
+  // true فقط حين تعذّر التحقّق الحقيقي من الجلسة (تعليق/قفل عالق - انظر
+  // getSession في auth.js) بلا أي جلسة مخزَّنة محلياً يمكن الاعتماد عليها
+  // مؤقتاً - حالة غامضة حقيقية لا نعرف فيها هل المستخدم مسجَّل دخول أم لا،
+  // فنعرض رسالة اتصال واضحة بدل افتراض تسجيل الخروج (شاشة دخول مربكة).
+  const [sessionCheckAmbiguous, setSessionCheckAmbiguous] = useState(false);
   const userIdRef = useRef(undefined);
   const loadVersionRef = useRef(0);
 
@@ -451,8 +456,15 @@ export default function MasarApp() {
   useEffect(() => {
     let active = true;
     (async () => {
-      const session = await getSession();
-      const u = userFromSession(session);
+      const { session, timedOut } = await getSession();
+      let u = userFromSession(session);
+      // القفل عالق فقط (لا جلسة فعلية منتهية) - اعتمد الجلسة المخزَّنة
+      // محلياً بدل تسجيل خروج فوري خاطئ (انظر التوثيق في auth.js). onAuthChange
+      // أدناه سيُصحِّح الحالة تلقائياً بمجرد تحرّر القفل إن كان هناك فرق حقيقي.
+      if (!u && timedOut) {
+        u = getCachedSessionUser();
+        if (!u) setSessionCheckAmbiguous(true);
+      }
       userIdRef.current = u?.id || null;
       setOwner(u?.id);
       setUser(u);
@@ -460,6 +472,10 @@ export default function MasarApp() {
     })();
     const unsub = onAuthChange(async (session) => {
       const u = userFromSession(session);
+      // أي استدعاء فعلي هنا (بخلاف نداء getSession أعلاه) يعني أن supabase-js
+      // حصل على إجابة حقيقية أخيراً (القفل تحرَّر) - الحالة لم تعد غامضة بغض
+      // النظر عن كون الإجابة "مسجَّل دخول" أو "لا جلسة فعلاً" هذه المرة.
+      setSessionCheckAmbiguous(false);
       const newId = u?.id || null;
       if (newId === userIdRef.current) return;
       userIdRef.current = newId;
@@ -731,6 +747,7 @@ export default function MasarApp() {
   if (showLanguagePicker) return <LanguagePicker onPick={handlePickLanguage} />;
   if (showSplash) return <SplashScreen onDone={dismissSplash} />;
   if (!loaded) return <div style={{ ...S.app, ...S.loaderWrap }}><Loader2 size={28} color="#C9A24B" className="spin" /></div>;
+  if (hasAuth && !user && sessionCheckAmbiguous) return <ConnectionIssueScreen />;
   if (hasAuth && !user) return <LandingPage onSignIn={handleSignIn} onEmailSignIn={handleEmailSignIn} onEmailSignUp={handleEmailSignUp} />;
 
   return (
@@ -1312,6 +1329,33 @@ function EmailAuthForm({ onEmailSignIn, onEmailSignUp }) {
         {mode === "signin" ? t("auth.noAccount") : t("auth.haveAccount")}
       </button>
     </form>
+  );
+}
+
+// تُعرَض فقط حين يتعذّر التحقّق الحقيقي من الجلسة (قفل مزامنة عالق في
+// supabase-js - انظر التوثيق في auth.js) بلا أي جلسة مخزَّنة يمكن الاعتماد
+// عليها مؤقتاً - حالة غامضة حقيقية، لا حالة "تسجيل خروج مؤكَّد". نعرض هنا
+// رسالة اتصال واضحة وزر إعادة تحميل صريح بدل شاشة تسجيل دخول مربكة قد
+// تدفع مستخدماً لديه فعلياً حساب صالح لإنشاء حساب جديد بالخطأ. إعادة تحميل
+// الصفحة بالكامل (لا مجرد إعادة محاولة النداء) هي الحل الفعلي الأكثر
+// موثوقية هنا لأنها تنشئ سياق جافاسكريبت جديداً تماماً، وهذا عادة ما يُحرِّر
+// القفل العالق المرتبط بالسياق القديم.
+function ConnectionIssueScreen() {
+  const { t, i18n } = useTranslation();
+  return (
+    <div style={{ minHeight: "100vh", background: "#0A0A0B", color: "#E8E6E1", direction: i18n.language === "en" ? "ltr" : "rtl", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div style={{ maxWidth: 340, textAlign: "center" }}>
+        <AlertTriangle size={40} color="#C9A24B" style={{ marginBottom: 16 }} />
+        <h2 style={{ fontSize: 18, fontWeight: 700, margin: "0 0 8px" }}>{t("common.errors.connectionIssueTitle")}</h2>
+        <p style={{ fontSize: 14, color: "var(--muted2)", lineHeight: 1.7, margin: "0 0 24px" }}>{t("common.errors.connectionIssueBody")}</p>
+        <button
+          onClick={() => window.location.reload()}
+          style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#C9A24B", color: "#1a1a1a", border: "none", borderRadius: 14, padding: "12px 24px", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+        >
+          <RefreshCw size={16} /> {t("common.errors.retryReload")}
+        </button>
+      </div>
+    </div>
   );
 }
 

@@ -5,7 +5,7 @@ import { FS, ICONS, CARDIO_MOBILITY_ICON, DIFFICULTY_ORDER } from "./fitnessStyl
 import InteractiveMuscleDiagram from "./InteractiveMuscleDiagram";
 import MuscleDiagram from "./MuscleDiagram";
 import { GEAR_TYPES, MOVEMENT_PATTERNS } from "../lib/exercises-db";
-import { candidatesFor, suggestedVolumeFor, youtubeSearchUrl } from "../lib/fitness-engine";
+import { candidatesFor, suggestedVolumeFor, youtubeSearchUrl, formatRestLabel } from "../lib/fitness-engine";
 import { isolateNumbers } from "../lib/bidi";
 import { uid } from "../lib/helpers";
 import { analyze } from "../lib/helpers";
@@ -108,7 +108,7 @@ function ExerciseDetailModal({ exercise, gender, isEn, isRtl, t, equipmentLabel,
             <label style={S.label}>{t("fitness.manualBuilder.restLabel")}</label>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <button type="button" onClick={() => setRestSeconds((r) => Math.max(10, r - 5))} style={FS.restAdjustSecBtn}>−5s</button>
-              <span style={{ ...FS.exerciseName, minWidth: 44, textAlign: "center" }}>{isolateNumbers(t("fitness.restLabel", { sec: restSeconds }))}</span>
+              <span style={{ ...FS.exerciseName, minWidth: 44, textAlign: "center" }}>{isolateNumbers(formatRestLabel(t, restSeconds))}</span>
               <button type="button" onClick={() => setRestSeconds((r) => Math.min(300, r + 5))} style={FS.restAdjustSecBtn}>+5s</button>
             </div>
             <button onClick={onConfirmAdd} style={{ ...S.saveBtn, marginTop: 14 }}>{t("fitness.manualBuilder.confirmAddBtn")}</button>
@@ -375,7 +375,7 @@ export default function ManualProgramBuilder({ gender, fitnessProfile, isEn, isR
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={FS.exerciseName}>{isEn ? (ex.nameEn || ex.name) : ex.name}</div>
                     <div style={FS.exerciseMeta}>
-                      {isolateNumbers(t("fitness.setsReps", { sets: ex.sets, reps: ex.reps }))} · {isolateNumbers(t("fitness.restLabel", { sec: ex.restSeconds }))}
+                      {isolateNumbers(t("fitness.setsReps", { sets: ex.sets, reps: ex.reps }))} · {isolateNumbers(formatRestLabel(t, ex.restSeconds))}
                     </div>
                     <div style={FS.badgeRow}>
                       <span style={FS.badge}><GearIcon size={11} /> {isEn ? gear?.nameEn : gear?.name}</span>

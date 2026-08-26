@@ -99,6 +99,22 @@ export function restSecondsForGoalAndType(goal, type) {
   return restSecondsForType(volume.restSeconds, type);
 }
 
+// مصدر حقيقة واحد لعرض وقت الراحة نصياً في كل مكان (بطاقة التمرين، شاشة
+// التفاصيل، قائمة اختيار عضلة، شاشة التخصيص اليدوي...) - كان كل موقع يعرض
+// دائماً "راحة {{ثانية}} ثانية" مهما كانت القيمة (مثال: "راحة 90 ثانية")،
+// بينما مؤقّت الراحة الحي في وضع التركيز (Focus Mode) وحده يعرضها بصيغة
+// ساعة "1:30" - نفس القيمة بصيغتين مختلفتين حسب الشاشة. توحيدها هنا: صيغة
+// ثوانٍ صريحة فقط تحت الدقيقة ("45 ثانية")، وصيغة ساعة "دقيقة:ثانية" بمجرد
+// بلوغ الدقيقة (يطابق أول مثال اقترحه المستخدم "1:20" حرفياً) - في كل موقع
+// عرض دون استثناء، لا اختلاف حسب الشاشة. يستخدم t() المُمرَّر من المستدعي
+// (نفس نمط youtubeSearchUrl أعلاه - لا استيراد i18n مباشرة هنا).
+export function formatRestLabel(t, restSeconds) {
+  const s = Math.max(0, Math.round(restSeconds || 0));
+  if (s < 60) return t("fitness.restLabel", { sec: s });
+  const clock = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  return t("fitness.restLabelClock", { clock });
+}
+
 // المبتدئ يبدأ بحجم أقل (إتقان الأداء أولاً)، المتقدم يتحمّل حجماً أعلى.
 const SETS_ADJUST_BY_EXPERIENCE = { beginner: -1, intermediate: 0, advanced: 1 };
 
@@ -241,7 +257,19 @@ export function suggestedVolumeFor(exercise, goal, experience) {
 // من نمط حركة واحد ضمن نفس اليوم (دفع أفقي + رأسي مثلاً) يعطي تطوراً أعمّ من
 // تكرار نفس النمط الحركي بأدوات مختلفة فقط. يُستخدَم فقط كتفضيل ثانوي بعد
 // المركّب/العزل - لا يستبعد أي مرشح، فقط يعيد ترتيب الأولوية بينها.
-function pickOneForMuscle(muscle, equipment, injuries, experience, usedIds, rng, substitutionFlag, usedPatternsToday, goal, avoidExerciseId, visitedMuscles) {
+//
+// gender (اختياري): حين يساوي "female" وبين المرشَّحين المتاحين فعلياً
+// لهذه العضلة تمرين واحد على الأقل مُوسَّم womenFriendly (انظر توثيق الحقل
+// في exercises-db.js - تمارير حوض/ورك/حماية أسفل ظهر بمرجع فسيولوجي حقيقي،
+// لا نمطية)، تُنقَل هذه التمارين إلى مقدّمة القائمة قبل تطبيق منطق أولوية
+// المركّب/نمط الحركة أدناه - تفضيل لطيف يزيد احتمال ظهورها فعلياً ضمن
+// البرنامج التلقائي (لا استبعاد لأي تمرين آخر، ولا يُجبَر أي اختيار: يبقى
+// من الممكن تماماً أن يظهر تمرين غير مُوسَّم إن كان هو الأنسب لمعايير
+// المركّب/التنويع). هذا يستبدل التعديل العام السابق (زيادة مجموعة واحدة على
+// تمرين علوي عشوائي - انظر التعليق العلمي عند genderAdjustedFlag أدناه) في
+// كل عضلة لديها فعلاً تمارين مُوسَّمة، بمحتوى حقيقي مختلف بدل رقم مجموعات
+// أعلى على نفس التمرين المحايد.
+function pickOneForMuscle(muscle, equipment, injuries, experience, usedIds, rng, substitutionFlag, usedPatternsToday, goal, avoidExerciseId, gender, visitedMuscles) {
   const visited = visitedMuscles || new Set();
   visited.add(muscle);
   let pool = candidatesFor(muscle, equipment, injuries, experience).filter((e) => !usedIds.has(e.id));
@@ -250,7 +278,7 @@ function pickOneForMuscle(muscle, equipment, injuries, experience, usedIds, rng,
     const fallbackMuscle = MUSCLE_FALLBACK[muscle];
     if (fallbackMuscle && !visited.has(fallbackMuscle)) {
       substitutionFlag.value = true;
-      return pickOneForMuscle(fallbackMuscle, equipment, injuries, experience, usedIds, rng, substitutionFlag, usedPatternsToday, goal, avoidExerciseId, visited);
+      return pickOneForMuscle(fallbackMuscle, equipment, injuries, experience, usedIds, rng, substitutionFlag, usedPatternsToday, goal, avoidExerciseId, gender, visited);
     }
     return null;
   }
@@ -261,7 +289,11 @@ function pickOneForMuscle(muscle, equipment, injuries, experience, usedIds, rng,
     const withoutAvoided = pool.filter((e) => e.id !== avoidExerciseId);
     if (withoutAvoided.length > 0) pool = withoutAvoided;
   }
-  const shuffled = seededShuffle(pool, rng);
+  let shuffled = seededShuffle(pool, rng);
+  if (gender === "female") {
+    const preferred = shuffled.filter((e) => e.womenFriendly);
+    if (preferred.length > 0) shuffled = [...preferred, ...shuffled.filter((e) => !e.womenFriendly)];
+  }
   const bias = GOAL_COMPOUND_BIAS[goal] || "default";
 
   // "balanced": تجاوز فرز "مركّب أولاً" كلياً - استخدام ترتيب الخلط كما هو.
@@ -334,6 +366,7 @@ export function buildProgram(assessment, seed, hasPerformanceHistory = false, pr
   const usedThisWeek = new Set();
   const substitutionFlag = { value: false };
   const genderAdjustedFlag = { value: false };
+  const womenFriendlyIncludedFlag = { value: false };
 
   const days = split.map((dayType, dayIndex) => {
     const dayMuscles = DAY_TYPE_MUSCLES[dayType] || DAY_TYPE_MUSCLES.full_body;
@@ -382,7 +415,7 @@ export function buildProgram(assessment, seed, hasPerformanceHistory = false, pr
     // عضلات اليوم الأساسية مضمونة بالتساوي لكل مستخدم بغض النظر عن جنسه.
     for (const muscle of muscles) {
       if (picked.length >= exerciseCount) break;
-      const ex = pickOneForMuscle(muscle, equipment, injuries, experience, usedThisWeek, dayRng, substitutionFlag, usedPatternsToday, goal, avoidIdFor(muscle));
+      const ex = pickOneForMuscle(muscle, equipment, injuries, experience, usedThisWeek, dayRng, substitutionFlag, usedPatternsToday, goal, avoidIdFor(muscle), gender);
       if (ex) addPicked(ex);
     }
     // مرحلة ثانية: إن سمحت مدة الحصة بتمارين إضافية، أضف تمريناً ثانياً
@@ -402,14 +435,14 @@ export function buildProgram(assessment, seed, hasPerformanceHistory = false, pr
     let round = 0;
     while (picked.length < exerciseCount && round < exerciseCount) {
       const muscle = muscles[round % muscles.length];
-      const ex = pickOneForMuscle(muscle, equipment, injuries, experience, usedThisWeek, dayRng, substitutionFlag, usedPatternsToday, goal, avoidIdFor(muscle));
+      const ex = pickOneForMuscle(muscle, equipment, injuries, experience, usedThisWeek, dayRng, substitutionFlag, usedPatternsToday, goal, avoidIdFor(muscle), gender);
       if (ex) addPicked(ex);
       round++;
     }
     // إن كان الهدف تنشيفاً، أضف تمريناً كارديو ختامياً قصيراً (مبدأ عام:
     // عجز سعرات أكبر باستهلاك إضافي، لا يستبدل تمارين المقاومة الأساسية).
     if (goal === "lose_weight" && picked.length < exerciseCount + 1) {
-      const cardioEx = pickOneForMuscle("cardio", equipment, injuries, experience, usedThisWeek, dayRng, substitutionFlag, usedPatternsToday, goal, avoidIdFor("cardio"));
+      const cardioEx = pickOneForMuscle("cardio", equipment, injuries, experience, usedThisWeek, dayRng, substitutionFlag, usedPatternsToday, goal, avoidIdFor("cardio"), gender);
       if (cardioEx) addPicked(cardioEx);
     }
     // تمرين تهدئة/مرونة واحد في ختام كل يوم بغضّ النظر عن الهدف - مبدأ
@@ -417,10 +450,12 @@ export function buildProgram(assessment, seed, hasPerformanceHistory = false, pr
     // هذا فعلياً مجموعة تمارين "المرونة" في قاعدة البيانات التي لم تكن تظهر
     // لأي مستخدم من قبل (لا split يستهدف mobility كعضلة رئيسية) - بيانات
     // كانت ميتة فعلياً حتى الآن.
-    const cooldownEx = pickOneForMuscle("mobility", equipment, injuries, experience, usedThisWeek, dayRng, substitutionFlag, usedPatternsToday, goal, avoidIdFor("mobility"));
+    const cooldownEx = pickOneForMuscle("mobility", equipment, injuries, experience, usedThisWeek, dayRng, substitutionFlag, usedPatternsToday, goal, avoidIdFor("mobility"), gender);
     if (cooldownEx) addPicked(cooldownEx);
 
     const exercises = picked.map((e) => withVolume(e, volume, sets));
+
+    if (gender === "female" && exercises.some((e) => e.womenFriendly)) womenFriendlyIncludedFlag.value = true;
 
     // نقطة انطلاق أولية فقط (انظر التعليق العلمي أعلاه UPPER_BODY_MUSCLES) -
     // مجموعة واحدة إضافية كحد أقصى، على تمرين مركّب واحد للجزء العلوي إن
@@ -451,6 +486,10 @@ export function buildProgram(assessment, seed, hasPerformanceHistory = false, pr
     // مستهدَفة استُبدلت بعضلة مجاورة آمنة بسبب إصابته.
     hasInjurySubstitutions: substitutionFlag.value,
     genderAdjusted: genderAdjustedFlag.value,
+    // هل تضمَّن يوم واحد على الأقل تمريناً مُوسَّماً womenFriendly فعلياً
+    // (انظر تفضيل gender في pickOneForMuscle أعلاه)؟ يُستخدَم في FitnessView.jsx
+    // لعرض ملاحظة محدَّدة وصادقة عن محتوى حقيقي مختلف - لا نص عام مبهم.
+    womenFriendlyIncluded: womenFriendlyIncludedFlag.value,
     seed: actualSeed,
     generatedAt: new Date().toISOString(),
   };
@@ -486,7 +525,12 @@ function scoreAlternative(candidate, original, goal, experience) {
 // تُستخدَم من أي شاشة تعرض تفاصيل تمرين (بما فيها بناء البرنامج اليدوي في
 // ManualProgramBuilder.jsx) دون تكرارها.
 export function youtubeSearchUrl(exercise) {
-  const query = `${exercise.nameEn || exercise.name} exercise proper form`;
+  // كلمة "for women" إضافية فقط حين التمرين مُوسَّم womenFriendly - تُرجّح
+  // نتائج فيديو أكثر ملاءمة لتلك الشروحات (مثال: كيغل/قاع الحوض) بلا أي
+  // تغيير على التمرين نفسه أو إتاحته لأي مستخدم آخر.
+  const query = exercise.womenFriendly
+    ? `${exercise.nameEn || exercise.name} exercise proper form for women`
+    : `${exercise.nameEn || exercise.name} exercise proper form`;
   return `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
 }
 

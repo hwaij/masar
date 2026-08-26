@@ -5,7 +5,7 @@ import {
   Dumbbell, PersonStanding, Footprints, HeartPulse, Bike, Wind, Flame, Settings2, StretchHorizontal,
   AlertTriangle, Edit3, Check, Repeat, TrendingUp, X, ChevronLeft, ChevronRight,
   Circle, Play, Pause, SkipForward, PartyPopper, Trophy, Clock, ListChecks, Share2, BarChart3, Youtube,
-  FileText, Camera, Sparkles, LayoutGrid, Target, Trash2, Plus,
+  FileText, Camera, Sparkles, LayoutGrid, Target, Trash2, Plus, Heart,
 } from "lucide-react";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { store, getOwner } from "../lib/store";
@@ -21,7 +21,7 @@ import {
 import {
   buildProgram, pickAlternatives, suggestProgression, seedFromOwner, estimateOneRepMax,
   getLastPerformance, computeSessionVolumeByMuscle, estimateSessionCalories, mostRecentLoggedDate,
-  aggregateLogsByDate, setVolume, restSecondsForGoalAndType, exercisesForMuscle, youtubeSearchUrl,
+  aggregateLogsByDate, setVolume, restSecondsForGoalAndType, exercisesForMuscle, youtubeSearchUrl, formatRestLabel,
 } from "../lib/fitness-engine";
 import { NO_CONDITION } from "../lib/health";
 import { playRestEndSound, primeAudioContext } from "../lib/sound";
@@ -62,7 +62,7 @@ function ExerciseRow({ exercise, isEn, gender, isLogging, onToggleLog, logWeight
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={FS.exerciseName}>{isEn ? (exercise.nameEn || exercise.name) : exercise.name}</div>
           <div style={FS.exerciseMeta}>
-            {isolateNumbers(t("fitness.setsReps", { sets: exercise.sets, reps: isEn ? (exercise.repsEn || exercise.reps) : exercise.reps }))} · {isolateNumbers(t("fitness.restLabel", { sec: exercise.restSeconds }))}
+            {isolateNumbers(t("fitness.setsReps", { sets: exercise.sets, reps: isEn ? (exercise.repsEn || exercise.reps) : exercise.reps }))} · {isolateNumbers(formatRestLabel(t, exercise.restSeconds))}
             {onAdjustRest && (
               <span style={FS.restEditGroup}>
                 <button type="button" onClick={() => onAdjustRest(-5)} style={FS.restAdjustBtn} aria-label={t("fitness.decreaseRestBtn")}>−</button>
@@ -78,6 +78,11 @@ function ExerciseRow({ exercise, isEn, gender, isLogging, onToggleLog, logWeight
             </span>
             <span style={FS.badge}><DifficultyDots difficulty={exercise.difficulty} /> {t(`fitness.experienceLevels.${exercise.difficulty}`)}</span>
             {pattern && <span style={FS.badge}>{isEn ? pattern.nameEn : pattern.name}</span>}
+            {exercise.womenFriendly && (
+              <span style={{ ...FS.badge, color: "#D17B9E", borderColor: "rgba(209,123,158,0.35)", background: "rgba(209,123,158,0.1)" }}>
+                <Heart size={10} /> {t("fitness.manualBuilder.womenFriendlyBadge")}
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -182,11 +187,16 @@ function ExerciseDetailView({ exercise, isEn, isRtl, gender, onBack, t }) {
           </span>
           <span style={FS.badge}><DifficultyDots difficulty={exercise.difficulty} /> {t(`fitness.experienceLevels.${exercise.difficulty}`)}</span>
           {pattern && <span style={FS.badge}>{isEn ? pattern.nameEn : pattern.name}</span>}
+          {exercise.womenFriendly && (
+            <span style={{ ...FS.badge, color: "#D17B9E", borderColor: "rgba(209,123,158,0.35)", background: "rgba(209,123,158,0.1)" }}>
+              <Heart size={10} /> {t("fitness.manualBuilder.womenFriendlyBadge")}
+            </span>
+          )}
         </div>
       </div>
 
       <div style={FS.detailSectionCard}>
-        <div style={FS.exerciseMeta}>{isolateNumbers(t("fitness.setsReps", { sets: exercise.sets, reps: isEn ? (exercise.repsEn || exercise.reps) : exercise.reps }))} · {isolateNumbers(t("fitness.restLabel", { sec: exercise.restSeconds }))}</div>
+        <div style={FS.exerciseMeta}>{isolateNumbers(t("fitness.setsReps", { sets: exercise.sets, reps: isEn ? (exercise.repsEn || exercise.reps) : exercise.reps }))} · {isolateNumbers(formatRestLabel(t, exercise.restSeconds))}</div>
         <div style={{ ...FS.exerciseMeta, marginTop: 4 }}>{t("fitness.targetMuscle")}: {t(`fitness.muscleGroups.${exercise.muscle}`)}</div>
       </div>
 
@@ -266,8 +276,15 @@ function MusclePickerScreen({ gender, isEn, isRtl, t, pickedMuscle, onSelectMusc
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={FS.exerciseName}>{isEn ? (ex.nameEn || ex.name) : ex.name}</div>
                     <div style={FS.exerciseMeta}>
-                      {isolateNumbers(t("fitness.setsReps", { sets: ex.sets, reps: isEn ? (ex.repsEn || ex.reps) : ex.reps }))} · {isolateNumbers(t("fitness.restLabel", { sec: ex.restSeconds }))}
+                      {isolateNumbers(t("fitness.setsReps", { sets: ex.sets, reps: isEn ? (ex.repsEn || ex.reps) : ex.reps }))} · {isolateNumbers(formatRestLabel(t, ex.restSeconds))}
                     </div>
+                    {ex.womenFriendly && (
+                      <div style={FS.badgeRow}>
+                        <span style={{ ...FS.badge, color: "#D17B9E", borderColor: "rgba(209,123,158,0.35)", background: "rgba(209,123,158,0.1)" }}>
+                          <Heart size={10} /> {t("fitness.manualBuilder.womenFriendlyBadge")}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </label>
               );
@@ -332,13 +349,13 @@ function FocusModeView({
         )}
       </div>
       <div style={FS.focusExerciseName}>{isEn ? (exercise.nameEn || exercise.name) : exercise.name}</div>
-      <div style={FS.focusMeta}>{isolateNumbers(t("fitness.setsReps", { sets: exercise.sets, reps: isEn ? (exercise.repsEn || exercise.reps) : exercise.reps }))} · {isolateNumbers(t("fitness.restLabel", { sec: exercise.restSeconds }))}</div>
+      <div style={FS.focusMeta}>{isolateNumbers(t("fitness.setsReps", { sets: exercise.sets, reps: isEn ? (exercise.repsEn || exercise.reps) : exercise.reps }))} · {isolateNumbers(formatRestLabel(t, exercise.restSeconds))}</div>
 
       {resting ? (
         <div style={FS.restCard}>
           <div style={FS.restTitle}>{restPaused ? t("fitness.restPausedTitle") : t("fitness.restingTitle")}</div>
           <div style={FS.restSetProgress}>{isolateNumbers(t("fitness.setProgress", { current: Math.min(setsDoneForCurrent + 1, exercise.sets), total: exercise.sets }))}</div>
-          <div style={FS.restTime}>{restTimeLabel}</div>
+          <div style={FS.restTime}>{isolateNumbers(restTimeLabel)}</div>
           <div style={FS.restProgressTrack}><div style={{ ...FS.restProgressFill, width: `${restProgressPct}%` }} /></div>
           <div style={FS.restControlsRow}>
             <button onClick={() => onAdjustRest(-10)} style={FS.restAdjustSecBtn}><bdi dir="ltr" style={{ unicodeBidi: "isolate" }}>−10s</bdi></button>
@@ -1434,6 +1451,7 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
           <div style={FS.summaryLabel}>{t("fitness.yourProgram")}</div>
           <div style={FS.summaryValue}>{isolateNumbers(t("fitness.programSummary", { goal: goalLabel, equipment: equipmentLabel, days: fitnessProfile.daysPerWeek }))}</div>
           {programEntry?.program?.isManual && <p style={FS.noteText}>{t("fitness.manualBuilder.manualProgramNote")}</p>}
+          {programEntry?.program?.womenFriendlyIncluded && <p style={FS.noteText}>{t("fitness.womenFriendlyIncludedNote")}</p>}
           {programEntry?.program?.genderAdjusted && <p style={FS.noteText}>{t("fitness.genderAdjustedNote")}</p>}
           {programEntry?.program?.hasInjurySubstitutions && <p style={FS.noteText}>{t("fitness.injurySubstitutionNote")}</p>}
         </div>

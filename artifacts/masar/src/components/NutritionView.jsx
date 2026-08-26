@@ -644,6 +644,25 @@ function MealCard({ mealType, items, dayTotalCalories, usualTimeLabel, isCurrent
       return { ...d, qty: Math.max(0, next) };
     });
   }
+  // تعديل الكمية بعدد حصص كاملة (1-9) بدل الوزن الخام مباشرة - يعيد حساب
+  // الكمية تلقائياً بضرب حجم الحصة الواحدة (servingGrams المحفوظة وقت
+  // الإضافة) في العدد المُختار. يُستخدَم unitServingSize نفسه المُستخدَم في
+  // ConfirmQuantityCard (لا منطق كثافة مكرَّر) لتحويل "حصة واحدة" لنفس وحدة
+  // editDraft.unit الحالية - يعمل بشكل صحيح أياً كانت الوحدة (غم/مل/كوب...)
+  // لا الغرام فقط. يظهر فقط حين يملك هذا الصنف حجم حصة معروفاً فعلياً
+  // (productBasis.servingGrams) - لا قيمة مُخترَعة لصنف لا يملك واحدة.
+  function stepServings(item, delta) {
+    const servingGrams = item.productBasis?.servingGrams;
+    if (!servingGrams) return;
+    const productLike = { ...item.productBasis, name: item.foodName };
+    setEditDraft((d) => {
+      const oneServing = unitServingSize(d.unit, servingGrams, productLike);
+      if (!(oneServing > 0)) return d;
+      const currentServings = Math.round((d.qty || 0) / oneServing);
+      const nextServings = Math.max(1, Math.min(9, currentServings + delta));
+      return { ...d, qty: Math.round(nextServings * oneServing * 100) / 100 };
+    });
+  }
   // معاينة حيّة لتعديل الكمية - نفس المحرك المُستخدَم في ConfirmQuantityCard
   // بالضبط (quantityInProductBasis يحوّل للـ"عملة" الصحيحة g/ml حسب أساس
   // المنتج المحفوظ، ثم scaleNutrients/scaleMicronutrients). item.foodName
@@ -746,6 +765,11 @@ function MealCard({ mealType, items, dayTotalCalories, usualTimeLabel, isCurrent
 
                 {isEditing && editDraft.mode === "quantity" && (() => {
                   const preview = quantityPreview(item, editDraft);
+                  const servingGrams = item.productBasis?.servingGrams;
+                  const oneServing = servingGrams
+                    ? unitServingSize(editDraft.unit, servingGrams, { ...item.productBasis, name: item.foodName })
+                    : null;
+                  const currentServings = oneServing > 0 ? Math.round((editDraft.qty || 0) / oneServing) : null;
                   return (
                     <div style={NS.mealItemDetail}>
                       <label style={S.label}>{t("nutrition.editQuantityLabel")}</label>
@@ -759,6 +783,16 @@ function MealCard({ mealType, items, dayTotalCalories, usualTimeLabel, isCurrent
                         <button type="button" onClick={() => stepQty(1)} style={NS.qtyStepperBtn} aria-label={t("nutrition.increaseQty")}>+</button>
                       </div>
                       <div style={NS.qtyStepperUnit}>{t(`nutrition.unitOptions.${editDraft.unit}`)}</div>
+                      {servingGrams > 0 && (
+                        <>
+                          <label style={{ ...S.label, marginTop: 10 }}>{t("nutrition.editServingsLabel", { g: Math.round(servingGrams) })}</label>
+                          <div style={NS.qtyStepperRow}>
+                            <button type="button" onClick={() => stepServings(item, -1)} style={NS.qtyStepperBtn} aria-label={t("nutrition.decreaseQty")}>−</button>
+                            <span style={{ ...NS.qtyStepperInput, display: "flex", alignItems: "center", justifyContent: "center" }}>{isolateNumbers(currentServings ?? 1)}</span>
+                            <button type="button" onClick={() => stepServings(item, 1)} style={NS.qtyStepperBtn} aria-label={t("nutrition.increaseQty")}>+</button>
+                          </div>
+                        </>
+                      )}
                       {preview.approxDensity && <p style={NS.unitApproxNote}>{t("nutrition.approxDensityNote")}</p>}
                       <div style={NS.qtyPreviewGrid}>
                         <span>{t("nutrition.calories")}: <NumericValue value={preview.calories} unit={t("common.units.kcal")} /></span>

@@ -1,4 +1,4 @@
-import { supabase, hasSupabase } from "./supabase";
+import { supabase, hasSupabase, authStorageKey } from "./supabase";
 import { withTimeout } from "./helpers";
 
 export const hasAuth = hasSupabase;
@@ -10,11 +10,44 @@ export const hasAuth = hasSupabase;
 // شاشة الإقلاع تنتظر هذا النداء قبل أي شيء آخر. المهلة هنا لا تُلغي النداء
 // الحقيقي (قد يكتمل لاحقاً في الخلفية)، لكنها تمنع تعليق الإقلاع بالكامل -
 // onAuthChange أدناه سيُحدّث حالة المستخدم فعلياً بمجرد وصول أي جلسة حقيقية.
+//
+// timedOut (في القيمة المُعادة): كان الخلل السابق هنا أن انتهاء المهلة كان
+// يُعامَل تماماً كـ"لا توجد جلسة" (session: null)، فيُسجَّل المستخدم خارجاً
+// في الواجهة رغم أن جلسته الحقيقية قد تكون سليمة تماماً - وهذا هو السبب
+// الجذري الفعلي وراء "شاشة تسجيل الدخول العالقة" التي يبلّغ عنها المستخدمون:
+// القفل العالق (لا انتهاء جلسة فعلي) يُترجَم خطأً لطلب إعادة تسجيل دخول.
+// الحل: تمييز الحالتين صراحة - المستدعي (MasarApp.jsx) يستخدم
+// getCachedSessionUser() أدناه كخط دفاع فقط حين timedOut=true، بدل افتراض
+// تسجيل الخروج تلقائياً.
 export async function getSession() {
-  if (!hasSupabase) return null;
+  if (!hasSupabase) return { session: null, timedOut: false };
+  const TIMED_OUT = Symbol("timed-out");
   try {
-    const { data } = await withTimeout(supabase.auth.getSession(), 6000, { data: null });
-    return data?.session || null;
+    const result = await withTimeout(supabase.auth.getSession(), 6000, TIMED_OUT);
+    if (result === TIMED_OUT) return { session: null, timedOut: true };
+    return { session: result?.data?.session || null, timedOut: false };
+  } catch {
+    return { session: null, timedOut: false };
+  }
+}
+
+// قراءة الجلسة المخزَّنة محلياً مباشرة من localStorage (نفس المفتاح الذي
+// يستخدمه supabase-js داخلياً - انظر authStorageKey في supabase.js) بلا أي
+// نداء شبكة أو قفل مزامنة - تُستخدَم فقط كخط دفاع احتياطي حين تنتهي مهلة
+// getSession() الحقيقية (timedOut=true أعلاه)، لإبقاء المستخدم في واجهة
+// التطبيق بدل شاشة تسجيل دخول مربكة له فعلياً جلسة صالحة مخزَّنة، ريثما
+// يتحرّر القفل في الخلفية ويُصحِّح onAuthChange الحالة إن احتاج الأمر
+// فعلياً. لا تحقّق دقيق من صلاحية انتهاء الرمز هنا عمداً (autoRefreshToken
+// يتولى ذلك فور تحرّر القفل) - هذا قرار واجهة فوري لا تحقّق أمني، ولا يمنح
+// أي صلاحية وصول فعلية لم تكن ممنوحة أصلاً (طلبات Supabase اللاحقة تعتمد
+// على الرمز الحقيقي المخزَّن، لا على هذه القراءة).
+export function getCachedSessionUser() {
+  if (!hasSupabase || !authStorageKey) return null;
+  try {
+    const raw = localStorage.getItem(authStorageKey);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return userFromSession(parsed?.currentSession || parsed);
   } catch {
     return null;
   }

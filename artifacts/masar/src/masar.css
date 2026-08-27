@@ -261,3 +261,20 @@ button:active:not(:disabled) {
 @media (min-width: 1200px) {
   .masar-hero-graphic { zoom: 1.22; }
 }
+
+/* عنوان مخفي بصرياً لكنه مقروء لقارئ الشاشة (sr-only) - يُستخدَم لإعطاء
+   شاشات لا تملك عنواناً مرئياً بصرياً (مثل شاشة "اليوم" الرئيسية، التي
+   تُعرَّف بصرياً عبر عجلة اليوم والتاريخ لا نص عنوان) نقطة انطلاق h1
+   حقيقية لقارئ الشاشة بلا أي تغيير في التصميم المرئي. النمط القياسي
+   المعروف (clip بدل display:none حتى يبقى مقروءاً فعلياً). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

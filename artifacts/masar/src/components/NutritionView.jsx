@@ -2695,10 +2695,10 @@ ${missingMealsLine}
   return (
     <div style={S.view}>
       <div style={NS.hero}>
-        <div style={NS.heroIcon}><Flame size={22} color="var(--on-accent)" /></div>
+        <div style={NS.heroIcon}><Flame size={22} color="var(--on-accent)" aria-hidden="true" /></div>
         <div>
-          <div style={NS.heroTitle}>{t("nutrition.heroTitle")}</div>
-          <div style={NS.heroSub}>{t("nutrition.heroSub")}</div>
+          <h1 style={NS.heroTitle}>{t("nutrition.heroTitle")}</h1>
+          <p style={NS.heroSub}>{t("nutrition.heroSub")}</p>
         </div>
       </div>
 

@@ -1357,10 +1357,10 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
     return (
       <div style={S.view}>
         <div style={FS.hero}>
-          <div style={FS.heroIcon}><Dumbbell size={22} color="var(--on-accent)" /></div>
+          <div style={FS.heroIcon}><Dumbbell size={22} color="var(--on-accent)" aria-hidden="true" /></div>
           <div>
-            <div style={FS.heroTitle}>{t("fitness.heroTitleSetup")}</div>
-            <div style={FS.heroSub}>{t("fitness.heroSubSetup")}</div>
+            <h1 style={FS.heroTitle}>{t("fitness.heroTitleSetup")}</h1>
+            <p style={FS.heroSub}>{t("fitness.heroSubSetup")}</p>
           </div>
         </div>
         <div style={FS.formCard}>
@@ -1426,10 +1426,10 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
   return (
     <div style={S.view}>
       <div style={FS.hero}>
-        <div style={FS.heroIcon}><Dumbbell size={22} color="var(--on-accent)" /></div>
+        <div style={FS.heroIcon}><Dumbbell size={22} color="var(--on-accent)" aria-hidden="true" /></div>
         <div>
-          <div style={FS.heroTitle}>{t("fitness.heroTitle")}</div>
-          <div style={FS.heroSub}>{t("fitness.heroSub")}</div>
+          <h1 style={FS.heroTitle}>{t("fitness.heroTitle")}</h1>
+          <p style={FS.heroSub}>{t("fitness.heroSub")}</p>
         </div>
       </div>
 

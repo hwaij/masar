@@ -1691,6 +1691,10 @@ function TodayView({ date, setDate, entries, setEntries, categories, setCategori
 
   return (
     <div style={S.view}>
+      {/* لا يوجد عنوان مرئي في شاشة اليوم (المحتوى يُعرَّف بصرياً عبر عجلة
+          اليوم والتاريخ)، فنضيف h1 مخفياً بصرياً فقط ليكون نقطة انطلاق حقيقية
+          لقارئ الشاشة عند دخول هذا القسم، بلا أي تغيير في التصميم المرئي. */}
+      <h1 className="sr-only">{t("nav.today")}</h1>
       <div style={S.dateRow}>
         {/* الأيقونتان تتبادلان حسب اللغة: كل زر يمثّل "سابق"/"تالي" منطقياً،
             لكن اتجاه السهم يجب أن يشير دائماً نحو حافة الصف الخارجية التي
@@ -1992,7 +1996,7 @@ function TasksView({ tasks, setTasks, categories, addPoints, showToast, subscrip
 
   return (
     <div style={S.view}>
-      <div style={S.sectionTitle}>{t("tasksView.notebookTitle")}</div>
+      <h1 style={S.sectionTitle}>{t("tasksView.notebookTitle")}</h1>
 
       <div style={S.dateRow}>
         <button onClick={() => shiftWeek(-1)} style={S.iconBtn}>{language === "en" ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}</button>
@@ -2698,7 +2702,7 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
   return (
     <div style={S.view}>
       <div style={S.reportsHead}>
-        <div style={S.sectionTitle}>{t("reportsView.title")}</div>
+        <h1 style={S.sectionTitle}>{t("reportsView.title")}</h1>
         {subTab !== "allTime" && (
           <div style={S.rangeToggle}>
             <button onClick={() => setRange("week")} style={{ ...S.rangeBtn, ...(range === "week" ? S.rangeBtnActive : {}) }}>{t("reportsView.rangeWeek")}</button>
@@ -4645,7 +4649,7 @@ function GoalsView({ goals, setGoals, addPoints, showToast, profile, setProfile,
         <div style={GS.hero}>
           <div style={GS.heroIcon}><Target size={22} color="var(--on-accent)" /></div>
           <div>
-            <div style={GS.heroTitle}>{t("goals.heroTitle")}</div>
+            <h1 style={GS.heroTitle}>{t("goals.heroTitle")}</h1>
             <div style={GS.heroSub}>{t("goals.heroSub")}</div>
           </div>
         </div>
@@ -5921,7 +5925,7 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
 
   return (
     <div style={S.view}>
-      <div style={S.sectionTitle}>{t("settings.title")}</div>
+      <h1 style={S.sectionTitle}>{t("settings.title")}</h1>
       <ProfileCard profile={profile} setProfile={setProfile} showToast={showToast} />
       <div style={S.catEditorCard}>
         <div style={S.catEditorHeader}>{theme === "dark" ? <Moon size={15} color="#C9A24B" /> : <Sun size={15} color="#C9A24B" />}<span>{t("settings.appearance")}</span></div>

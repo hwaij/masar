@@ -163,6 +163,11 @@ export const S = {
   // زاوية الشاشة (insetInlineEnd يعكس تلقائياً بين RTL/LTR بلا فرع isRtl)،
   // فوق طبقة التنبيه المؤقت toast (zIndex أعلى) حتى لا يُحجَب أحدهما الآخر.
   a11ySpeechBtn: { position: "fixed", top: 64, insetInlineEnd: 14, zIndex: 210, display: "flex", alignItems: "center", gap: 6, background: "var(--gold)", color: "var(--on-accent)", border: "none", borderRadius: 20, padding: "8px 14px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 10px rgba(0,0,0,0.25)" },
+  // زر الأوامر الصوتية (Speech Recognition) - على الطرف المقابل لزر القراءة
+  // الصوتية أعلاه (insetInlineStart بدل insetInlineEnd) بنفس الارتفاع، حتى
+  // لا يتداخلا أبداً بأي اتجاه لغة. أحمر أثناء الاستماع الفعلي (isListening)
+  // ليكون الفرق البصري واضحاً جداً، لا مجرد تبديل أيقونة.
+  a11yMicBtn: { position: "fixed", top: 64, insetInlineStart: 14, zIndex: 210, display: "flex", alignItems: "center", gap: 6, color: "var(--on-accent)", border: "none", borderRadius: 20, padding: "8px 14px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 10px rgba(0,0,0,0.25)" },
   loaderWrap: { display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh" },
 
   achieveHero: { display: "flex", alignItems: "center", gap: 12, marginBottom: 16 },

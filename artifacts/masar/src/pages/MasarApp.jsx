@@ -16,12 +16,14 @@ import {
   Wallet, ArrowDownCircle, ArrowUpCircle, Crown,
   Utensils, Dumbbell, Menu, Users,
   Accessibility, ALargeSmall, Contrast, StretchHorizontal, Volume2, VolumeX,
-  Smartphone, Copy,
+  Smartphone, Copy, Mic, MicOff,
 } from "lucide-react";
 import { fivePrayers, nextPrayer, to12h } from "../lib/prayer";
 import { ADHKAR_CATEGORIES, ADHKAR } from "../lib/adhkar";
 import { store, setOwner, getOwner, DEFAULT_CATEGORIES } from "../lib/store";
 import { speak, stopSpeaking, isSpeechSupported } from "../lib/speech";
+import { startListening, stopListening, isRecognitionSupported } from "../lib/speechRecognition";
+import { parseVoiceCommand } from "../lib/voiceCommands";
 import { pickDailyTip, TIP_CATEGORY_LABELS, localDayKey, TIPS, FALLBACK_TIP } from "../lib/tips";
 import { pickDailyMoneyTip, MONEY_TIP_CATEGORY_LABELS } from "../lib/money-tips";
 import { isActiveSubscriber } from "../lib/subscription";
@@ -651,9 +653,83 @@ export default function MasarApp() {
   // أدناه، فهذا الحارس داخل تنفيذ الخطاف نفسه ضروري).
   useEffect(() => {
     if (!accessibilityMode || showSplash || showLanguagePicker || !loaded) return;
+    // تنقّل نجم عن أمر صوتي يُسكِت إعلان القسم العام هنا (يُصفَّر فوراً بعد
+    // تجاهل مرة واحدة) - نتحدث حينها بردّ تأكيد الأمر نفسه بدل تكرار وصفٍ
+    // عام فوق تأكيد الأمر مباشرة (ازدواج كلامي غير ضروري ومربك لمستخدم
+    // يعتمد كلياً على السمع).
+    if (voiceNavigationRef.current) { voiceNavigationRef.current = false; return; }
     speakSection(view);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, accessibilityMode, showSplash, showLanguagePicker, loaded]);
+
+  // ============ أوامر صوتية حقيقية (Speech Recognition) ============
+  // الاتجاه المعاكس للقراءة الصوتية أعلاه: هنا المستخدم يتكلم والتطبيق يفهم
+  // وينفّذ. نطاق ضيق ومقصود جداً (عبارات ثابتة معروفة مسبقاً فقط، لا فهم لغة
+  // حرة) لضمان موثوقية حقيقية - انظر src/lib/voiceCommands.js للقائمة
+  // الكاملة. زر الميكروفون لا يظهر إلا حين "وضع الاحتياجات الخاصة" مفعّل،
+  // مطابقاً لطلب ربطه بنفس الإعداد الموجود.
+  const micSupported = useMemo(() => isRecognitionSupported(), []);
+  const [isListening, setIsListening] = useState(false);
+  const recognizerRef = useRef(null);
+  // أمر مُوجَّه لعرض التغذية الحالي (إضافة ماء/تسجيل طعام مسودة/تأكيد حفظ) -
+  // NutritionView تستهلكه وتُصفّره فوراً عبر clearVoiceCommand، فلا يُعاد
+  // تنفيذه مرتين بالخطأ عند إعادة رسم لاحقة.
+  const [voiceCommand, setVoiceCommand] = useState(null);
+  const clearVoiceCommand = useCallback(() => setVoiceCommand(null), []);
+  // يمنع خطاف إعلان القسم أعلاه من التحدث فوق تأكيد أمر صوتي بالتنقّل (نفس
+  // الفكرة، انظر الشرح هناك) - مرجع عادي لا حالة، حتى يُقرأ فوراً بلا إعادة
+  // رسم إضافية قبل تنفيذ ذلك الخطاف في نفس الدورة.
+  const voiceNavigationRef = useRef(false);
+
+  const handleVoiceResult = useCallback((transcript) => {
+    setIsListening(false);
+    const cmd = parseVoiceCommand(transcript, i18n.language);
+    if (cmd.type === "navigate") {
+      voiceNavigationRef.current = true;
+      setView(cmd.view);
+      speak(t("speech.voice.navigateConfirm", { section: t(`nav.${cmd.view}`) }), i18n.language);
+      return;
+    }
+    if (cmd.type === "addWater" || cmd.type === "logFoodDraft" || cmd.type === "confirmSave") {
+      if (view !== "nutrition") { voiceNavigationRef.current = true; setView("nutrition"); }
+      setVoiceCommand(cmd);
+      if (cmd.type === "addWater") {
+        speak(t("speech.voice.waterConfirm"), i18n.language);
+      } else if (cmd.type === "logFoodDraft") {
+        const unitLabel = t(`nutrition.unitOptions.${cmd.unit}`);
+        speak(t("speech.voice.logFoodConfirm", { qty: cmd.qty, unit: unitLabel, name: cmd.foodName }), i18n.language);
+      }
+      // confirmSave: التأكيد الفعلي (نجاح/عدم اكتمال بيانات/لا شيء لتأكيده)
+      // يتولاه NutritionView نفسه بعد أن يعرف السياق الفعلي للشاشة الحالية.
+      return;
+    }
+    speak(t("speech.voice.unrecognized"), i18n.language);
+  }, [i18n.language, t, view]);
+
+  const handleVoiceError = useCallback((code) => {
+    setIsListening(false);
+    if (code === "unsupported") { showToast(t("speech.voice.micUnsupported")); return; }
+    if (code === "not-allowed" || code === "service-not-allowed") { showToast(t("speech.voice.permissionDenied")); return; }
+    if (code === "no-speech") { showToast(t("speech.voice.noSpeech")); return; }
+    if (code === "aborted") return; // المستخدم أوقف الاستماع يدوياً - ليس خطأ
+    showToast(t("speech.voice.genericError"));
+  }, [showToast, t]);
+
+  const toggleListening = useCallback(() => {
+    if (isListening) {
+      stopListening(recognizerRef.current);
+      setIsListening(false);
+      return;
+    }
+    if (!micSupported) { showToast(t("speech.voice.micUnsupported")); return; }
+    showToast(t("speech.voice.listening"));
+    setIsListening(true);
+    recognizerRef.current = startListening(i18n.language, {
+      onResult: handleVoiceResult,
+      onError: handleVoiceError,
+      onEnd: () => setIsListening(false),
+    });
+  }, [isListening, micSupported, i18n.language, handleVoiceResult, handleVoiceError, showToast, t]);
 
   const [dailyTip, setDailyTip] = useState(null);
   // Shows today's "بصيرة" tip once, automatically, the first time the app
@@ -843,7 +919,7 @@ export default function MasarApp() {
         {(view === "nutrition" || view === "nutritionPlan" || view === "dietPlans" || view === "fitness" || (view === "groups" && isSub) || (view === "vault" && isSub)) && (
           <LazySectionErrorBoundary key={view} isEn={i18n.language === "en"}>
             <Suspense fallback={<div style={{ ...S.view, display: "flex", justifyContent: "center", padding: 40 }}><Loader2 size={24} color="#C9A24B" className="spin" /></div>}>
-              {view === "nutrition" && <NutritionView healthProfile={healthProfile} showToast={showToast} profile={profile} setProfile={setProfile} subscription={subscription} journeyActive={tourOpen} />}
+              {view === "nutrition" && <NutritionView healthProfile={healthProfile} showToast={showToast} profile={profile} setProfile={setProfile} subscription={subscription} journeyActive={tourOpen} voiceCommand={voiceCommand} clearVoiceCommand={clearVoiceCommand} />}
               {view === "nutritionPlan" && <NutritionPlanView healthProfile={healthProfile} showToast={showToast} subscription={subscription} setView={setView} />}
               {view === "dietPlans" && <DietPlansView healthProfile={healthProfile} showToast={showToast} subscription={subscription} />}
               {view === "fitness" && <FitnessView healthProfile={healthProfile} showToast={showToast} profile={profile} setProfile={setProfile} journeyActive={tourOpen} />}
@@ -867,6 +943,16 @@ export default function MasarApp() {
         >
           {isReading ? <VolumeX size={16} aria-hidden="true" /> : <Volume2 size={16} aria-hidden="true" />}
           <span>{isReading ? t("speech.stopBtn") : t("speech.replayBtn")}</span>
+        </button>
+      )}
+      {accessibilityMode && (
+        <button
+          onClick={toggleListening}
+          aria-label={isListening ? t("speech.voice.micBtnListeningLabel") : t("speech.voice.micBtnLabel")}
+          style={{ ...S.a11yMicBtn, background: isListening ? "#C0392B" : "var(--surface-raised)", color: isListening ? "#fff" : "var(--ink)", border: isListening ? "none" : "1px solid var(--border2)" }}
+        >
+          {isListening ? <MicOff size={16} aria-hidden="true" /> : <Mic size={16} aria-hidden="true" />}
+          <span>{isListening ? t("speech.voice.listening") : t("speech.voice.micBtnLabel")}</span>
         </button>
       )}
       {tourOpen && (

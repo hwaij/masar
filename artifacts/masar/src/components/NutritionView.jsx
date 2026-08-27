@@ -1091,10 +1091,10 @@ function ConfirmQuantityCard({ product: initialProduct, source, onAdd, onCancel,
   );
 }
 
-function ManualEntryForm({ barcode, onSave, onCancel, preselectedMealType }) {
+function ManualEntryForm({ barcode, onSave, onCancel, preselectedMealType, initialDraft, voiceConfirmTrigger, onInvalidVoiceConfirm }) {
   const { t } = useTranslation();
   const [draft, setDraft] = useState({
-    foodName: "", brand: "", country: "", servingSizeLabel: "", unit: "g", qty: "",
+    foodName: initialDraft?.foodName || "", brand: "", country: "", servingSizeLabel: "", unit: initialDraft?.unit || "g", qty: initialDraft?.qty != null ? String(initialDraft.qty) : "",
     calories: "", protein: "", carbs: "", fat: "", fiber: "", sugar: "", sodium: "", cholesterol: "", imageUrl: "",
   });
   const [multiplier, setMultiplier] = useState(1);
@@ -1111,6 +1111,46 @@ function ManualEntryForm({ barcode, onSave, onCancel, preselectedMealType }) {
     setMultiplier(n);
     change("qty", String(fmtQty(n)));
   }
+
+  // مستخرَجة من onClick السابق لزر الحفظ بلا أي تغيير في المنطق - الآن
+  // تُستدعى من مكانين: ضغطة الزر المرئية، وأمر "تأكيد" الصوتي (انظر خطاف
+  // voiceConfirmTrigger أدناه)، فلا يوجد مساران منفصلان لنفس عملية الحفظ.
+  function handleSave() {
+    const per100 = {
+      calories: Number(draft.calories) || 0, protein: Number(draft.protein) || 0,
+      carbs: Number(draft.carbs) || 0, fat: Number(draft.fat) || 0,
+      fiber: Number(draft.fiber) || 0, sugar: Number(draft.sugar) || 0, sodium: Number(draft.sodium) || 0,
+      cholesterol: Number(draft.cholesterol) || 0,
+    };
+    const grams = unitToGrams(draft.unit, draft.qty, null) || 100;
+    const factor = grams / 100;
+    onSave({
+      id: uid(), foodName: draft.foodName.trim(),
+      calories: Math.round(per100.calories * factor), protein: Math.round(per100.protein * factor * 10) / 10,
+      carbs: Math.round(per100.carbs * factor * 10) / 10, fat: Math.round(per100.fat * factor * 10) / 10,
+      fiber: Math.round(per100.fiber * factor * 10) / 10, sugar: Math.round(per100.sugar * factor * 10) / 10,
+      sodium: Math.round(per100.sodium * factor), cholesterol: Math.round(per100.cholesterol * factor),
+      unit: draft.unit, mealType,
+      servingInfo: draft.servingSizeLabel.trim() || `${draft.qty || grams} ${t(`nutrition.unitOptions.${draft.unit}`)}`, source: "manual", barcode,
+      productPer100: per100, brand: draft.brand.trim(), country: draft.country.trim(),
+      servingSizeLabel: draft.servingSizeLabel.trim(), servingGrams: grams || null,
+      imageUrl: draft.imageUrl.trim(),
+    });
+  }
+
+  // أمر "تأكيد" الصوتي يُترجَم لضغطة هذا الزر نفسها بلا أي منطق حفظ موازٍ -
+  // لكن إن كانت البيانات ما تزال ناقصة (السعرات تحديداً، الحقل الوحيد
+  // الإلزامي فعلياً) لا يُحفظ شيء بصمت؛ تغذية راجعة صادقة عبر onInvalidVoiceConfirm
+  // بدل فشل غامض (نفس المبدأ العام لكل الأوامر الصوتية في هذا التطبيق).
+  // الحارس الأول (skippedFirstRun) يمنع التنفيذ عند التركيب الأول (mount) -
+  // voiceConfirmTrigger يبدأ من نفس القيمة المُمرَّرة من الأب دون أي ضغط فعلي بعد.
+  const skippedFirstConfirmRun = useRef(true);
+  useEffect(() => {
+    if (voiceConfirmTrigger == null) return;
+    if (skippedFirstConfirmRun.current) { skippedFirstConfirmRun.current = false; return; }
+    if (valid) handleSave(); else onInvalidVoiceConfirm?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voiceConfirmTrigger]);
 
   return (
     <>
@@ -1194,41 +1234,7 @@ function ManualEntryForm({ barcode, onSave, onCancel, preselectedMealType }) {
       <label style={S.label} htmlFor="manualImageUrl">{t("nutrition.productImageUrlOptional")}</label>
       <input id="manualImageUrl" value={draft.imageUrl} onChange={(e) => change("imageUrl", e.target.value)} placeholder="https://..." style={S.input} />
       <MealTypeSelector value={mealType} onChange={setMealType} />
-      <button
-        onClick={() => {
-          const per100 = {
-            calories: Number(draft.calories) || 0, protein: Number(draft.protein) || 0,
-            carbs: Number(draft.carbs) || 0, fat: Number(draft.fat) || 0,
-            fiber: Number(draft.fiber) || 0, sugar: Number(draft.sugar) || 0, sodium: Number(draft.sodium) || 0,
-            cholesterol: Number(draft.cholesterol) || 0,
-          };
-          // الكمية المُدخلة قد تكون بأي وحدة (ملعقة، كوب، قطعة...)؛ تُحوَّل هنا
-          // إلى غرام مكافئ فقط لحساب القيم الغذائية والحفظ - القيم لكل 100غم
-          // (productPer100) تبقى كما أدخلها المستخدم دائماً بالغرام (المعيار
-          // المعروف لبطاقات التغذية)، بغض النظر عن وحدة "الكمية المُستهلكة".
-          const grams = unitToGrams(draft.unit, draft.qty, null) || 100;
-          const factor = grams / 100;
-          onSave({
-            id: uid(), foodName: draft.foodName.trim(),
-            calories: Math.round(per100.calories * factor), protein: Math.round(per100.protein * factor * 10) / 10,
-            carbs: Math.round(per100.carbs * factor * 10) / 10, fat: Math.round(per100.fat * factor * 10) / 10,
-            fiber: Math.round(per100.fiber * factor * 10) / 10, sugar: Math.round(per100.sugar * factor * 10) / 10,
-            sodium: Math.round(per100.sodium * factor), cholesterol: Math.round(per100.cholesterol * factor),
-            unit: draft.unit, mealType,
-            servingInfo: draft.servingSizeLabel.trim() || `${draft.qty || grams} ${t(`nutrition.unitOptions.${draft.unit}`)}`, source: "manual", barcode,
-            // بيانات المنتج الكاملة (لكل 100غم) - تُحفظ في custom_foods إن
-            // كان هناك باركود، حتى تُستخدم صحيحة لأي كمية لاحقة، لا فقط
-            // بنفس كمية هذه المرة. servingGrams يُحفظ دائماً بالغرام الحقيقي
-            // (بعد التحويل) حتى يبقى مرجع المنتج المشترك متسقاً بغض النظر
-            // عن الوحدة التي فكّر بها هذا المستخدم تحديداً.
-            productPer100: per100, brand: draft.brand.trim(), country: draft.country.trim(),
-            servingSizeLabel: draft.servingSizeLabel.trim(), servingGrams: grams || null,
-            imageUrl: draft.imageUrl.trim(),
-          });
-        }}
-        style={S.saveBtn}
-        disabled={!valid}
-      >
+      <button onClick={handleSave} style={S.saveBtn} disabled={!valid}>
         {t("nutrition.saveAndAddToLog")}
       </button>
       <button onClick={onCancel} style={{ ...S.exportBtn, marginTop: 8, marginBottom: 0 }}>{t("common.buttons.back")}</button>
@@ -2203,7 +2209,7 @@ function LabelPhotoPanel({ onSave, onManual, preselectedMealType }) {
   );
 }
 
-export default function NutritionView({ healthProfile, showToast, profile, setProfile, subscription, journeyActive }) {
+export default function NutritionView({ healthProfile, showToast, profile, setProfile, subscription, journeyActive, voiceCommand, clearVoiceCommand }) {
   const { t, i18n } = useTranslation();
   const [loaded, setLoaded] = useState(false);
   const [nutritionLog, setNutritionLog] = useState([]);
@@ -2415,6 +2421,7 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
     setSaveError(null);
     setPreselectedMealType(null);
     setMoodCheckEntryId(null);
+    setPendingVoiceDraft(null);
   }
 
   // يفتح شاشة الإضافة الموحّدة مباشرة بالوجبة المطلوبة معيَّنة مسبقاً - يُستدعى
@@ -2452,6 +2459,7 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
       // الشاشة لاحقاً بلا إجابة لا يفقد أي بيانات.
       setMoodCheckEntryId(full.id);
       setSheet("moodCheck");
+      setPendingVoiceDraft(null);
     } else {
       setNutritionLog((prev) => prev.filter((e) => e.id !== full.id));
       // التفاصيل الكاملة (message/code/details/hint) إلى console المطوّر
@@ -2561,6 +2569,29 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
     const res = await store.saveWaterCups(selectedDate, next);
     if (!res.ok) { setWaterLog((prev) => ({ ...prev, [selectedDate]: prevCups })); showToast(t("nutrition.waterGlassSaveFailed")); }
   }
+
+  // ============ استقبال أوامر صوتية موجَّهة لهذا القسم ============
+  // MasarApp.jsx يحلّل نص الأمر ويرسل هنا كائناً مبنيناً فقط (voiceCommand) -
+  // هذا المكوّن ينفّذه بنفس الدوال المستخدمة فعلاً للأزرار المرئية (addWaterCup
+  // هنا، ونفس مسار "احفظ" في ManualEntryForm أدناه) بلا أي منطق حفظ مواز جديد.
+  const [pendingVoiceDraft, setPendingVoiceDraft] = useState(null); // {foodName, qty, unit}
+  const [voiceConfirmTrigger, setVoiceConfirmTrigger] = useState(0);
+  useEffect(() => {
+    if (!voiceCommand) return;
+    if (voiceCommand.type === "addWater") {
+      addWaterCup();
+    } else if (voiceCommand.type === "logFoodDraft") {
+      setPendingVoiceDraft({ foodName: voiceCommand.foodName, qty: voiceCommand.qty, unit: voiceCommand.unit });
+      setSheet("manual");
+    } else if (voiceCommand.type === "confirmSave") {
+      if (sheet === "manual") setVoiceConfirmTrigger((n) => n + 1);
+      // لا يوجد شيء بانتظار تأكيد الآن - تغذية راجعة صادقة بدل تجاهل صامت
+      // (نفس مبدأ "لا صمت أو فشل غامض" المطلوب لأي أمر غير مفهوم).
+      else speak(t("speech.voice.nothingToConfirm"), i18n.language);
+    }
+    clearVoiceCommand?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voiceCommand]);
 
   async function enableNotifications() {
     const result = await requestNotificationPermission(i18n.language);
@@ -3026,7 +3057,13 @@ ${missingMealsLine}
             {sheet === "manual" && (
               <>
                 {lookupError && <div style={NS.errorText}>{lookupError}</div>}
-                <ManualEntryForm barcode={pendingBarcode} onSave={saveManualEntry} onCancel={closeSheet} preselectedMealType={preselectedMealType} />
+                <ManualEntryForm
+                  key={pendingVoiceDraft ? `voice-${pendingVoiceDraft.foodName}-${pendingVoiceDraft.qty}-${pendingVoiceDraft.unit}` : "static"}
+                  barcode={pendingBarcode} onSave={saveManualEntry} onCancel={closeSheet} preselectedMealType={preselectedMealType}
+                  initialDraft={pendingVoiceDraft}
+                  voiceConfirmTrigger={voiceConfirmTrigger}
+                  onInvalidVoiceConfirm={() => speak(t("speech.voice.invalidConfirm"), i18n.language)}
+                />
               </>
             )}
 

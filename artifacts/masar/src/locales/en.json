@@ -1916,6 +1916,21 @@
     "statusCaloriesWithGoal": "You've had {{consumed}} calories today out of {{goal}}. You have {{remaining}} calories left.",
     "statusCaloriesNoGoal": "You've had {{consumed}} calories today. No daily calorie goal is set yet - complete your details in the You section to calculate one.",
     "statusWaterWithGoal": "You've had {{cups}} out of {{goal}} cups of water today.",
-    "statusWaterNoGoal": "You've had {{cups}} cups of water today. No daily water goal is set yet."
+    "statusWaterNoGoal": "You've had {{cups}} cups of water today. No daily water goal is set yet.",
+    "voice": {
+      "micBtnLabel": "Voice commands",
+      "micBtnListeningLabel": "Stop listening",
+      "listening": "Listening...",
+      "micUnsupported": "Voice commands are not supported on this device or browser.",
+      "permissionDenied": "Microphone permission was denied. Enable it in your browser settings to continue.",
+      "noSpeech": "I didn't hear anything, please try again.",
+      "genericError": "Couldn't recognize the speech, please try again.",
+      "navigateConfirm": "OK, opening {{section}} for you.",
+      "waterConfirm": "Done, I've added a cup of water for you.",
+      "logFoodConfirm": "Do you want to log {{qty}} {{unit}} of {{name}}? Say confirm to save, or edit the details on screen then save.",
+      "nothingToConfirm": "There's nothing waiting to be confirmed right now. First say a command like: log 200 grams pasta.",
+      "invalidConfirm": "Please complete the remaining nutrition info, at least calories, before saving.",
+      "unrecognized": "I didn't understand that command. Available commands: open a section like Nutrition or Fitness, add a cup of water, log an amount, unit, and food name, or say confirm."
+    }
   }
 }

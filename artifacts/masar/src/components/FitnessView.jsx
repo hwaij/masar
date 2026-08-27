@@ -138,16 +138,16 @@ function ExerciseRow({ exercise, isEn, gender, isLogging, onToggleLog, logWeight
       )}
       {isLogging && (
         <div style={FS.logForm}>
-          <label style={{ ...S.label, marginTop: 0 }}>{t("fitness.weightKg")}</label>
-          <input type="number" step="0.5" inputMode="decimal" value={logWeight} onChange={(e) => setLogWeight(e.target.value)} placeholder="0" style={{ ...S.input, marginTop: 4 }} />
+          <label style={{ ...S.label, marginTop: 0 }} htmlFor={`logWeight-${exercise.id}`}>{t("fitness.weightKg")}</label>
+          <input id={`logWeight-${exercise.id}`} type="number" step="0.5" inputMode="decimal" value={logWeight} onChange={(e) => setLogWeight(e.target.value)} placeholder="0" style={{ ...S.input, marginTop: 4 }} />
           <div style={FS.logRow}>
             <div style={{ flex: 1 }}>
-              <label style={{ ...S.label, marginTop: 6 }}>{t("fitness.repsCompleted")}</label>
-              <input type="number" inputMode="numeric" value={logReps} onChange={(e) => setLogReps(e.target.value)} style={{ ...S.input, marginTop: 4 }} />
+              <label style={{ ...S.label, marginTop: 6 }} htmlFor={`logReps-${exercise.id}`}>{t("fitness.repsCompleted")}</label>
+              <input id={`logReps-${exercise.id}`} type="number" inputMode="numeric" value={logReps} onChange={(e) => setLogReps(e.target.value)} style={{ ...S.input, marginTop: 4 }} />
             </div>
             <div style={{ flex: 1 }}>
-              <label style={{ ...S.label, marginTop: 6 }}>{t("fitness.setsCompleted")}</label>
-              <input type="number" inputMode="numeric" value={logSets} onChange={(e) => setLogSets(e.target.value)} style={{ ...S.input, marginTop: 4 }} />
+              <label style={{ ...S.label, marginTop: 6 }} htmlFor={`logSets-${exercise.id}`}>{t("fitness.setsCompleted")}</label>
+              <input id={`logSets-${exercise.id}`} type="number" inputMode="numeric" value={logSets} onChange={(e) => setLogSets(e.target.value)} style={{ ...S.input, marginTop: 4 }} />
             </div>
           </div>
           <button onClick={onSubmitPerformance} style={{ ...S.saveBtn, marginTop: 10 }}>{t("fitness.savePerformance")}</button>
@@ -385,15 +385,15 @@ function FocusModeView({
                 : t("fitness.lastTimeRepsOnly", { reps: lastPerformance.reps }))}
             </div>
           )}
-          <label style={{ ...S.label, marginTop: 0 }}>{t("fitness.weightKg")}</label>
-          <input type="number" step="0.5" inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="0" style={{ ...S.input, marginTop: 4 }} />
+          <label style={{ ...S.label, marginTop: 0 }} htmlFor="focusWeight">{t("fitness.weightKg")}</label>
+          <input id="focusWeight" type="number" step="0.5" inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="0" style={{ ...S.input, marginTop: 4 }} />
           {weightComparison && (
             <div style={{ ...FS.comparisonRow, color: weightComparison.tone === "up" ? "#5FA8A0" : weightComparison.tone === "down" ? "#D17B5F" : "var(--muted2)" }}>
               {weightComparison.text}
             </div>
           )}
-          <label style={{ ...S.label, marginTop: weightComparison ? 6 : 10 }}>{t("fitness.repsCompleted")}</label>
-          <input type="number" inputMode="numeric" value={reps} onChange={(e) => setReps(e.target.value)} style={{ ...S.input, marginTop: 4 }} />
+          <label style={{ ...S.label, marginTop: weightComparison ? 6 : 10 }} htmlFor="focusReps">{t("fitness.repsCompleted")}</label>
+          <input id="focusReps" type="number" inputMode="numeric" value={reps} onChange={(e) => setReps(e.target.value)} style={{ ...S.input, marginTop: 4 }} />
           {lastOneRepMax != null && (
             <div style={FS.oneRepMaxBadge}><TrendingUp size={13} /> {isolateNumbers(t("fitness.oneRepMaxEstimate", { value: lastOneRepMax }))}</div>
           )}
@@ -1496,7 +1496,7 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
           <div style={S.modal} className="sheet-in" onClick={(e) => e.stopPropagation()}>
             <div style={S.modalHeader}>
               <span>{t("fitness.manualBuilder.replaceConfirmTitle")}</span>
-              <button onClick={() => setConfirmManualBuilder(false)} style={S.iconBtn}><X size={18} /></button>
+              <button onClick={() => setConfirmManualBuilder(false)} aria-label={t("common.buttons.close")} style={S.iconBtn}><X size={18} aria-hidden="true" /></button>
             </div>
             <p style={FS.noteText}>{t("fitness.manualBuilder.replaceConfirmBody")}</p>
             <button onClick={() => { setConfirmManualBuilder(false); openManualBuilderFresh(); }} style={S.saveBtn}>{t("fitness.manualBuilder.replaceConfirmProceedBtn")}</button>

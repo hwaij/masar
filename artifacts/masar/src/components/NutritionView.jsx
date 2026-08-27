@@ -292,7 +292,7 @@ function BarcodeScannerModal({ onDetected, onClose }) {
       <div style={NS.sheet} className="sheet-in" onClick={(e) => e.stopPropagation()}>
         <div style={NS.sheetHead}>
           <span style={NS.sheetTitle}>{t("nutrition.scanBarcode")}</span>
-          <button onClick={onClose} style={NS.closeBtn}><X size={16} /></button>
+          <button onClick={onClose} aria-label={t("common.buttons.close")} style={NS.closeBtn}><X size={16} aria-hidden="true" /></button>
         </div>
         {error ? (
           <div style={NS.errorText}>{error}</div>
@@ -338,7 +338,7 @@ function ManualBarcodeEntry({ onSubmit }) {
           style={NS.searchInput}
           autoFocus
         />
-        <button onClick={() => value && onSubmit(value)} disabled={!value} style={NS.searchBtn}><Search size={16} /></button>
+        <button onClick={() => value && onSubmit(value)} disabled={!value} aria-label={t("nutrition.submitBarcodeAria")} style={NS.searchBtn}><Search size={16} aria-hidden="true" /></button>
       </div>
     </>
   );
@@ -1115,38 +1115,39 @@ function ManualEntryForm({ barcode, onSave, onCancel, preselectedMealType }) {
   return (
     <>
       {barcode && <p style={NS.notFoundNote}>{t("nutrition.productNotFound", { barcode })}</p>}
-      <label style={S.label}>{t("nutrition.foodName")}</label>
-      <input value={draft.foodName} onChange={(e) => change("foodName", e.target.value)} placeholder={t("nutrition.foodNamePlaceholder")} style={S.input} />
+      <label style={S.label} htmlFor="manualFoodName">{t("nutrition.foodName")}</label>
+      <input id="manualFoodName" value={draft.foodName} onChange={(e) => change("foodName", e.target.value)} placeholder={t("nutrition.foodNamePlaceholder")} style={S.input} />
       <div style={{ display: "flex", gap: 10 }}>
         <div style={{ flex: 1 }}>
-          <label style={S.label}>{t("nutrition.brand")}</label>
-          <input value={draft.brand} onChange={(e) => change("brand", e.target.value)} placeholder={t("nutrition.optional")} style={S.input} />
+          <label style={S.label} htmlFor="manualBrand">{t("nutrition.brand")}</label>
+          <input id="manualBrand" value={draft.brand} onChange={(e) => change("brand", e.target.value)} placeholder={t("nutrition.optional")} style={S.input} />
         </div>
         <div style={{ flex: 1 }}>
-          <label style={S.label}>{t("nutrition.country")}</label>
-          <input value={draft.country} onChange={(e) => change("country", e.target.value)} placeholder={t("nutrition.optional")} style={S.input} />
+          <label style={S.label} htmlFor="manualCountry">{t("nutrition.country")}</label>
+          <input id="manualCountry" value={draft.country} onChange={(e) => change("country", e.target.value)} placeholder={t("nutrition.optional")} style={S.input} />
         </div>
       </div>
-      <label style={S.label}>{t("nutrition.servingDesc")}</label>
-      <input value={draft.servingSizeLabel} onChange={(e) => change("servingSizeLabel", e.target.value)} placeholder={t("nutrition.servingDescPlaceholder")} style={S.input} />
+      <label style={S.label} htmlFor="manualServingDesc">{t("nutrition.servingDesc")}</label>
+      <input id="manualServingDesc" value={draft.servingSizeLabel} onChange={(e) => change("servingSizeLabel", e.target.value)} placeholder={t("nutrition.servingDescPlaceholder")} style={S.input} />
       <div style={{ display: "flex", gap: 10 }}>
         <div style={{ flex: 1 }}>
-          <label style={S.label}>{t("nutrition.unitOfMeasure")}</label>
-          <select value={draft.unit} onChange={(e) => change("unit", e.target.value)} style={NS.unitSelect}>
+          <label style={S.label} htmlFor="manualUnit">{t("nutrition.unitOfMeasure")}</label>
+          <select id="manualUnit" value={draft.unit} onChange={(e) => change("unit", e.target.value)} style={NS.unitSelect}>
             {UNIT_OPTIONS.map((u) => <option key={u.id} value={u.id}>{t(`nutrition.unitOptions.${u.id}`)}</option>)}
           </select>
         </div>
         <div style={{ flex: 1 }}>
-          <label style={S.label}>{t("nutrition.quantityNow", { unit: t(`nutrition.unitOptions.${draft.unit}`) })}</label>
-          <input type="number" inputMode="decimal" value={draft.qty} onChange={(e) => change("qty", e.target.value)} placeholder="35" style={S.input} />
+          <label style={S.label} htmlFor="manualQty">{t("nutrition.quantityNow", { unit: t(`nutrition.unitOptions.${draft.unit}`) })}</label>
+          <input id="manualQty" type="number" inputMode="decimal" value={draft.qty} onChange={(e) => change("qty", e.target.value)} placeholder="35" style={S.input} />
         </div>
       </div>
-      <label style={S.label}>{t("nutrition.servingsCountOneUnit", { unit: t(`nutrition.unitOptions.${draft.unit}`) })}</label>
+      <label style={S.label} htmlFor="manualMultiplier">{t("nutrition.servingsCountOneUnit", { unit: t(`nutrition.unitOptions.${draft.unit}`) })}</label>
       <div style={NS.multiplierRow}>
         {[1, 2, 3, 4, 5].map((n) => (
           <button key={n} onClick={() => applyMultiplier(n)} style={{ ...NS.multiplierBtn, ...(multiplier === n ? NS.multiplierBtnActive : {}) }}>×{n}</button>
         ))}
         <input
+          id="manualMultiplier"
           type="number" inputMode="decimal" value={multiplier}
           onChange={(e) => applyMultiplier(Math.max(0.25, Number(e.target.value) || 0))}
           style={NS.multiplierInput}
@@ -1154,44 +1155,44 @@ function ManualEntryForm({ barcode, onSave, onCancel, preselectedMealType }) {
       </div>
       {unitMeta.approx && <p style={NS.unitApproxNote}>{t("nutrition.approxConversionNoUnit")}</p>}
       <p style={{ ...S.label, marginTop: 16, marginBottom: 4 }}>{t("nutrition.nutritionValuesPer100g")}</p>
-      <label style={S.label}>{t("nutrition.calories")}</label>
-      <input type="number" inputMode="decimal" value={draft.calories} onChange={(e) => change("calories", e.target.value)} placeholder={t("nutrition.caloriesPlaceholder")} style={S.input} />
+      <label style={S.label} htmlFor="manualCalories">{t("nutrition.calories")}</label>
+      <input id="manualCalories" type="number" inputMode="decimal" value={draft.calories} onChange={(e) => change("calories", e.target.value)} placeholder={t("nutrition.caloriesPlaceholder")} style={S.input} />
       <div style={{ display: "flex", gap: 10 }}>
         <div style={{ flex: 1 }}>
-          <label style={S.label}>{t("common.units.protein")} ({t("common.units.g")})</label>
-          <input type="number" inputMode="decimal" value={draft.protein} onChange={(e) => change("protein", e.target.value)} placeholder="0" style={S.input} />
+          <label style={S.label} htmlFor="manualProtein">{t("common.units.protein")} ({t("common.units.g")})</label>
+          <input id="manualProtein" type="number" inputMode="decimal" value={draft.protein} onChange={(e) => change("protein", e.target.value)} placeholder="0" style={S.input} />
         </div>
         <div style={{ flex: 1 }}>
-          <label style={S.label}>{t("common.units.carbs")} ({t("common.units.g")})</label>
-          <input type="number" inputMode="decimal" value={draft.carbs} onChange={(e) => change("carbs", e.target.value)} placeholder="0" style={S.input} />
+          <label style={S.label} htmlFor="manualCarbs">{t("common.units.carbs")} ({t("common.units.g")})</label>
+          <input id="manualCarbs" type="number" inputMode="decimal" value={draft.carbs} onChange={(e) => change("carbs", e.target.value)} placeholder="0" style={S.input} />
         </div>
         <div style={{ flex: 1 }}>
-          <label style={S.label}>{t("common.units.fat")} ({t("common.units.g")})</label>
-          <input type="number" inputMode="decimal" value={draft.fat} onChange={(e) => change("fat", e.target.value)} placeholder="0" style={S.input} />
+          <label style={S.label} htmlFor="manualFat">{t("common.units.fat")} ({t("common.units.g")})</label>
+          <input id="manualFat" type="number" inputMode="decimal" value={draft.fat} onChange={(e) => change("fat", e.target.value)} placeholder="0" style={S.input} />
         </div>
       </div>
       <div style={{ display: "flex", gap: 10 }}>
         <div style={{ flex: 1 }}>
-          <label style={S.label}>{t("common.units.fiber")} ({t("common.units.g")})</label>
-          <input type="number" inputMode="decimal" value={draft.fiber} onChange={(e) => change("fiber", e.target.value)} placeholder="0" style={S.input} />
+          <label style={S.label} htmlFor="manualFiber">{t("common.units.fiber")} ({t("common.units.g")})</label>
+          <input id="manualFiber" type="number" inputMode="decimal" value={draft.fiber} onChange={(e) => change("fiber", e.target.value)} placeholder="0" style={S.input} />
         </div>
         <div style={{ flex: 1 }}>
-          <label style={S.label}>{t("common.units.sugar")} ({t("common.units.g")})</label>
-          <input type="number" inputMode="decimal" value={draft.sugar} onChange={(e) => change("sugar", e.target.value)} placeholder="0" style={S.input} />
+          <label style={S.label} htmlFor="manualSugar">{t("common.units.sugar")} ({t("common.units.g")})</label>
+          <input id="manualSugar" type="number" inputMode="decimal" value={draft.sugar} onChange={(e) => change("sugar", e.target.value)} placeholder="0" style={S.input} />
         </div>
         <div style={{ flex: 1 }}>
-          <label style={S.label}>{t("common.units.sodium")} ({t("common.units.mg")})</label>
-          <input type="number" inputMode="decimal" value={draft.sodium} onChange={(e) => change("sodium", e.target.value)} placeholder="0" style={S.input} />
+          <label style={S.label} htmlFor="manualSodium">{t("common.units.sodium")} ({t("common.units.mg")})</label>
+          <input id="manualSodium" type="number" inputMode="decimal" value={draft.sodium} onChange={(e) => change("sodium", e.target.value)} placeholder="0" style={S.input} />
         </div>
       </div>
       <div style={{ display: "flex", gap: 10 }}>
         <div style={{ flex: 1 }}>
-          <label style={S.label}>{t("common.units.cholesterol")} ({t("common.units.mg")})</label>
-          <input type="number" inputMode="decimal" value={draft.cholesterol} onChange={(e) => change("cholesterol", e.target.value)} placeholder="0" style={S.input} />
+          <label style={S.label} htmlFor="manualCholesterol">{t("common.units.cholesterol")} ({t("common.units.mg")})</label>
+          <input id="manualCholesterol" type="number" inputMode="decimal" value={draft.cholesterol} onChange={(e) => change("cholesterol", e.target.value)} placeholder="0" style={S.input} />
         </div>
       </div>
-      <label style={S.label}>{t("nutrition.productImageUrlOptional")}</label>
-      <input value={draft.imageUrl} onChange={(e) => change("imageUrl", e.target.value)} placeholder="https://..." style={S.input} />
+      <label style={S.label} htmlFor="manualImageUrl">{t("nutrition.productImageUrlOptional")}</label>
+      <input id="manualImageUrl" value={draft.imageUrl} onChange={(e) => change("imageUrl", e.target.value)} placeholder="https://..." style={S.input} />
       <MealTypeSelector value={mealType} onChange={setMealType} />
       <button
         onClick={() => {
@@ -2891,7 +2892,7 @@ ${missingMealsLine}
                 <div style={NS.logItemMeta}>{isolateNumbers(t("nutrition.servingSummary", { servingInfo: e.servingInfo, p: e.protein, c: e.carbs, f: e.fat }))}</div>
               </div>
               <div style={NS.logItemCalories}>{isolateNumbers(t("nutrition.calSuffix", { cal: Math.round(e.calories) }))}</div>
-              <button onClick={() => removeEntry(e.id)} style={NS.deleteBtn}><Trash2 size={15} /></button>
+              <button onClick={() => removeEntry(e.id)} aria-label={t("nutrition.deleteEntryAria")} style={NS.deleteBtn}><Trash2 size={15} aria-hidden="true" /></button>
             </div>
           ))}
         </div>
@@ -2916,7 +2917,7 @@ ${missingMealsLine}
                   {sheet === "moodCheck" && t("nutrition.sheetTitles.moodCheck")}
                   {sheet === "lookup" && t("nutrition.sheetTitles.searching")}
                 </span>
-                <button onClick={closeSheet} style={NS.closeBtn}><X size={16} /></button>
+                <button onClick={closeSheet} aria-label={t("common.buttons.close")} style={NS.closeBtn}><X size={16} aria-hidden="true" /></button>
               </div>
             )}
 

@@ -1699,9 +1699,9 @@ function TodayView({ date, setDate, entries, setEntries, categories, setCategori
         {/* الأيقونتان تتبادلان حسب اللغة: كل زر يمثّل "سابق"/"تالي" منطقياً،
             لكن اتجاه السهم يجب أن يشير دائماً نحو حافة الصف الخارجية التي
             يقع عليها الزر فعلياً بعد انعكاس RTL/LTR، لا اتجاهاً ثابتاً. */}
-        <button onClick={() => shiftDay(-1)} style={S.iconBtn}>{language === "en" ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}</button>
+        <button onClick={() => shiftDay(-1)} aria-label={t("nutrition.previousDay")} style={S.iconBtn}>{language === "en" ? <ChevronLeft size={18} aria-hidden="true" /> : <ChevronRight size={18} aria-hidden="true" />}</button>
         <div style={S.dateLabel}>{arabicDate(date, { weekday: "long", day: "numeric", month: "long" }, language === "en" ? "en-US" : undefined)}{isToday && <span style={S.todayPill}>{t("nav.today")}</span>}</div>
-        <button onClick={() => shiftDay(1)} style={S.iconBtn}>{language === "en" ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}</button>
+        <button onClick={() => shiftDay(1)} aria-label={t("nutrition.nextDay")} style={S.iconBtn}>{language === "en" ? <ChevronRight size={18} aria-hidden="true" /> : <ChevronLeft size={18} aria-hidden="true" />}</button>
       </div>
 
       {mandatoryVisible.length > 0 && (
@@ -1764,7 +1764,7 @@ function TodayView({ date, setDate, entries, setEntries, categories, setCategori
       {categoryManagerOpen && (
         <div style={S.modalOverlay} className="overlay-in" onClick={() => setCategoryManagerOpen(false)}>
           <div style={S.modal} className="sheet-in" onClick={(e) => e.stopPropagation()}>
-            <div style={S.modalHeader}><span>{t("todayView.categoriesModalTitle")}</span><button onClick={() => setCategoryManagerOpen(false)} style={S.iconBtn}><X size={18} /></button></div>
+            <div style={S.modalHeader}><span>{t("todayView.categoriesModalTitle")}</span><button onClick={() => setCategoryManagerOpen(false)} aria-label={t("common.buttons.close")} style={S.iconBtn}><X size={18} aria-hidden="true" /></button></div>
             <div style={S.modalBody}>
               <CategoryManagerCard categories={categories} setCategories={setCategories} isSub={isSub} showToast={showToast} />
             </div>
@@ -1810,7 +1810,7 @@ function TodayView({ date, setDate, entries, setEntries, categories, setCategori
               <div style={{ display: "flex", gap: 3, alignItems: "center" }} onClick={(ev) => ev.stopPropagation()}>
                 <button onClick={() => adjustMins(-2)} style={{ ...S.deleteBtn, fontSize: 12, color: "var(--muted2)" }}>-2</button>
                 <button onClick={() => adjustMins(2)} style={{ ...S.deleteBtn, fontSize: 12, color: "#C9A24B" }}>+2</button>
-                <button onClick={(ev) => { ev.stopPropagation(); deleteEntry(e.id); }} style={S.deleteBtn}><Trash2 size={14} /></button>
+                <button onClick={(ev) => { ev.stopPropagation(); deleteEntry(e.id); }} aria-label={t("todayView.deleteEntryAria")} style={S.deleteBtn}><Trash2 size={14} aria-hidden="true" /></button>
               </div>
             </div>
           );
@@ -1999,9 +1999,9 @@ function TasksView({ tasks, setTasks, categories, addPoints, showToast, subscrip
       <h1 style={S.sectionTitle}>{t("tasksView.notebookTitle")}</h1>
 
       <div style={S.dateRow}>
-        <button onClick={() => shiftWeek(-1)} style={S.iconBtn}>{language === "en" ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}</button>
+        <button onClick={() => shiftWeek(-1)} aria-label={t("tasksView.previousWeek")} style={S.iconBtn}>{language === "en" ? <ChevronLeft size={18} aria-hidden="true" /> : <ChevronRight size={18} aria-hidden="true" />}</button>
         <div style={S.dateLabel}>{arabicDate(weekDays[0], { day: "numeric", month: "short" }, language === "en" ? "en-US" : undefined)} – {arabicDate(weekDays[6], { day: "numeric", month: "short" }, language === "en" ? "en-US" : undefined)}</div>
-        <button onClick={() => shiftWeek(1)} style={S.iconBtn}>{language === "en" ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}</button>
+        <button onClick={() => shiftWeek(1)} aria-label={t("tasksView.nextWeek")} style={S.iconBtn}>{language === "en" ? <ChevronRight size={18} aria-hidden="true" /> : <ChevronLeft size={18} aria-hidden="true" />}</button>
       </div>
 
       <div style={S.weekStrip}>
@@ -2025,7 +2025,7 @@ function TasksView({ tasks, setTasks, categories, addPoints, showToast, subscrip
 
       <div style={S.taskComposer}>
         <input value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addTask()} placeholder={t("tasksView.addTaskPlaceholder", { day: weekdayShort[selectedIdx] })} style={S.taskInput} />
-        <button onClick={addTask} style={S.taskAddBtn} data-tour="add-task-btn"><Plus size={18} /></button>
+        <button onClick={addTask} aria-label={t("tasksView.addTaskAria")} style={S.taskAddBtn} data-tour="add-task-btn"><Plus size={18} aria-hidden="true" /></button>
       </div>
       <div style={S.taskMeta}>
         <div style={S.catScroll}>
@@ -2052,7 +2052,7 @@ function TasksView({ tasks, setTasks, categories, addPoints, showToast, subscrip
                 <div style={{ ...S.taskTitle, ...(task.done ? S.taskTitleDone : {}) }}>{task.title}</div>
                 {cat && <div style={S.taskTags}><span style={S.taskTag}><span style={{ ...S.legendDot, background: cat.color, width: 6, height: 6 }} />{catDisplayName(cat, language)}</span></div>}
               </div>
-              <button onClick={() => remove(task.id)} style={S.deleteBtn}><Trash2 size={14} /></button>
+              <button onClick={() => remove(task.id)} aria-label={t("common.buttons.delete")} style={S.deleteBtn}><Trash2 size={14} aria-hidden="true" /></button>
             </div>
           );
         })}
@@ -4681,7 +4681,7 @@ function GoalsView({ goals, setGoals, addPoints, showToast, profile, setProfile,
                     <div style={GS.goalMeta}>{t(`goals.periods.${goal.period}.label`)} · {t(`goals.periods.${goal.period}.reviewLabel`)}</div>
                   </div>
                   {goal.status === "done" && <span style={{ ...GS.statusBadge, ...GS.statusDone }}><Check size={11} style={{ display: "inline", verticalAlign: "-1px" }} /> {t("goals.achievedBadge")}</span>}
-                  <button onClick={() => removeGoal(goal.id)} style={S.deleteBtn}><Trash2 size={14} /></button>
+                  <button onClick={() => removeGoal(goal.id)} aria-label={t("common.buttons.delete")} style={S.deleteBtn}><Trash2 size={14} aria-hidden="true" /></button>
                 </div>
                 <GoalCalendar goal={goal} today={today} />
                 {due && !draft?.active && (
@@ -5806,7 +5806,7 @@ function AccountIdDebugModal({ onClose, showToast, isEn }) {
       <div style={S.modal} onClick={(e) => e.stopPropagation()}>
         <div style={S.modalHeader}>
           <span>{isEn ? "My account ID" : "معرّف حسابي"}</span>
-          <button onClick={onClose} style={S.iconBtn}><X size={18} /></button>
+          <button onClick={onClose} aria-label={isEn ? "Close" : "إغلاق"} style={S.iconBtn}><X size={18} aria-hidden="true" /></button>
         </div>
         <div style={S.modalBody}>
           <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", wordBreak: "break-all", background: "var(--surface-raised)", border: "1px solid var(--border2)", borderRadius: 10, padding: "12px 14px", direction: "ltr", textAlign: "center" }}>
@@ -5990,9 +5990,9 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
               return (
                 <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 7 }}>
                   <span style={{ fontSize: 12, color: "var(--ink-soft)", flex: 1 }}>{t(item.labelKey)}</span>
-                  <button onClick={() => setSectionColor(item.id, null)} title={t("settings.defaultGold")} style={{ width: 20, height: 20, borderRadius: "50%", border: !current ? "2px solid var(--ink)" : "1px solid var(--border2)", background: "var(--gold)", cursor: "pointer", padding: 0, flexShrink: 0 }} />
+                  <button onClick={() => setSectionColor(item.id, null)} title={t("settings.defaultGold")} aria-label={t("settings.defaultGold")} style={{ width: 20, height: 20, borderRadius: "50%", border: !current ? "2px solid var(--ink)" : "1px solid var(--border2)", background: "var(--gold)", cursor: "pointer", padding: 0, flexShrink: 0 }} />
                   {SECTION_COLOR_PALETTE.map((c) => (
-                    <button key={c} onClick={() => setSectionColor(item.id, c)} title={c} style={{ width: 20, height: 20, borderRadius: "50%", border: current === c ? "2px solid var(--ink)" : "1px solid var(--border2)", background: c, cursor: "pointer", padding: 0, flexShrink: 0 }} />
+                    <button key={c} onClick={() => setSectionColor(item.id, c)} title={c} aria-label={t("settings.colorSwatchAria", { color: c })} style={{ width: 20, height: 20, borderRadius: "50%", border: current === c ? "2px solid var(--ink)" : "1px solid var(--border2)", background: c, cursor: "pointer", padding: 0, flexShrink: 0 }} />
                   ))}
                 </div>
               );

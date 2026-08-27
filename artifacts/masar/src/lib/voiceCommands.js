@@ -41,7 +41,7 @@ const WATER_PHRASES = {
 
 const LOG_FOOD_RE = {
   ar: /^سجل\s+(\d+(?:\.\d+)?)\s*(غرام|غم|جرام|مل|مليلتر)\s+(.+)$/,
-  en: /^log\s+(\d+(?:\.\d+)?)\s*(grams?|g|ml|milliliters?)\s+(.+)$/,
+  en: /^log\s+(\d+(?:\.\d+)?)\s*(grams?|g|ml|milliliters?)\s+(.+)$/i,
 };
 
 function normalize(text, lang) {
@@ -70,7 +70,13 @@ export function parseVoiceCommand(rawText, lang) {
   if (matchesAny(text, CONFIRM_PHRASES[key], key)) return { type: "confirmSave", raw: rawText };
   if (matchesAny(text, WATER_PHRASES[key], key)) return { type: "addWater", raw: rawText };
 
-  const m = text.match(LOG_FOOD_RE[key]);
+  // يُطابَق هنا على النص الخام (بعد تبسيط المسافات فقط، بلا أي استبدال
+  // حروف/تشكيل) لا النص المُطبَّع - حتى يبقى اسم الطعام المُستخرَج (m[3])
+  // بإملاء المستخدم الحقيقي كما نطقه المتعرِّف الصوتي فعلاً (مثال: "مكرونة"
+  // تبقى بالتاء المربوطة، لا "مكرونه" التي كانت ستُنتَج لو طُبِّق التطبيع
+  // نفسه المُستخدَم لمطابقة الأوامر الثابتة على النص الحر لاسم الطعام أيضاً).
+  const rawTrimmed = (rawText || "").trim().replace(/\s+/g, " ");
+  const m = rawTrimmed.match(LOG_FOOD_RE[key]);
   if (m) {
     const unit = /مل|مليلتر|ml|milliliter/.test(m[2]) ? "ml" : "g";
     return { type: "logFoodDraft", qty: m[1], unit, foodName: m[3].trim(), raw: rawText };

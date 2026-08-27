@@ -4,7 +4,7 @@ import {
   Plus, X, Trash2, Camera, Search, Loader2, Droplet, Flame, Check, Bell, Info,
   Hash, Sparkles, ImagePlus, ClipboardList, Edit3, ChevronLeft, ChevronRight, SkipForward,
   Egg, Drumstick, Beef, Fish, Wheat, Carrot, Apple, Bean, Milk, Nut, Coffee, Cookie, Salad,
-  History,
+  History, Volume2,
 } from "lucide-react";
 import { store } from "../lib/store";
 import SpotlightTour from "./SpotlightTour";
@@ -25,6 +25,7 @@ import { getDailyNutritionSummary } from "../lib/nutrition-plan";
 import { requestNotificationPermission } from "../lib/push";
 import { searchGenericFoods, genericFoodToProduct } from "../lib/generic-foods";
 import { isolateNumbers } from "../lib/bidi";
+import { speak, isSpeechSupported } from "../lib/speech";
 import NumericValue from "./NumericValue";
 import { S } from "./styles";
 
@@ -91,6 +92,7 @@ const NS = {
   notifRow: { display: "flex", gap: 8 },
   notifBtn: { flex: 1, background: "var(--gold)", color: "var(--bg)", border: "none", borderRadius: 10, padding: "8px 0", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
   notifDismissBtn: { flex: 1, background: "transparent", border: "1px solid var(--border2)", color: "var(--muted2)", borderRadius: 10, padding: "8px 0", fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" },
+  readStatusBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", background: "transparent", border: "1px dashed var(--border2)", color: "var(--muted2)", borderRadius: 10, padding: "8px 0", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", marginBottom: 12 },
 
   pastDayBanner: { display: "flex", alignItems: "center", gap: 8, background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.3)", borderRadius: 12, padding: "9px 12px", marginBottom: 14, fontSize: 12.5, color: "var(--ink-soft)", lineHeight: 1.6 },
 
@@ -2387,6 +2389,23 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
   const cupsGoal = waterGoalCups(healthProfile?.weightKg);
   const waterPercent = cupsGoal ? Math.min(100, Math.round((todayCups / cupsGoal) * 100)) : 0;
 
+  // "اقرأ لي وضعي اليوم" (وضع الاحتياجات الخاصة) - يقرأ بالضبط نفس الأرقام
+  // المعروضة بصرياً أعلاه (dailySummary.caloriesConsumed/calorieGoal/
+  // caloriesRemaining، todayCups/cupsGoal) بلا أي حساب مواز جديد. يتعامل
+  // صراحة مع غياب هدف السعرات (dailySummary.source === "none"، مستخدم لم
+  // يكمل بياناته في "أنت" بعد) وغياب هدف الماء (cupsGoal يكون null فعلياً
+  // حين لا يُعرَف الوزن - انظر waterGoalCups في nutrition.js) بنفس منطق
+  // العرض البصري الشرطي (tee ? ... : ...) الموجود أعلاه بالضبط.
+  function readStatusAloud() {
+    const caloriesPart = dailySummary.source !== "none" && dailySummary.calorieGoal
+      ? t("speech.statusCaloriesWithGoal", { consumed: Math.round(dailySummary.caloriesConsumed), goal: Math.round(dailySummary.calorieGoal), remaining: Math.round(dailySummary.caloriesRemaining) })
+      : t("speech.statusCaloriesNoGoal", { consumed: Math.round(dailySummary.caloriesConsumed) });
+    const waterPart = cupsGoal
+      ? t("speech.statusWaterWithGoal", { cups: todayCups, goal: cupsGoal })
+      : t("speech.statusWaterNoGoal", { cups: todayCups });
+    speak(`${caloriesPart} ${waterPart}`, i18n.language);
+  }
+
   function closeSheet() {
     setSheet(null);
     setPendingProduct(null);
@@ -2739,6 +2758,11 @@ ${missingMealsLine}
               {isolateNumbers(totals.calories <= tee ? t("nutrition.remainingToday", { n: Math.round(tee - totals.calories) }) : t("nutrition.exceededGoal", { n: Math.round(totals.calories - tee) }))}
             </div>
           </>
+        )}
+        {isSpeechSupported() && (
+          <button onClick={readStatusAloud} style={NS.readStatusBtn}>
+            <Volume2 size={14} aria-hidden="true" /> {t("speech.readMyStatusBtn")}
+          </button>
         )}
         <div style={NS.macrosRow} data-tour="nutrition-summary">
           <div style={NS.macroChip}><div style={NS.macroValue}><NumericValue value={Math.round(totals.protein * 10) / 10} unit={t("common.units.g")} /></div><div style={NS.macroLabel}>{t("common.units.protein")}</div></div>

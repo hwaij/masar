@@ -1145,6 +1145,8 @@
     "off": "Off",
     "on": "On",
     "moreSpacing": "More spacing between elements",
+    "accessibilityModeLabel": "Special needs mode (voice reading)",
+    "accessibilityModeNote": "When enabled, the app speaks a short description of each main section aloud when you enter it (Today, Nutrition, Fitness, Reports, Goals, Tasks, Settings), with a floating button to stop/replay the reading manually at any time. This relies on your browser's built-in speech feature (no external service) - voice quality can vary by device and browser, especially for Arabic.",
     "sectionColors": "Section colors",
     "sectionColorsNote": "A purely optional touch — the unified gold/navy identity stays the default unless you enable this and pick colors yourself from a small palette that fits the design.",
     "defaultGold": "Default (gold)",
@@ -1890,5 +1892,23 @@
     "premiumRequiredMessage": "Subscribe to Masar Premium so AI can suggest actual food items within your plan's numbers, and give you a daily nutrition tip based on your real data.",
     "noEntriesToday": "No meals logged yet today",
     "noAdviceYet": "Tap \"Refresh today's tip\" to get your first tip."
+  },
+  "speech": {
+    "sections": {
+      "today": "You are now in the Today section. Here you track your core daily tasks, your prayers and remembrance, and your day wheel showing how your time was spent. Tap any arc on the wheel for that activity's details.",
+      "nutrition": "You are now in the Nutrition section. Here you log your meals by searching, scanning a barcode, or photographing them, and see your daily needs for calories, protein, carbs, and fat, plus how much water you've had.",
+      "fitness": "You are now in the Fitness section. Here you'll find your weekly training program built automatically for your goal and equipment, and you can log your actual performance for each exercise, or build your own program manually.",
+      "reports": "You are now in the Reports section. Here you see a summary and analysis of your progress over time across every section, with charts showing your activity pattern.",
+      "goals": "You are now in the Goals section. Here you add your weekly, monthly, and yearly goals, and track your progress toward them on a visual calendar.",
+      "tasks": "You are now in the Tasks section. Here you add your tasks, organize them into categories, and mark them done as you complete them.",
+      "settings": "You are now in the Settings section. Here you control the app's language, appearance, font size, and accessibility settings - including this mode you're hearing right now."
+    },
+    "stopBtn": "Stop reading",
+    "replayBtn": "Replay",
+    "readMyStatusBtn": "Read my status today",
+    "statusCaloriesWithGoal": "You've had {{consumed}} calories today out of {{goal}}. You have {{remaining}} calories left.",
+    "statusCaloriesNoGoal": "You've had {{consumed}} calories today. No daily calorie goal is set yet - complete your details in the You section to calculate one.",
+    "statusWaterWithGoal": "You've had {{cups}} out of {{goal}} cups of water today.",
+    "statusWaterNoGoal": "You've had {{cups}} cups of water today. No daily water goal is set yet."
   }
 }

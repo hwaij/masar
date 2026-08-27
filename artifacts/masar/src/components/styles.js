@@ -159,6 +159,10 @@ export const S = {
   input: { width: "100%", background: "var(--surface-sunken)", border: "1px solid var(--border2)", borderRadius: 10, padding: sp("10px 12px"), color: "var(--ink)", fontSize: 14, fontFamily: "inherit" },
   saveBtn: { width: "100%", background: "var(--gold)", color: "var(--bg)", border: "none", borderRadius: 12, padding: sp("13px 0"), fontSize: 14, fontWeight: 700, cursor: "pointer", marginTop: 18, fontFamily: "inherit" },
   toast: { position: "fixed", bottom: 20, left: "50%", transform: "translateX(-50%)", background: "var(--surface-raised)", color: "var(--ink)", padding: "9px 18px", borderRadius: 20, fontSize: 13, border: "1px solid var(--border2)", zIndex: 200 },
+  // زر التحكّم اليدوي بالقراءة الصوتية (وضع الاحتياجات الخاصة) - ثابت أعلى
+  // زاوية الشاشة (insetInlineEnd يعكس تلقائياً بين RTL/LTR بلا فرع isRtl)،
+  // فوق طبقة التنبيه المؤقت toast (zIndex أعلى) حتى لا يُحجَب أحدهما الآخر.
+  a11ySpeechBtn: { position: "fixed", top: 64, insetInlineEnd: 14, zIndex: 210, display: "flex", alignItems: "center", gap: 6, background: "var(--gold)", color: "var(--on-accent)", border: "none", borderRadius: 20, padding: "8px 14px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 10px rgba(0,0,0,0.25)" },
   loaderWrap: { display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh" },
 
   achieveHero: { display: "flex", alignItems: "center", gap: 12, marginBottom: 16 },

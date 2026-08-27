@@ -72,6 +72,9 @@ alter table profile add column if not exists name text default '';
 alter table profile add column if not exists font_size text not null default 'normal';
 alter table profile add column if not exists high_contrast boolean not null default false;
 alter table profile add column if not exists spacious boolean not null default false;
+-- وضع الاحتياجات الخاصة: يفعّل قراءة صوتية تلقائية (Web Speech API) عند
+-- دخول كل قسم رئيسي - مستقل عن المحاور الثلاثة أعلاه، مُطفأ افتراضياً.
+alter table profile add column if not exists accessibility_mode boolean not null default false;
 -- ألوان مخصّصة لكل قسم (الدفعة الرابعة): اختياري بحت، مُطفأ افتراضياً - لا
 -- يغيّر شيئاً في الهوية الموحدة الذهبية/الكحلية إلا إن فعّله المستخدم صراحة
 -- واختار ألواناً من نفس القائمة المحدودة المنسجمة مع الهوية.

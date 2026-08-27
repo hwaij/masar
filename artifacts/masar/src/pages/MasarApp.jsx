@@ -15,12 +15,13 @@ import {
   Heart, GraduationCap, Eye, AlertTriangle, RefreshCw,
   Wallet, ArrowDownCircle, ArrowUpCircle, Crown,
   Utensils, Dumbbell, Menu, Users,
-  Accessibility, ALargeSmall, Contrast, StretchHorizontal, Volume2,
+  Accessibility, ALargeSmall, Contrast, StretchHorizontal, Volume2, VolumeX,
   Smartphone, Copy,
 } from "lucide-react";
 import { fivePrayers, nextPrayer, to12h } from "../lib/prayer";
 import { ADHKAR_CATEGORIES, ADHKAR } from "../lib/adhkar";
 import { store, setOwner, getOwner, DEFAULT_CATEGORIES } from "../lib/store";
+import { speak, stopSpeaking, isSpeechSupported } from "../lib/speech";
 import { pickDailyTip, TIP_CATEGORY_LABELS, localDayKey, TIPS, FALLBACK_TIP } from "../lib/tips";
 import { pickDailyMoneyTip, MONEY_TIP_CATEGORY_LABELS } from "../lib/money-tips";
 import { isActiveSubscriber } from "../lib/subscription";
@@ -308,6 +309,7 @@ export default function MasarApp() {
   const [fontSize, setFontSize] = useState(() => store.getLocalFontSize());
   const [highContrast, setHighContrast] = useState(() => store.getLocalHighContrast());
   const [spacious, setSpacious] = useState(() => store.getLocalSpacious());
+  const [accessibilityMode, setAccessibilityMode] = useState(() => store.getLocalAccessibilityMode());
   const [achieve, setAchieve] = useState([]);
   const [focus, setFocus] = useState([]);
   const [commitments, setCommitments] = useState([]);
@@ -617,6 +619,41 @@ export default function MasarApp() {
       return next;
     });
   }, [showToast]);
+  const toggleAccessibilityMode = useCallback(() => {
+    setAccessibilityMode((v) => {
+      const next = !v;
+      store.saveAccessibilityMode(next).then((res) => {
+        if (!res.ok) { setAccessibilityMode(v); showToast(t("common.errors.saveFailed")); }
+      });
+      if (!next) stopSpeaking();
+      return next;
+    });
+  }, [showToast]);
+
+  // القراءة الصوتية التلقائية (وضع الاحتياجات الخاصة) - سبعة أقسام رئيسية
+  // فقط مغطاة بنص قراءة (speech.sections.<key> في ملفي الترجمة) - مطابقة
+  // لقيمة `view` مباشرة (لا حاجة لجدول تحويل، القيم متطابقة بالحرف).
+  const SPEECH_SECTIONS = useMemo(() => new Set(["today", "nutrition", "fitness", "reports", "goals", "tasks", "settings"]), []);
+  const [isReading, setIsReading] = useState(false);
+  const speakSection = useCallback((sectionView) => {
+    if (!SPEECH_SECTIONS.has(sectionView)) return;
+    setIsReading(true);
+    speak(t(`speech.sections.${sectionView}`), i18n.language, { onEnd: () => setIsReading(false) });
+  }, [SPEECH_SECTIONS, t, i18n.language]);
+  const replayCurrentSection = useCallback(() => speakSection(view), [speakSection, view]);
+  const stopReading = useCallback(() => { stopSpeaking(); setIsReading(false); }, []);
+  // تُطلَق عند *كل* دخول لنفس القسم (لا أول مرة فقط في الجلسة) - قرار
+  // مقصود: نفس مبدأ إعلان قارئ الشاشة عن تغيّر المنطقة/الصفحة في كل مرة
+  // فعلياً، أبسط تطبيقاً وأكثر قابلية للتنبؤ من تتبّع "أول مرة" لكل قسم عبر
+  // الجلسة بلا فائدة حقيقية إضافية لمستخدم يعتمد على القراءة في كل دخول.
+  // بوّابات showSplash/showLanguagePicker/loaded تمنع القراءة قبل ظهور
+  // الواجهة الفعلية (الخطافات تُنفَّذ دوماً بلا شرط قبل أي عائد JSX مبكر
+  // أدناه، فهذا الحارس داخل تنفيذ الخطاف نفسه ضروري).
+  useEffect(() => {
+    if (!accessibilityMode || showSplash || showLanguagePicker || !loaded) return;
+    speakSection(view);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, accessibilityMode, showSplash, showLanguagePicker, loaded]);
 
   const [dailyTip, setDailyTip] = useState(null);
   // Shows today's "بصيرة" tip once, automatically, the first time the app
@@ -818,10 +855,20 @@ export default function MasarApp() {
         {view === "groups" && !isSub && (
           <div style={S.view}><UpsellCard icon={Users} title={i18n.language === "en" ? "Friend Challenges in Masar Premium" : "تحديات الأصدقاء في مسار الكامل"} message={i18n.language === "en" ? "Create a study group with your friends and compete on study hours and workout completion, with live updates between you." : "أنشئ جروب دراسة مع أصدقائك وتنافسوا بساعات الدراسة وإنجاز الرياضة، بتحديث لحظي بينكم."} /></div>
         )}
-        {view === "settings" && <SettingsView categories={categories} setCategories={setCategories} gamify={gamify} hasCloud={store.hasCloud} showToast={showToast} profile={profile} setProfile={setProfile} pointsLog={pointsLog} onStartTour={startTour} subscription={subscription} theme={theme} toggleTheme={toggleTheme} fontSize={fontSize} changeFontSize={changeFontSize} highContrast={highContrast} toggleHighContrast={toggleHighContrast} spacious={spacious} toggleSpacious={toggleSpacious} />}
+        {view === "settings" && <SettingsView categories={categories} setCategories={setCategories} gamify={gamify} hasCloud={store.hasCloud} showToast={showToast} profile={profile} setProfile={setProfile} pointsLog={pointsLog} onStartTour={startTour} subscription={subscription} theme={theme} toggleTheme={toggleTheme} fontSize={fontSize} changeFontSize={changeFontSize} highContrast={highContrast} toggleHighContrast={toggleHighContrast} spacious={spacious} toggleSpacious={toggleSpacious} accessibilityMode={accessibilityMode} toggleAccessibilityMode={toggleAccessibilityMode} />}
       </div>
       </div>
-      {toast && <div style={S.toast} className="toast-in">{toast}</div>}
+      {toast && <div style={S.toast} className="toast-in" role="status" aria-live="polite">{toast}</div>}
+      {accessibilityMode && isSpeechSupported() && (SPEECH_SECTIONS.has(view) || isReading) && (
+        <button
+          onClick={isReading ? stopReading : replayCurrentSection}
+          aria-label={isReading ? t("speech.stopBtn") : t("speech.replayBtn")}
+          style={S.a11ySpeechBtn}
+        >
+          {isReading ? <VolumeX size={16} aria-hidden="true" /> : <Volume2 size={16} aria-hidden="true" />}
+          <span>{isReading ? t("speech.stopBtn") : t("speech.replayBtn")}</span>
+        </button>
+      )}
       {tourOpen && (
         <MasarJourney
           view={view} setView={setView} profile={profile} healthProfile={healthProfile} isSub={isSub}
@@ -5768,7 +5815,7 @@ function AccountIdDebugModal({ onClose, showToast, isEn }) {
   );
 }
 
-function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, profile, setProfile, pointsLog, onStartTour, subscription, theme, toggleTheme, fontSize, changeFontSize, highContrast, toggleHighContrast, spacious, toggleSpacious }) {
+function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, profile, setProfile, pointsLog, onStartTour, subscription, theme, toggleTheme, fontSize, changeFontSize, highContrast, toggleHighContrast, spacious, toggleSpacious, accessibilityMode, toggleAccessibilityMode }) {
   const { t, i18n } = useTranslation();
   const isEn = i18n.language === "en";
   const isSub = isActiveSubscriber(subscription);
@@ -5914,6 +5961,15 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
         <div style={S.rangeToggle}>
           <button onClick={() => spacious && toggleSpacious()} style={{ ...S.rangeBtn, flex: 1, ...(!spacious ? S.rangeBtnActive : {}) }}>{t("settings.off")}</button>
           <button onClick={() => !spacious && toggleSpacious()} style={{ ...S.rangeBtn, flex: 1, ...(spacious ? S.rangeBtnActive : {}) }}>{t("settings.on")}</button>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--muted2)", margin: "14px 0 8px" }}>
+          <Volume2 size={14} color="#C9A24B" /> {t("settings.accessibilityModeLabel")}
+        </div>
+        <p style={S.profileHint}>{t("settings.accessibilityModeNote")}</p>
+        <div style={S.rangeToggle}>
+          <button onClick={() => accessibilityMode && toggleAccessibilityMode()} style={{ ...S.rangeBtn, flex: 1, ...(!accessibilityMode ? S.rangeBtnActive : {}) }}>{t("settings.off")}</button>
+          <button onClick={() => !accessibilityMode && toggleAccessibilityMode()} style={{ ...S.rangeBtn, flex: 1, ...(accessibilityMode ? S.rangeBtnActive : {}) }}>{t("settings.on")}</button>
         </div>
       </div>
       <div style={S.catEditorCard}>

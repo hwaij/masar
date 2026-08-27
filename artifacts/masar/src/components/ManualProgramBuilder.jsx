@@ -87,7 +87,7 @@ function ExerciseDetailModal({ exercise, gender, isEn, isRtl, t, equipmentLabel,
               <p style={FS.detailsText}>{isEn ? (exercise.tipsEn || exercise.tips) : exercise.tips}</p>
             </>
           )}
-          <a href={youtubeSearchUrl(exercise)} target="_blank" rel="noopener noreferrer" style={FS.watchVideoBtn}>
+          <a href={youtubeSearchUrl(exercise, gender)} target="_blank" rel="noopener noreferrer" style={FS.watchVideoBtn}>
             <Youtube size={16} /> {t("fitness.watchVideoBtn")}
           </a>
         </div>

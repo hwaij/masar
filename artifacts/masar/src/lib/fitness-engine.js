@@ -524,11 +524,18 @@ function scoreAlternative(candidate, original, goal, experience) {
 // لربط فيديو محدَّد يدوياً لكل تمرين. مكانها هنا (لا FitnessView.jsx) حتى
 // تُستخدَم من أي شاشة تعرض تفاصيل تمرين (بما فيها بناء البرنامج اليدوي في
 // ManualProgramBuilder.jsx) دون تكرارها.
-export function youtubeSearchUrl(exercise) {
-  // كلمة "for women" إضافية فقط حين التمرين مُوسَّم womenFriendly - تُرجّح
-  // نتائج فيديو أكثر ملاءمة لتلك الشروحات (مثال: كيغل/قاع الحوض) بلا أي
-  // تغيير على التمرين نفسه أو إتاحته لأي مستخدم آخر.
-  const query = exercise.womenFriendly
+//
+// gender: خلل حقيقي وُجد وأُصلح - كانت كلمة "for women" تُضاف بناءً على
+// exercise.womenFriendly (وسم التمرين نفسه، خاصية عرض/فلترة منفصلة تماماً
+// أُتيحت للجميع كخيار إضافي - انظر توثيق الحقل في exercises-db.js)، فيحصل
+// مستخدم *ذكر* يفتح تمريناً مُوسَّماً كهذا على نتائج "for women" غير
+// مناسبة له إطلاقاً. القرار الصحيح يعتمد حصراً على جنس المستخدم الفعلي
+// المسجَّل (health_profile.gender - نفس الحقل المستخدَم لعرض مخطط الجسم
+// ذكر/أنثى)، بغض النظر التام عن وسم التمرين: "female" تضيف الكلمة لأي
+// تمرين تبحث عنه (أي امرأة تستفيد من فيديو بلياقة/جسم مشابه لها)، أي قيمة
+// أخرى أو غياب الجنس (لم يُسجَّل بعد في "أنت") لا يضيف شيئاً - لا افتراض.
+export function youtubeSearchUrl(exercise, gender) {
+  const query = gender === "female"
     ? `${exercise.nameEn || exercise.name} exercise proper form for women`
     : `${exercise.nameEn || exercise.name} exercise proper form`;
   return `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;

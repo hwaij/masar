@@ -220,7 +220,7 @@ function ExerciseDetailView({ exercise, isEn, isRtl, gender, onBack, t }) {
         ) : exercise.animationUrl ? (
           <img src={exercise.animationUrl} alt="" style={FS.videoPlayer} />
         ) : (
-          <a href={youtubeSearchUrl(exercise)} target="_blank" rel="noopener noreferrer" style={FS.watchVideoBtn}>
+          <a href={youtubeSearchUrl(exercise, gender)} target="_blank" rel="noopener noreferrer" style={FS.watchVideoBtn}>
             <Youtube size={16} /> {t("fitness.watchVideoBtn")}
           </a>
         )}

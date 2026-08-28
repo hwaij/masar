@@ -137,7 +137,7 @@ Return only a valid JSON object in exactly that shape, with no explanation.`;
 // المخطط الصارم (قيمة غير معروفة، كمية غير رقمية، اسم طعام فارغ...) يُعامَل
 // كـ"unclear" بدل تنفيذ شيء غير متوقَّع؛ لا يُنفَّذ أي حقل من Gemini مباشرة
 // بلا هذا التحقق.
-function adaptGeminiCommand(parsed, rawText) {
+export function adaptGeminiCommand(parsed, rawText) {
   if (!parsed || typeof parsed !== "object" || !GEMINI_ACTIONS.has(parsed.action)) {
     return { type: "unrecognized", raw: rawText };
   }

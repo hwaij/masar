@@ -23,7 +23,7 @@ import { ADHKAR_CATEGORIES, ADHKAR } from "../lib/adhkar";
 import { store, setOwner, getOwner, DEFAULT_CATEGORIES } from "../lib/store";
 import { speak, stopSpeaking, isSpeechSupported } from "../lib/speech";
 import { startListening, stopListening, isRecognitionSupported } from "../lib/speechRecognition";
-import { parseVoiceCommand } from "../lib/voiceCommands";
+import { parseVoiceCommand, parseVoiceCommandSmart } from "../lib/voiceCommands";
 import { pickDailyTip, TIP_CATEGORY_LABELS, localDayKey, TIPS, FALLBACK_TIP } from "../lib/tips";
 import { pickDailyMoneyTip, MONEY_TIP_CATEGORY_LABELS } from "../lib/money-tips";
 import { isActiveSubscriber } from "../lib/subscription";
@@ -664,16 +664,21 @@ export default function MasarApp() {
 
   // ============ أوامر صوتية حقيقية (Speech Recognition) ============
   // الاتجاه المعاكس للقراءة الصوتية أعلاه: هنا المستخدم يتكلم والتطبيق يفهم
-  // وينفّذ. نطاق ضيق ومقصود جداً (عبارات ثابتة معروفة مسبقاً فقط، لا فهم لغة
-  // حرة) لضمان موثوقية حقيقية - انظر src/lib/voiceCommands.js للقائمة
-  // الكاملة. زر الميكروفون لا يظهر إلا حين "وضع الاحتياجات الخاصة" مفعّل،
-  // مطابقاً لطلب ربطه بنفس الإعداد الموجود.
+  // وينفّذ. مساران: (1) مطابقة نصية ثابتة فورية مجانية لعبارات معروفة مسبقاً
+  // (مسار سريع، مجرَّب أولاً دائماً)، و(2) فهم حر بالذكاء الاصطناعي (Gemini)
+  // عند فشل المسار الأول - انظر src/lib/voiceCommands.js (parseVoiceCommandSmart)
+  // للتفاصيل الكاملة والمخطط الصارم المُتحقَّق منه. زر الميكروفون لا يظهر إلا
+  // حين "وضع الاحتياجات الخاصة" مفعّل، مطابقاً لطلب ربطه بنفس الإعداد الموجود.
   const micSupported = useMemo(() => isRecognitionSupported(), []);
   const [isListening, setIsListening] = useState(false);
+  // true فقط أثناء انتظار رد Gemini (بعد فشل المطابقة الفورية) - يُستخدَم
+  // لعرض تنبيه صادق أن هذه اللحظة تستغرق وقتاً أطول من المطابقة الفورية
+  // المعتادة، لا لإخفاء هذا الفرق عن المستخدم.
+  const [isProcessingVoiceAI, setIsProcessingVoiceAI] = useState(false);
   const recognizerRef = useRef(null);
-  // أمر مُوجَّه لعرض التغذية الحالي (إضافة ماء/تسجيل طعام مسودة/تأكيد حفظ) -
-  // NutritionView تستهلكه وتُصفّره فوراً عبر clearVoiceCommand، فلا يُعاد
-  // تنفيذه مرتين بالخطأ عند إعادة رسم لاحقة.
+  // أمر مُوجَّه لعرض التغذية الحالي (إضافة ماء/تسجيل طعام مسودة/تأكيد أو إلغاء
+  // حفظ) - NutritionView تستهلكه وتُصفّره فوراً عبر clearVoiceCommand، فلا
+  // يُعاد تنفيذه مرتين بالخطأ عند إعادة رسم لاحقة.
   const [voiceCommand, setVoiceCommand] = useState(null);
   const clearVoiceCommand = useCallback(() => setVoiceCommand(null), []);
   // يمنع خطاف إعلان القسم أعلاه من التحدث فوق تأكيد أمر صوتي بالتنقّل (نفس
@@ -681,16 +686,31 @@ export default function MasarApp() {
   // رسم إضافية قبل تنفيذ ذلك الخطاف في نفس الدورة.
   const voiceNavigationRef = useRef(false);
 
-  const handleVoiceResult = useCallback((transcript) => {
+  const handleVoiceResult = useCallback(async (transcript) => {
     setIsListening(false);
-    const cmd = parseVoiceCommand(transcript, i18n.language);
+    // الفهم الذكي الحر بـGemini ميزة مدفوعة (مسار الكامل) تماماً كباقي ميزات
+    // الذكاء الاصطناعي في التطبيق (نفس نقطة نهاية gemini.js وحارس الاشتراك
+    // فيها بلا أي تعديل) - المستخدم غير المشترك يبقى بكامل الأوامر الثابتة
+    // مجاناً دائماً (المسار السريع لا يتأثر إطلاقاً)، فقط الفهم الحر خارج تلك
+    // القائمة الثابتة هو المقيَّد. هذا فحص عميل سريع (UX) فقط، لا الحاجز
+    // الأمني الفعلي (ذاك في الخادم كما في كل ميزات Gemini الأخرى هنا).
+    const fastResult = parseVoiceCommand(transcript, i18n.language);
+    let cmd = fastResult;
+    if (fastResult.type === "unrecognized" && isSub) {
+      setIsProcessingVoiceAI(true);
+      cmd = await parseVoiceCommandSmart(transcript, i18n.language, { allowAI: true });
+      setIsProcessingVoiceAI(false);
+    } else if (fastResult.type === "unrecognized") {
+      cmd = { ...fastResult, aiSkipped: true };
+    }
+
     if (cmd.type === "navigate") {
       voiceNavigationRef.current = true;
       setView(cmd.view);
       speak(t("speech.voice.navigateConfirm", { section: t(`nav.${cmd.view}`) }), i18n.language);
       return;
     }
-    if (cmd.type === "addWater" || cmd.type === "logFoodDraft" || cmd.type === "confirmSave") {
+    if (cmd.type === "addWater" || cmd.type === "logFoodDraft" || cmd.type === "confirmSave" || cmd.type === "cancelPending") {
       if (view !== "nutrition") { voiceNavigationRef.current = true; setView("nutrition"); }
       setVoiceCommand(cmd);
       if (cmd.type === "addWater") {
@@ -699,12 +719,20 @@ export default function MasarApp() {
         const unitLabel = t(`nutrition.unitOptions.${cmd.unit}`);
         speak(t("speech.voice.logFoodConfirm", { qty: cmd.qty, unit: unitLabel, name: cmd.foodName }), i18n.language);
       }
-      // confirmSave: التأكيد الفعلي (نجاح/عدم اكتمال بيانات/لا شيء لتأكيده)
-      // يتولاه NutritionView نفسه بعد أن يعرف السياق الفعلي للشاشة الحالية.
+      // confirmSave/cancelPending: الرد الفعلي (نجاح/عدم اكتمال بيانات/لا شيء
+      // بانتظاره) يتولاه NutritionView نفسه بعد أن يعرف السياق الفعلي للشاشة.
       return;
     }
-    speak(t("speech.voice.unrecognized"), i18n.language);
-  }, [i18n.language, t, view]);
+    // unrecognized: تمييز بين "لم يُفهم إطلاقاً" (خط الاحتياط الأساسي، أو فشل
+    // Gemini فعلياً - نفس الرسالة الصادقة في الحالتين) و"يحتاج اشتراكاً
+    // للفهم الحر" (المطابقة الثابتة فشلت وهذا المستخدم غير مشترك، فلم نحاول
+    // Gemini إطلاقاً) - رسالتان مختلفتان، كلتاهما صادقتان بدل تعميم مضلِّل.
+    if (cmd.aiSkipped) {
+      speak(t("speech.voice.needsSubscriptionForAI"), i18n.language);
+    } else {
+      speak(t("speech.voice.unrecognized"), i18n.language);
+    }
+  }, [i18n.language, t, view, isSub]);
 
   const handleVoiceError = useCallback((code) => {
     setIsListening(false);
@@ -948,11 +976,18 @@ export default function MasarApp() {
       {accessibilityMode && (
         <button
           onClick={toggleListening}
-          aria-label={isListening ? t("speech.voice.micBtnListeningLabel") : t("speech.voice.micBtnLabel")}
-          style={{ ...S.a11yMicBtn, background: isListening ? "#C0392B" : "var(--surface-raised)", color: isListening ? "#fff" : "var(--ink)", border: isListening ? "none" : "1px solid var(--border2)" }}
+          disabled={isProcessingVoiceAI}
+          aria-label={isProcessingVoiceAI ? t("speech.voice.processingAI") : isListening ? t("speech.voice.micBtnListeningLabel") : t("speech.voice.micBtnLabel")}
+          style={{
+            ...S.a11yMicBtn,
+            background: isProcessingVoiceAI ? "#C9A24B" : isListening ? "#C0392B" : "var(--surface-raised)",
+            color: isProcessingVoiceAI || isListening ? "#fff" : "var(--ink)",
+            border: isProcessingVoiceAI || isListening ? "none" : "1px solid var(--border2)",
+            cursor: isProcessingVoiceAI ? "default" : "pointer",
+          }}
         >
-          {isListening ? <MicOff size={16} aria-hidden="true" /> : <Mic size={16} aria-hidden="true" />}
-          <span>{isListening ? t("speech.voice.listening") : t("speech.voice.micBtnLabel")}</span>
+          {isProcessingVoiceAI ? <Loader2 size={16} className="spin" aria-hidden="true" /> : isListening ? <MicOff size={16} aria-hidden="true" /> : <Mic size={16} aria-hidden="true" />}
+          <span>{isProcessingVoiceAI ? t("speech.voice.processingAI") : isListening ? t("speech.voice.listening") : t("speech.voice.micBtnLabel")}</span>
         </button>
       )}
       {tourOpen && (

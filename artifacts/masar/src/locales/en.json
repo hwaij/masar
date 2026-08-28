@@ -1929,7 +1929,11 @@
       "waterConfirm": "Done, I've added a cup of water for you.",
       "logFoodConfirm": "Do you want to log {{qty}} {{unit}} of {{name}}? Say confirm to save, or edit the details on screen then save.",
       "nothingToConfirm": "There's nothing waiting to be confirmed right now. First say a command like: log 200 grams pasta.",
+      "nothingToCancel": "There's nothing waiting to be cancelled right now.",
+      "cancelledDraft": "Cancelled.",
       "invalidConfirm": "Please complete the remaining nutrition info, at least calories, before saving.",
+      "processingAI": "Understanding your request with AI...",
+      "needsSubscriptionForAI": "Understanding any free-form phrasing requires a Masar Premium subscription. Try one of the supported fixed phrases, like: open Nutrition, or add a cup of water.",
       "unrecognized": "I didn't understand that command. Available commands: open a section like Nutrition or Fitness, add a cup of water, log an amount, unit, and food name, or say confirm."
     }
   }

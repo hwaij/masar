@@ -2588,6 +2588,12 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
       // لا يوجد شيء بانتظار تأكيد الآن - تغذية راجعة صادقة بدل تجاهل صامت
       // (نفس مبدأ "لا صمت أو فشل غامض" المطلوب لأي أمر غير مفهوم).
       else speak(t("speech.voice.nothingToConfirm"), i18n.language);
+    } else if (voiceCommand.type === "cancelPending") {
+      // إلغاء يعتمد على closeSheet() نفسها المستخدَمة لزر "رجوع" المرئي بلا
+      // أي منطق موازٍ - لا حاجة لتمرير شيء لـManualEntryForm (بخلاف التأكيد،
+      // الإلغاء لا يعتمد على حالة النموذج الداخلية إطلاقاً).
+      if (sheet === "manual") { closeSheet(); speak(t("speech.voice.cancelledDraft"), i18n.language); }
+      else speak(t("speech.voice.nothingToCancel"), i18n.language);
     }
     clearVoiceCommand?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps

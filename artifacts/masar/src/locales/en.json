@@ -1919,7 +1919,7 @@
     "statusWaterNoGoal": "You've had {{cups}} cups of water today. No daily water goal is set yet.",
     "voice": {
       "micBtnLabel": "Voice commands",
-      "micBtnListeningLabel": "Stop listening",
+      "micBtnListeningLabel": "Stop listening session",
       "listening": "Listening...",
       "micUnsupported": "Voice commands are not supported on this device or browser.",
       "permissionDenied": "Microphone permission was denied. Enable it in your browser settings to continue.",
@@ -1934,7 +1934,17 @@
       "invalidConfirm": "Please complete the remaining nutrition info, at least calories, before saving.",
       "processingAI": "Understanding your request with AI...",
       "needsSubscriptionForAI": "Understanding any free-form phrasing requires a Masar Premium subscription. Try one of the supported fixed phrases, like: open Nutrition, or add a cup of water.",
-      "unrecognized": "I didn't understand that command. Available commands: open a section like Nutrition or Fitness, add a cup of water, log an amount, unit, and food name, or say confirm."
+      "unrecognized": "I didn't understand that command. Available commands: open a section like Nutrition or Fitness, add a cup of water, log an amount, unit, and food name, or say confirm.",
+      "waitingNext": "Waiting for your next command...",
+      "sessionTimedOut": "The listening session ended due to inactivity. Press the mic button to start a new session.",
+      "sessionEnded": "Session ended. Press the button to start a new session whenever you need.",
+      "searchingFood": "Searching for the item...",
+      "foodFoundConfirm": "Found {{name}}, {{qty}} {{unit}} is about {{calories}} calories and {{protein}}g protein. Say confirm to save, or cancel to go back.",
+      "foodMultipleChoices": "I found more than one type: {{options}}. Which one do you mean?",
+      "foodNotFoundFallback": "I couldn't find {{name}} in the database. You can add it manually on screen, or try a different name.",
+      "chooseFoodTitle": "Choose the item you meant",
+      "chooseFoodPrompt": "Say the name of the item you meant, its number (first/second...), or tap it below.",
+      "disambiguationRetry": "I didn't understand which option you meant. Available options: {{options}}. Say one of their names, or cancel to go back."
     }
   }
 }

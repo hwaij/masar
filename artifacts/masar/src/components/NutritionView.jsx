@@ -881,17 +881,91 @@ function MealTypeSelector({ value, onChange }) {
   );
 }
 
-function ConfirmQuantityCard({ product: initialProduct, source, onAdd, onCancel, showToast, preselectedMealType }) {
+// ============ بحث تلقائي عن الطعام لأمر صوتي "سجل [كمية] [صنف]" ============
+// نفس مصادر البحث الأربعة المستخدَمة فعلاً في SearchPanel (المحلي الفوري،
+// USDA، custom_foods، Open Food Facts) بنفس الدوال بالضبط - لا منطق بحث
+// موازٍ جديد. الفرق الوحيد: هنا استدعاء واحد حاسم (لا كتابة حية تدريجية)،
+// فتُطلَق الاستعلامات الثلاثة غير المتزامنة معاً بـPromise.allSettled بدل
+// حراسة سباق حالات مبنية على مؤقت debounce (غير مفيدة هنا أصلاً - لا كتابة
+// جارية لإلغاء استعلامات سابقة من أجلها).
+async function searchFoodCandidatesOnce(rawQuery, lang) {
+  const isEn = lang === "en";
+  const normalized = normalizeSearchTerm(rawQuery);
+  if (!normalized) return [];
+  const generic = searchGenericFoods(normalized).map((f) => genericFoodToProduct(f, isEn));
+
+  const [customSettled, canonicalSettled, offSettled] = await Promise.allSettled([
+    store.searchCustomFoodsByName(normalized),
+    store.lookupFoodSynonym(normalized),
+    searchProductsByName(normalized),
+  ]);
+
+  const customRows = customSettled.status === "fulfilled" ? customSettled.value : [];
+  const custom = customRows.map((f) => ({
+    barcode: f.barcode, name: f.foodName, brand: f.brand || "", country: f.country || "",
+    imageUrl: f.imageUrl || null, caloriesPer100g: f.calories, proteinPer100g: f.protein,
+    carbsPer100g: f.carbs, fatPer100g: f.fat, fiberPer100g: f.fiber || 0, sugarPer100g: f.sugar || 0,
+    sodiumPer100gMg: f.sodium || 0, servingSizeLabel: f.servingSizeLabel || null, servingGrams: f.servingGrams || null,
+    micronutrientsPer100g: f.micronutrients || {}, origin: "custom_foods",
+  }));
+
+  const canonical = canonicalSettled.status === "fulfilled" ? canonicalSettled.value : null;
+  const usdaTerm = canonical || normalized;
+  let usda = [];
+  try {
+    const usdaRes = await searchUSDAFoods(usdaTerm);
+    if (usdaRes.ok) usda = usdaRes.products;
+  } catch { /* شبكة USDA غير متاحة الآن - يستمر البحث بباقي المصادر بلا كسر */ }
+
+  const off = (offSettled.status === "fulfilled" && offSettled.value.ok)
+    ? offSettled.value.products.map((p) => ({ ...p, origin: "off" }))
+    : [];
+
+  // نفس ترتيب SearchPanel بالضبط: المحلي أولاً، ثم USDA، ثم custom_foods، ثم OFF.
+  return [...generic, ...usda, ...custom, ...off];
+}
+
+function dedupeFoodsByName(list) {
+  const seen = new Set();
+  const out = [];
+  for (const p of list) {
+    const key = normalizeSearchTerm(p.name);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(p);
+  }
+  return out;
+}
+
+// يقرر: صنف واحد واضح بثقة (لا حفظ تلقائي حتى في هذه الحالة - التأكيد
+// الصريح يبقى إلزامياً دائماً)، أم عدة خيارات قريبة تتطلب توضيحاً من
+// المستخدم، أم لا نتيجة إطلاقاً. "الثقة" هنا معيار صريح وقابل للتفسير (تطابق
+// حرفي كامل واحد، أو نتيجة واحدة فريدة بعد إزالة التكرار عبر كل المصادر) -
+// وليست تخميناً من نموذج ذكاء اصطناعي.
+function classifyFoodMatches(results, normalizedQuery) {
+  const deduped = dedupeFoodsByName(results);
+  if (deduped.length === 0) return { kind: "none" };
+  if (deduped.length === 1) return { kind: "single", product: deduped[0] };
+  const exact = deduped.filter((p) => normalizeSearchTerm(p.name) === normalizedQuery);
+  if (exact.length === 1) return { kind: "single", product: exact[0] };
+  return { kind: "multiple", candidates: deduped.slice(0, 4) };
+}
+
+function ConfirmQuantityCard({ product: initialProduct, source, onAdd, onCancel, showToast, preselectedMealType, initialQty, initialUnit, voiceConfirmTrigger, onInvalidVoiceConfirm }) {
   const { t } = useTranslation();
   const [product, setProduct] = useState(initialProduct);
   const [editing, setEditing] = useState(false);
   const hasServing = !!product.servingGrams;
   // الوحدة الافتراضية تطابق أساس بيانات المنتج نفسه (وزن أم حجم) - أدق
-  // مسار ممكن (بلا أي تحويل كثافة تقريبي)؛ المستخدم يبقى حراً بتغييرها.
-  const [unit, setUnit] = useState(product.per100Basis === "ml" ? "ml" : "g");
+  // مسار ممكن (بلا أي تحويل كثافة تقريبي)؛ المستخدم يبقى حراً بتغييرها. إن
+  // جاءت initialUnit من أمر صوتي ("سجل 200 غرام...") تُستخدَم بدل الافتراض.
+  const [unit, setUnit] = useState(initialUnit || (product.per100Basis === "ml" ? "ml" : "g"));
   const [multiplier, setMultiplier] = useState(1);
-  const [grams, setGrams] = useState(hasServing ? Math.round(product.servingGrams) : 100);
-  const [unitQty, setUnitQty] = useState(1);
+  const [grams, setGrams] = useState(() => {
+    if (initialUnit === "g" && initialQty != null) return Number(initialQty);
+    return hasServing ? Math.round(product.servingGrams) : 100;
+  });
+  const [unitQty, setUnitQty] = useState(() => (initialUnit && initialUnit !== "g" && initialQty != null ? Number(initialQty) : 1));
   const [mealType, setMealType] = useState(() => preselectedMealType || guessMealType());
   // تُطبَّق الحصص (×1/×2/...) على وضع "غرام" فقط عندما يملك المنتج حجم حصة
   // معروفاً (سلوك أصلي محفوظ كما هو). لكل الوحدات الأخرى (مل/لتر/كوب/ملعقة/
@@ -919,9 +993,15 @@ function ConfirmQuantityCard({ product: initialProduct, source, onAdd, onCancel,
   // أي تصفير لحصة افتراضية. الضغط الصريح على أزرار ×1..×5 يبقى يُعيد الضبط
   // كسلوكه الأصلي دائماً (هذا فعل مقصود من المستخدم، لا فقدان بيانات).
   const prevUnitRef = useRef(unit);
+  // يتجاهل أول تشغيل لهذا الخطاف فقط عندما جاءت كمية أولية من أمر صوتي -
+  // هذا الخطاف يُعاد ضبط الكمية دائماً لـ"multiplier(=1) × حصة قياسية" عند
+  // كل تشغيل (بما فيها التركيب الأول)، فكان سيمحو الكمية المطلوبة صوتياً
+  // (200غم مثلاً) فوراً عند فتح الشاشة دون أي فعل من المستخدم.
+  const skipFirstAutoFillRef = useRef(initialQty != null);
   useEffect(() => {
     const prevUnit = prevUnitRef.current;
     prevUnitRef.current = unit;
+    if (skipFirstAutoFillRef.current) { skipFirstAutoFillRef.current = false; return; }
     if (prevUnit !== unit) {
       const prevQty = prevUnit === "g" ? grams : unitQty;
       const basisEquivalent = quantityInProductBasis(prevUnit, prevQty, product).value || 0;
@@ -955,6 +1035,59 @@ function ConfirmQuantityCard({ product: initialProduct, source, onAdd, onCancel,
   const preview = scaleNutrients(product, gramsEquivalent || 0);
   const unitMeta = unitById(unit);
   const unitBaseQty = unitServingSize(unit, product.servingGrams, product);
+
+  // مستخرَجة من onClick السابق لزر "أضف لسجل اليوم" بلا أي تغيير في المنطق -
+  // الآن تُستدعى من مكانين: ضغطة الزر المرئية، وأمر "تأكيد" الصوتي (نفس مبدأ
+  // handleSave في ManualEntryForm).
+  function handleAdd() {
+    onAdd({
+      id: uid(), foodName: product.name, ...preview,
+      unit,
+      // خلل حقيقي وُجد وأُصلح: كانت هذه تعرض دائماً "multiplier × servingGrams"
+      // بمجرد وجود حجم حصة معروف للمنتج، حتى لو عدّل المستخدم حقل "الكمية
+      // (غم)" يدوياً لرقم مختلف تماماً - فيُحفظ في السجل نص "1 × 120غ" رغم
+      // أن القيم الغذائية الفعلية محسوبة لكمية أخرى بالكامل (كانت القيمة
+      // الرقمية نفسها صحيحة دائماً، فقط النص الوصفي في السجل مضلِّلاً). الآن
+      // يُقارَن grams الفعلي بما يفترضه multiplier×servingGrams: تطابق يعني
+      // المستخدم استخدم أزرار ×1..×5 فعلاً (نفس النص القديم كما هو)، وأي
+      // اختلاف يعني تعديلاً يدوياً فيُعرض الرقم الفعلي مباشرة بدل تضليل.
+      servingInfo: unit === "g"
+        ? (hasServing && grams === Math.round(product.servingGrams * multiplier)
+            ? `${multiplier} × ${Math.round(product.servingGrams)}${t("common.units.g")}`
+            : `${grams} ${t("common.units.g")}`)
+        : `${fmtQty(unitQty)} ${t(`nutrition.unitOptions.${unit}`)}`,
+      source, mealType,
+      // origin==="generic" فقط (أطعمة generic-foods.js التقريبية) تُوسَم
+      // بـmicroApprox=true - بيانات باركود/بحث/USDA الحقيقية الأخرى تبقى
+      // بلا علامة تقريب لأنها دقيقة فعلياً لهذا المنتج بعينه.
+      microApprox: product.origin === "generic",
+      micronutrients: scaleMicronutrients(product.micronutrientsPer100g, gramsEquivalent || 0),
+      // quantity + productBasis: لقطة أساس الحساب وقت الإضافة - تُحفَظ في
+      // nutrition_log (Feature 1) لتمكين تعديل الكمية لاحقاً بأزرار +/-
+      // بإعادة حساب دقيقة، بدل فقدان هذه البيانات فور الحفظ كما كان.
+      quantity: enteredQty,
+      productBasis: {
+        caloriesPer100g: product.caloriesPer100g, proteinPer100g: product.proteinPer100g,
+        carbsPer100g: product.carbsPer100g, fatPer100g: product.fatPer100g,
+        fiberPer100g: product.fiberPer100g, sugarPer100g: product.sugarPer100g,
+        sodiumPer100gMg: product.sodiumPer100gMg, cholesterolPer100gMg: product.cholesterolPer100gMg,
+        micronutrientsPer100g: product.micronutrientsPer100g || {},
+        per100Basis: product.per100Basis === "ml" ? "ml" : "g",
+        servingGrams: product.servingGrams || null,
+      },
+    });
+  }
+
+  // أمر "تأكيد" الصوتي يُترجَم لضغطة هذا الزر نفسها بلا أي منطق حفظ موازٍ -
+  // نفس مبدأ ManualEntryForm بالضبط (skippedFirstConfirmRun يتجاهل التركيب
+  // الأول فقط، لا أي ضغطة فعلية بعد).
+  const skippedConfirmRunRef = useRef(true);
+  useEffect(() => {
+    if (voiceConfirmTrigger == null) return;
+    if (skippedConfirmRunRef.current) { skippedConfirmRunRef.current = false; return; }
+    if (gramsEquivalent && gramsEquivalent > 0) handleAdd(); else onInvalidVoiceConfirm?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voiceConfirmTrigger]);
 
   if (editing) {
     return (
@@ -1045,42 +1178,7 @@ function ConfirmQuantityCard({ product: initialProduct, source, onAdd, onCancel,
       </div>
       <MealTypeSelector value={mealType} onChange={setMealType} />
       <button
-        onClick={() => onAdd({
-          id: uid(), foodName: product.name, ...preview,
-          unit,
-          // خلل حقيقي وُجد وأُصلح: كانت هذه تعرض دائماً "multiplier × servingGrams"
-          // بمجرد وجود حجم حصة معروف للمنتج، حتى لو عدّل المستخدم حقل "الكمية
-          // (غم)" يدوياً لرقم مختلف تماماً - فيُحفظ في السجل نص "1 × 120غ" رغم
-          // أن القيم الغذائية الفعلية محسوبة لكمية أخرى بالكامل (كانت القيمة
-          // الرقمية نفسها صحيحة دائماً، فقط النص الوصفي في السجل مضلِّلاً). الآن
-          // يُقارَن grams الفعلي بما يفترضه multiplier×servingGrams: تطابق يعني
-          // المستخدم استخدم أزرار ×1..×5 فعلاً (نفس النص القديم كما هو)، وأي
-          // اختلاف يعني تعديلاً يدوياً فيُعرض الرقم الفعلي مباشرة بدل تضليل.
-          servingInfo: unit === "g"
-            ? (hasServing && grams === Math.round(product.servingGrams * multiplier)
-                ? `${multiplier} × ${Math.round(product.servingGrams)}${t("common.units.g")}`
-                : `${grams} ${t("common.units.g")}`)
-            : `${fmtQty(unitQty)} ${t(`nutrition.unitOptions.${unit}`)}`,
-          source, mealType,
-          // origin==="generic" فقط (أطعمة generic-foods.js التقريبية) تُوسَم
-          // بـmicroApprox=true - بيانات باركود/بحث/USDA الحقيقية الأخرى تبقى
-          // بلا علامة تقريب لأنها دقيقة فعلياً لهذا المنتج بعينه.
-          microApprox: product.origin === "generic",
-          micronutrients: scaleMicronutrients(product.micronutrientsPer100g, gramsEquivalent || 0),
-          // quantity + productBasis: لقطة أساس الحساب وقت الإضافة - تُحفَظ في
-          // nutrition_log (Feature 1) لتمكين تعديل الكمية لاحقاً بأزرار +/-
-          // بإعادة حساب دقيقة، بدل فقدان هذه البيانات فور الحفظ كما كان.
-          quantity: enteredQty,
-          productBasis: {
-            caloriesPer100g: product.caloriesPer100g, proteinPer100g: product.proteinPer100g,
-            carbsPer100g: product.carbsPer100g, fatPer100g: product.fatPer100g,
-            fiberPer100g: product.fiberPer100g, sugarPer100g: product.sugarPer100g,
-            sodiumPer100gMg: product.sodiumPer100gMg, cholesterolPer100gMg: product.cholesterolPer100gMg,
-            micronutrientsPer100g: product.micronutrientsPer100g || {},
-            per100Basis: product.per100Basis === "ml" ? "ml" : "g",
-            servingGrams: product.servingGrams || null,
-          },
-        })}
+        onClick={handleAdd}
         style={S.saveBtn}
         disabled={!gramsEquivalent || gramsEquivalent <= 0}
       >
@@ -2422,6 +2520,8 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
     setPreselectedMealType(null);
     setMoodCheckEntryId(null);
     setPendingVoiceDraft(null);
+    setVoiceQtyOverride(null);
+    setPendingFoodDisambiguation(null);
   }
 
   // يفتح شاشة الإضافة الموحّدة مباشرة بالوجبة المطلوبة معيَّنة مسبقاً - يُستدعى
@@ -2573,26 +2673,112 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
   // ============ استقبال أوامر صوتية موجَّهة لهذا القسم ============
   // MasarApp.jsx يحلّل نص الأمر ويرسل هنا كائناً مبنيناً فقط (voiceCommand) -
   // هذا المكوّن ينفّذه بنفس الدوال المستخدمة فعلاً للأزرار المرئية (addWaterCup
-  // هنا، ونفس مسار "احفظ" في ManualEntryForm أدناه) بلا أي منطق حفظ مواز جديد.
-  const [pendingVoiceDraft, setPendingVoiceDraft] = useState(null); // {foodName, qty, unit}
+  // هنا، ونفس مسار "احفظ" في ManualEntryForm/ConfirmQuantityCard) بلا أي منطق
+  // حفظ مواز جديد.
+  const [pendingVoiceDraft, setPendingVoiceDraft] = useState(null); // {foodName, qty, unit} - يُستخدَم فقط عند عدم إيجاد أي نتيجة بحث (الخيار الأخير الصادق)
+  const [voiceQtyOverride, setVoiceQtyOverride] = useState(null); // {qty, unit} لتعبئة ConfirmQuantityCard بالكمية المطلوبة صوتياً
+  // خيارات بحث متعددة قريبة تنتظر توضيحاً من المستخدم بالنطق التالي (اسم
+  // أحدها، رقمه الترتيبي، أو "إلغاء") - انظر resolveFoodDisambiguation أدناه.
+  const [pendingFoodDisambiguation, setPendingFoodDisambiguation] = useState(null); // {candidates, qty, unit}
   const [voiceConfirmTrigger, setVoiceConfirmTrigger] = useState(0);
+
+  // يفتح شاشة "تأكيد الكمية" الموحّدة نفسها (نفس ConfirmQuantityCard
+  // المستخدَمة للبحث اليدوي) بصنف واحد واضح وكمية مطلوبة صوتياً - لا حفظ
+  // تلقائي هنا، فقط عرض + طلب تأكيد صريح.
+  function proceedWithVoiceFoodMatch(product, qty, unit) {
+    const conversion = quantityInProductBasis(unit, qty, product);
+    const grams = conversion.value || 0;
+    const preview = scaleNutrients(product, grams);
+    setPendingProduct({ product, source: "voice" });
+    setVoiceQtyOverride({ qty, unit });
+    setSheet("confirm");
+    speak(t("speech.voice.foodFoundConfirm", {
+      name: product.name, qty, unit: t(`nutrition.unitOptions.${unit}`),
+      calories: preview.calories, protein: preview.protein,
+    }), i18n.language);
+  }
+
+  // يبحث فعلياً (نفس مصادر SearchPanel بالضبط عبر searchFoodCandidatesOnce)
+  // ويقرر التالي حسب عدد النتائج الفريدة - انظر classifyFoodMatches.
+  async function handleVoiceLogFood(cmd) {
+    showToast(t("speech.voice.searchingFood"));
+    const normalized = normalizeSearchTerm(cmd.foodName);
+    const results = await searchFoodCandidatesOnce(cmd.foodName, i18n.language);
+    const classification = classifyFoodMatches(results, normalized);
+    if (classification.kind === "single") {
+      proceedWithVoiceFoodMatch(classification.product, cmd.qty, cmd.unit);
+    } else if (classification.kind === "multiple") {
+      setPendingFoodDisambiguation({ candidates: classification.candidates, qty: cmd.qty, unit: cmd.unit });
+      setSheet("voiceChoice");
+      const options = classification.candidates.map((c) => c.name).join(i18n.language === "en" ? ", " : "، ");
+      speak(t("speech.voice.foodMultipleChoices", { options }), i18n.language);
+    } else {
+      // لا نتيجة إطلاقاً - الخيار الأخير الصادق فقط الآن: نموذج إضافة يدوي
+      // معبَّأ بالاسم/الكمية (نفس السلوك القديم قبل إضافة البحث التلقائي).
+      setPendingVoiceDraft({ foodName: cmd.foodName, qty: cmd.qty, unit: cmd.unit });
+      setSheet("manual");
+      speak(t("speech.voice.foodNotFoundFallback", { name: cmd.foodName }), i18n.language);
+    }
+  }
+
+  // يحاول تفسير الأمر الصوتي التالي كإجابة توضيح (اسم أحد الخيارات، رقمه
+  // الترتيبي، أو إلغاء) - لا فهم لغة حرة هنا أيضاً، فقط مطابقة بسيطة صريحة
+  // ضد القائمة المعروضة فعلياً على الشاشة. يُعيد المنتج المختار، أو "cancel"،
+  // أو null إن لم يُفهَم أي خيار.
+  function resolveFoodDisambiguation(cmd, pending) {
+    const raw = (cmd.raw || "").trim();
+    if (!raw) return null;
+    const isEn = i18n.language === "en";
+    const cancelWords = isEn ? ["cancel", "never mind", "none"] : ["إلغاء", "الغاء", "لا أحد", "ولا واحد"];
+    const normalizedRaw = normalizeSearchTerm(raw);
+    if (cancelWords.some((w) => normalizedRaw.includes(normalizeSearchTerm(w)))) return "cancel";
+    const ordinals = isEn ? ["first", "second", "third", "fourth"] : ["الأول", "الثاني", "الثالث", "الرابع"];
+    for (let i = 0; i < ordinals.length; i++) {
+      if (normalizedRaw.includes(normalizeSearchTerm(ordinals[i])) && pending.candidates[i]) return pending.candidates[i];
+    }
+    const spokenName = cmd.type === "logFoodDraft" ? cmd.foodName : raw;
+    const spokenNormalized = normalizeSearchTerm(spokenName);
+    const byName = pending.candidates.find((c) => {
+      const cn = normalizeSearchTerm(c.name);
+      return cn === spokenNormalized || cn.includes(spokenNormalized) || spokenNormalized.includes(cn);
+    });
+    return byName || null;
+  }
+
   useEffect(() => {
     if (!voiceCommand) return;
+
+    if (pendingFoodDisambiguation) {
+      const resolved = resolveFoodDisambiguation(voiceCommand, pendingFoodDisambiguation);
+      if (resolved === "cancel") {
+        setPendingFoodDisambiguation(null);
+        closeSheet();
+        speak(t("speech.voice.cancelledDraft"), i18n.language);
+      } else if (resolved) {
+        const { qty, unit } = pendingFoodDisambiguation;
+        setPendingFoodDisambiguation(null);
+        proceedWithVoiceFoodMatch(resolved, qty, unit);
+      } else {
+        const options = pendingFoodDisambiguation.candidates.map((c) => c.name).join(i18n.language === "en" ? ", " : "، ");
+        speak(t("speech.voice.disambiguationRetry", { options }), i18n.language);
+      }
+      clearVoiceCommand?.();
+      return;
+    }
+
     if (voiceCommand.type === "addWater") {
       addWaterCup();
     } else if (voiceCommand.type === "logFoodDraft") {
-      setPendingVoiceDraft({ foodName: voiceCommand.foodName, qty: voiceCommand.qty, unit: voiceCommand.unit });
-      setSheet("manual");
+      handleVoiceLogFood(voiceCommand);
     } else if (voiceCommand.type === "confirmSave") {
-      if (sheet === "manual") setVoiceConfirmTrigger((n) => n + 1);
+      if (sheet === "manual" || sheet === "confirm") setVoiceConfirmTrigger((n) => n + 1);
       // لا يوجد شيء بانتظار تأكيد الآن - تغذية راجعة صادقة بدل تجاهل صامت
       // (نفس مبدأ "لا صمت أو فشل غامض" المطلوب لأي أمر غير مفهوم).
       else speak(t("speech.voice.nothingToConfirm"), i18n.language);
     } else if (voiceCommand.type === "cancelPending") {
       // إلغاء يعتمد على closeSheet() نفسها المستخدَمة لزر "رجوع" المرئي بلا
-      // أي منطق موازٍ - لا حاجة لتمرير شيء لـManualEntryForm (بخلاف التأكيد،
-      // الإلغاء لا يعتمد على حالة النموذج الداخلية إطلاقاً).
-      if (sheet === "manual") { closeSheet(); speak(t("speech.voice.cancelledDraft"), i18n.language); }
+      // أي منطق موازٍ.
+      if (sheet === "manual" || sheet === "confirm") { closeSheet(); speak(t("speech.voice.cancelledDraft"), i18n.language); }
       else speak(t("speech.voice.nothingToCancel"), i18n.language);
     }
     clearVoiceCommand?.();
@@ -2951,6 +3137,7 @@ ${missingMealsLine}
                   {sheet === "addProduct" && t("nutrition.sheetTitles.addNewProduct")}
                   {sheet === "manual" && t("nutrition.sheetTitles.manualEntry")}
                   {sheet === "confirm" && t("nutrition.sheetTitles.confirmQuantity")}
+                  {sheet === "voiceChoice" && t("speech.voice.chooseFoodTitle")}
                   {sheet === "moodCheck" && t("nutrition.sheetTitles.moodCheck")}
                   {sheet === "lookup" && t("nutrition.sheetTitles.searching")}
                 </span>
@@ -3082,13 +3269,42 @@ ${missingMealsLine}
 
             {sheet === "confirm" && pendingProduct && (
               <ConfirmQuantityCard
+                key={voiceQtyOverride ? `voice-${pendingProduct.product.barcode}-${voiceQtyOverride.qty}-${voiceQtyOverride.unit}` : "static"}
                 product={pendingProduct.product}
                 source={pendingProduct.source}
                 onAdd={addEntry}
                 onCancel={closeSheet}
                 showToast={showToast}
                 preselectedMealType={preselectedMealType}
+                initialQty={voiceQtyOverride?.qty}
+                initialUnit={voiceQtyOverride?.unit}
+                voiceConfirmTrigger={voiceConfirmTrigger}
+                onInvalidVoiceConfirm={() => speak(t("speech.voice.invalidConfirm"), i18n.language)}
               />
+            )}
+
+            {sheet === "voiceChoice" && pendingFoodDisambiguation && (
+              <>
+                <p style={NS.scanHint}>{t("speech.voice.chooseFoodPrompt")}</p>
+                {pendingFoodDisambiguation.candidates.map((c) => (
+                  <button
+                    key={`${c.origin}-${c.barcode}-${c.name}`}
+                    onClick={() => { const { qty, unit } = pendingFoodDisambiguation; setPendingFoodDisambiguation(null); proceedWithVoiceFoodMatch(c, qty, unit); }}
+                    style={NS.resultRow}
+                  >
+                    {c.imageUrl ? <img src={c.imageUrl} alt="" style={NS.resultImg} /> : (
+                      <div style={{ ...NS.resultImg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <CategoryIcon category={c.category} />
+                      </div>
+                    )}
+                    <div style={{ flex: 1 }}>
+                      <div style={NS.resultName}>{c.name}</div>
+                      <div style={NS.resultMeta}>{t("nutrition.calPer100g", { cal: Math.round(c.caloriesPer100g) })}</div>
+                    </div>
+                  </button>
+                ))}
+                <button onClick={closeSheet} style={{ ...S.exportBtn, marginTop: 8, marginBottom: 0 }}>{t("common.buttons.cancel")}</button>
+              </>
             )}
 
             {sheet === "moodCheck" && moodCheckEntryId && (

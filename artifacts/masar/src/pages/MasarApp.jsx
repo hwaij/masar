@@ -669,13 +669,27 @@ export default function MasarApp() {
   // عند فشل المسار الأول - انظر src/lib/voiceCommands.js (parseVoiceCommandSmart)
   // للتفاصيل الكاملة والمخطط الصارم المُتحقَّق منه. زر الميكروفون لا يظهر إلا
   // حين "وضع الاحتياجات الخاصة" مفعّل، مطابقاً لطلب ربطه بنفس الإعداد الموجود.
+  //
+  // جلسة استماع مستمرة: ضغطة واحدة تبدأ voiceSessionActive، وبعدها يُعاد
+  // الاستماع تلقائياً بعد كل أمر (بلا إعادة ضغط الزر) حتى: (أ) ضغط الزر
+  // صراحة لإيقافها، (ب) أمر صوتي "خلاص/إيقاف/stop" (endSession)، أو (ج) مهلة
+  // صمت حقيقي طويلة (40 ثانية بلا أي نتيجة تعرّف فعلية - انظر armInactivityTimer
+  // أدناه، لا يُعاد ضبطها لمجرد إعادة محاولة الاستماع بعد "لم أسمع شيئاً").
+  // حد تقني حقيقي وصادق: هذه "استماع نشط أثناء استخدام الشاشة" فقط - متصفحات
+  // الويب لا تسمح بموثوقية بتشغيل SpeechRecognition في الخلفية بعد إغلاق
+  // الشاشة/التطبيق (قيود خصوصية/بطارية حقيقية في المتصفح نفسه، لا نقص هنا).
   const micSupported = useMemo(() => isRecognitionSupported(), []);
   const [isListening, setIsListening] = useState(false);
+  const [voiceSessionActive, setVoiceSessionActive] = useState(false);
   // true فقط أثناء انتظار رد Gemini (بعد فشل المطابقة الفورية) - يُستخدَم
   // لعرض تنبيه صادق أن هذه اللحظة تستغرق وقتاً أطول من المطابقة الفورية
   // المعتادة، لا لإخفاء هذا الفرق عن المستخدم.
   const [isProcessingVoiceAI, setIsProcessingVoiceAI] = useState(false);
   const recognizerRef = useRef(null);
+  const sessionInactivityTimerRef = useRef(null);
+  const restartTimerRef = useRef(null);
+  const SESSION_INACTIVITY_MS = 40000;
+  const RESTART_DELAY_MS = 900;
   // أمر مُوجَّه لعرض التغذية الحالي (إضافة ماء/تسجيل طعام مسودة/تأكيد أو إلغاء
   // حفظ) - NutritionView تستهلكه وتُصفّره فوراً عبر clearVoiceCommand، فلا
   // يُعاد تنفيذه مرتين بالخطأ عند إعادة رسم لاحقة.
@@ -686,8 +700,45 @@ export default function MasarApp() {
   // رسم إضافية قبل تنفيذ ذلك الخطاف في نفس الدورة.
   const voiceNavigationRef = useRef(false);
 
+  const clearVoiceSessionTimers = useCallback(() => {
+    if (sessionInactivityTimerRef.current) { clearTimeout(sessionInactivityTimerRef.current); sessionInactivityTimerRef.current = null; }
+    if (restartTimerRef.current) { clearTimeout(restartTimerRef.current); restartTimerRef.current = null; }
+  }, []);
+
+  // reason: "manual" (زر الإيقاف - بلا إعلان صوتي إضافي، الضغط نفسه فعل واعٍ
+  // وواضح بصرياً بالفعل) | "command" (أمر "خلاص"/"stop" صوتي) | "timeout"
+  // (40 ثانية صمت حقيقي بلا أي نتيجة تعرّف).
+  const endVoiceSession = useCallback((opts = {}) => {
+    clearVoiceSessionTimers();
+    stopListening(recognizerRef.current);
+    setIsListening(false);
+    setVoiceSessionActive(false);
+    if (opts.reason === "timeout") speak(t("speech.voice.sessionTimedOut"), i18n.language);
+    else if (opts.reason === "command") speak(t("speech.voice.sessionEnded"), i18n.language);
+  }, [clearVoiceSessionTimers, t, i18n.language]);
+
+  const armInactivityTimer = useCallback(() => {
+    if (sessionInactivityTimerRef.current) clearTimeout(sessionInactivityTimerRef.current);
+    sessionInactivityTimerRef.current = setTimeout(() => endVoiceSession({ reason: "timeout" }), SESSION_INACTIVITY_MS);
+  }, [endVoiceSession]);
+
+  const beginListeningCycle = useCallback(() => {
+    if (!micSupported) { showToast(t("speech.voice.micUnsupported")); return; }
+    showToast(t("speech.voice.listening"));
+    setIsListening(true);
+    recognizerRef.current = startListening(i18n.language, {
+      onResult: handleVoiceResultRef.current,
+      onError: handleVoiceErrorRef.current,
+      onEnd: () => setIsListening(false),
+    });
+  }, [micSupported, i18n.language, showToast, t]);
+
   const handleVoiceResult = useCallback(async (transcript) => {
     setIsListening(false);
+    // نتيجة تعرّف فعلية وصلت (نشاط حقيقي) - تُعيد ضبط مهلة عدم النشاط الكاملة،
+    // بخلاف مجرد إعادة محاولة الاستماع بعد خطأ "لم أسمع شيئاً" (لا تُعامَل
+    // كنشاط، فتستهلك من ميزانية الـ40 ثانية فعلاً كما هو مقصود).
+    armInactivityTimer();
     // الفهم الذكي الحر بـGemini ميزة مدفوعة (مسار الكامل) تماماً كباقي ميزات
     // الذكاء الاصطناعي في التطبيق (نفس نقطة نهاية gemini.js وحارس الاشتراك
     // فيها بلا أي تعديل) - المستخدم غير المشترك يبقى بكامل الأوامر الثابتة
@@ -704,60 +755,82 @@ export default function MasarApp() {
       cmd = { ...fastResult, aiSkipped: true };
     }
 
+    if (cmd.type === "endSession") {
+      endVoiceSession({ reason: "command" });
+      return;
+    }
+
     if (cmd.type === "navigate") {
       voiceNavigationRef.current = true;
       setView(cmd.view);
       speak(t("speech.voice.navigateConfirm", { section: t(`nav.${cmd.view}`) }), i18n.language);
-      return;
-    }
-    if (cmd.type === "addWater" || cmd.type === "logFoodDraft" || cmd.type === "confirmSave" || cmd.type === "cancelPending") {
+    } else if (cmd.type === "addWater" || cmd.type === "logFoodDraft" || cmd.type === "confirmSave" || cmd.type === "cancelPending") {
       if (view !== "nutrition") { voiceNavigationRef.current = true; setView("nutrition"); }
       setVoiceCommand(cmd);
-      if (cmd.type === "addWater") {
-        speak(t("speech.voice.waterConfirm"), i18n.language);
-      } else if (cmd.type === "logFoodDraft") {
-        const unitLabel = t(`nutrition.unitOptions.${cmd.unit}`);
-        speak(t("speech.voice.logFoodConfirm", { qty: cmd.qty, unit: unitLabel, name: cmd.foodName }), i18n.language);
-      }
-      // confirmSave/cancelPending: الرد الفعلي (نجاح/عدم اكتمال بيانات/لا شيء
-      // بانتظاره) يتولاه NutritionView نفسه بعد أن يعرف السياق الفعلي للشاشة.
-      return;
-    }
-    // unrecognized: تمييز بين "لم يُفهم إطلاقاً" (خط الاحتياط الأساسي، أو فشل
-    // Gemini فعلياً - نفس الرسالة الصادقة في الحالتين) و"يحتاج اشتراكاً
-    // للفهم الحر" (المطابقة الثابتة فشلت وهذا المستخدم غير مشترك، فلم نحاول
-    // Gemini إطلاقاً) - رسالتان مختلفتان، كلتاهما صادقتان بدل تعميم مضلِّل.
-    if (cmd.aiSkipped) {
+      if (cmd.type === "addWater") speak(t("speech.voice.waterConfirm"), i18n.language);
+      // logFoodDraft: الرد الفعلي (وجدت صنفاً/عدة خيارات/لم أجد شيئاً) يتولاه
+      // NutritionView بعد بحث حقيقي فعلي - لا نص عام هنا بعد الآن.
+      // confirmSave/cancelPending: نفس مبدأ NutritionView أعلاه.
+    } else if (cmd.aiSkipped) {
+      // تمييز بين "لم يُفهم إطلاقاً" (خط الاحتياط الأساسي، أو فشل Gemini
+      // فعلياً - نفس الرسالة الصادقة) و"يحتاج اشتراكاً للفهم الحر" (المطابقة
+      // الثابتة فشلت وهذا المستخدم غير مشترك، فلم نحاول Gemini إطلاقاً).
       speak(t("speech.voice.needsSubscriptionForAI"), i18n.language);
     } else {
       speak(t("speech.voice.unrecognized"), i18n.language);
     }
-  }, [i18n.language, t, view, isSub]);
+
+    // استمرار الجلسة: أي أمر (حتى "غير مفهوم") لا ينهي الجلسة من تلقاء نفسه -
+    // المستخدم يحق له إعادة المحاولة بلا ضغط الزر من جديد.
+    if (voiceSessionActive) {
+      showToast(t("speech.voice.waitingNext"));
+      restartTimerRef.current = setTimeout(() => beginListeningCycle(), RESTART_DELAY_MS);
+    }
+  }, [i18n.language, t, view, isSub, voiceSessionActive, armInactivityTimer, endVoiceSession, beginListeningCycle]);
 
   const handleVoiceError = useCallback((code) => {
     setIsListening(false);
-    if (code === "unsupported") { showToast(t("speech.voice.micUnsupported")); return; }
-    if (code === "not-allowed" || code === "service-not-allowed") { showToast(t("speech.voice.permissionDenied")); return; }
-    if (code === "no-speech") { showToast(t("speech.voice.noSpeech")); return; }
-    if (code === "aborted") return; // المستخدم أوقف الاستماع يدوياً - ليس خطأ
-    showToast(t("speech.voice.genericError"));
-  }, [showToast, t]);
-
-  const toggleListening = useCallback(() => {
-    if (isListening) {
-      stopListening(recognizerRef.current);
-      setIsListening(false);
+    if (code === "aborted") return; // إيقاف مقصود (زر الإيقاف أو نهاية جلسة) - ليس خطأ
+    if (code === "unsupported") { endVoiceSession({}); showToast(t("speech.voice.micUnsupported")); return; }
+    if (code === "not-allowed" || code === "service-not-allowed") { endVoiceSession({}); showToast(t("speech.voice.permissionDenied")); return; }
+    if (code === "no-speech") {
+      // لا صمت مزعج متكرر لكل محاولة فاشلة داخل جلسة نشطة - إعادة محاولة
+      // هادئة فقط (الزر نفسه يبقى المؤشر البصري/المسموع الدائم للحالة)؛ مهلة
+      // عدم النشاط الكاملة (40 ثانية) هي ما ينهي الجلسة فعلياً عند صمت حقيقي.
+      if (voiceSessionActive) restartTimerRef.current = setTimeout(() => beginListeningCycle(), RESTART_DELAY_MS);
+      else showToast(t("speech.voice.noSpeech"));
       return;
     }
+    showToast(t("speech.voice.genericError"));
+  }, [voiceSessionActive, beginListeningCycle, endVoiceSession, showToast, t]);
+
+  // مراجع دائمة التحديث لأحدث نسخة من handleVoiceResult/handleVoiceError -
+  // startListening (src/lib/speechRecognition.js) يُسجِّل onResult/onError
+  // مرة واحدة فقط عند .start()؛ بما أن beginListeningCycle نفسها لا تُعيد
+  // الإنشاء في كل تغيّر لهاتين الدالتين (قائمة اعتمادها لا تتضمنهما عمداً
+  // لتفادي حلقة اعتماد دائرية)، تضمن هذه المراجع أن كل استدعاء .start() جديد
+  // يستخدم أحدث سياق (view/i18n.language/voiceSessionActive...) دائماً.
+  const handleVoiceResultRef = useRef(handleVoiceResult);
+  const handleVoiceErrorRef = useRef(handleVoiceError);
+  useEffect(() => { handleVoiceResultRef.current = handleVoiceResult; }, [handleVoiceResult]);
+  useEffect(() => { handleVoiceErrorRef.current = handleVoiceError; }, [handleVoiceError]);
+
+  const startVoiceSession = useCallback(() => {
+    setVoiceSessionActive(true);
+    armInactivityTimer();
+    beginListeningCycle();
+  }, [armInactivityTimer, beginListeningCycle]);
+
+  const toggleListening = useCallback(() => {
+    if (voiceSessionActive) { endVoiceSession({ reason: "manual" }); return; }
     if (!micSupported) { showToast(t("speech.voice.micUnsupported")); return; }
-    showToast(t("speech.voice.listening"));
-    setIsListening(true);
-    recognizerRef.current = startListening(i18n.language, {
-      onResult: handleVoiceResult,
-      onError: handleVoiceError,
-      onEnd: () => setIsListening(false),
-    });
-  }, [isListening, micSupported, i18n.language, handleVoiceResult, handleVoiceError, showToast, t]);
+    startVoiceSession();
+  }, [voiceSessionActive, micSupported, endVoiceSession, startVoiceSession, showToast, t]);
+
+  // يوقف الجلسة بأمان إن غادر المستخدم علامة التبويب/أُغلق التطبيق أثناء
+  // الاستماع - لا يمنع هذا وحده كل الحالات (متصفحات كثيرة توقف التعرّف تلقائياً
+  // عند إخفاء الصفحة على أي حال)، لكنه ينظّف المؤقتات والحالة المحلية بأمان.
+  useEffect(() => () => clearVoiceSessionTimers(), [clearVoiceSessionTimers]);
 
   const [dailyTip, setDailyTip] = useState(null);
   // Shows today's "بصيرة" tip once, automatically, the first time the app
@@ -973,23 +1046,32 @@ export default function MasarApp() {
           <span>{isReading ? t("speech.stopBtn") : t("speech.replayBtn")}</span>
         </button>
       )}
-      {accessibilityMode && (
-        <button
-          onClick={toggleListening}
-          disabled={isProcessingVoiceAI}
-          aria-label={isProcessingVoiceAI ? t("speech.voice.processingAI") : isListening ? t("speech.voice.micBtnListeningLabel") : t("speech.voice.micBtnLabel")}
-          style={{
-            ...S.a11yMicBtn,
-            background: isProcessingVoiceAI ? "#C9A24B" : isListening ? "#C0392B" : "var(--surface-raised)",
-            color: isProcessingVoiceAI || isListening ? "#fff" : "var(--ink)",
-            border: isProcessingVoiceAI || isListening ? "none" : "1px solid var(--border2)",
-            cursor: isProcessingVoiceAI ? "default" : "pointer",
-          }}
-        >
-          {isProcessingVoiceAI ? <Loader2 size={16} className="spin" aria-hidden="true" /> : isListening ? <MicOff size={16} aria-hidden="true" /> : <Mic size={16} aria-hidden="true" />}
-          <span>{isProcessingVoiceAI ? t("speech.voice.processingAI") : isListening ? t("speech.voice.listening") : t("speech.voice.micBtnLabel")}</span>
-        </button>
-      )}
+      {accessibilityMode && (() => {
+        // أربع حالات مرئية/مسموعة واضحة دائماً (يستمع الآن / بانتظار أمرك
+        // التالي / أفهم بالذكاء الاصطناعي / متوقف) - المستخدم (خصوصاً كفيف)
+        // يجب أن يعرف دائماً هل النظام يستمع له فعلياً أم لا.
+        const voiceState = isProcessingVoiceAI ? "processing" : isListening ? "listening" : voiceSessionActive ? "waitingNext" : "idle";
+        const labelKey = { processing: "speech.voice.processingAI", listening: "speech.voice.listening", waitingNext: "speech.voice.waitingNext", idle: "speech.voice.micBtnLabel" }[voiceState];
+        const ariaKey = voiceSessionActive && voiceState !== "processing" ? "speech.voice.micBtnListeningLabel" : labelKey;
+        const bg = { processing: "#C9A24B", listening: "#C0392B", waitingNext: "#8A6D3B", idle: "var(--surface-raised)" }[voiceState];
+        return (
+          <button
+            onClick={toggleListening}
+            disabled={isProcessingVoiceAI}
+            aria-label={t(ariaKey)}
+            style={{
+              ...S.a11yMicBtn,
+              background: bg,
+              color: voiceState === "idle" ? "var(--ink)" : "#fff",
+              border: voiceState === "idle" ? "1px solid var(--border2)" : "none",
+              cursor: isProcessingVoiceAI ? "default" : "pointer",
+            }}
+          >
+            {voiceState === "processing" ? <Loader2 size={16} className="spin" aria-hidden="true" /> : voiceState === "idle" ? <Mic size={16} aria-hidden="true" /> : <MicOff size={16} aria-hidden="true" />}
+            <span>{t(labelKey)}</span>
+          </button>
+        );
+      })()}
       {tourOpen && (
         <MasarJourney
           view={view} setView={setView} profile={profile} healthProfile={healthProfile} isSub={isSub}

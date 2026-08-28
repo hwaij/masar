@@ -41,6 +41,16 @@ const WATER_PHRASES = {
   en: ["add a cup of water", "add cup of water", "log water", "add water"],
 };
 
+// إنهاء جلسة الاستماع المستمرة (انظر MasarApp.jsx) - كلمات قصيرة عمداً
+// كما اقتُرحت، بنفس هامش المخاطرة المقبول أصلاً لكلمات قصيرة أخرى في هذا
+// الملف (مثل "yes"/"ok" ضمن CONFIRM_PHRASES): قد تُطابَق خطأً داخل جملة
+// أطول غير متعلقة، لكن نطاق الاستخدام هنا (أمر صوتي قصير مقصود) يجعل هذا
+// مقبولاً، تماماً كبقية القائمة.
+const END_SESSION_PHRASES = {
+  ar: ["خلاص", "إيقاف الاستماع", "أوقف الاستماع", "انتهيت", "كفى", "إيقاف"],
+  en: ["stop listening", "end session", "that's all", "stop", "done"],
+};
+
 const LOG_FOOD_RE = {
   ar: /^سجل\s+(\d+(?:\.\d+)?)\s*(غرام|غم|جرام|مل|مليلتر)\s+(.+)$/,
   en: /^log\s+(\d+(?:\.\d+)?)\s*(grams?|g|ml|milliliters?)\s+(.+)$/i,
@@ -63,12 +73,14 @@ function matchesAny(normalizedText, phrases, lang) {
 
 // يحلّل نصاً واحداً (نتيجة SpeechRecognition) إلى كائن أمر مُبنيَن:
 // { type: "navigate", view } | { type: "addWater" } | { type: "confirmSave" }
+// | { type: "cancelPending" } | { type: "endSession" }
 // | { type: "logFoodDraft", qty, unit, foodName } | { type: "unrecognized", raw }
 export function parseVoiceCommand(rawText, lang) {
   const key = lang === "en" ? "en" : "ar";
   const text = normalize(rawText, key);
   if (!text) return { type: "unrecognized", raw: rawText };
 
+  if (matchesAny(text, END_SESSION_PHRASES[key], key)) return { type: "endSession", raw: rawText };
   if (matchesAny(text, CONFIRM_PHRASES[key], key)) return { type: "confirmSave", raw: rawText };
   if (matchesAny(text, WATER_PHRASES[key], key)) return { type: "addWater", raw: rawText };
 
@@ -96,14 +108,14 @@ export function parseVoiceCommand(rawText, lang) {
 // استدعاء شبكة يبقى أولاً دائماً لكل الأوامر الصريحة البسيطة) - راجع
 // parseVoiceCommandSmart أدناه للتفاصيل الكاملة عن الترتيب والتكلفة.
 
-const GEMINI_ACTIONS = new Set(["navigate", "add_water", "log_food", "confirm", "cancel", "unclear"]);
+const GEMINI_ACTIONS = new Set(["navigate", "add_water", "log_food", "confirm", "cancel", "end_session", "unclear"]);
 const GEMINI_TARGETS = new Set(["nutrition", "fitness", "reports", "goals", "tasks", "settings", "home"]);
 
 function buildSmartPrompt(rawText, lang) {
   const escaped = String(rawText || "").replace(/"/g, '\\"');
   if (lang === "en") {
     return `Convert the following spoken voice command (real transcribed speech, may be phrased any way, in English or Arabic) into ONLY a structured JSON object representing the user's intent inside the "Masar" app. Return no extra text or markdown, in exactly this shape:
-{"action":"navigate"|"add_water"|"log_food"|"confirm"|"cancel"|"unclear","target":"nutrition"|"fitness"|"reports"|"goals"|"tasks"|"settings"|"home"|null,"food_name":string|null,"quantity":number|null,"unit":"g"|"ml"|null}
+{"action":"navigate"|"add_water"|"log_food"|"confirm"|"cancel"|"end_session"|"unclear","target":"nutrition"|"fitness"|"reports"|"goals"|"tasks"|"settings"|"home"|null,"food_name":string|null,"quantity":number|null,"unit":"g"|"ml"|null}
 
 Rules:
 - "navigate": the user wants to open one of the 7 sections above only (target is required, all other fields null).
@@ -111,6 +123,7 @@ Rules:
 - "log_food": the user wants to log a specific amount of food (food_name, quantity, and unit as available; use unit="g" for a weight in grams, unit="ml" for a volume in milliliters; if no clear quantity or unit was said, use null instead of guessing).
 - "confirm": the user is agreeing to a pending action (yes/confirm/save/ok and similar).
 - "cancel": the user wants to cancel a pending action (no/cancel/never mind and similar).
+- "end_session": the user wants to stop the whole voice-listening session, not just cancel one pending action (stop/done/that's all/stop listening/end session and similar).
 - "unclear": it doesn't confidently match any of the above, is ambiguous, or is unrelated to the app entirely. Never guess an unclear intent - use "unclear" instead.
 
 Spoken text: "${escaped}"
@@ -118,7 +131,7 @@ Spoken text: "${escaped}"
 Return only a valid JSON object in exactly that shape, with no explanation.`;
   }
   return `حوّل الأمر الصوتي التالي (نص منطوق حقيقي من تعرّف صوتي، قد يكون بأي صياغة، عربياً أو إنجليزياً) إلى كائن JSON منظَّم فقط يمثّل نيّة المستخدم داخل تطبيق "مسار". بلا أي نص أو markdown إضافي، بهذا الشكل بالضبط:
-{"action":"navigate"|"add_water"|"log_food"|"confirm"|"cancel"|"unclear","target":"nutrition"|"fitness"|"reports"|"goals"|"tasks"|"settings"|"home"|null,"food_name":string|null,"quantity":number|null,"unit":"g"|"ml"|null}
+{"action":"navigate"|"add_water"|"log_food"|"confirm"|"cancel"|"end_session"|"unclear","target":"nutrition"|"fitness"|"reports"|"goals"|"tasks"|"settings"|"home"|null,"food_name":string|null,"quantity":number|null,"unit":"g"|"ml"|null}
 
 القواعد:
 - "navigate": المستخدم يريد فتح أحد الأقسام السبعة أعلاه فقط (target إلزامي، بقية الحقول null).
@@ -126,6 +139,7 @@ Return only a valid JSON object in exactly that shape, with no explanation.`;
 - "log_food": المستخدم يريد تسجيل كمية طعام محددة (food_name وquantity وunit قدر المتاح؛ استخدم unit="g" لوزن بالغرام، وunit="ml" لحجم بالمليلتر؛ إن لم تُذكر كمية أو وحدة واضحة استخدم null بدل التخمين).
 - "confirm": المستخدم يوافق على تنفيذ إجراء معلَّق (نعم/تأكيد/احفظ وما شابه).
 - "cancel": المستخدم يريد إلغاء إجراء معلَّق (لا/إلغاء/تراجع وما شابه).
+- "end_session": المستخدم يريد إنهاء كامل جلسة الاستماع الصوتي، لا مجرد إلغاء إجراء واحد معلَّق (خلاص/إيقاف/انتهيت/كفى/أوقف الاستماع وما شابه).
 - "unclear": لا يطابق أياً مما سبق بثقة كافية، أو غامض، أو غير متعلق بالتطبيق إطلاقاً. لا تخمين أبداً لنية غير واضحة - استخدم "unclear" بدلاً من ذلك.
 
 النص المنطوق: "${escaped}"
@@ -156,6 +170,7 @@ export function adaptGeminiCommand(parsed, rawText) {
   }
   if (parsed.action === "confirm") return { type: "confirmSave", raw: rawText };
   if (parsed.action === "cancel") return { type: "cancelPending", raw: rawText };
+  if (parsed.action === "end_session") return { type: "endSession", raw: rawText };
   return { type: "unrecognized", raw: rawText }; // "unclear" أو أي قيمة أخرى غير متوقعة
 }
 

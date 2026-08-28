@@ -681,6 +681,17 @@ export default function MasarApp() {
   const micSupported = useMemo(() => isRecognitionSupported(), []);
   const [isListening, setIsListening] = useState(false);
   const [voiceSessionActive, setVoiceSessionActive] = useState(false);
+  // خلل حقيقي وُجد وأُصلح: setVoiceSessionActive(true) في startVoiceSession
+  // ثم استدعاء beginListeningCycle() في نفس السطر التالي مباشرة - لكن React
+  // يُجمِّع تحديثات الحالة (batching)، فالنسخة الأولى من handleVoiceResult
+  // التي يلتقطها أول استماع فعلي (عبر handleVoiceResultRef) كانت لا تزال
+  // تحمل القيمة القديمة voiceSessionActive=false من الإطار السابق (الإعادة
+  // الفعلية للرسم/الخطاف المُزامِن للمرجع لم تحدث بعد) - فالأمر الصوتي
+  // الأول في أي جلسة كان لا يُعيد الاستماع تلقائياً إطلاقاً رغم أن الزر
+  // يعرض الجلسة نشطة (حالة "متجمدة" متناقضة). مرجع عادي (لا حالة React) يُحدَّث
+  // بالتزامن الفوري نفسه لحظة الضغط يحل هذا تماماً - يُقرأ دائماً بقيمته
+  // الحقيقية اللحظية بلا أي تأخير إعادة رسم.
+  const voiceSessionActiveRef = useRef(false);
   // true فقط أثناء انتظار رد Gemini (بعد فشل المطابقة الفورية) - يُستخدَم
   // لعرض تنبيه صادق أن هذه اللحظة تستغرق وقتاً أطول من المطابقة الفورية
   // المعتادة، لا لإخفاء هذا الفرق عن المستخدم.
@@ -709,6 +720,7 @@ export default function MasarApp() {
   // وواضح بصرياً بالفعل) | "command" (أمر "خلاص"/"stop" صوتي) | "timeout"
   // (40 ثانية صمت حقيقي بلا أي نتيجة تعرّف).
   const endVoiceSession = useCallback((opts = {}) => {
+    voiceSessionActiveRef.current = false;
     clearVoiceSessionTimers();
     stopListening(recognizerRef.current);
     setIsListening(false);
@@ -781,12 +793,14 @@ export default function MasarApp() {
     }
 
     // استمرار الجلسة: أي أمر (حتى "غير مفهوم") لا ينهي الجلسة من تلقاء نفسه -
-    // المستخدم يحق له إعادة المحاولة بلا ضغط الزر من جديد.
-    if (voiceSessionActive) {
+    // المستخدم يحق له إعادة المحاولة بلا ضغط الزر من جديد. يُقرأ من المرجع
+    // المتزامن (voiceSessionActiveRef) لا حالة React مباشرة - انظر تعليق
+    // تعريف المرجع أعلاه لشرح خلل تأخّر إعادة الرسم الذي يحله هذا بالتحديد.
+    if (voiceSessionActiveRef.current) {
       showToast(t("speech.voice.waitingNext"));
       restartTimerRef.current = setTimeout(() => beginListeningCycle(), RESTART_DELAY_MS);
     }
-  }, [i18n.language, t, view, isSub, voiceSessionActive, armInactivityTimer, endVoiceSession, beginListeningCycle]);
+  }, [i18n.language, t, view, isSub, armInactivityTimer, endVoiceSession, beginListeningCycle]);
 
   const handleVoiceError = useCallback((code) => {
     setIsListening(false);
@@ -797,12 +811,12 @@ export default function MasarApp() {
       // لا صمت مزعج متكرر لكل محاولة فاشلة داخل جلسة نشطة - إعادة محاولة
       // هادئة فقط (الزر نفسه يبقى المؤشر البصري/المسموع الدائم للحالة)؛ مهلة
       // عدم النشاط الكاملة (40 ثانية) هي ما ينهي الجلسة فعلياً عند صمت حقيقي.
-      if (voiceSessionActive) restartTimerRef.current = setTimeout(() => beginListeningCycle(), RESTART_DELAY_MS);
+      if (voiceSessionActiveRef.current) restartTimerRef.current = setTimeout(() => beginListeningCycle(), RESTART_DELAY_MS);
       else showToast(t("speech.voice.noSpeech"));
       return;
     }
     showToast(t("speech.voice.genericError"));
-  }, [voiceSessionActive, beginListeningCycle, endVoiceSession, showToast, t]);
+  }, [beginListeningCycle, endVoiceSession, showToast, t]);
 
   // مراجع دائمة التحديث لأحدث نسخة من handleVoiceResult/handleVoiceError -
   // startListening (src/lib/speechRecognition.js) يُسجِّل onResult/onError
@@ -816,16 +830,17 @@ export default function MasarApp() {
   useEffect(() => { handleVoiceErrorRef.current = handleVoiceError; }, [handleVoiceError]);
 
   const startVoiceSession = useCallback(() => {
+    voiceSessionActiveRef.current = true;
     setVoiceSessionActive(true);
     armInactivityTimer();
     beginListeningCycle();
   }, [armInactivityTimer, beginListeningCycle]);
 
   const toggleListening = useCallback(() => {
-    if (voiceSessionActive) { endVoiceSession({ reason: "manual" }); return; }
+    if (voiceSessionActiveRef.current) { endVoiceSession({ reason: "manual" }); return; }
     if (!micSupported) { showToast(t("speech.voice.micUnsupported")); return; }
     startVoiceSession();
-  }, [voiceSessionActive, micSupported, endVoiceSession, startVoiceSession, showToast, t]);
+  }, [micSupported, endVoiceSession, startVoiceSession, showToast, t]);
 
   // يوقف الجلسة بأمان إن غادر المستخدم علامة التبويب/أُغلق التطبيق أثناء
   // الاستماع - لا يمنع هذا وحده كل الحالات (متصفحات كثيرة توقف التعرّف تلقائياً

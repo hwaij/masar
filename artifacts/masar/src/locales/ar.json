@@ -13,6 +13,7 @@
     "nutritionPlan": "النظام الغذائي",
     "dietPlans": "الأنظمة الغذائية",
     "fitness": "الرياضة",
+    "steps": "الخطوات",
     "comingSoon": "قريباً",
     "productivity": "الإنتاجية",
     "focusStudy": "تركيز / الدراسة",
@@ -1693,6 +1694,18 @@
     "shareTemplateStats": "إحصائي",
     "shareTemplateStatsDesc": "الأرقام في تخطيط شبكي أنيق",
     "photoOptionalHint": "الصورة اختيارية - اضغط \"صورة شخصية\" واختر صورة، أو اختر تصميماً آخر بلا صورة"
+  },
+  "steps": {
+    "heroTitle": "الخطوات",
+    "heroSub": "سجّل خطواتك اليومية وحدّثها كلما أردت خلال اليوم.",
+    "todayLabel": "خطوات اليوم",
+    "inputPlaceholder": "أدخل عدد الخطوات",
+    "saveBtn": "حفظ",
+    "saved": "تم حفظ خطواتك.",
+    "invalidValue": "أدخل رقماً صحيحاً للخطوات.",
+    "historyTitle": "آخر 7 أيام",
+    "noHistoryYet": "لا توجد خطوات مسجَّلة بعد.",
+    "quickAddLabel": "أضف {{count}} خطوة"
   },
   "groups": {
     "errors": {

@@ -784,6 +784,40 @@ export const store = {
     return { ok: true };
   },
 
+  // خطوات اليوم - قيمة واحدة تُحدَّث خلال اليوم نفسه (لا سجل متعدد
+  // الإدخالات)، بنفس نمط loadMentalHealthLog/saveMentalHealthEntry تماماً.
+  // source موجودة لدعم مصدر تلقائي مستقبلاً (Apple Health/Google Fit عبر
+  // تطبيق Native) بلا أي تغيير بنيوي - القيمة الوحيدة المُستخدَمة اليوم هي
+  // "manual" (انظر نفس المبدأ في activity_source بـsupabase-schema.sql).
+  async loadStepsLog() {
+    const local = lsGet("masar_steps_log", {});
+    if (!useCloud()) return local;
+    if (cloudFetchIsFresh("masar_steps_log")) return local;
+    try {
+      const { data, error } = await supabase.from("steps_log").select("*").eq("owner", CURRENT_OWNER);
+      if (error || !data) return local;
+      const log = {};
+      data.forEach((r) => { log[r.date] = { steps: r.steps, source: r.source || "manual" }; });
+      lsSet("masar_steps_log", log);
+      markCloudFetched("masar_steps_log");
+      return log;
+    } catch (e) { console.error("[loadStepsLog] read failed:", e); return local; }
+  },
+  async saveStepsEntry(date, steps, source = "manual") {
+    const local = lsGet("masar_steps_log", {});
+    lsSet("masar_steps_log", { ...local, [date]: { steps, source } });
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("steps_log").upsert(
+          { owner: CURRENT_OWNER, date, steps, source, updated_at: new Date().toISOString() },
+          { onConflict: "owner,date" },
+        );
+        if (error) { console.error("[saveStepsEntry] Supabase error:", error.message); return { ok: false, error: error.message }; }
+      } catch (e) { console.error("[saveStepsEntry] write failed:", e); return { ok: false, error: String(e) }; }
+    }
+    return { ok: true };
+  },
+
   // قسم "التغذية": سجل الطعام اليومي، ذاكرة الإدخالات اليدوية للباركود
   // (مشتركة الآن بين كل المستخدمين، انظر التعليق عند saveCustomFood)،
   // وسجل أكواب الماء.

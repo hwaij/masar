@@ -3,7 +3,7 @@ import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import {
   X, Moon, Eye, User, Utensils, Dumbbell, Salad, ClipboardList,
-  Timer, ListChecks, Target, Wallet, TrendingUp,
+  Timer, ListChecks, Target, Wallet, TrendingUp, Footprints,
   MessageCircle, Rocket, Settings, Languages, Users, HelpCircle,
 } from "lucide-react";
 import { store } from "../lib/store";
@@ -31,6 +31,7 @@ export const MENU_SECTIONS = [
       { id: "nutritionPlan", labelKey: "nav.nutritionPlan", icon: ClipboardList },
       { id: "dietPlans", labelKey: "nav.dietPlans", icon: Salad },
       { id: "fitness", labelKey: "nav.fitness", icon: Dumbbell },
+      { id: "steps", labelKey: "nav.steps", icon: Footprints },
     ],
   },
   {

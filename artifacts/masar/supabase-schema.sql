@@ -1913,6 +1913,26 @@ alter table notification_log enable row level security;
 drop policy if exists notification_log_user_read_own on notification_log;
 create policy notification_log_user_read_own on notification_log for select to authenticated using (owner = auth.uid()::text);
 
+-- قسم الخطوات (Steps): سجل يومي بسيط بنفس اتفاقية fitness_log/mental_health_log
+-- بالضبط (owner+date كمفتاح أساسي مركّب - قيمة واحدة لكل يوم تُحدَّث خلال
+-- اليوم نفسه، لا سجل متعدد الإدخالات). source بنفس نمط activity_source
+-- الموجود مسبقاً في user_nutrition_plan أعلاه (بنية جاهزة لمصدر خطوات
+-- تلقائي مستقبلاً من Apple Health/Google Fit عبر تطبيق Native، بلا أي ربط
+-- فعلي حالياً - القيمة الوحيدة المُستخدَمة اليوم هي 'manual').
+create table if not exists steps_log (
+  owner       text not null default 'solo',
+  date        text not null,
+  steps       integer not null default 0 check (steps >= 0),
+  source      text not null default 'manual' check (source in ('manual', 'apple_health', 'google_fit')),
+  updated_at  timestamptz default now(),
+  primary key (owner, date)
+);
+
+alter table steps_log enable row level security;
+drop policy if exists steps_log_anon_solo on steps_log;
+drop policy if exists steps_log_user_own on steps_log;
+create policy steps_log_user_own on steps_log for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
 -- إجبار طبقة PostgREST (التي تُعرِّض RPC عبر supabase.rpc(...)) على إعادة
 -- تحميل ذاكرتها المؤقتة للمخطط فوراً، بدل انتظار إعادة التحميل التلقائية
 -- (تحدث عادة خلال ثوانٍ، لكن قد تتأخر) - يضمن أن get_group_by_invite_code

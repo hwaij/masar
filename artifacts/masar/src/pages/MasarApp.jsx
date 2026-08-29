@@ -53,6 +53,7 @@ import DayWheel from "../components/DayWheel";
 // (html5-qrcode، recharts) لا حاجة لتحميلها إلا عند فتح القسم فعلاً.
 const NutritionView = lazy(() => import("../components/NutritionView"));
 const FitnessView = lazy(() => import("../components/FitnessView"));
+const StepsView = lazy(() => import("../components/StepsView"));
 const GroupsView = lazy(() => import("../components/GroupsView"));
 const VaultView = lazy(() => import("../components/VaultView"));
 const DietPlansView = lazy(() => import("../components/DietPlansView"));
@@ -328,6 +329,7 @@ export default function MasarApp() {
   const [tipsLog, setTipsLog] = useState({});
   const [goals, setGoals] = useState([]);
   const [sleepLog, setSleepLog] = useState([]);
+  const [stepsLog, setStepsLog] = useState({});
   const [healthProfile, setHealthProfile] = useState({
     heightCm: null, weightKg: null, age: null, gender: null, activityLevel: null, conditions: [],
     bmi: null, bmiCategory: null, ibw: null, ree: null, tee: null,
@@ -377,6 +379,7 @@ export default function MasarApp() {
         withTimeout(store.loadTipsLog(), T, {}),
         withTimeout(store.loadGoals(), T, []),
         withTimeout(store.loadSleepLog(), T, []),
+        withTimeout(store.loadStepsLog(), T, {}),
         withTimeout(store.loadAzkarLog(), T, {}),
         withTimeout(store.loadAzkarItems(), T, {}),
         withTimeout(store.loadQuranProgress(), T, {}),
@@ -398,11 +401,11 @@ export default function MasarApp() {
         window.history.replaceState(null, "", window.location.pathname);
       }
 
-      const [a, cm, pl, rel, plog, tl, gl, sl, azl, azi, qp, ist, hp] = await background;
+      const [a, cm, pl, rel, plog, tl, gl, sl, stl, azl, azi, qp, ist, hp] = await background;
       if (loadVersionRef.current !== myVersion) return;
       setAchieve(a); setCommitments(cm); setPrayerLog(pl); setReligious(rel);
       setPointsLog(plog); setTipsLog(tl); setGoals(gl);
-      setSleepLog(sl); setAzkarLog(azl); setAzkarItems(azi); setQuranProgress(qp);
+      setSleepLog(sl); setStepsLog(stl); setAzkarLog(azl); setAzkarItems(azi); setQuranProgress(qp);
       setIstighfar(ist); setHealthProfile(hp);
 
       // منطق خصم نقاط الفائتات يعتمد على prayerLog (يُحمَّل في دفعة الخلفية)
@@ -1098,13 +1101,14 @@ export default function MasarApp() {
           <div style={S.view}><UpsellCard icon={MessageCircle} title={i18n.language === "en" ? "Your AI assistant in Masar Premium" : "مساعدك الذكي في مسار الكامل"} message={i18n.language === "en" ? "A personal coach who analyzes your day and habits and suggests practical steps based on your actual data." : "مدرّب شخصي يحلّل يومك وعاداتك ويقترح خطوات عملية بناءً على بياناتك الفعلية."} /></div>
         ))}
         {view === "you" && <YouView healthProfile={healthProfile} setHealthProfile={setHealthProfile} showToast={showToast} />}
-        {(view === "nutrition" || view === "nutritionPlan" || view === "dietPlans" || view === "fitness" || (view === "groups" && isSub) || (view === "vault" && isSub)) && (
+        {(view === "nutrition" || view === "nutritionPlan" || view === "dietPlans" || view === "fitness" || view === "steps" || (view === "groups" && isSub) || (view === "vault" && isSub)) && (
           <LazySectionErrorBoundary key={view} isEn={i18n.language === "en"}>
             <Suspense fallback={<div style={{ ...S.view, display: "flex", justifyContent: "center", padding: 40 }}><Loader2 size={24} color="#C9A24B" className="spin" /></div>}>
               {view === "nutrition" && <NutritionView healthProfile={healthProfile} showToast={showToast} profile={profile} setProfile={setProfile} subscription={subscription} journeyActive={tourOpen} voiceCommand={voiceCommand} clearVoiceCommand={clearVoiceCommand} onDisambiguationPendingChange={setNutritionAwaitingDisambiguation} />}
               {view === "nutritionPlan" && <NutritionPlanView healthProfile={healthProfile} showToast={showToast} subscription={subscription} setView={setView} />}
               {view === "dietPlans" && <DietPlansView healthProfile={healthProfile} showToast={showToast} subscription={subscription} />}
               {view === "fitness" && <FitnessView healthProfile={healthProfile} showToast={showToast} profile={profile} setProfile={setProfile} journeyActive={tourOpen} />}
+              {view === "steps" && <StepsView stepsLog={stepsLog} setStepsLog={setStepsLog} showToast={showToast} />}
               {view === "groups" && isSub && <GroupsView showToast={showToast} />}
               {view === "vault" && isSub && <VaultView showToast={showToast} />}
             </Suspense>

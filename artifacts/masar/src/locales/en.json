@@ -13,6 +13,7 @@
     "nutritionPlan": "Nutrition Plan",
     "dietPlans": "Diet Plans",
     "fitness": "Fitness",
+    "steps": "Steps",
     "comingSoon": "Coming soon",
     "productivity": "Productivity",
     "focusStudy": "Focus / Study",
@@ -1693,6 +1694,18 @@
     "shareTemplateStats": "Stats grid",
     "shareTemplateStatsDesc": "The numbers in a clean grid layout",
     "photoOptionalHint": "The photo is optional - tap \"Photo + achievement\" and pick one, or choose another design without a photo"
+  },
+  "steps": {
+    "heroTitle": "Steps",
+    "heroSub": "Log your daily steps and update them anytime during the day.",
+    "todayLabel": "Today's steps",
+    "inputPlaceholder": "Enter step count",
+    "saveBtn": "Save",
+    "saved": "Your steps were saved.",
+    "invalidValue": "Enter a valid number of steps.",
+    "historyTitle": "Last 7 days",
+    "noHistoryYet": "No steps logged yet.",
+    "quickAddLabel": "Add {{count}} steps"
   },
   "groups": {
     "errors": {

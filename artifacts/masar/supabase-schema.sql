@@ -1933,6 +1933,25 @@ drop policy if exists steps_log_anon_solo on steps_log;
 drop policy if exists steps_log_user_own on steps_log;
 create policy steps_log_user_own on steps_log for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
 
+-- سجل الوزن التاريخي (Weight Log): بنفس اتفاقية steps_log/fitness_log بالضبط
+-- (owner+date كمفتاح أساسي مركّب - قياس واحد لكل يوم، لا سجل متعدد
+-- الإدخالات لنفس اليوم). كان الوزن سابقاً قيمة واحدة فقط في health_profile
+-- تُستبدَل عند كل تعديل بلا أي تاريخ محفوظ - هذا الجدول يحفظ كل قياس بتاريخه
+-- الفعلي، فيُتيح لاحقاً حساب "الوزن اليوم" و"التغيّر عن آخر قياس" ضمن
+-- التقرير اليومي التفصيلي، ورسم منحنى الوزن عبر الزمن مستقبلاً إن أُريد.
+create table if not exists weight_log (
+  owner       text not null default 'solo',
+  date        text not null,
+  weight_kg   numeric not null check (weight_kg > 0),
+  updated_at  timestamptz default now(),
+  primary key (owner, date)
+);
+
+alter table weight_log enable row level security;
+drop policy if exists weight_log_anon_solo on weight_log;
+drop policy if exists weight_log_user_own on weight_log;
+create policy weight_log_user_own on weight_log for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
+
 -- إجبار طبقة PostgREST (التي تُعرِّض RPC عبر supabase.rpc(...)) على إعادة
 -- تحميل ذاكرتها المؤقتة للمخطط فوراً، بدل انتظار إعادة التحميل التلقائية
 -- (تحدث عادة خلال ثوانٍ، لكن قد تتأخر) - يضمن أن get_group_by_invite_code

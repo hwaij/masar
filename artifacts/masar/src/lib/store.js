@@ -818,6 +818,40 @@ export const store = {
     return { ok: true };
   },
 
+  // سجل الوزن التاريخي - قياس واحد لكل يوم (نفس نمط loadStepsLog/saveStepsEntry
+  // بالضبط)، بخلاف health_profile.weightKg الذي يبقى القيمة "الحالية" الوحيدة
+  // المعروضة في "أنت" - هذا الجدول يحفظ كل قياس بتاريخه الفعلي لبناء منحنى/تقرير
+  // عبر الزمن. الشكل: خريطة بالتاريخ إلى رقم وزن مباشرة (لا حاجة لكائن أوسع
+  // كسجل الخطوات، لا "source" هنا لأن الميزة لم تُطلَب بعد لهذا الحقل).
+  async loadWeightLog() {
+    const local = lsGet("masar_weight_log", {});
+    if (!useCloud()) return local;
+    if (cloudFetchIsFresh("masar_weight_log")) return local;
+    try {
+      const { data, error } = await supabase.from("weight_log").select("*").eq("owner", CURRENT_OWNER);
+      if (error || !data) return local;
+      const log = {};
+      data.forEach((r) => { log[r.date] = r.weight_kg; });
+      lsSet("masar_weight_log", log);
+      markCloudFetched("masar_weight_log");
+      return log;
+    } catch (e) { console.error("[loadWeightLog] read failed:", e); return local; }
+  },
+  async saveWeightEntry(date, weightKg) {
+    const local = lsGet("masar_weight_log", {});
+    lsSet("masar_weight_log", { ...local, [date]: weightKg });
+    if (useCloud()) {
+      try {
+        const { error } = await supabase.from("weight_log").upsert(
+          { owner: CURRENT_OWNER, date, weight_kg: weightKg, updated_at: new Date().toISOString() },
+          { onConflict: "owner,date" },
+        );
+        if (error) { console.error("[saveWeightEntry] Supabase error:", error.message); return { ok: false, error: error.message }; }
+      } catch (e) { console.error("[saveWeightEntry] write failed:", e); return { ok: false, error: String(e) }; }
+    }
+    return { ok: true };
+  },
+
   // قسم "التغذية": سجل الطعام اليومي، ذاكرة الإدخالات اليدوية للباركود
   // (مشتركة الآن بين كل المستخدمين، انظر التعليق عند saveCustomFood)،
   // وسجل أكواب الماء.

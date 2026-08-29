@@ -140,11 +140,14 @@
       "noDataYet": "Not enough data yet",
       "loading": "Loading...",
       "done": "Done",
-      "deleted": "Deleted"
+      "deleted": "Deleted",
+      "yes": "Yes",
+      "no": "No"
     },
     "units": {
       "kcal": "kcal",
       "g": "g",
+      "kg": "kg",
       "mg": "mg",
       "mcg": "mcg",
       "protein": "Protein",
@@ -490,7 +493,8 @@
       "study": "Study",
       "health": "Health",
       "nutrition": "Nutrition",
-      "allTime": "Journey"
+      "allTime": "Journey",
+      "daily": "Day by Day"
     },
     "unspecified": "Unspecified",
     "title": "Your Reports",
@@ -595,6 +599,20 @@
       "bestWeekTitle": "Best training week",
       "bestWeekValue": "Week of {{date}}: {{volume}} {{unit}} training volume",
       "mealsScopeNote": "Meals logged shows only the last 90 days (the nutrition log's available range) - the other numbers cover your full history in Masar."
+    },
+    "daily": {
+      "intro": "Your data day by day, exactly as entered - no aggregation or interpretation. Good for personal review or exporting for analysis.",
+      "exportCsv": "Export CSV",
+      "csvExported": "CSV file downloaded.",
+      "sleepSection": "Sleep",
+      "nutritionSection": "Nutrition",
+      "activitySection": "Activity",
+      "weightSection": "Weight",
+      "totalLabel": "Total",
+      "moodShort": "Mood",
+      "workoutLabel": "Workout",
+      "exercisesUnit": "exercises",
+      "setsUnit": "sets"
     }
   },
   "pdfReport": {
@@ -1200,6 +1218,10 @@
     "yearly": "Yearly"
   },
   "you": {
+    "quickWeightLabel": "Log today's weight",
+    "logWeightBtn": "Log",
+    "invalidWeight": "Enter a valid weight in kg.",
+    "weightLogged": "Your weight for today has been logged.",
     "activityLevels": {
       "sedentary": "Sedentary",
       "light": "Light Activity",

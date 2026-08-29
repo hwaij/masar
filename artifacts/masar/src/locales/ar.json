@@ -140,11 +140,14 @@
       "noDataYet": "لا توجد بيانات كافية بعد",
       "loading": "جارٍ التحميل...",
       "done": "تم",
-      "deleted": "تم الحذف"
+      "deleted": "تم الحذف",
+      "yes": "نعم",
+      "no": "لا"
     },
     "units": {
       "kcal": "سعرة",
       "g": "غ",
+      "kg": "كغم",
       "mg": "مغ",
       "mcg": "مكغ",
       "protein": "بروتين",
@@ -490,7 +493,8 @@
       "study": "الدراسة",
       "health": "الصحة",
       "nutrition": "التغذية",
-      "allTime": "الرحلة"
+      "allTime": "الرحلة",
+      "daily": "يوماً بيوم"
     },
     "unspecified": "غير محدد",
     "title": "تقاريرك",
@@ -595,6 +599,20 @@
       "bestWeekTitle": "أفضل أسبوع تدريبي",
       "bestWeekValue": "أسبوع {{date}}: حجم تدريبي {{volume}} {{unit}}",
       "mealsScopeNote": "الوجبات المسجَّلة تعرض آخر 90 يوماً فقط (نطاق سجل التغذية المتاح) - بقية الأرقام تغطي تاريخك الكامل في مسار."
+    },
+    "daily": {
+      "intro": "سجل بياناتك يوماً بيوم كما أُدخلت بالضبط، بلا أي تجميع أو استنتاج - مناسب للمراجعة الشخصية أو التصدير للتحليل.",
+      "exportCsv": "تصدير CSV",
+      "csvExported": "تم تنزيل ملف CSV.",
+      "sleepSection": "النوم",
+      "nutritionSection": "التغذية",
+      "activitySection": "النشاط",
+      "weightSection": "الوزن",
+      "totalLabel": "الإجمالي",
+      "moodShort": "المزاج",
+      "workoutLabel": "التمرين",
+      "exercisesUnit": "تمارين",
+      "setsUnit": "مجموعات"
     }
   },
   "pdfReport": {
@@ -1200,6 +1218,10 @@
     "yearly": "سنوي"
   },
   "you": {
+    "quickWeightLabel": "سجّل وزن اليوم",
+    "logWeightBtn": "سجّل",
+    "invalidWeight": "أدخل وزناً صحيحاً بالكيلوغرام.",
+    "weightLogged": "تم تسجيل وزنك لليوم.",
     "activityLevels": {
       "sedentary": "خامل",
       "light": "نشاط خفيف",

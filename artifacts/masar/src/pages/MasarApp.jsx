@@ -16,7 +16,7 @@ import {
   Wallet, ArrowDownCircle, ArrowUpCircle, Crown,
   Utensils, Dumbbell, Menu, Users,
   Accessibility, ALargeSmall, Contrast, StretchHorizontal, Volume2, VolumeX,
-  Smartphone, Copy, Mic, MicOff,
+  Smartphone, Copy, Mic, MicOff, CalendarDays,
 } from "lucide-react";
 import { fivePrayers, nextPrayer, to12h } from "../lib/prayer";
 import { ADHKAR_CATEGORIES, ADHKAR } from "../lib/adhkar";
@@ -33,6 +33,7 @@ import { ACTIVITY_LEVELS, HEALTH_CONDITIONS, NO_CONDITION, computeHealthMetrics 
 import { createGoal, isReviewDue, GOAL_PERIODS, GOAL_POINTS_SUCCESS, GOAL_POINTS_FAILURE } from "../lib/goals";
 import { FITNESS_GOALS } from "../lib/exercises-db";
 import { sumNutritionEntries, waterGoalCups, MEAL_TYPES, analyzeMealPatterns, MICRONUTRIENT_META, computeMoodNutritionCorrelation } from "../lib/nutrition";
+import { buildComprehensiveReport, rowsToCsv } from "../lib/comprehensiveReport";
 import { getDailyNutritionSummary } from "../lib/nutrition-plan";
 import { playSaveSound, playAchievementSound } from "../lib/sound";
 import { getSession, getCachedSessionUser, onAuthChange, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut, userFromSession, hasAuth } from "../lib/auth";
@@ -1094,7 +1095,7 @@ export default function MasarApp() {
         {view === "achieve" && (isSub ? <AchieveView achieve={achieve} setAchieve={setAchieve} profile={profile} focus={focus} tasks={tasks} prayerLog={prayerLog} religious={religious} addPoints={addPoints} showToast={showToast} setView={setView} /> : (
           <div style={S.view}><UpsellCard icon={Rocket} title={i18n.language === "en" ? "Achieve is waiting for you in Masar Premium" : "أنجز ينتظرك في مسار الكامل"} message={i18n.language === "en" ? "Achieve knows your hobbies and suggests challenges, projects, and learning paths made specifically for you." : "أنجز يعرف هواياتك ويقترح لك تحديات ومشاريع ومسارات تعلّم تناسبك أنت تحديداً."} /></div>
         ))}
-        {view === "reports" && (isSub ? <ReportsView entries={entries} categories={categories} focus={focus} profile={profile} setProfile={setProfile} healthProfile={healthProfile} sleepLog={sleepLog} setSleepLog={setSleepLog} showToast={showToast} tasks={tasks} goals={goals} journeyActive={tourOpen} /> : (
+        {view === "reports" && (isSub ? <ReportsView entries={entries} categories={categories} focus={focus} profile={profile} setProfile={setProfile} healthProfile={healthProfile} sleepLog={sleepLog} setSleepLog={setSleepLog} stepsLog={stepsLog} showToast={showToast} tasks={tasks} goals={goals} journeyActive={tourOpen} /> : (
           <div style={S.view}><UpsellCard icon={TrendingUp} title={i18n.language === "en" ? "Your detailed reports in Masar Premium" : "تقاريرك التفصيلية في مسار الكامل"} message={i18n.language === "en" ? "See your progress with clear numbers and analysis, and track your sleep and rest pattern across days." : "شاهد تقدّمك بأرقام وتحليلات واضحة، وتتبّع نومك ونمط راحتك عبر الأيام."} /></div>
         ))}
         {view === "assistant" && (isSub ? <AssistantView entries={entries} tasks={tasks} categories={categories} focus={focus} prayerLog={prayerLog} religious={religious} profile={profile} setProfile={setProfile} stats={stats} setView={setView} healthProfile={healthProfile} goals={goals} showToast={showToast} journeyActive={tourOpen} /> : (
@@ -2410,6 +2411,10 @@ const REPORT_SUB_TABS = [
   { id: "health", labelKey: "reportsView.tabs.health", icon: Heart },
   { id: "nutrition", labelKey: "reportsView.tabs.nutrition", icon: Utensils },
   { id: "allTime", labelKey: "reportsView.tabs.allTime", icon: Trophy },
+  // تبويب جديد منفصل تماماً عن "الشامل" أعلاه (ذاك تجميع + رؤية AI لفترة
+  // واحدة، من ميزة سابقة تحمل نفس الاسم داخلياً) - هذا سجل خام يوماً بيوم،
+  // بلا أي تجميع عبر الأيام ولا أي استنتاج، مصمَّم للتصدير والتحليل الإحصائي.
+  { id: "daily", labelKey: "reportsView.tabs.daily", icon: CalendarDays },
 ];
 
 // ===== Priority 4: التقرير الشامل - أنماط بصرية مخصَّصة لهذا القسم فقط
@@ -2447,9 +2452,21 @@ const RS = {
   journeyCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 12px", textAlign: "center" },
   journeyCardValue: { fontSize: 20, fontWeight: 700, color: "var(--ink)" },
   journeyCardLabel: { fontSize: 11, color: "var(--muted2)", marginTop: 4 },
+
+  dailyIntro: { fontSize: 12, color: "var(--muted2)", lineHeight: 1.7, marginBottom: 12 },
+  dailyCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, marginBottom: 8, overflow: "hidden" },
+  dailyHeader: { display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: "transparent", border: "none", padding: "12px 14px", cursor: "pointer", fontFamily: "inherit", color: "var(--ink)", textAlign: "start" },
+  dailyHeaderDate: { fontSize: 13, fontWeight: 700 },
+  dailyHeaderMeta: { display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "var(--muted2)" },
+  dailyDetail: { padding: "0 14px 14px", display: "flex", flexDirection: "column", gap: 10 },
+  dailySection: { fontSize: 11.5, fontWeight: 700, color: "var(--gold)", marginTop: 4 },
+  dailyRow: { display: "flex", justifyContent: "space-between", fontSize: 12.5, color: "var(--ink-soft)", padding: "3px 0" },
+  dailyMealBlock: { background: "var(--surface-sunken)", borderRadius: 10, padding: "8px 10px" },
+  dailyMealFoods: { fontSize: 12, color: "var(--ink-soft)", marginBottom: 4 },
+  dailyMealStats: { fontSize: 11, color: "var(--muted2)" },
 };
 
-function ReportsView({ entries, categories, focus, profile, setProfile, healthProfile, sleepLog, setSleepLog, showToast, tasks, goals, journeyActive }) {
+function ReportsView({ entries, categories, focus, profile, setProfile, healthProfile, sleepLog, setSleepLog, stepsLog, showToast, tasks, goals, journeyActive }) {
   const { t, i18n } = useTranslation();
   const language = i18n.language;
   const RC = useRecharts();
@@ -2473,6 +2490,7 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
   const [workoutLog, setWorkoutLog] = useState([]);
   const [fitnessLog, setFitnessLog] = useState({});
   const [waterLog, setWaterLog] = useState({});
+  const [weightLog, setWeightLog] = useState({});
   const [comprehensiveLoaded, setComprehensiveLoaded] = useState(false);
   const [insightText, setInsightText] = useState("");
   const [insightLoading, setInsightLoading] = useState(false);
@@ -2492,9 +2510,9 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
 
   useEffect(() => {
     let active = true;
-    Promise.all([store.loadWorkoutLog(), store.loadFitnessLog(), store.loadWaterLog()]).then(([wl, fl, wat]) => {
+    Promise.all([store.loadWorkoutLog(), store.loadFitnessLog(), store.loadWaterLog(), store.loadWeightLog()]).then(([wl, fl, wat, wgt]) => {
       if (!active) return;
-      setWorkoutLog(wl); setFitnessLog(fl); setWaterLog(wat); setComprehensiveLoaded(true);
+      setWorkoutLog(wl); setFitnessLog(fl); setWaterLog(wat); setWeightLog(wgt); setComprehensiveLoaded(true);
     });
     return () => { active = false; };
   }, []);
@@ -2735,6 +2753,31 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
     }
     return { totalWorkouts, activeDaysAllTime, totalTasksCompleted, longestWorkoutStreak, bestWeek, totalMealsLogged: nutritionLog.length };
   }, [fitnessLog, entries, focus, tasks, workoutLog, nutritionLog]);
+
+  // ===== تبويب "يوماً بيوم" - سجل خام بلا أي تجميع عبر الأيام ولا استنتاج،
+  // يُبنى فوق نفس days (نافذة الفترة الحالية) بالجداول اليومية الفعلية. أحدث
+  // يوم أولاً في العرض (الأكثر صلة عادة)، بعكس ترتيب days نفسها التصاعدي -
+  // لكن buildComprehensiveReport تحتاج الترتيب التصاعدي لحساب "التغيّر عن
+  // القياس السابق" بشكل صحيح، فالعكس يحدث فقط عند العرض لا قبل البناء.
+  const dailyReportRows = useMemo(
+    () => buildComprehensiveReport(days, { nutritionLog, sleepLog, stepsLog: stepsLog || {}, workoutLog, fitnessLog, focus, weightLog }),
+    [days, nutritionLog, sleepLog, stepsLog, workoutLog, fitnessLog, focus, weightLog]
+  );
+  const [expandedDay, setExpandedDay] = useState(null);
+
+  function exportDailyCsv() {
+    const csv = rowsToCsv(dailyReportRows, getOwner());
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `masar-daily-report-${days[0]}-to-${days[days.length - 1]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast(t("reportsView.daily.csvExported"));
+  }
 
   // ===== "Masar Insight": فقرة قصيرة من Gemini مبنية حصراً على الأرقام
   // الحقيقية المحسوبة أعلاه لهذه الفترة بالذات - بلا أي افتراض أو رقم غير
@@ -3433,6 +3476,76 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
             </div>
 
             <p style={{ fontSize: 11, color: "var(--muted2)", lineHeight: 1.6, marginTop: 4 }}>{t("reportsView.allTime.mealsScopeNote")}</p>
+          </>
+        )
+      )}
+
+      {subTab === "daily" && (
+        !nutritionLoaded || !comprehensiveLoaded ? (
+          <div style={{ display: "flex", justifyContent: "center", padding: 30 }}><Loader2 size={20} className="spin" color="#C9A24B" /></div>
+        ) : (
+          <>
+            <p style={RS.dailyIntro}>{t("reportsView.daily.intro")}</p>
+            <button onClick={exportDailyCsv} style={S.exportBtn}><Download size={14} /> {t("reportsView.daily.exportCsv")}</button>
+            <div className="stagger-in">
+              {[...dailyReportRows].reverse().map((row) => {
+                const isOpen = expandedDay === row.date;
+                const meals = [
+                  { key: "breakfast", label: t("nutrition.mealTypes.breakfast"), foods: row.breakfastFoods, calories: row.breakfastCalories, proteinG: row.breakfastProteinG, carbsG: row.breakfastCarbsG, fatG: row.breakfastFatG, mood: row.breakfastMood, stress: row.breakfastStress },
+                  { key: "lunch", label: t("nutrition.mealTypes.lunch"), foods: row.lunchFoods, calories: row.lunchCalories, proteinG: row.lunchProteinG, carbsG: row.lunchCarbsG, fatG: row.lunchFatG, mood: row.lunchMood, stress: row.lunchStress },
+                  { key: "dinner", label: t("nutrition.mealTypes.dinner"), foods: row.dinnerFoods, calories: row.dinnerCalories, proteinG: row.dinnerProteinG, carbsG: row.dinnerCarbsG, fatG: row.dinnerFatG, mood: row.dinnerMood, stress: row.dinnerStress },
+                  { key: "snack", label: t("nutrition.mealTypes.snack"), foods: row.snackFoods, calories: row.snackCalories, proteinG: row.snackProteinG, carbsG: row.snackCarbsG, fatG: row.snackFatG, mood: row.snackMood, stress: row.snackStress },
+                ].filter((m) => m.foods);
+                return (
+                  <div key={row.date} style={RS.dailyCard}>
+                    <button onClick={() => setExpandedDay(isOpen ? null : row.date)} style={RS.dailyHeader}>
+                      <span style={RS.dailyHeaderDate}>{arabicDate(row.date, { weekday: "short", day: "numeric", month: "short" }, language === "en" ? "en-US" : undefined)}</span>
+                      <span style={RS.dailyHeaderMeta}>
+                        {row.totalCalories != null && <span>{formatNumberLatin(row.totalCalories, language)} {t("common.units.kcal")}</span>}
+                        {row.weightKg != null && <span>{formatNumberLatin(row.weightKg, language)} {t("common.units.kg")}</span>}
+                        {isOpen ? <ChevronDown size={16} /> : (language === "en" ? <ChevronRight size={16} /> : <ChevronLeft size={16} />)}
+                      </span>
+                    </button>
+                    {isOpen && (
+                      <div style={RS.dailyDetail}>
+                        <div style={RS.dailySection}>{t("reportsView.daily.sleepSection")}</div>
+                        {row.sleepHours != null ? (
+                          <div style={RS.dailyRow}><span>{row.sleepBedtime || "—"} ← {row.sleepWakeTime || "—"}</span><span>{formatNumberLatin(row.sleepHours, language)} {t("common.units.hours")}</span></div>
+                        ) : <div style={S.emptyHint}>{t("common.states.noDataYet")}</div>}
+
+                        <div style={RS.dailySection}>{t("reportsView.daily.nutritionSection")}</div>
+                        {meals.length ? meals.map((m) => (
+                          <div key={m.key} style={RS.dailyMealBlock}>
+                            <div style={RS.dailyMealFoods}><strong>{m.label}:</strong> {m.foods}</div>
+                            <div style={RS.dailyMealStats}>
+                              {m.calories != null && `${formatNumberLatin(m.calories, language)} ${t("common.units.kcal")}`}
+                              {m.proteinG != null && ` · ${t("common.units.protein")} ${formatNumberLatin(m.proteinG, language)}${t("common.units.g")}`}
+                              {m.carbsG != null && ` · ${t("common.units.carbs")} ${formatNumberLatin(m.carbsG, language)}${t("common.units.g")}`}
+                              {m.fatG != null && ` · ${t("common.units.fat")} ${formatNumberLatin(m.fatG, language)}${t("common.units.g")}`}
+                              {m.mood != null && ` · ${t("reportsView.daily.moodShort")} ${formatNumberLatin(m.mood, language)}/5`}
+                            </div>
+                          </div>
+                        )) : <div style={S.emptyHint}>{t("common.states.noDataYet")}</div>}
+                        {row.totalCalories != null && (
+                          <div style={RS.dailyRow}><span>{t("reportsView.daily.totalLabel")}</span><span>{formatNumberLatin(row.totalCalories, language)} {t("common.units.kcal")} · {t("common.units.protein")} {formatNumberLatin(row.totalProteinG, language)}{t("common.units.g")} · {t("common.units.carbs")} {formatNumberLatin(row.totalCarbsG, language)}{t("common.units.g")} · {t("common.units.fat")} {formatNumberLatin(row.totalFatG, language)}{t("common.units.g")}</span></div>
+                        )}
+
+                        <div style={RS.dailySection}>{t("reportsView.daily.activitySection")}</div>
+                        <div style={RS.dailyRow}><span>{t("nav.steps")}</span><span>{row.steps != null ? formatNumberLatin(row.steps, language) : "—"}</span></div>
+                        <div style={RS.dailyRow}><span>{t("reportsView.daily.workoutLabel")}</span><span>{row.workoutCompleted == null ? "—" : row.workoutCompleted ? `${t("common.states.yes")} (${row.exercisesTrainedCount} ${t("reportsView.daily.exercisesUnit")}, ${row.setsCompleted} ${t("reportsView.daily.setsUnit")})` : t("common.states.no")}</span></div>
+                        <div style={RS.dailyRow}><span>{t("nav.focusStudy")}</span><span>{row.focusMinutesTotal != null ? `${formatNumberLatin(row.focusMinutesTotal, language)} ${t("common.units.minutes")}` : "—"}</span></div>
+
+                        <div style={RS.dailySection}>{t("reportsView.daily.weightSection")}</div>
+                        <div style={RS.dailyRow}>
+                          <span>{row.weightKg != null ? `${formatNumberLatin(row.weightKg, language)} ${t("common.units.kg")}` : t("common.states.noDataYet")}</span>
+                          {row.weightChangeKg != null && <span>{row.weightChangeKg > 0 ? "+" : ""}{formatNumberLatin(row.weightChangeKg, language)} {t("common.units.kg")}</span>}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </>
         )
       )}
@@ -6566,8 +6679,37 @@ function YouView({ healthProfile, setHealthProfile, showToast }) {
     setHealthProfile(next);
     const res = await store.saveHealthProfile(next);
     if (!res.ok) { setHealthProfile(prevHealthProfile); showToast(t("common.errors.saveFailed")); return; }
+    // تسجيل هذا الوزن أيضاً في weight_log بتاريخ اليوم الفعلي (سجل تاريخي
+    // منفصل عن القيمة "الحالية" في health_profile أعلاه) - لا يُنتظَر ولا
+    // يُعرَض له خطأ مستقل، فحفظ الملف الصحي الأساسي نجح بالفعل ولا يجب أن
+    // يبدو للمستخدم أن العملية فشلت لمجرد تعطّل هذا السجل الثانوي.
+    store.saveWeightEntry(localDayKey(), weightKg);
     setEditing(false);
     showToast(t("todayView.savedSuccess"));
+  }
+
+  // تسجيل وزن سريع بلا فتح نموذج التعديل الكامل - يعيد استخدام نفس منطق
+  // computeHealthMetrics بالضبط (بالطول/العمر/الجنس/مستوى النشاط الحاليين
+  // بلا تغيير) فقط لتحديث الوزن + إعادة حساب المقاييس المشتقة، بالإضافة
+  // لتسجيله في weight_log التاريخي. متاح فقط بعد اكتمال الملف الصحي مرة
+  // (نفس شرط ظهور شاشة الملخص hasData) لأنه يحتاج بقية الحقول جاهزة أصلاً.
+  const [quickWeight, setQuickWeight] = useState("");
+  async function logQuickWeight() {
+    const weightKg = Number(quickWeight);
+    if (!weightKg || weightKg <= 0) { showToast(t("you.invalidWeight")); return; }
+    const metrics = computeHealthMetrics({ heightCm: healthProfile.heightCm, weightKg, age: healthProfile.age, gender: healthProfile.gender, activityLevel: healthProfile.activityLevel });
+    const next = {
+      ...healthProfile, weightKg,
+      bmi: metrics.bmi?.value ?? null, bmiCategory: metrics.bmi?.category ?? null,
+      ibw: metrics.ibw, ree: metrics.ree, tee: metrics.tee,
+    };
+    const prevHealthProfile = healthProfile;
+    setHealthProfile(next);
+    const res = await store.saveHealthProfile(next);
+    if (!res.ok) { setHealthProfile(prevHealthProfile); showToast(t("common.errors.saveFailed")); return; }
+    store.saveWeightEntry(localDayKey(), weightKg);
+    setQuickWeight("");
+    showToast(t("you.weightLogged"));
   }
 
   const showDisclaimer = (healthProfile.conditions || []).some((c) => c !== NO_CONDITION);
@@ -6657,6 +6799,14 @@ function YouView({ healthProfile, setHealthProfile, showToast }) {
         </div>
         {/* "missing locale key": you.updateMyData */}
         <button onClick={() => setEditing(true)} style={{ ...S.exportBtn, width: "auto", padding: "9px 14px", marginBottom: 0 }}><Edit3 size={14} /> {language === "en" ? "Update my data" : "تحديث بياناتي"}</button>
+      </div>
+
+      <div style={YS.formCard} data-tour="you-quick-weight-card">
+        <label style={S.label}>{t("you.quickWeightLabel")}</label>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input type="number" inputMode="decimal" value={quickWeight} onChange={(e) => setQuickWeight(e.target.value)} placeholder={healthProfile.weightKg ? String(healthProfile.weightKg) : (language === "en" ? "e.g. 70" : "مثال: 70")} style={{ ...S.input, flex: 1 }} />
+          <button onClick={logQuickWeight} disabled={!quickWeight} style={{ ...S.saveBtn, width: "auto", padding: "0 20px" }}>{t("you.logWeightBtn")}</button>
+        </div>
       </div>
 
       <div style={YS.resultsGrid}>

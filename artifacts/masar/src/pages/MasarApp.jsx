@@ -706,6 +706,14 @@ export default function MasarApp() {
   // يُعاد تنفيذه مرتين بالخطأ عند إعادة رسم لاحقة.
   const [voiceCommand, setVoiceCommand] = useState(null);
   const clearVoiceCommand = useCallback(() => setVoiceCommand(null), []);
+  // NutritionView تُبلِغ هنا عندما تنتظر توضيحاً لخيار طعام (عدة نتائج بحث
+  // قريبة، انظر resolveFoodDisambiguation هناك) - أثناء ذلك، أي كلام تالٍ مهما
+  // كانت صياغته (حتى لو لم يطابق أي أمر ثابت معروف) يجب أن يصل كإجابة محتملة
+  // لذلك السؤال، لا أن يُصنَّف كأمر عام فيصطدم بحاجز "يحتاج اشتراكاً للفهم
+  // الحر" أو برسالة "لم أفهم" العامة. قيد صادق مقبول: قول أمر تنقّل صريح أثناء
+  // انتظار التوضيح لا "يقاطعه" - يُعامَل كمحاولة إجابة غير مفهومة، ويُطلَب
+  // إعادة التوضيح؛ يلزم قول "إلغاء" أولاً للخروج، ثم إصدار أي أمر آخر.
+  const [nutritionAwaitingDisambiguation, setNutritionAwaitingDisambiguation] = useState(false);
   // يمنع خطاف إعلان القسم أعلاه من التحدث فوق تأكيد أمر صوتي بالتنقّل (نفس
   // الفكرة، انظر الشرح هناك) - مرجع عادي لا حالة، حتى يُقرأ فوراً بلا إعادة
   // رسم إضافية قبل تنفيذ ذلك الخطاف في نفس الدورة.
@@ -751,13 +759,35 @@ export default function MasarApp() {
     // بخلاف مجرد إعادة محاولة الاستماع بعد خطأ "لم أسمع شيئاً" (لا تُعامَل
     // كنشاط، فتستهلك من ميزانية الـ40 ثانية فعلاً كما هو مقصود).
     armInactivityTimer();
+    const fastResult = parseVoiceCommand(transcript, i18n.language);
+
+    // إنهاء الجلسة ("خلاص"/"stop") يبقى أولوية مطلقة حتى أثناء انتظار توضيح
+    // خيار طعام - مخرج طوارئ يعمل دائماً بلا أي حالة تمنعه.
+    if (fastResult.type === "endSession") {
+      endVoiceSession({ reason: "command" });
+      return;
+    }
+
+    // NutritionView بانتظار إجابة توضيح (عدة نتائج بحث قريبة) - أي كلام تالٍ
+    // هنا هو إجابة محتملة لذلك السؤال بالذات، لا أمراً عاماً جديداً. يُمرَّر
+    // النص الخام كما هو مباشرة (بلا تصنيف ثابت ولا Gemini) - resolveFoodDisambiguation
+    // في NutritionView.jsx يتولى تفسيره (اسم أحد الخيارات/رقمه الترتيبي/إلغاء).
+    if (nutritionAwaitingDisambiguation) {
+      if (view !== "nutrition") { voiceNavigationRef.current = true; setView("nutrition"); }
+      setVoiceCommand({ type: "disambiguationAnswer", raw: transcript });
+      if (voiceSessionActiveRef.current) {
+        showToast(t("speech.voice.waitingNext"));
+        restartTimerRef.current = setTimeout(() => beginListeningCycle(), RESTART_DELAY_MS);
+      }
+      return;
+    }
+
     // الفهم الذكي الحر بـGemini ميزة مدفوعة (مسار الكامل) تماماً كباقي ميزات
     // الذكاء الاصطناعي في التطبيق (نفس نقطة نهاية gemini.js وحارس الاشتراك
     // فيها بلا أي تعديل) - المستخدم غير المشترك يبقى بكامل الأوامر الثابتة
     // مجاناً دائماً (المسار السريع لا يتأثر إطلاقاً)، فقط الفهم الحر خارج تلك
     // القائمة الثابتة هو المقيَّد. هذا فحص عميل سريع (UX) فقط، لا الحاجز
     // الأمني الفعلي (ذاك في الخادم كما في كل ميزات Gemini الأخرى هنا).
-    const fastResult = parseVoiceCommand(transcript, i18n.language);
     let cmd = fastResult;
     if (fastResult.type === "unrecognized" && isSub) {
       setIsProcessingVoiceAI(true);
@@ -800,7 +830,7 @@ export default function MasarApp() {
       showToast(t("speech.voice.waitingNext"));
       restartTimerRef.current = setTimeout(() => beginListeningCycle(), RESTART_DELAY_MS);
     }
-  }, [i18n.language, t, view, isSub, armInactivityTimer, endVoiceSession, beginListeningCycle]);
+  }, [i18n.language, t, view, isSub, nutritionAwaitingDisambiguation, armInactivityTimer, endVoiceSession, beginListeningCycle]);
 
   const handleVoiceError = useCallback((code) => {
     setIsListening(false);
@@ -1035,7 +1065,7 @@ export default function MasarApp() {
         {(view === "nutrition" || view === "nutritionPlan" || view === "dietPlans" || view === "fitness" || (view === "groups" && isSub) || (view === "vault" && isSub)) && (
           <LazySectionErrorBoundary key={view} isEn={i18n.language === "en"}>
             <Suspense fallback={<div style={{ ...S.view, display: "flex", justifyContent: "center", padding: 40 }}><Loader2 size={24} color="#C9A24B" className="spin" /></div>}>
-              {view === "nutrition" && <NutritionView healthProfile={healthProfile} showToast={showToast} profile={profile} setProfile={setProfile} subscription={subscription} journeyActive={tourOpen} voiceCommand={voiceCommand} clearVoiceCommand={clearVoiceCommand} />}
+              {view === "nutrition" && <NutritionView healthProfile={healthProfile} showToast={showToast} profile={profile} setProfile={setProfile} subscription={subscription} journeyActive={tourOpen} voiceCommand={voiceCommand} clearVoiceCommand={clearVoiceCommand} onDisambiguationPendingChange={setNutritionAwaitingDisambiguation} />}
               {view === "nutritionPlan" && <NutritionPlanView healthProfile={healthProfile} showToast={showToast} subscription={subscription} setView={setView} />}
               {view === "dietPlans" && <DietPlansView healthProfile={healthProfile} showToast={showToast} subscription={subscription} />}
               {view === "fitness" && <FitnessView healthProfile={healthProfile} showToast={showToast} profile={profile} setProfile={setProfile} journeyActive={tourOpen} />}

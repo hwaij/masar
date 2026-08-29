@@ -2307,7 +2307,7 @@ function LabelPhotoPanel({ onSave, onManual, preselectedMealType }) {
   );
 }
 
-export default function NutritionView({ healthProfile, showToast, profile, setProfile, subscription, journeyActive, voiceCommand, clearVoiceCommand }) {
+export default function NutritionView({ healthProfile, showToast, profile, setProfile, subscription, journeyActive, voiceCommand, clearVoiceCommand, onDisambiguationPendingChange }) {
   const { t, i18n } = useTranslation();
   const [loaded, setLoaded] = useState(false);
   const [nutritionLog, setNutritionLog] = useState([]);
@@ -2681,6 +2681,18 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
   // أحدها، رقمه الترتيبي، أو "إلغاء") - انظر resolveFoodDisambiguation أدناه.
   const [pendingFoodDisambiguation, setPendingFoodDisambiguation] = useState(null); // {candidates, qty, unit}
   const [voiceConfirmTrigger, setVoiceConfirmTrigger] = useState(0);
+
+  // يُبلِغ MasarApp.jsx فوراً عند تغيّر حالة "بانتظار توضيح" - بدونه، أي كلام
+  // تالٍ لا يطابق أمراً ثابتاً (كقول اسم الخيار "أرز بني" مباشرة) كان يُصنَّف
+  // كأمر عام غير مفهوم في المستوى الأعلى فلا يصل لـresolveFoodDisambiguation
+  // هنا إطلاقاً - خلل حقيقي وُجد وأُصلح بهذا الإبلاغ.
+  useEffect(() => {
+    onDisambiguationPendingChange?.(!!pendingFoodDisambiguation);
+  }, [pendingFoodDisambiguation, onDisambiguationPendingChange]);
+  // يُصفِّر الإبلاغ في الأب عند مغادرة هذا القسم كلياً (تفكيك المكوّن) بينما
+  // كان توضيح ما معلَّقاً - وإلا يبقى العلم عالقاً true للأبد فيُساء تفسير أي
+  // كلام لاحق في أي قسم آخر كإجابة توضيح لم تعد موجودة أصلاً.
+  useEffect(() => () => onDisambiguationPendingChange?.(false), [onDisambiguationPendingChange]);
 
   // يفتح شاشة "تأكيد الكمية" الموحّدة نفسها (نفس ConfirmQuantityCard
   // المستخدَمة للبحث اليدوي) بصنف واحد واضح وكمية مطلوبة صوتياً - لا حفظ

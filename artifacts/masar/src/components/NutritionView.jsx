@@ -2741,9 +2741,20 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
     const raw = (cmd.raw || "").trim();
     if (!raw) return null;
     const isEn = i18n.language === "en";
-    const cancelWords = isEn ? ["cancel", "never mind", "none"] : ["إلغاء", "الغاء", "لا أحد", "ولا واحد"];
+    // "لا"/"no" مضافتان بنفس أهمية بقية كلمات الإلغاء (المستخدم يجب أن يقدر
+    // يلغي بأي صيغة قصيرة أثناء انتظار توضيح خيار طعام أيضاً، لا فقط أثناء
+    // انتظار تأكيد حفظ) - لكن كـtoken كامل فقط لا احتواء نصي خام، وإلا كلمة
+    // قصيرة كهذه قد تُطابِق خطأً داخل اسم صنف طعام حقيقي (كما أُصلِح تماماً
+    // لنفس السبب في matchesAny بـvoiceCommands.js).
+    const cancelWords = isEn ? ["cancel", "never mind", "none", "no"] : ["إلغاء", "الغاء", "لا أحد", "ولا واحد", "لا"];
     const normalizedRaw = normalizeSearchTerm(raw);
-    if (cancelWords.some((w) => normalizedRaw.includes(normalizeSearchTerm(w)))) return "cancel";
+    const rawTokens = normalizedRaw.split(" ").filter(Boolean);
+    const isCancel = cancelWords.some((w) => {
+      const wNorm = normalizeSearchTerm(w);
+      const wTokens = wNorm.split(" ").filter(Boolean);
+      return wTokens.length === 1 ? rawTokens.includes(wTokens[0]) : normalizedRaw.includes(wNorm);
+    });
+    if (isCancel) return "cancel";
     const ordinals = isEn ? ["first", "second", "third", "fourth"] : ["الأول", "الثاني", "الثالث", "الرابع"];
     for (let i = 0; i < ordinals.length; i++) {
       if (normalizedRaw.includes(normalizeSearchTerm(ordinals[i])) && pending.candidates[i]) return pending.candidates[i];
@@ -2780,6 +2791,8 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
 
     if (voiceCommand.type === "addWater") {
       addWaterCup();
+    } else if (voiceCommand.type === "readStatus") {
+      readStatusAloud();
     } else if (voiceCommand.type === "logFoodDraft") {
       handleVoiceLogFood(voiceCommand);
     } else if (voiceCommand.type === "confirmSave") {

@@ -1944,7 +1944,14 @@
       "foodNotFoundFallback": "I couldn't find {{name}} in the database. You can add it manually on screen, or try a different name.",
       "chooseFoodTitle": "Choose the item you meant",
       "chooseFoodPrompt": "Say the name of the item you meant, its number (first/second...), or tap it below.",
-      "disambiguationRetry": "I didn't understand which option you meant. Available options: {{options}}. Say one of their names, or cancel to go back."
+      "disambiguationRetry": "I didn't understand which option you meant. Available options: {{options}}. Say one of their names, or cancel to go back.",
+      "prayerLogged": "{{prayer}} prayer has been logged.",
+      "prayerAlreadyLogged": "{{prayer}} prayer is already logged for today.",
+      "nextPrayerAnswer": "The next prayer is {{prayer}} at {{time}}.",
+      "prayerTimeAnswer": "{{prayer}} prayer time is at {{time}}.",
+      "noPrayerDataAvailable": "Couldn't find prayer time data right now.",
+      "noTipShown": "No tip is shown today yet.",
+      "pageReadUnavailable": "Reading this section aloud isn't available yet."
     }
   }
 }

@@ -753,6 +753,12 @@ export default function MasarApp() {
     });
   }, [micSupported, i18n.language, showToast, t]);
 
+  // مُعرَّف هنا (لا بعد handleVoiceResult) عمداً - handleVoiceResult يقرأ
+  // dailyTip مباشرة (أمر readTip الصوتي) ويحتاجها في مصفوفة اعتماديات
+  // useCallback الخاصة به؛ تعريفها بعد ذلك نصياً كان يسبب خطأ TDZ حقيقياً
+  // (الوصول للمتغيّر قبل تنفيذ سطر إعلانه) عند تحميل المكوّن.
+  const [dailyTip, setDailyTip] = useState(null);
+
   const handleVoiceResult = useCallback(async (transcript) => {
     setIsListening(false);
     // نتيجة تعرّف فعلية وصلت (نشاط حقيقي) - تُعيد ضبط مهلة عدم النشاط الكاملة،
@@ -806,13 +812,31 @@ export default function MasarApp() {
       voiceNavigationRef.current = true;
       setView(cmd.view);
       speak(t("speech.voice.navigateConfirm", { section: t(`nav.${cmd.view}`) }), i18n.language);
-    } else if (cmd.type === "addWater" || cmd.type === "logFoodDraft" || cmd.type === "confirmSave" || cmd.type === "cancelPending") {
+    } else if (cmd.type === "addWater" || cmd.type === "logFoodDraft" || cmd.type === "confirmSave" || cmd.type === "cancelPending" || cmd.type === "readStatus") {
       if (view !== "nutrition") { voiceNavigationRef.current = true; setView("nutrition"); }
       setVoiceCommand(cmd);
       if (cmd.type === "addWater") speak(t("speech.voice.waterConfirm"), i18n.language);
       // logFoodDraft: الرد الفعلي (وجدت صنفاً/عدة خيارات/لم أجد شيئاً) يتولاه
       // NutritionView بعد بحث حقيقي فعلي - لا نص عام هنا بعد الآن.
-      // confirmSave/cancelPending: نفس مبدأ NutritionView أعلاه.
+      // confirmSave/cancelPending/readStatus: نفس مبدأ NutritionView أعلاه.
+    } else if (cmd.type === "logPrayer" || cmd.type === "nextPrayerQuery" || cmd.type === "prayerTimeQuery") {
+      if (view !== "prayer") { voiceNavigationRef.current = true; setView("prayer"); }
+      setVoiceCommand(cmd);
+      // الرد الفعلي (تم التسجيل/مسجَّلة مسبقاً/وقت الصلاة الحقيقي) يتولاه
+      // PrayerView بعد تحقّق فعلي - لا نص عام هنا، بنفس مبدأ التغذية أعلاه.
+    } else if (cmd.type === "readTip") {
+      // "بصيرة" اليوم فقط إن كانت معروضة/مسجَّلة فعلياً - بلا اختراع نصيحة
+      // جديدة إن لم تُعرَض بعد اليوم (dailyTip يبقى null حتى تظهر تلقائياً أو
+      // يُفتح القسم يدوياً)، تماماً كقاعدة عدم اختلاق بيانات غير موجودة.
+      if (dailyTip) speak(i18n.language === "en" ? (dailyTip.textEn || dailyTip.text) : dailyTip.text, i18n.language);
+      else speak(t("speech.voice.noTipShown"), i18n.language);
+    } else if (cmd.type === "readPage") {
+      // يعيد استخدام آلية "أعد القراءة" الموجودة مسبقاً (نفس نص speech.sections.<view>
+      // الحقيقي المعروض بصرياً بالفعل) - بلا أي محتوى جديد مختلق هنا. بعض
+      // الأقسام ليس لديها بعد وصف مكتوب لهذه الآلية (SPEECH_SECTIONS) - رد
+      // صادق بذلك بدل صمت غامض يوهم المستخدم أن الأمر لم يُفهَم أصلاً.
+      if (SPEECH_SECTIONS.has(view)) replayCurrentSection();
+      else speak(t("speech.voice.pageReadUnavailable"), i18n.language);
     } else if (cmd.aiSkipped) {
       // تمييز بين "لم يُفهم إطلاقاً" (خط الاحتياط الأساسي، أو فشل Gemini
       // فعلياً - نفس الرسالة الصادقة) و"يحتاج اشتراكاً للفهم الحر" (المطابقة
@@ -830,7 +854,7 @@ export default function MasarApp() {
       showToast(t("speech.voice.waitingNext"));
       restartTimerRef.current = setTimeout(() => beginListeningCycle(), RESTART_DELAY_MS);
     }
-  }, [i18n.language, t, view, isSub, nutritionAwaitingDisambiguation, armInactivityTimer, endVoiceSession, beginListeningCycle]);
+  }, [i18n.language, t, view, isSub, nutritionAwaitingDisambiguation, armInactivityTimer, endVoiceSession, beginListeningCycle, dailyTip, replayCurrentSection, SPEECH_SECTIONS]);
 
   const handleVoiceError = useCallback((code) => {
     setIsListening(false);
@@ -877,7 +901,6 @@ export default function MasarApp() {
   // عند إخفاء الصفحة على أي حال)، لكنه ينظّف المؤقتات والحالة المحلية بأمان.
   useEffect(() => () => clearVoiceSessionTimers(), [clearVoiceSessionTimers]);
 
-  const [dailyTip, setDailyTip] = useState(null);
   // Shows today's "بصيرة" tip once, automatically, the first time the app
   // is opened on a new local day — gated behind the splash AND the
   // onboarding tour (profile.tourSeen/tourOpen) so it never stacks on top
@@ -934,10 +957,10 @@ export default function MasarApp() {
   useEffect(() => {
     if (!loaded) return;
     const earned = BADGES.filter((b) => b.threshold(stats)).map((b) => b.id);
-    const newOnes = earned.filter((id) => !gamify.badges.includes(id));
+    const newOnes = earned.filter((id) => !(gamify?.badges || []).includes(id));
     if (newOnes.length) {
       const prevGamify = gamify;
-      const next = { ...gamify, badges: [...gamify.badges, ...newOnes] };
+      const next = { points: gamify?.points || 0, badges: [...(gamify?.badges || []), ...newOnes] };
       setGamify(next);
       store.saveGamify(next).then((res) => {
         if (!res.ok) { setGamify(prevGamify); showToast(t("common.errors.saveFailed")); }
@@ -947,9 +970,16 @@ export default function MasarApp() {
     }
   }, [stats, loaded]);
 
+  // حارس دفاعي حقيقي: وُجد أثناء اختبار تسجيل الصلاة الصوتي أن addPoints قد
+  // تُستدعى قبل استقرار حالة gamify فعلياً (سباق تحميل حقيقي يتكرر حتى بلا
+  // أي علاقة بالصوت - نفس الخلل يحدث بالضغط اليدوي المباشر على زر "صليت"
+  // بُعيد فتح التطبيق مباشرة) فتُقرأ points/badges من undefined ويتعطّل
+  // الاستدعاء بصمت (خطأ غير مُمسوك في الطرفية فقط، بلا تعطّل مرئي للمستخدم).
+  // القيمة الافتراضية للحالة نفسها ({points:0,badges:[]}) تبقى كما هي -
+  // هذا فقط يمنع القراءة من قيمة غير متوقعة إن وصلت لحظياً لأي سبب.
   const addPoints = useCallback((n, reason = "") => {
     let prevGamify;
-    setGamify((g) => { prevGamify = g; return { ...g, points: Math.max(0, g.points + n) }; });
+    setGamify((g) => { prevGamify = g || { points: 0, badges: [] }; return { ...prevGamify, points: Math.max(0, prevGamify.points + n) }; });
     // "missing locale key" لهذا السطر: common.pointsEarnedReason / common.pointsDeductedReason
     const logReason = reason || (n >= 0 ? (i18n.language === "en" ? "Points earned" : "نقاط مكتسبة") : (i18n.language === "en" ? "Points deducted" : "خصم نقاط"));
     // خلل حقيقي وُجد وأُصلح: تاريخ سجل النقاط (يُعرض للمستخدم مباشرة في
@@ -960,8 +990,13 @@ export default function MasarApp() {
     const logEntry = { id: uid(), date: localDayKey(), amount: n, reason: logReason };
     setPointsLog((prev) => [logEntry, ...prev].slice(0, 200));
     (async () => {
-      const gRes = await store.saveGamify({ ...prevGamify, points: Math.max(0, prevGamify.points + n) });
-      if (!gRes.ok) { setGamify(prevGamify); showToast(t("common.errors.saveFailed")); }
+      // نفس الحارس الدفاعي أعلاه بالضبط - وُجد أن prevGamify قد تبقى undefined
+      // هنا فعلياً رغم أن دالة setGamify التحديثية أعلاه تُسنِدها دوماً بشكل
+      // متزامن؛ حارس مطابق هنا يمنع نفس الخطأ في هذا المسار غير المتزامن أيضاً
+      // بصرف النظر عن السبب الدقيق (تشخيص أعمق يتجاوز نطاق هذه المهمة الحالية).
+      const basePrevGamify = prevGamify || { points: 0, badges: [] };
+      const gRes = await store.saveGamify({ ...basePrevGamify, points: Math.max(0, basePrevGamify.points + n) });
+      if (!gRes.ok) { setGamify(basePrevGamify); showToast(t("common.errors.saveFailed")); }
       const pRes = await store.addPointsLog(logEntry);
       if (!pRes.ok) setPointsLog((prev) => prev.filter((p) => p.id !== logEntry.id));
     })();
@@ -1038,6 +1073,7 @@ export default function MasarApp() {
             azkarLog={azkarLog} setAzkarLog={setAzkarLog} azkarItems={azkarItems} setAzkarItems={setAzkarItems}
             quranProgress={quranProgress} setQuranProgress={setQuranProgress} istighfar={istighfar} setIstighfar={setIstighfar}
             addPoints={addPoints} showToast={showToast} profile={profile} setProfile={setProfile}
+            voiceCommand={voiceCommand} clearVoiceCommand={clearVoiceCommand}
           />
         )}
         {view === "adhkar" && <AdhkarView showToast={showToast} />}
@@ -3871,7 +3907,7 @@ function religiousTaskTitle(task, t) {
 function PrayerView({
   prayerLog, setPrayerLog, religious, setReligious,
   azkarLog, setAzkarLog, azkarItems, setAzkarItems, quranProgress, setQuranProgress, istighfar, setIstighfar,
-  addPoints, showToast, profile, setProfile,
+  addPoints, showToast, profile, setProfile, voiceCommand, clearVoiceCommand,
 }) {
   const { t, i18n } = useTranslation();
   const language = i18n.language;
@@ -3935,20 +3971,55 @@ function PrayerView({
       const removed = prayerLog.find((x) => x.date === today && x.prayerId === p.id);
       setPrayerLog((prev) => prev.filter((x) => !(x.date === today && x.prayerId === p.id)));
       const res = await store.removePrayer(today, p.id);
-      if (!res.ok) { if (removed) setPrayerLog((prev) => [removed, ...prev]); showToast(t("common.errors.genericRetry")); return; }
+      if (!res.ok) { if (removed) setPrayerLog((prev) => [removed, ...prev]); showToast(t("common.errors.genericRetry")); return false; }
       addPoints(-20, t("prayer.undoPrayer", { prayer: prayerName(p.id) }));
+      return true;
     } else {
       const [adhanH, adhanM] = p.time.split(":").map(Number);
       const minutesAfterAdhan = Math.max(0, (now.getHours() * 60 + now.getMinutes()) - (adhanH * 60 + adhanM));
       const entry = { id: uid(), date: today, prayerId: p.id, minutesAfterAdhan };
       setPrayerLog((prev) => [entry, ...prev]);
       const res = await store.savePrayer(entry);
-      if (!res.ok) { setPrayerLog((prev) => prev.filter((x) => x.id !== entry.id)); showToast(t("common.errors.saveFailed")); return; }
+      if (!res.ok) { setPrayerLog((prev) => prev.filter((x) => x.id !== entry.id)); showToast(t("common.errors.saveFailed")); return false; }
       addPoints(20);
       playSaveSound();
       showToast(prayerTimingMessage(prayerName(p.id), minutesAfterAdhan, t));
+      return true;
     }
   }
+
+  // أوامر صوتية موجَّهة لهذا القسم (سجّل صلاة/متى الصلاة الجاية/متى أذان
+  // كذا) - نفس نمط voiceCommand/clearVoiceCommand في NutritionView تماماً.
+  // logPrayer: لا ننفّذ togglePrayer فوراً بلا فحص - togglePrayer نفسها
+  // تُبدِّل بين تسجيل وإلغاء، فتنفيذها على صلاة مسجَّلة مسبقاً سيُلغيها خطأً
+  // بدل تجاهل الأمر أو إخبار المستخدم أنها مسجَّلة أصلاً؛ نتحقق من isDone
+  // أولاً ونرد بصدق دون تنفيذ أي شيء إن كانت مسجَّلة بالفعل. الرد الصوتي
+  // ينتظر نتيجة الحفظ الفعلية (togglePrayer تُرجع الآن true/false) قبل قول
+  // أي شيء عن النجاح - نفس مبدأ عدم الكذب بالنجاح قبل تأكّده فعلياً.
+  useEffect(() => {
+    if (!voiceCommand) return;
+    if (voiceCommand.type === "logPrayer") {
+      const p = prayers.find((x) => x.id === voiceCommand.prayerId);
+      if (!p) {
+        speak(t("speech.voice.unrecognized"), language);
+      } else if (isDone(p.id)) {
+        speak(t("speech.voice.prayerAlreadyLogged", { prayer: prayerName(p.id) }), language);
+      } else {
+        togglePrayer(p).then((ok) => {
+          speak(t(ok ? "speech.voice.prayerLogged" : "common.errors.saveFailed", { prayer: prayerName(p.id) }), language);
+        });
+      }
+    } else if (voiceCommand.type === "nextPrayerQuery") {
+      if (next) speak(t("speech.voice.nextPrayerAnswer", { prayer: prayerName(next.id), time: to12h(next.time) }), language);
+      else speak(t("speech.voice.noPrayerDataAvailable"), language);
+    } else if (voiceCommand.type === "prayerTimeQuery") {
+      const p = prayers.find((x) => x.id === voiceCommand.prayerId);
+      if (p) speak(t("speech.voice.prayerTimeAnswer", { prayer: prayerName(p.id), time: to12h(p.time) }), language);
+      else speak(t("speech.voice.noPrayerDataAvailable"), language);
+    }
+    clearVoiceCommand?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voiceCommand]);
 
   // نافذة الأسبوع الحالي بالتاريخ المحلي (localDayKey) لا UTC، حتى لا
   // تنزاح إحصائية "هذا الأسبوع" ساعات قرب منتصف الليل كما كان يحدث سابقاً

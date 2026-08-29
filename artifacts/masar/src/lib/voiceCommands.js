@@ -94,7 +94,7 @@ const READ_STATUS_PHRASES = {
 // قراءة نصيحة اليوم المعروضة فعلياً (dailyTip state في MasarApp.jsx) - نص
 // حقيقي مُراجَع مسبقاً من lib/tips.js، لا نص مُختلَق.
 const READ_TIP_PHRASES = {
-  ar: ["اقرأ نصيحة اليوم", "اقرأ لي النصيحة", "شنو نصيحة اليوم", "اقرأ البصيرة"],
+  ar: ["اقرأ نصيحة اليوم", "اقرأ لي النصيحة", "شنو نصيحة اليوم", "اقرأ البصيرة", "اقرأ لي بصيرة اليوم", "اقرأ بصيرة اليوم", "بصيرة اليوم شنو"],
   en: ["read the tip", "read today's tip", "read my daily tip", "what's the tip today"],
 };
 
@@ -119,13 +119,19 @@ const NEXT_PRAYER_PHRASES = {
   ar: ["الصلاة الجاية", "الصلاة القادمة", "شنو الصلاة الجاية", "متى الصلاة الجاية", "متى الصلاة القادمة"],
   en: ["next prayer", "what's the next prayer", "when is the next prayer"],
 };
-const PRAYER_TIME_QUERY_WORDS = { ar: ["متى", "وقت"], en: ["when", "what time"] };
+const PRAYER_TIME_QUERY_WORDS = { ar: ["متى", "وقت", "أذان"], en: ["when", "what time"] };
 
+// تُزال علامات الترقيم الشائعة (عربية وإنجليزية) قبل التوكِنة - بدونها، كلمة
+// أخيرة في الجملة مثل "المغرب؟" لن تُطابِق أبداً توكِن العبارة الثابتة
+// "المغرب" (خطأ حقيقي وُجد أثناء الاختبار الفعلي: "متى أذان المغرب؟" و"شنو
+// الصلاة الجاية؟" كانتا تفشلان بصمت وتذهبان لمسار Gemini رغم وجود عبارة
+// ثابتة مطابقة تماماً لولا علامة الاستفهام المرفَقة بلا مسافة).
 function normalize(text, lang) {
   let t = (text || "").trim().toLowerCase();
   if (lang !== "en") {
     t = t.replace(/[ً-ْ]/g, "").replace(/[إأآا]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي");
   }
+  t = t.replace(/[؟?!.,،؛:]/g, "");
   return t.replace(/\s+/g, " ").trim();
 }
 
@@ -194,15 +200,18 @@ export function parseVoiceCommand(rawText, lang) {
   if (matchesAny(text, READ_TIP_PHRASES[key], key)) return { type: "readTip", raw: rawText };
   if (matchesAny(text, READ_PAGE_PHRASES[key], key)) return { type: "readPage", raw: rawText };
 
-  // الصلاة: كلمة مشغِّلة (صلاة/صليت أو prayer/pray) + اسم صلاة صريح = تسجيل.
-  if (matchesAny(text, PRAYER_TRIGGER_WORDS[key], key)) {
-    const prayerId = findPrayerId(text, key);
-    if (prayerId) {
-      const isTimeQuery = matchesAny(text, PRAYER_TIME_QUERY_WORDS[key], key);
-      return isTimeQuery
-        ? { type: "prayerTimeQuery", prayerId, raw: rawText }
-        : { type: "logPrayer", prayerId, raw: rawText };
-    }
+  // الصلاة: اسم صلاة صريح + (كلمة استفهام عن الوقت = استعلام، أو كلمة تسجيل
+  // إنجاز = تسجيل). البحث عن اسم الصلاة أولاً بلا اشتراط كلمة "صلاة" ابتداءً
+  // - "متى أذان المغرب" مثلاً لا تحوي "صلاة" إطلاقاً، فاشتراطها قبل البحث عن
+  // اسم الصلاة كان يمنع فهم هذه الصياغة الشائعة جداً كلياً رغم توفّر عبارة
+  // استفهام واضحة ("متى"). عدم وجود أي من الكلمتين مع اسم صلاة مجرَّد (فقط
+  // "المغرب" مثلاً بلا سياق) يُترَك بلا نتيجة عمداً - غموض حقيقي لا يستحق تخميناً.
+  const prayerId = findPrayerId(text, key);
+  if (prayerId) {
+    const isTimeQuery = matchesAny(text, PRAYER_TIME_QUERY_WORDS[key], key);
+    const isLogTrigger = matchesAny(text, PRAYER_TRIGGER_WORDS[key], key);
+    if (isTimeQuery) return { type: "prayerTimeQuery", prayerId, raw: rawText };
+    if (isLogTrigger) return { type: "logPrayer", prayerId, raw: rawText };
   }
   if (matchesAny(text, NEXT_PRAYER_PHRASES[key], key)) return { type: "nextPrayerQuery", raw: rawText };
 

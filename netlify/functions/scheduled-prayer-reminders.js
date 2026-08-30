@@ -63,6 +63,12 @@ const MEAL_ANCHORS_MIN = { breakfast: 8 * 60, lunch: 13 * 60, dinner: 19 * 60 };
 // ساعة؛ كل منهما يُرسَل فقط إن لم يُسجَّل أي كوب ماء بعد اليوم (checked في
 // processWater)، فلو سجّل المستخدم كوباً بين الاثنين، الثاني لا يُرسَل أصلاً.
 const WATER_ANCHORS_MIN = { water_midday: 12 * 60 + 30, water_afternoon: 16 * 60 + 30 };
+// تذكير "وقت النوم المخطَّط" (Priority 3): وقت ثابت واحد لكل المستخدمين معاً
+// (نفس نمط الوجبات/الماء أعلاه، لا إعداد شخصي بعد) - 21:00 اختير عمداً قبل
+// بداية Quiet Hours الافتراضية (22:00) بساعة كاملة، فلا حاجة لإضافة "sleep"
+// إلى QUIET_HOURS_EXEMPT_CATEGORIES في notification-engine.js إطلاقاً (يبقى
+// ذلك الاستثناء خاصاً بالصلاة وحدها كما هو موثَّق هناك).
+const SLEEP_BEDTIME_ANCHOR_MIN = 21 * 60;
 
 function isDueNow(nowMin, anchorMin, halfWidth) {
   return nowMin >= anchorMin - halfWidth && nowMin < anchorMin + halfWidth;
@@ -167,10 +173,15 @@ exports.handler = async (event) => {
   const dueWaterKeys = Object.keys(WATER_ANCHORS_MIN).filter((key) =>
     isDueNow(nowMin, WATER_ANCHORS_MIN[key], REMINDER_WINDOW_HALF_MIN),
   );
+  const sleepBedtimeDue = isDueNow(nowMin, SLEEP_BEDTIME_ANCHOR_MIN, REMINDER_WINDOW_HALF_MIN);
 
-  if (duePrayers.length === 0 && dueMeals.length === 0 && dueWaterKeys.length === 0) {
-    console.log(`[scheduled-prayer-reminders] nothing due right now (${nowHHMM} Kuwait).`);
-    return { statusCode: 200, body: "nothing due" };
+  // تذكير الاستيقاظ لا "نافذة استحقاق" عامة واحدة له (كل مستخدم يخطِّط وقته
+  // الخاص) - لا يمكن معرفة إن كان أي أحد مستحقاً الآن بلا قراءة sleep_log
+  // فعلياً، فيُستدعى processSleepWake في كل تشغيلة بلا استثناء أدناه (استعلام
+  // خفيف: صف واحد فقط لكل مستخدم خطَّط لليلته)، بخلاف كل الفئات الأخرى ذات
+  // النافذة الثابتة المفحوصة هنا مسبقاً بلا أي استعلام.
+  if (duePrayers.length === 0 && dueMeals.length === 0 && dueWaterKeys.length === 0 && !sleepBedtimeDue) {
+    console.log(`[scheduled-prayer-reminders] nothing on a fixed schedule due right now (${nowHHMM} Kuwait) - still checking per-user sleep wake times.`);
   }
 
   const headers = serviceHeaders(serviceRoleKey);
@@ -206,6 +217,23 @@ exports.handler = async (event) => {
       summary.push({ type: "water", id: waterKey, error: String(e) });
     }
   }
+  if (sleepBedtimeDue) {
+    const occurrenceKey = buildOccurrenceKey(todayKey, "bedtime");
+    try {
+      const result = await processSleepBedtime({ url, headers, occurrenceKey, todayKey, nowHHMM });
+      summary.push({ type: "sleep", id: "bedtime", ...result });
+    } catch (e) {
+      console.error("[scheduled-prayer-reminders] processing sleep bedtime failed:", e);
+      summary.push({ type: "sleep", id: "bedtime", error: String(e) });
+    }
+  }
+  try {
+    const result = await processSleepWake({ url, headers, todayKey, nowHHMM, nowMin });
+    summary.push({ type: "sleep", id: "wake", ...result });
+  } catch (e) {
+    console.error("[scheduled-prayer-reminders] processing sleep wake failed:", e);
+    summary.push({ type: "sleep", id: "wake", error: String(e) });
+  }
 
   console.log("[scheduled-prayer-reminders] run summary:", JSON.stringify(summary));
   return { statusCode: 200, body: JSON.stringify(summary) };
@@ -219,7 +247,11 @@ exports.handler = async (event) => {
 // (prayer_log/nutrition_log/water_log) قبل استدعاء هذه - غير مُصفّاة مسبقاً
 // بمن يملك اشتراك Push فعلي (تُصفّى هنا لاحقاً عبر fulfilledOwners.has)،
 // تبسيطاً مقبولاً بحجم المستخدمين الحالي لهذا التطبيق.
-async function processReminder({ url, headers, category, occurrenceKey, nowHHMM, fulfilledOwners, message, linkPath }) {
+// restrictOwners اختياري (Set) - يُستخدَم فقط من processSleepWake حالياً حيث
+// "المستحق الآن" يختلف باختلاف المستخدم (وقت استيقاظه المخطَّط الخاص)، بخلاف
+// كل الفئات الأخرى ذات نافذة الاستحقاق العامة الواحدة (تُفحَص مسبقاً في
+// exports.handler قبل استدعاء هذه الدالة أصلاً، فلا تحتاج تقييداً هنا).
+async function processReminder({ url, headers, category, occurrenceKey, nowHHMM, fulfilledOwners, message, linkPath, restrictOwners }) {
   // 1) من أُرسل له بالفعل هذه المناسبة تحديداً - منع تكرار حقيقي حتى لو
   // تشغّلت الدالة مرتين لنفس النافذة (تداخل تشغيل، إعادة محاولة تلقائية...).
   const alreadySent = await fetchJson(
@@ -232,7 +264,8 @@ async function processReminder({ url, headers, category, occurrenceKey, nowHHMM,
   // الأعلى - profile.notifications_enabled، لا علاقة لهذا بـallowlist
   // الاختبار في prayer-reminder-test.js إطلاقاً).
   const candidates = await fetchJson(`${url}/rest/v1/profile?notifications_enabled=eq.true&select=owner`, headers);
-  const candidateOwners = candidates.map((r) => r.owner).filter((o) => o && o !== "solo");
+  let candidateOwners = candidates.map((r) => r.owner).filter((o) => o && o !== "solo");
+  if (restrictOwners) candidateOwners = candidateOwners.filter((o) => restrictOwners.has(o));
   if (candidateOwners.length === 0) return { eligible: 0, sent: 0 };
 
   // 3) اشتراكات Push الفعلية لهؤلاء - تُستخدَم أيضاً مباشرة للإرسال (لا
@@ -255,7 +288,7 @@ async function processReminder({ url, headers, category, occurrenceKey, nowHHMM,
   // واحد بعد) يُعامَل بالقيم الافتراضية أدناه (مطابقة لقيم العمود الافتراضية
   // في المخطط).
   const prefsRows = await fetchJson(
-    `${url}/rest/v1/notification_preferences?owner=in.${inList(ownersWithSubs)}&select=owner,daily_cap,quiet_hours_start,quiet_hours_end,category_prayer,category_water,category_meals`,
+    `${url}/rest/v1/notification_preferences?owner=in.${inList(ownersWithSubs)}&select=owner,daily_cap,quiet_hours_start,quiet_hours_end,category_prayer,category_water,category_meals,category_sleep`,
     headers,
   );
   const prefsByOwner = new Map(prefsRows.map((r) => [r.owner, r]));
@@ -396,5 +429,70 @@ async function processWater({ url, headers, occurrenceKey, todayKey, nowHHMM }) 
     fulfilledOwners: new Set(logged.map((r) => r.owner)),
     message,
     linkPath: "/nutrition",
+  });
+}
+
+// تذكير "وقت النوم المخطَّط" (Priority 3): نافذة استحقاق ثابتة وواحدة لكل
+// المستخدمين معاً (فُحصت مسبقاً في exports.handler عبر SLEEP_BEDTIME_ANCHOR_MIN)
+// - تماماً كنمط الوجبات/الماء. "أنجز الفعل بالفعل" هنا يعني "خطَّط بالفعل
+// لليلته" (planned_bedtime مُسجَّل اليوم في sleep_log)، لا تسجيل نوم فعلي (ذلك
+// يأتي لاحقاً عبر تذكير الاستيقاظ/الإدخال اليدوي). linkPath يوجِّه إلى /reports
+// (قسم النوم يُفتَح من هناك حالياً - لا رابط تعمُّق مباشر لقسم فرعي بعد).
+async function processSleepBedtime({ url, headers, occurrenceKey, todayKey, nowHHMM }) {
+  const planned = await fetchJson(
+    `${url}/rest/v1/sleep_log?date=eq.${todayKey}&planned_bedtime=not.is.null&select=owner`,
+    headers,
+  );
+  const message = buildMessage("sleep", "ar", {});
+  return processReminder({
+    url,
+    headers,
+    category: "sleep",
+    occurrenceKey,
+    nowHHMM,
+    fulfilledOwners: new Set(planned.map((r) => r.owner)),
+    message,
+    linkPath: "/reports",
+  });
+}
+
+// تذكير "وقت الاستيقاظ" (Priority 3): بخلاف كل الفئات الأخرى، لا نافذة
+// استحقاق عامة واحدة هنا - كل مستخدم يخطِّط وقت استيقاظه الخاص (planned_wake_time
+// في sleep_log)، فتُبنى قائمة "المستحقين الآن" هنا مباشرة من البيانات الفعلية
+// ثم تُمرَّر إلى processReminder عبر restrictOwners لتقييد المرشَّحين بهم فقط.
+// من أكّد استيقاظه الفعلي بالفعل (wake_time غير فارغ) يُستبعَد كـfulfilled -
+// لا افتراض إطلاقاً أن غياب التفاعل مع تذكير سابق يعني عدم الاستيقاظ؛ الحقل
+// يبقى فارغاً بصدق حتى يُدخله المستخدم بنفسه لاحقاً إن رغب.
+async function processSleepWake({ url, headers, todayKey, nowHHMM, nowMin }) {
+  const planned = await fetchJson(
+    `${url}/rest/v1/sleep_log?date=eq.${todayKey}&planned_wake_time=not.is.null&select=owner,planned_wake_time,wake_time`,
+    headers,
+  );
+  if (planned.length === 0) return { eligible: 0, sent: 0 };
+
+  const fulfilledOwners = new Set(planned.filter((r) => r.wake_time != null).map((r) => r.owner));
+  const dueOwners = new Set(
+    planned
+      .filter((r) => !fulfilledOwners.has(r.owner))
+      .filter((r) => {
+        const [wh, wm] = r.planned_wake_time.split(":").map(Number);
+        return isDueNow(nowMin, wh * 60 + wm, REMINDER_WINDOW_HALF_MIN);
+      })
+      .map((r) => r.owner),
+  );
+  if (dueOwners.size === 0) return { eligible: 0, sent: 0 };
+
+  const occurrenceKey = buildOccurrenceKey(todayKey, "wake");
+  const message = buildMessage("sleep", "ar", { variant: "wake" });
+  return processReminder({
+    url,
+    headers,
+    category: "sleep",
+    occurrenceKey,
+    nowHHMM,
+    fulfilledOwners,
+    message,
+    linkPath: "/reports",
+    restrictOwners: dueOwners,
   });
 }

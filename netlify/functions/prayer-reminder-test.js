@@ -120,7 +120,7 @@ exports.handler = async (event) => {
   let body = {};
   try { body = JSON.parse(event.body || "{}"); } catch { /* بلا body صالح - نستخدم الصلاة القادمة تلقائياً */ }
   const lang = body?.lang === "en" ? "en" : "ar";
-  const category = body?.category === "meals" || body?.category === "water" ? body.category : "prayer";
+  const category = ["meals", "water", "sleep"].includes(body?.category) ? body.category : "prayer";
 
   // بناء الرسالة ومعلومات الاستجابة حسب الفئة المطلوبة - لا فحص أهلية حقيقي
   // هنا (لا notification_log/nutrition_log/water_log) عمداً: هذه أداة اختبار
@@ -136,6 +136,12 @@ exports.handler = async (event) => {
     message = buildMessage("water", lang, {});
     notificationPayload = JSON.stringify({ title: message.title, body: message.body, url: "/nutrition" });
     responseExtra = {};
+  } else if (category === "sleep") {
+    // variant: "bedtime" (افتراضي) أو "wake" - نفس متغيّري notification-engine.js
+    const variant = body?.variant === "wake" ? "wake" : "bedtime";
+    message = buildMessage("sleep", lang, { variant });
+    notificationPayload = JSON.stringify({ title: message.title, body: message.body, url: "/reports" });
+    responseExtra = { sleep: { variant } };
   } else {
     // يسمح بتحديد صلاة بعينها صراحة (لاختبار فوري بلا انتظار الوقت الحقيقي)،
     // وإلا يستخدم الصلاة القادمة فعلياً الآن بتوقيت الكويت - كلا المسارين

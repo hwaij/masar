@@ -2766,7 +2766,12 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
   const [expandedDay, setExpandedDay] = useState(null);
 
   function exportDailyCsv() {
-    const csv = rowsToCsv(dailyReportRows, getOwner());
+    // اسم شخصي كما أدخله المستخدم بنفسه (profile.name) بدل المعرّف التقني -
+    // هذا تصدير شخصي (المستخدم يُصدِّر بياناته هو لنفسه)، لا تصدير بحثي جماعي؛
+    // راجع التعليق في rowsToCsv (comprehensiveReport.js) لمبدأ الخصوصية
+    // المطلوب مستقبلاً لو استُخدم النظام يوماً لتصدير بيانات عدة مشاركين.
+    const exportName = profile?.name?.trim() || t("reportsView.daily.csvUnnamedUser");
+    const csv = rowsToCsv(dailyReportRows, exportName);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -3486,7 +3491,8 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
         ) : (
           <>
             <p style={RS.dailyIntro}>{t("reportsView.daily.intro")}</p>
-            <button onClick={exportDailyCsv} style={S.exportBtn}><Download size={14} /> {t("reportsView.daily.exportCsv")}</button>
+            <button onClick={exportDailyCsv} style={S.exportBtn} title={t("reportsView.daily.exportCsvNote")}><Download size={14} /> {t("reportsView.daily.exportCsv")}</button>
+            <p style={{ fontSize: 10.5, color: "var(--muted2)", lineHeight: 1.6, margin: "-8px 0 12px" }}>{t("reportsView.daily.exportCsvNote")}</p>
             <div className="stagger-in">
               {[...dailyReportRows].reverse().map((row) => {
                 const isOpen = expandedDay === row.date;
@@ -3509,9 +3515,12 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
                     {isOpen && (
                       <div style={RS.dailyDetail}>
                         <div style={RS.dailySection}>{t("reportsView.daily.sleepSection")}</div>
+                        {row.plannedHours != null && (
+                          <div style={RS.dailyRow}><span>{t("reportsView.daily.sleepPlannedLabel")}: {row.plannedBedtime || "—"} ← {row.plannedWakeTime || "—"}</span><span>{formatNumberLatin(row.plannedHours, language)} {t("common.units.hours")}</span></div>
+                        )}
                         {row.sleepHours != null ? (
-                          <div style={RS.dailyRow}><span>{row.sleepBedtime || "—"} ← {row.sleepWakeTime || "—"}</span><span>{formatNumberLatin(row.sleepHours, language)} {t("common.units.hours")}</span></div>
-                        ) : <div style={S.emptyHint}>{t("common.states.noDataYet")}</div>}
+                          <div style={RS.dailyRow}><span>{t("reportsView.daily.sleepActualLabel")}: {row.sleepBedtime || "—"} ← {row.sleepWakeTime || "—"}</span><span>{formatNumberLatin(row.sleepHours, language)} {t("common.units.hours")}</span></div>
+                        ) : row.plannedHours == null && <div style={S.emptyHint}>{t("common.states.noDataYet")}</div>}
 
                         <div style={RS.dailySection}>{t("reportsView.daily.nutritionSection")}</div>
                         {meals.length ? meals.map((m) => (
@@ -3587,7 +3596,12 @@ function SleepSection({ sleepLog, setSleepLog, days, range, showToast }) {
     }
     if (!Number.isFinite(hours) || hours <= 0 || hours > 24) { showToast(t("sleep.invalidHours")); return; }
     const existing = sleepLog.find((s) => s.date === today);
-    const entry = { id: existing ? existing.id : uid(), date: today, sleepTime: sTime, wakeTime: wTime, hours };
+    // يحافظ على أي خطة مساء مُدخَلة مسبقاً لهذا اليوم (plannedBedtime/
+    // plannedWakeTime) بدل استبدالها بلا داعٍ - هذا النموذج يُحدِّث الفعلي فقط.
+    const entry = {
+      id: existing ? existing.id : uid(), date: today, sleepTime: sTime, wakeTime: wTime, hours,
+      plannedBedtime: existing?.plannedBedtime ?? null, plannedWakeTime: existing?.plannedWakeTime ?? null,
+    };
     const prevLog = sleepLog;
     setSleepLog((prev) => existing ? prev.map((s) => (s.date === today ? entry : s)) : [entry, ...prev]);
     const ok = await store.saveSleepEntry(entry);
@@ -3595,8 +3609,65 @@ function SleepSection({ sleepLog, setSleepLog, days, range, showToast }) {
     else { setSleepLog(prevLog); showToast(t("common.errors.saveFailed")); }
   }
 
+  // ===== Priority 3: خطّة الليلة (مخطَّط) + تأكيد الاستيقاظ (فعلي) =====
+  // منفصلان تماماً عن نموذج "سجّل ليلة أمس" أعلاه (استرجاعي دائماً) - هذان
+  // يخصّان الليلة القادمة/اليوم الحالي تحديداً، ومُصمَّمان ليُفتَحا مباشرة من
+  // تذكير Push حقيقي (وقت النوم مساءً، ثم وقت الاستيقاظ المخطَّط) أو يدوياً.
+  const [showPlanForm, setShowPlanForm] = useState(false);
+  const [planBedtime, setPlanBedtime] = useState(todayEntry?.plannedBedtime || "23:00");
+  const [planWakeTime, setPlanWakeTime] = useState(todayEntry?.plannedWakeTime || "07:00");
+  const [showWakeConfirm, setShowWakeConfirm] = useState(false);
+  const [confirmSleepTime, setConfirmSleepTime] = useState(todayEntry?.plannedBedtime || "23:00");
+  const [confirmWakeTime, setConfirmWakeTime] = useState(todayEntry?.plannedWakeTime || "07:00");
+
+  const plannedDurationHours = todayEntry?.plannedBedtime && todayEntry?.plannedWakeTime
+    ? +(diffMinutes(todayEntry.plannedBedtime, todayEntry.plannedWakeTime) / 60).toFixed(2)
+    : null;
+  const hasPlanToday = !!(todayEntry?.plannedBedtime && todayEntry?.plannedWakeTime);
+  // الاستيقاظ "مؤكَّد" فعلياً فقط إن وُجدت قيمة wakeTime حقيقية لهذا اليوم -
+  // لا افتراض أي قيمة قبل ذلك، بالضبط كما طُلب (لا نعرف تلقائياً متى استيقظ).
+  const actualWakeConfirmed = !!todayEntry?.wakeTime;
+
+  async function savePlan() {
+    if (!planBedtime || !planWakeTime) { showToast(t("sleep.invalidHours")); return; }
+    const existing = sleepLog.find((s) => s.date === today);
+    // يحافظ على أي بيانات فعلية سابقة لهذا اليوم (sleepTime/wakeTime/hours)
+    // - هذا النموذج يُحدِّث الخطة المخطَّطة فقط، لا الفعلي.
+    const entry = {
+      id: existing ? existing.id : uid(), date: today,
+      sleepTime: existing?.sleepTime ?? null, wakeTime: existing?.wakeTime ?? null, hours: existing?.hours ?? null,
+      plannedBedtime: planBedtime, plannedWakeTime: planWakeTime,
+    };
+    const prevLog = sleepLog;
+    setSleepLog((prev) => existing ? prev.map((s) => (s.date === today ? entry : s)) : [entry, ...prev]);
+    const ok = await store.saveSleepEntry(entry);
+    if (ok) { showToast(t("sleep.planSaved")); setShowPlanForm(false); }
+    else { setSleepLog(prevLog); showToast(t("common.errors.saveFailed")); }
+  }
+
+  async function confirmActualWake() {
+    const hours = +(diffMinutes(confirmSleepTime, confirmWakeTime) / 60).toFixed(2);
+    if (!Number.isFinite(hours) || hours <= 0 || hours > 24) { showToast(t("sleep.invalidHours")); return; }
+    const existing = sleepLog.find((s) => s.date === today);
+    const entry = {
+      id: existing ? existing.id : uid(), date: today,
+      sleepTime: confirmSleepTime, wakeTime: confirmWakeTime, hours,
+      plannedBedtime: existing?.plannedBedtime ?? null, plannedWakeTime: existing?.plannedWakeTime ?? null,
+    };
+    const prevLog = sleepLog;
+    setSleepLog((prev) => existing ? prev.map((s) => (s.date === today ? entry : s)) : [entry, ...prev]);
+    const ok = await store.saveSleepEntry(entry);
+    if (ok) { showToast(t("sleep.wakeConfirmed")); setShowWakeConfirm(false); }
+    else { setSleepLog(prevLog); showToast(t("common.errors.saveFailed")); }
+  }
+
   const rangeEntries = useMemo(() => sleepLog.filter((s) => days.includes(s.date)), [sleepLog, days]);
-  const avgHours = rangeEntries.length ? rangeEntries.reduce((sum, s) => sum + s.hours, 0) / rangeEntries.length : null;
+  // خلل حقيقي وُجد وأُصلح: hours قد تكون null الآن (يوم بخطة فقط بلا نوم فعلي
+  // بعد) - جمعها كأرقام مباشرة كان سيُحوِّل null إلى 0 حسابياً (JS)، فيُخفِض
+  // متوسط النوم زوراً كأن المستخدم نام صفر ساعة ذلك اليوم بدل تجاهله كبيانات
+  // غير متوفرة بعد.
+  const hoursEntries = useMemo(() => rangeEntries.filter((s) => typeof s.hours === "number"), [rangeEntries]);
+  const avgHours = hoursEntries.length ? hoursEntries.reduce((sum, s) => sum + s.hours, 0) / hoursEntries.length : null;
   const typicalBedtime = useMemo(() => {
     const bedtimes = rangeEntries.filter((s) => s.sleepTime).map((s) => s.sleepTime);
     if (!bedtimes.length) return null;
@@ -3623,6 +3694,71 @@ function SleepSection({ sleepLog, setSleepLog, days, range, showToast }) {
   return (
     <div style={S.chartCard}>
       <div style={S.chartTitle}>{t("sleep.chartTitle")}</div>
+      {/* الصدق التقني المطلوب صراحةً: هذا تسجيل يدوي بمساعدة تذكيرات وقتية
+          فقط - مسار لا "يعرف" نوم المستخدم تلقائياً بأي شكل. */}
+      <p style={{ fontSize: 11, color: "var(--muted2)", lineHeight: 1.6, margin: "-6px 0 12px" }}>{t("sleep.manualTrackingNote")}</p>
+
+      <div style={{ background: "var(--surface-sunken)", borderRadius: 12, padding: "12px 14px", marginBottom: 14 }} data-tour="sleep-plan-card">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--ink)" }}>{t("sleep.tonightPlanTitle")}</div>
+          {!showPlanForm && (
+            <button onClick={() => setShowPlanForm(true)} style={{ background: "transparent", border: "none", color: "var(--gold)", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+              {hasPlanToday ? t("sleep.editPlan") : t("sleep.setPlan")}
+            </button>
+          )}
+        </div>
+        {hasPlanToday && !showPlanForm && (
+          <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 6 }}>
+            {isolateNumbers(t("sleep.planSummary", { bedtime: to12h(todayEntry.plannedBedtime), wake: to12h(todayEntry.plannedWakeTime), hours: plannedDurationHours }))}
+          </div>
+        )}
+        {!hasPlanToday && !showPlanForm && <div style={{ fontSize: 12, color: "var(--muted2)", marginTop: 6 }}>{t("sleep.noPlanYet")}</div>}
+        {showPlanForm && (
+          <div style={{ marginTop: 10 }}>
+            <div style={{ display: "flex", gap: 10 }}>
+              <div style={{ flex: 1 }}>
+                <label style={S.label}>{t("sleep.plannedBedtimeLabel")}</label>
+                <input type="time" value={planBedtime} onChange={(e) => setPlanBedtime(e.target.value)} style={{ ...S.input, marginTop: 6 }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={S.label}>{t("sleep.plannedWakeLabel")}</label>
+                <input type="time" value={planWakeTime} onChange={(e) => setPlanWakeTime(e.target.value)} style={{ ...S.input, marginTop: 6 }} />
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+              <button onClick={savePlan} style={{ ...S.saveBtn, marginTop: 0, flex: 1 }}>{t("common.buttons.save")}</button>
+              <button onClick={() => setShowPlanForm(false)} style={{ ...S.exportBtn, marginTop: 0, marginBottom: 0, width: "auto", padding: "0 16px" }}>{t("common.buttons.cancel")}</button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {hasPlanToday && !actualWakeConfirmed && (
+        <div style={{ background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.3)", borderRadius: 12, padding: "12px 14px", marginBottom: 14 }} data-tour="sleep-wake-confirm-card">
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--ink)" }}>{t("sleep.wakeConfirmTitle")}</div>
+          {!showWakeConfirm ? (
+            <button onClick={() => setShowWakeConfirm(true)} style={{ ...S.saveBtn, marginTop: 10 }}>{t("sleep.confirmWakeBtn")}</button>
+          ) : (
+            <div style={{ marginTop: 10 }}>
+              <p style={{ fontSize: 11, color: "var(--muted2)", lineHeight: 1.6, marginBottom: 8 }}>{t("sleep.confirmWakeHint")}</p>
+              <div style={{ display: "flex", gap: 10 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={S.label}>{t("sleep.bedtime")}</label>
+                  <input type="time" value={confirmSleepTime} onChange={(e) => setConfirmSleepTime(e.target.value)} style={{ ...S.input, marginTop: 6 }} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={S.label}>{t("sleep.wakeTime")}</label>
+                  <input type="time" value={confirmWakeTime} onChange={(e) => setConfirmWakeTime(e.target.value)} style={{ ...S.input, marginTop: 6 }} />
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                <button onClick={confirmActualWake} style={{ ...S.saveBtn, marginTop: 0, flex: 1 }}>{t("common.buttons.save")}</button>
+                <button onClick={() => setShowWakeConfirm(false)} style={{ ...S.exportBtn, marginTop: 0, marginBottom: 0, width: "auto", padding: "0 16px" }}>{t("common.buttons.cancel")}</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <div style={S.rangeToggle}>
         <button onClick={() => setMode("hours")} style={{ ...S.rangeBtn, flex: 1, ...(mode === "hours" ? S.rangeBtnActive : {}) }}>{t("sleep.hoursCount")}</button>

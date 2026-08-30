@@ -603,8 +603,12 @@
     "daily": {
       "intro": "سجل بياناتك يوماً بيوم كما أُدخلت بالضبط، بلا أي تجميع أو استنتاج - مناسب للمراجعة الشخصية أو التصدير للتحليل.",
       "exportCsv": "تصدير CSV",
+      "exportCsvNote": "هذا التصدير الشخصي يتضمن الاسم الذي أدخلته في ملفك الشخصي. إن استُخدم مسار مستقبلاً لتصدير بيانات بحثية لعدة مشاركين، يجب استخدام معرّف بحثي مجهَّل بدل الاسم الحقيقي في ذلك التصدير.",
+      "csvUnnamedUser": "مستخدم",
       "csvExported": "تم تنزيل ملف CSV.",
       "sleepSection": "النوم",
+      "sleepPlannedLabel": "مخطَّط",
+      "sleepActualLabel": "فعلي",
       "nutritionSection": "التغذية",
       "activitySection": "النشاط",
       "weightSection": "الوزن",
@@ -653,7 +657,20 @@
     "logLastNight": "تسجيل نوم الليلة الماضية",
     "averageSleep": "متوسط النوم",
     "usualBedtime": "وقت النوم المعتاد",
-    "logToSeeResult": "سجّل نومك لتظهر النتيجة"
+    "logToSeeResult": "سجّل نومك لتظهر النتيجة",
+    "manualTrackingNote": "النوم يُسجَّل يدوياً بمساعدة تذكيرات وقتية - مسار لا يعرف نومك تلقائياً.",
+    "tonightPlanTitle": "خطة الليلة",
+    "editPlan": "تعديل الخطة",
+    "setPlan": "حدّد خطة",
+    "planSummary": "المخطَّط: {{bedtime}} ← {{wake}} ({{hours}} ساعة)",
+    "noPlanYet": "لا توجد خطة لهذه الليلة بعد.",
+    "plannedBedtimeLabel": "وقت النوم المخطَّط",
+    "plannedWakeLabel": "وقت الاستيقاظ المخطَّط",
+    "wakeConfirmTitle": "هل استيقظت؟",
+    "confirmWakeBtn": "تأكيد استيقاظي",
+    "confirmWakeHint": "أدخل وقتَي نومك واستيقاظك الفعليين - قد يختلفان عن الخطة، وهذا طبيعي.",
+    "planSaved": "حُفظت خطة الليلة 🌙",
+    "wakeConfirmed": "تم تأكيد الاستيقاظ ☀️"
   },
   "prayer": {
     "names": {

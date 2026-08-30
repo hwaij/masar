@@ -1980,6 +1980,8 @@ export const store = {
   // sleepTime/wakeTime اختياريان (فارغان إن أدخل المستخدم الساعات مباشرة).
   // مقيَّدة بآخر 90 يوماً: ReportsView لا يعرض نطاقاً أوسع من "شهر" (30
   // يوماً) لهذا السجل، فلا حاجة لجلب كل التاريخ المتراكم منذ إنشاء الحساب.
+  // plannedBedtime/plannedWakeTime (Priority 3): وقت مخطَّط أُدخِل مساءً قبل
+  // النوم عبر تذكير - منفصل تماماً عن sleepTime/wakeTime/hours الفعلية.
   async loadSleepLog() {
     const local = lsGet("masar_sleep_log", []);
     if (!useCloud()) return local;
@@ -1987,7 +1989,14 @@ export const store = {
       const { data, error } = await supabase.from("sleep_log").select("*").eq("owner", CURRENT_OWNER).gte("date", isoDateDaysAgo(90)).order("date", { ascending: false });
       if (error) { console.error("[loadSleepLog] Supabase error:", error.message); return local; }
       if (!data) return local;
-      const items = data.map((r) => ({ id: r.id, date: r.date, sleepTime: r.sleep_time, wakeTime: r.wake_time, hours: Number(r.hours) }));
+      // خلل حقيقي وُجد وأُصلح أثناء إضافة "الخطة بلا بيانات فعلية بعد": كان
+      // Number(r.hours) يحوّل null (لا بيانات فعلية) إلى 0 (نام صفر ساعة!) -
+      // ادّعاء كاذب واضح. null يبقى null صراحة الآن.
+      const items = data.map((r) => ({
+        id: r.id, date: r.date, sleepTime: r.sleep_time, wakeTime: r.wake_time,
+        hours: r.hours == null ? null : Number(r.hours),
+        plannedBedtime: r.planned_bedtime ?? null, plannedWakeTime: r.planned_wake_time ?? null,
+      }));
       lsSet("masar_sleep_log", items);
       return items;
     } catch (e) { console.error("[loadSleepLog] read failed:", e); return local; }
@@ -1999,7 +2008,10 @@ export const store = {
     if (useCloud()) {
       try {
         const { error } = await supabase.from("sleep_log").upsert(
-          { id: entry.id, date: entry.date, sleep_time: entry.sleepTime || null, wake_time: entry.wakeTime || null, hours: entry.hours, owner: CURRENT_OWNER },
+          {
+            id: entry.id, date: entry.date, sleep_time: entry.sleepTime || null, wake_time: entry.wakeTime || null, hours: entry.hours ?? null,
+            planned_bedtime: entry.plannedBedtime || null, planned_wake_time: entry.plannedWakeTime || null, owner: CURRENT_OWNER,
+          },
           { onConflict: "owner,date" }
         );
         if (error) { console.error("[saveSleepEntry] Supabase error:", error.message); return false; }

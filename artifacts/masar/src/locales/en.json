@@ -603,8 +603,12 @@
     "daily": {
       "intro": "Your data day by day, exactly as entered - no aggregation or interpretation. Good for personal review or exporting for analysis.",
       "exportCsv": "Export CSV",
+      "exportCsvNote": "This personal export includes the name you entered in your profile. If Masar is ever used to export research data for multiple participants, that export must use an anonymized participant ID instead of real names.",
+      "csvUnnamedUser": "User",
       "csvExported": "CSV file downloaded.",
       "sleepSection": "Sleep",
+      "sleepPlannedLabel": "Planned",
+      "sleepActualLabel": "Actual",
       "nutritionSection": "Nutrition",
       "activitySection": "Activity",
       "weightSection": "Weight",
@@ -653,7 +657,20 @@
     "logLastNight": "Log last night's sleep",
     "averageSleep": "Average sleep",
     "usualBedtime": "Usual bedtime",
-    "logToSeeResult": "Log your sleep to see this"
+    "logToSeeResult": "Log your sleep to see this",
+    "manualTrackingNote": "Sleep is tracked manually with the help of timed reminders — Masar doesn't detect your sleep automatically.",
+    "tonightPlanTitle": "Tonight's plan",
+    "editPlan": "Edit plan",
+    "setPlan": "Set a plan",
+    "planSummary": "Planned: {{bedtime}} → {{wake}} ({{hours}}h)",
+    "noPlanYet": "No plan set for tonight yet.",
+    "plannedBedtimeLabel": "Planned bedtime",
+    "plannedWakeLabel": "Planned wake time",
+    "wakeConfirmTitle": "Did you wake up?",
+    "confirmWakeBtn": "Confirm my wake-up",
+    "confirmWakeHint": "Enter your actual sleep and wake times — they may differ from your plan, and that's fine.",
+    "planSaved": "Tonight's plan was saved 🌙",
+    "wakeConfirmed": "Wake-up confirmed ☀️"
   },
   "prayer": {
     "names": {

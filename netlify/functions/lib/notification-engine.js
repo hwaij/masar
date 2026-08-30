@@ -107,9 +107,17 @@ const MESSAGES = {
     ar: (ctx) => ({ title: "🍽️ وجبتك بانتظارك", body: `يمكنك تسجيل ${ctx?.mealLabel || "وجبتك"} في مسار متى ناسبك.` }),
     en: (ctx) => ({ title: "🍽️ Your meal awaits", body: `You can log ${ctx?.mealLabel || "your meal"} in Masar whenever it suits you.` }),
   },
+  // فئة النوم لها متغيّران بحسب context.variant (Priority 3): "bedtime" وقت
+  // النوم المخطَّط (تذكير فقط - لا يعرف مسار متى ينام المستخدم فعلياً)،
+  // و"wake" وقت الاستيقاظ المخطَّط (يطلب تأكيداً يدوياً، لا افتراض تلقائي).
+  // الافتراض (بلا context) يبقى نص bedtime القديم للتوافق مع أي استدعاء سابق.
   sleep: {
-    ar: () => ({ title: "🌙 وقت راحة قريب", body: "قد يكون هذا وقتاً جيداً للتحضير للنوم." }),
-    en: () => ({ title: "🌙 Rest time approaching", body: "This might be a good time to wind down for sleep." }),
+    ar: (ctx) => ctx?.variant === "wake"
+      ? { title: "☀️ حان وقت الاستيقاظ", body: "هل استيقظت؟" }
+      : { title: "🌙 حان وقت النوم", body: "لا تنسَ أن تحصل على قسط كافٍ من النوم." },
+    en: (ctx) => ctx?.variant === "wake"
+      ? { title: "☀️ Time to wake up", body: "Did you wake up?" }
+      : { title: "🌙 It's bedtime", body: "Don't forget to get enough sleep." },
   },
   quran: {
     ar: () => ({ title: "📖 لحظة مع القرآن", body: "وقت هادئ لبعض الذكر أو القراءة، إن أحببت." }),

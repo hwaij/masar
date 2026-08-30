@@ -1952,6 +1952,21 @@ drop policy if exists weight_log_anon_solo on weight_log;
 drop policy if exists weight_log_user_own on weight_log;
 create policy weight_log_user_own on weight_log for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
 
+-- تذكيرات النوم (Priority 3): تمييز صريح بين الوقت "المخطَّط" (يُدخله
+-- المستخدم مساءً قبل النوم، عبر تذكير Push) والوقت "الفعلي" (sleep_time/
+-- wake_time/hours الموجودة أصلاً - تُدخَل يدوياً، إما استرجاعياً كما كانت،
+-- أو عبر تأكيد الاستيقاظ الجديد). عمودان فقط، بلا أي حذف أو تغيير لمعنى
+-- الأعمدة الحالية - نفس نمط النصوص "HH:MM" المستخدَم أصلاً في sleep_time/
+-- wake_time بالضبط، فارغان (null) يعني ببساطة "لم يُخطَّط له بعد".
+alter table sleep_log add column if not exists planned_bedtime text;
+alter table sleep_log add column if not exists planned_wake_time text;
+-- hours كانت not null لأن كل صف سابقاً يُنشَأ فقط بعد إدخال فعلي كامل
+-- (ساعات أو وقتين) - الآن قد يُنشَأ صف بخطة مساء فقط بلا أي بيانات فعلية
+-- بعد (لا ساعات نوم حقيقية معروفة حتى يستيقظ المستخدم ويُدخلها/يؤكدها)،
+-- فالقيمة الصادقة الوحيدة لذلك اليوم مؤقتاً هي "غير معروفة" (null)، لا صفر
+-- (صفر يعني ادّعاء أن المستخدم لم ينم إطلاقاً، وهذا غير معروف فعلياً).
+alter table sleep_log alter column hours drop not null;
+
 -- إجبار طبقة PostgREST (التي تُعرِّض RPC عبر supabase.rpc(...)) على إعادة
 -- تحميل ذاكرتها المؤقتة للمخطط فوراً، بدل انتظار إعادة التحميل التلقائية
 -- (تحدث عادة خلال ثوانٍ، لكن قد تتأخر) - يضمن أن get_group_by_invite_code

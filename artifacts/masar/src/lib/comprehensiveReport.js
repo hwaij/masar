@@ -67,6 +67,19 @@ function buildDayRow(date, prevDate, { nutritionLog, sleepLog, stepsLog, workout
   const totalCholesterolMg = sumOrNull(dayFoods.map((e) => e.cholesterol));
 
   const sleepEntry = sleepLog.find((s) => s.date === date) || null;
+  // مخطَّط (Priority 3، أُدخِل مساءً قبل النوم) مقابل فعلي (sleepBedtime/
+  // sleepWakeTime/sleepHours أعلاه) - عمداً منفصلان تماماً، لا افتراض أن
+  // أحدهما يساوي الآخر. plannedHours تُحسَب هنا (لا تُخزَّن) من الوقتين
+  // المخطَّطين مباشرة - نفس منطق diffMinutes مع عبور منتصف الليل.
+  const plannedHours = sleepEntry?.plannedBedtime && sleepEntry?.plannedWakeTime
+    ? (() => {
+        const [sh, sm] = sleepEntry.plannedBedtime.split(":").map(Number);
+        const [eh, em] = sleepEntry.plannedWakeTime.split(":").map(Number);
+        let mins = eh * 60 + em - (sh * 60 + sm);
+        if (mins < 0) mins += 24 * 60;
+        return round1(mins / 60);
+      })()
+    : null;
 
   const dayWorkouts = workoutLog.filter((w) => w.date === date);
   const exercisesTrainedCount = dayWorkouts.length ? new Set(dayWorkouts.map((w) => w.exerciseId)).size : null;
@@ -88,6 +101,9 @@ function buildDayRow(date, prevDate, { nutritionLog, sleepLog, stepsLog, workout
 
   return {
     date,
+    plannedBedtime: sleepEntry?.plannedBedtime ?? null,
+    plannedWakeTime: sleepEntry?.plannedWakeTime ?? null,
+    plannedHours,
     sleepBedtime: sleepEntry?.sleepTime ?? null,
     sleepWakeTime: sleepEntry?.wakeTime ?? null,
     sleepHours: sleepEntry?.hours ?? null,
@@ -126,6 +142,7 @@ export function buildComprehensiveReport(days, logs) {
 // مفقودة" حقيقية بدل صفر أو نص عشوائي.
 export const CSV_COLUMNS = [
   ["date", "Date"],
+  ["plannedBedtime", "Planned Bedtime"], ["plannedWakeTime", "Planned Wake Time"], ["plannedHours", "Planned Sleep Hours"],
   ["sleepBedtime", "Sleep Bedtime"], ["sleepWakeTime", "Sleep Wake Time"], ["sleepHours", "Sleep Hours"],
   ["breakfastFoods", "Breakfast Foods"], ["breakfastCalories", "Breakfast Calories"], ["breakfastProteinG", "Breakfast Protein (g)"], ["breakfastCarbsG", "Breakfast Carbs (g)"], ["breakfastFatG", "Breakfast Fat (g)"], ["breakfastMood", "Breakfast Mood (1-5)"], ["breakfastStress", "Breakfast Stress (1-5)"],
   ["lunchFoods", "Lunch Foods"], ["lunchCalories", "Lunch Calories"], ["lunchProteinG", "Lunch Protein (g)"], ["lunchCarbsG", "Lunch Carbs (g)"], ["lunchFatG", "Lunch Fat (g)"], ["lunchMood", "Lunch Mood (1-5)"], ["lunchStress", "Lunch Stress (1-5)"],
@@ -145,8 +162,14 @@ function csvEscape(value) {
   return s;
 }
 
-// owner: مُعرِّف المستخدم التقني فقط (auth uid عبر getOwner())، لا اسم ولا
-// بريد إلكتروني - نفس مبدأ الخصوصية المطلوب لأي تصدير بحثي مستقبلي.
+// owner: مُعرِّف يُكتَب في عمود "Owner" فقط - حالياً اسم المستخدم كما أدخله
+// بنفسه في الملف الشخصي (profile.name، أو بديل واضح "User"/"مستخدم" إن لم
+// يُدخِله بعد)، لأن هذا تصدير شخصي يُصدِّره المستخدم لنفسه (MasarApp.jsx:
+// exportDailyCsv). ملاحظة توثيقية لأي عمل مستقبلي على تصدير بحثي جماعي (بعد
+// موافقات أكاديمية/أخلاقية): في ذلك السياق تحديداً يجب استبدال هذا بمعرّف
+// بحثي مجهَّل (Participant ID) لا الاسم الحقيقي - لا تُستخدَم هذه الدالة كما
+// هي لتصدير عدة مشاركين دفعة واحدة بلا تعديل أولاً. لا تنفيذ فعلي لهذا الآن،
+// توثيق فقط.
 export function rowsToCsv(rows, owner) {
   const header = ["Owner", ...CSV_COLUMNS.map(([, label]) => label)].join(",");
   const lines = rows.map((row) => [csvEscape(owner), ...CSV_COLUMNS.map(([key]) => csvEscape(row[key]))].join(","));

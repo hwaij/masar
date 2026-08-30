@@ -68,6 +68,13 @@ function buildDayRow(date, prevDate, { nutritionLog, sleepLog, stepsLog, workout
   const dayFoods = nutritionLog.filter((e) => e.date === date);
   const mealRows = {};
   MEAL_TYPES.forEach((mt) => { mealRows[mt] = mealAggregate(dayFoods.filter((e) => e.mealType === mt)); });
+  // خلل حقيقي وُجد وأُصلح: أصناف بلا نوع وجبة (mealType فارغ - إدخالات قديمة
+  // قبل هذه الميزة) كانت تُحتسَب في المجاميع اليومية أدناه (totalCalories...)
+  // لكن تختفي بصمت تماماً من أي تفصيل بالوجبة (لا تظهر في breakfast/lunch/
+  // dinner/snack ولا في مجموعة بديلة) - نفس التعامل الموجود فعلاً في
+  // NutritionView.jsx (يعرضها في مجموعة "غير مصنّف" منفصلة، لا يُسقطها) يُطبَّق
+  // هنا الآن بالمثل، فلا يختفي أي صنف مسجَّل فعلياً من تفصيل اليوم.
+  const unclassified = mealAggregate(dayFoods.filter((e) => !e.mealType));
 
   const totalCalories = sumOrNull(dayFoods.map((e) => e.calories));
   const totalProteinG = sumOrNull(dayFoods.map((e) => e.protein));
@@ -77,6 +84,11 @@ function buildDayRow(date, prevDate, { nutritionLog, sleepLog, stepsLog, workout
   const totalSugarG = sumOrNull(dayFoods.map((e) => e.sugar));
   const totalSodiumMg = sumOrNull(dayFoods.map((e) => e.sodium));
   const totalCholesterolMg = sumOrNull(dayFoods.map((e) => e.cholesterol));
+  // متوسط المزاج/التوتر عبر كل أصناف اليوم معاً (لا لكل وجبة فقط) - عمود
+  // جاهز مباشرة لتحليل إحصائي (مثال: العلاقة بين المزاج والسكر المستهلك)
+  // بلا حاجة لإعادة حساب متوسط مرجَّح من 4 أعمدة منفصلة لكل وجبة أولاً.
+  const dailyMoodAvg = avgOrNull(dayFoods.map((e) => e.mood));
+  const dailyStressAvg = avgOrNull(dayFoods.map((e) => e.stress));
 
   const sleepEntry = sleepLog.find((s) => s.date === date) || null;
   // مخطَّط (Priority 3، أُدخِل مساءً قبل النوم) مقابل فعلي (sleepBedtime/
@@ -140,7 +152,11 @@ function buildDayRow(date, prevDate, { nutritionLog, sleepLog, stepsLog, workout
     snackFoods: mealRows.snack.foods, snackCalories: mealRows.snack.calories,
     snackProteinG: mealRows.snack.proteinG, snackCarbsG: mealRows.snack.carbsG, snackFatG: mealRows.snack.fatG,
     snackMood: mealRows.snack.mood, snackStress: mealRows.snack.stress,
+    unclassifiedFoods: unclassified.foods, unclassifiedCalories: unclassified.calories,
+    unclassifiedProteinG: unclassified.proteinG, unclassifiedCarbsG: unclassified.carbsG, unclassifiedFatG: unclassified.fatG,
+    unclassifiedMood: unclassified.mood, unclassifiedStress: unclassified.stress,
     totalCalories, totalProteinG, totalCarbsG, totalFatG, totalFiberG, totalSugarG, totalSodiumMg, totalCholesterolMg,
+    dailyMoodAvg, dailyStressAvg,
     steps: stepsEntry ? stepsEntry.steps : null,
     workoutCompleted,
     exercisesTrainedCount, setsCompleted,
@@ -169,7 +185,9 @@ export const CSV_COLUMNS = [
   ["lunchFoods", "Lunch Foods"], ["lunchCalories", "Lunch Calories"], ["lunchProteinG", "Lunch Protein (g)"], ["lunchCarbsG", "Lunch Carbs (g)"], ["lunchFatG", "Lunch Fat (g)"], ["lunchMood", "Lunch Mood (1-5)"], ["lunchStress", "Lunch Stress (1-5)"],
   ["dinnerFoods", "Dinner Foods"], ["dinnerCalories", "Dinner Calories"], ["dinnerProteinG", "Dinner Protein (g)"], ["dinnerCarbsG", "Dinner Carbs (g)"], ["dinnerFatG", "Dinner Fat (g)"], ["dinnerMood", "Dinner Mood (1-5)"], ["dinnerStress", "Dinner Stress (1-5)"],
   ["snackFoods", "Snack Foods"], ["snackCalories", "Snack Calories"], ["snackProteinG", "Snack Protein (g)"], ["snackCarbsG", "Snack Carbs (g)"], ["snackFatG", "Snack Fat (g)"], ["snackMood", "Snack Mood (1-5)"], ["snackStress", "Snack Stress (1-5)"],
+  ["unclassifiedFoods", "Unclassified Foods"], ["unclassifiedCalories", "Unclassified Calories"], ["unclassifiedProteinG", "Unclassified Protein (g)"], ["unclassifiedCarbsG", "Unclassified Carbs (g)"], ["unclassifiedFatG", "Unclassified Fat (g)"], ["unclassifiedMood", "Unclassified Mood (1-5)"], ["unclassifiedStress", "Unclassified Stress (1-5)"],
   ["totalCalories", "Total Calories"], ["totalProteinG", "Total Protein (g)"], ["totalCarbsG", "Total Carbs (g)"], ["totalFatG", "Total Fat (g)"], ["totalFiberG", "Total Fiber (g)"], ["totalSugarG", "Total Sugar (g)"], ["totalSodiumMg", "Total Sodium (mg)"], ["totalCholesterolMg", "Total Cholesterol (mg)"],
+  ["dailyMoodAvg", "Daily Mood Avg (1-5)"], ["dailyStressAvg", "Daily Stress Avg (1-5)"],
   ["steps", "Steps"],
   ["workoutCompleted", "Workout Completed"], ["exercisesTrainedCount", "Exercises Trained"], ["setsCompleted", "Sets Completed"],
   ["focusMinutesTotal", "Focus Minutes"], ["studyMinutes", "Study Minutes"], ["focusSessionsCount", "Focus/Study Sessions"],

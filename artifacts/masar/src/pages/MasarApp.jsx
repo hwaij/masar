@@ -3512,6 +3512,7 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
                   { key: "lunch", label: t("nutrition.mealTypes.lunch"), foods: row.lunchFoods, calories: row.lunchCalories, proteinG: row.lunchProteinG, carbsG: row.lunchCarbsG, fatG: row.lunchFatG, mood: row.lunchMood, stress: row.lunchStress },
                   { key: "dinner", label: t("nutrition.mealTypes.dinner"), foods: row.dinnerFoods, calories: row.dinnerCalories, proteinG: row.dinnerProteinG, carbsG: row.dinnerCarbsG, fatG: row.dinnerFatG, mood: row.dinnerMood, stress: row.dinnerStress },
                   { key: "snack", label: t("nutrition.mealTypes.snack"), foods: row.snackFoods, calories: row.snackCalories, proteinG: row.snackProteinG, carbsG: row.snackCarbsG, fatG: row.snackFatG, mood: row.snackMood, stress: row.snackStress },
+                  { key: "unclassified", label: t("reportsView.daily.unclassifiedMeal"), foods: row.unclassifiedFoods, calories: row.unclassifiedCalories, proteinG: row.unclassifiedProteinG, carbsG: row.unclassifiedCarbsG, fatG: row.unclassifiedFatG, mood: row.unclassifiedMood, stress: row.unclassifiedStress },
                 ].filter((m) => m.foods);
                 return (
                   <div key={row.date} style={RS.dailyCard}>
@@ -3547,7 +3548,33 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
                           </div>
                         )) : <div style={S.emptyHint}>{t("common.states.noDataYet")}</div>}
                         {row.totalCalories != null && (
-                          <div style={RS.dailyRow}><span>{t("reportsView.daily.totalLabel")}</span><span>{formatNumberLatin(row.totalCalories, language)} {t("common.units.kcal")} · {t("common.units.protein")} {formatNumberLatin(row.totalProteinG, language)}{t("common.units.g")} · {t("common.units.carbs")} {formatNumberLatin(row.totalCarbsG, language)}{t("common.units.g")} · {t("common.units.fat")} {formatNumberLatin(row.totalFatG, language)}{t("common.units.g")}</span></div>
+                          <>
+                            {/* خلل حقيقي وُجد وأُصلح: صف "الإجمالي" هذا كان يعرض السعرات
+                                والماكروز فقط، رغم أن الألياف/السكر/الصوديوم/الكوليسترول
+                                (وحتى متوسط المزاج/التوتر) محسوبة فعلاً في row ومُصدَّرة في
+                                CSV - كانت مخفية هنا بلا سبب تقني، لا نقص بيانات حقيقي. */}
+                            <div style={RS.dailyRow}><span>{t("reportsView.daily.totalLabel")}</span><span>{formatNumberLatin(row.totalCalories, language)} {t("common.units.kcal")} · {t("common.units.protein")} {formatNumberLatin(row.totalProteinG, language)}{t("common.units.g")} · {t("common.units.carbs")} {formatNumberLatin(row.totalCarbsG, language)}{t("common.units.g")} · {t("common.units.fat")} {formatNumberLatin(row.totalFatG, language)}{t("common.units.g")}</span></div>
+                            {(row.totalFiberG != null || row.totalSugarG != null || row.totalSodiumMg != null || row.totalCholesterolMg != null) && (
+                              <div style={RS.dailyRow}>
+                                <span></span>
+                                <span>
+                                  {row.totalFiberG != null && `${t("common.units.fiber")} ${formatNumberLatin(row.totalFiberG, language)}${t("common.units.g")}`}
+                                  {row.totalSugarG != null && ` · ${t("common.units.sugar")} ${formatNumberLatin(row.totalSugarG, language)}${t("common.units.g")}`}
+                                  {row.totalSodiumMg != null && ` · ${t("common.units.sodium")} ${formatNumberLatin(row.totalSodiumMg, language)}${t("common.units.mg")}`}
+                                  {row.totalCholesterolMg != null && ` · ${t("common.units.cholesterol")} ${formatNumberLatin(row.totalCholesterolMg, language)}${t("common.units.mg")}`}
+                                </span>
+                              </div>
+                            )}
+                            {(row.dailyMoodAvg != null || row.dailyStressAvg != null) && (
+                              <div style={RS.dailyRow}>
+                                <span></span>
+                                <span>
+                                  {row.dailyMoodAvg != null && `${t("reportsView.daily.moodShort")} ${formatNumberLatin(row.dailyMoodAvg, language)}/5`}
+                                  {row.dailyStressAvg != null && ` · ${t("reportsView.daily.stressShort")} ${formatNumberLatin(row.dailyStressAvg, language)}/5`}
+                                </span>
+                              </div>
+                            )}
+                          </>
                         )}
 
                         <div style={RS.dailySection}>{t("reportsView.daily.activitySection")}</div>
@@ -3831,7 +3858,13 @@ function SleepSection({ sleepLog, setSleepLog, days, range, showToast }) {
 function AssistantView({ entries, tasks, categories, focus, prayerLog, religious, profile, setProfile, stats, setView, healthProfile, goals, showToast, journeyActive }) {
   const { t, i18n } = useTranslation();
   const language = i18n.language;
-  const today = todayKey();
+  // خلل حقيقي وُجد وأُصلح: كان سياق "اليوم" الكامل الذي يُبنى منه ملخّص
+  // المساعد الذكي (المهام/الصلاة/الأذكار/التغذية/الماء/التمرين) يُبنى بـ
+  // todayKey() (UTC) بدل localDayKey() (محلي) - لمستخدم بتوقيت الكويت (+3)،
+  // فتح المساعد بين 00:00-03:00 محلياً كان يعرض بيانات يوم أمس بالكامل كأنها
+  // "اليوم" (تغذية/مهام/صلاة خاطئة)، نفس الخلل المُصلَح سابقاً في التغذية/
+  // المهام/التركيز، لم يكن قد وصل إلى هذا الملف بعد.
+  const today = localDayKey();
   const hasIdentity = !!(profile?.hobbies?.trim() || profile?.about?.trim());
 
   const [messages, setMessages] = useState([]);

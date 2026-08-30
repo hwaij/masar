@@ -614,6 +614,8 @@
       "weightSection": "Weight",
       "totalLabel": "Total",
       "moodShort": "Mood",
+      "stressShort": "Stress",
+      "unclassifiedMeal": "Unclassified",
       "workoutLabel": "Workout",
       "exercisesUnit": "exercises",
       "setsUnit": "sets",

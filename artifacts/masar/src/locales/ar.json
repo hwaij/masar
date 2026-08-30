@@ -614,6 +614,8 @@
       "weightSection": "الوزن",
       "totalLabel": "الإجمالي",
       "moodShort": "المزاج",
+      "stressShort": "التوتر",
+      "unclassifiedMeal": "غير مصنّف",
       "workoutLabel": "التمرين",
       "exercisesUnit": "تمارين",
       "setsUnit": "مجموعات",

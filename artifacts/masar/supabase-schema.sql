@@ -1967,6 +1967,13 @@ alter table sleep_log add column if not exists planned_wake_time text;
 -- (صفر يعني ادّعاء أن المستخدم لم ينم إطلاقاً، وهذا غير معروف فعلياً).
 alter table sleep_log alter column hours drop not null;
 
+-- تركيز/دراسة (Priority 4): تمييز Planned مقابل Actual لجلسات المؤقّت، بنفس
+-- مبدأ النوم أعلاه بالضبط. target_minutes = المدة التي اختارها المستخدم في
+-- المؤقّت قبل الضغط على "بدء" (قد يُنهي الجلسة مبكراً فتختلف عن minutes
+-- الفعلية المكتملة) - عمود واحد فقط، فارغ (null) لأي جلسة يدوية (logManual)
+-- لا تملك مفهوم "خطة" أصلاً (المستخدم يكتب رقماً استرجاعياً مباشرة بلا مؤقّت).
+alter table focus_sessions add column if not exists target_minutes integer;
+
 -- إجبار طبقة PostgREST (التي تُعرِّض RPC عبر supabase.rpc(...)) على إعادة
 -- تحميل ذاكرتها المؤقتة للمخطط فوراً، بدل انتظار إعادة التحميل التلقائية
 -- (تحدث عادة خلال ثوانٍ، لكن قد تتأخر) - يضمن أن get_group_by_invite_code

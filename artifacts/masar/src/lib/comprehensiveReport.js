@@ -1,7 +1,8 @@
 // التقرير اليومي التفصيلي (Priority 2) - طبقة تجميع بحتة (aggregation) تدمج
 // الجداول اليومية الموجودة فعلياً (nutrition_log، sleep_log، steps_log،
-// workout_log، fitness_log، focus_sessions، weight_log) بمفتاح التاريخ
-// المشترك إلى صف واحد مسطَّح لكل يوم - جاهز مباشرة للعرض ولتصدير CSV نحو
+// workout_log، fitness_log، focus_sessions، weight_log، وentries المُصفّاة
+// مسبقاً لفئة "الدراسة" فقط - Priority 4) بمفتاح التاريخ المشترك إلى صف
+// واحد مسطَّح لكل يوم - جاهز مباشرة للعرض ولتصدير CSV نحو
 // أدوات تحليل إحصائي (Excel/SPSS/R). هذا الملف لا يعرض أي واجهة، ولا يُنتج
 // أي استنتاج أو "علاقة" بين المتغيرات - فقط بيانات منظَّمة جنباً إلى جنب،
 // كما طُلب صراحةً: "لا نريد تقريراً صحفياً... نريد بيانات منظمة وقابلة
@@ -14,6 +15,17 @@
 import { MEAL_TYPES } from "./nutrition";
 
 function round1(n) { return Math.round(n * 10) / 10; }
+
+// فرق الدقائق بين وقتين "HH:MM"، مع عبور منتصف الليل (نهاية أصغر من البداية
+// تعني أن الفترة عبرت منتصف الليل، لا خطأ إدخال) - نفس منطق diffMinutes في
+// helpers.js لكن مستقلة هنا عمداً (هذا الملف بلا أي استيراد من helpers.js).
+function hmDiffMinutes(startHHMM, endHHMM) {
+  const [sh, sm] = startHHMM.split(":").map(Number);
+  const [eh, em] = endHHMM.split(":").map(Number);
+  let mins = eh * 60 + em - (sh * 60 + sm);
+  if (mins < 0) mins += 24 * 60;
+  return mins;
+}
 
 function avgOrNull(nums) {
   const valid = nums.filter((n) => typeof n === "number" && Number.isFinite(n));
@@ -52,7 +64,7 @@ function mealAggregate(entries) {
 // يبني صفاً واحداً مسطَّحاً ليوم واحد من كل الجداول اليومية المُمرَّرة. لا
 // يحسب أي متوسط/اتجاه عبر أيام متعددة هنا - هذا مسؤولية طبقة العرض إن
 // احتاجته لاحقاً؛ هذه الدالة تبني فقط سجل اليوم الواحد الخام.
-function buildDayRow(date, prevDate, { nutritionLog, sleepLog, stepsLog, workoutLog, fitnessLog, focus, weightLog }) {
+function buildDayRow(date, prevDate, { nutritionLog, sleepLog, stepsLog, workoutLog, fitnessLog, focus, weightLog, studyEntries }) {
   const dayFoods = nutritionLog.filter((e) => e.date === date);
   const mealRows = {};
   MEAL_TYPES.forEach((mt) => { mealRows[mt] = mealAggregate(dayFoods.filter((e) => e.mealType === mt)); });
@@ -72,13 +84,7 @@ function buildDayRow(date, prevDate, { nutritionLog, sleepLog, stepsLog, workout
   // أحدهما يساوي الآخر. plannedHours تُحسَب هنا (لا تُخزَّن) من الوقتين
   // المخطَّطين مباشرة - نفس منطق diffMinutes مع عبور منتصف الليل.
   const plannedHours = sleepEntry?.plannedBedtime && sleepEntry?.plannedWakeTime
-    ? (() => {
-        const [sh, sm] = sleepEntry.plannedBedtime.split(":").map(Number);
-        const [eh, em] = sleepEntry.plannedWakeTime.split(":").map(Number);
-        let mins = eh * 60 + em - (sh * 60 + sm);
-        if (mins < 0) mins += 24 * 60;
-        return round1(mins / 60);
-      })()
+    ? round1(hmDiffMinutes(sleepEntry.plannedBedtime, sleepEntry.plannedWakeTime) / 60)
     : null;
 
   const dayWorkouts = workoutLog.filter((w) => w.date === date);
@@ -86,9 +92,24 @@ function buildDayRow(date, prevDate, { nutritionLog, sleepLog, stepsLog, workout
   const setsCompleted = dayWorkouts.length ? sumOrNull(dayWorkouts.map((w) => w.setsCompleted)) : null;
   const workoutCompleted = date in fitnessLog ? !!fitnessLog[date] : null;
 
+  // خلل حقيقي وُجد وأُصلح: كانت هذه الحسابات تعتمد على focus_sessions
+  // (جلسات المؤقّت) فقط، متجاهلة تماماً "عجلة اليوم" العامة (نظام entries/
+  // categories الأقدم - فئة "دراسة") التي يدمجها قسم التركيز/الدراسة نفسه
+  // (FocusReport) فعلياً في إحصائياته الخاصة. أي مستخدم يسجّل دراسته عبر
+  // العجلة بدل المؤقّت كانت أيامه تظهر "لا دراسة إطلاقاً" زوراً في التقرير
+  // الشامل رغم وجود بيانات فعلية - studyEntries (مُمرَّرة من ReportsView، مُصفّاة
+  // مسبقاً لفئة الدراسة فقط، بنفس منطق الفلترة في FocusView/BotsChallenge)
+  // تُدمَج هنا الآن بنفس الأسلوب تماماً.
   const dayFocus = focus.filter((f) => f.date === date);
-  const focusMinutesTotal = dayFocus.length ? sumOrNull(dayFocus.map((f) => f.minutes)) : null;
-  const studyMinutes = dayFocus.some((f) => f.isStudy) ? sumOrNull(dayFocus.filter((f) => f.isStudy).map((f) => f.minutes)) : null;
+  const dayStudyEntries = (studyEntries || []).filter((e) => e.date === date);
+  const studyEntryMinutesList = dayStudyEntries.map((e) => hmDiffMinutes(e.start, e.end));
+  const totalSessionsCount = dayFocus.length + dayStudyEntries.length;
+  const focusSessionsCount = totalSessionsCount ? totalSessionsCount : null;
+  const focusMinutesTotal = totalSessionsCount
+    ? dayFocus.reduce((s, f) => s + f.minutes, 0) + studyEntryMinutesList.reduce((s, m) => s + m, 0)
+    : null;
+  const studyMinutesList = [...dayFocus.filter((f) => f.isStudy).map((f) => f.minutes), ...studyEntryMinutesList];
+  const studyMinutes = studyMinutesList.length ? studyMinutesList.reduce((s, m) => s + m, 0) : null;
 
   const stepsEntry = stepsLog[date] || null;
 
@@ -123,7 +144,7 @@ function buildDayRow(date, prevDate, { nutritionLog, sleepLog, stepsLog, workout
     steps: stepsEntry ? stepsEntry.steps : null,
     workoutCompleted,
     exercisesTrainedCount, setsCompleted,
-    focusMinutesTotal, studyMinutes,
+    focusMinutesTotal, studyMinutes, focusSessionsCount,
     weightKg, weightChangeKg,
   };
 }
@@ -151,7 +172,7 @@ export const CSV_COLUMNS = [
   ["totalCalories", "Total Calories"], ["totalProteinG", "Total Protein (g)"], ["totalCarbsG", "Total Carbs (g)"], ["totalFatG", "Total Fat (g)"], ["totalFiberG", "Total Fiber (g)"], ["totalSugarG", "Total Sugar (g)"], ["totalSodiumMg", "Total Sodium (mg)"], ["totalCholesterolMg", "Total Cholesterol (mg)"],
   ["steps", "Steps"],
   ["workoutCompleted", "Workout Completed"], ["exercisesTrainedCount", "Exercises Trained"], ["setsCompleted", "Sets Completed"],
-  ["focusMinutesTotal", "Focus Minutes"], ["studyMinutes", "Study Minutes"],
+  ["focusMinutesTotal", "Focus Minutes"], ["studyMinutes", "Study Minutes"], ["focusSessionsCount", "Focus/Study Sessions"],
   ["weightKg", "Weight (kg)"], ["weightChangeKg", "Weight Change (kg)"],
 ];
 

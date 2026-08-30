@@ -2754,14 +2754,25 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
     return { totalWorkouts, activeDaysAllTime, totalTasksCompleted, longestWorkoutStreak, bestWeek, totalMealsLogged: nutritionLog.length };
   }, [fitnessLog, entries, focus, tasks, workoutLog, nutritionLog]);
 
+  // خلل حقيقي وُجد وأُصلح: كان التقرير الشامل يتجاهل "عجلة اليوم" العامة
+  // (نظام entries/categories الأقدم - فئة "دراسة") تماماً، رغم أن قسم
+  // التركيز/الدراسة نفسه (FocusReport) يدمجها فعلياً في إحصائياته - بنفس
+  // منطق تحديد فئة الدراسة المستخدَم هناك بالضبط (id="study" أو الاسم يحوي
+  // "دراس")، مُحسوب هنا مرة واحدة فقط ويُمرَّر جاهزاً لـbuildDayRow.
+  const studyCatId = useMemo(() => (categories || []).find((c) => c.id === "study" || c.name.includes("دراس"))?.id, [categories]);
+  const studyEntries = useMemo(
+    () => (studyCatId ? (entries || []).filter((e) => e.catId === studyCatId) : []),
+    [entries, studyCatId]
+  );
+
   // ===== تبويب "يوماً بيوم" - سجل خام بلا أي تجميع عبر الأيام ولا استنتاج،
   // يُبنى فوق نفس days (نافذة الفترة الحالية) بالجداول اليومية الفعلية. أحدث
   // يوم أولاً في العرض (الأكثر صلة عادة)، بعكس ترتيب days نفسها التصاعدي -
   // لكن buildComprehensiveReport تحتاج الترتيب التصاعدي لحساب "التغيّر عن
   // القياس السابق" بشكل صحيح، فالعكس يحدث فقط عند العرض لا قبل البناء.
   const dailyReportRows = useMemo(
-    () => buildComprehensiveReport(days, { nutritionLog, sleepLog, stepsLog: stepsLog || {}, workoutLog, fitnessLog, focus, weightLog }),
-    [days, nutritionLog, sleepLog, stepsLog, workoutLog, fitnessLog, focus, weightLog]
+    () => buildComprehensiveReport(days, { nutritionLog, sleepLog, stepsLog: stepsLog || {}, workoutLog, fitnessLog, focus, weightLog, studyEntries }),
+    [days, nutritionLog, sleepLog, stepsLog, workoutLog, fitnessLog, focus, weightLog, studyEntries]
   );
   const [expandedDay, setExpandedDay] = useState(null);
 
@@ -3542,7 +3553,10 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
                         <div style={RS.dailySection}>{t("reportsView.daily.activitySection")}</div>
                         <div style={RS.dailyRow}><span>{t("nav.steps")}</span><span>{row.steps != null ? formatNumberLatin(row.steps, language) : "—"}</span></div>
                         <div style={RS.dailyRow}><span>{t("reportsView.daily.workoutLabel")}</span><span>{row.workoutCompleted == null ? "—" : row.workoutCompleted ? `${t("common.states.yes")} (${row.exercisesTrainedCount} ${t("reportsView.daily.exercisesUnit")}, ${row.setsCompleted} ${t("reportsView.daily.setsUnit")})` : t("common.states.no")}</span></div>
-                        <div style={RS.dailyRow}><span>{t("nav.focusStudy")}</span><span>{row.focusMinutesTotal != null ? `${formatNumberLatin(row.focusMinutesTotal, language)} ${t("common.units.minutes")}` : "—"}</span></div>
+                        <div style={RS.dailyRow}><span>{t("nav.focusStudy")}</span><span>{row.focusMinutesTotal != null ? `${formatNumberLatin(row.focusMinutesTotal, language)} ${t("common.units.minutes")} (${formatNumberLatin(row.focusSessionsCount, language)} ${t("reportsView.daily.sessionsUnit")})` : "—"}</span></div>
+                        {row.studyMinutes != null && (
+                          <div style={RS.dailyRow}><span>{t("reportsView.daily.studyOnlyLabel")}</span><span>{formatNumberLatin(row.studyMinutes, language)} {t("common.units.minutes")}</span></div>
+                        )}
 
                         <div style={RS.dailySection}>{t("reportsView.daily.weightSection")}</div>
                         <div style={RS.dailyRow}>
@@ -5479,10 +5493,18 @@ function FocusView({ focus, setFocus, commitments, setCommitments, categories, e
     sessionRef.current = null;
   }
 
+  // خلل حقيقي وُجد وأُصلح: كان تاريخ الجلسة يُبنى بـtodayKey() (UTC) بدل
+  // localDayKey() (محلي) المستخدَم في بقية التطبيق (days/tasks/todayView...)
+  // - لمستخدم بتوقيت أمامي عن UTC (كالكويت +3)، جلسة أُنهيت بين 00:00-03:00
+  // بالتوقيت المحلي كانت تُنسَب لليوم السابق خطأً في كل مكان (بطاقة "اليوم"،
+  // السلسلة المتتالية، رسم آخر 14 يوماً، والتقرير الشامل يوماً بيوم). أيضاً:
+  // targetMinutes تُحفَظ الآن (المدة المخطَّطة عبر المؤقّت قبل البدء) بجانب
+  // minutes (الفعلية المكتملة) - فارغة (null) لجلسة يدوية بلا مؤقّت أصلاً
+  // (لا خطة حقيقية لها)، تماماً بنفس مبدأ Planned/Actual في النوم (Priority 3).
   async function completeSession(sess, minutesDone, wasAway, endTime) {
     const end = endTime || nowHHMM();
     const start = addMinutesToTime(end, -minutesDone);
-    const session = { id: uid(), date: todayKey(), minutes: minutesDone, label: (sess?.label || "").trim(), isStudy: sess?.isStudy ?? isStudy, start, end };
+    const session = { id: uid(), date: localDayKey(), minutes: minutesDone, targetMinutes: sess?.targetMinutes ?? null, label: (sess?.label || "").trim(), isStudy: sess?.isStudy ?? isStudy, start, end };
     setFocus((prev) => [session, ...prev]);
     const res = await store.saveFocus(session);
     if (!res.ok) {
@@ -5495,7 +5517,7 @@ function FocusView({ focus, setFocus, commitments, setCommitments, categories, e
     showToast(t(wasAway ? "focus.completedAway" : "focus.completed", { min: minutesDone }));
     setRemaining(targetMin * 60);
     setCommitments((prev) => {
-      const next = prev.map((c) => ({ ...c, log: { ...c.log, [todayKey()]: (c.log[todayKey()] || 0) + minutesDone } }));
+      const next = prev.map((c) => ({ ...c, log: { ...c.log, [localDayKey()]: (c.log[localDayKey()] || 0) + minutesDone } }));
       Promise.all(next.map((updated) => store.saveCommitment(updated))).then((results) => {
         if (results.some((r) => !r.ok)) { setCommitments(prev); showToast(t("focus.commitmentsUpdateFailed")); }
       });
@@ -5673,8 +5695,11 @@ function FocusReport({ focus, title, color, emptyMsg, studyEntries }) {
   const reduceMotion = useReducedMotion();
   const entryMinutes = (studyEntries || []).reduce((s, e) => s + diffMinutes(e.start, e.end), 0);
   const totalMin = focus.reduce((s, f) => s + f.minutes, 0) + entryMinutes;
-  const todayEntryMin = (studyEntries || []).filter((e) => e.date === todayKey()).reduce((s, e) => s + diffMinutes(e.start, e.end), 0);
-  const todayMin = focus.filter((f) => f.date === todayKey()).reduce((s, f) => s + f.minutes, 0) + todayEntryMin;
+  // خلل حقيقي وُجد وأُصلح: "اليوم"/السلسلة المتتالية/آخر 14 يوماً هنا كانت
+  // تُبنى بـtodayKey() (UTC) بدل localDayKey() (محلي) - نفس خلل completeSession
+  // أعلاه بالضبط، ينعكس هنا في كل إحصائية تعرضها هذه البطاقة.
+  const todayEntryMin = (studyEntries || []).filter((e) => e.date === localDayKey()).reduce((s, e) => s + diffMinutes(e.start, e.end), 0);
+  const todayMin = focus.filter((f) => f.date === localDayKey()).reduce((s, f) => s + f.minutes, 0) + todayEntryMin;
   const allDays = useMemo(() => {
     const days = new Set(focus.map((f) => f.date));
     (studyEntries || []).forEach((e) => days.add(e.date));
@@ -5682,14 +5707,14 @@ function FocusReport({ focus, title, color, emptyMsg, studyEntries }) {
   }, [focus, studyEntries]);
   const streak = useMemo(() => {
     let s = 0; let d = new Date();
-    if (!allDays.has(todayKey(d))) { d.setDate(d.getDate() - 1); if (!allDays.has(todayKey(d))) return 0; }
-    while (allDays.has(todayKey(d))) { s++; d.setDate(d.getDate() - 1); }
+    if (!allDays.has(localDayKey(d))) { d.setDate(d.getDate() - 1); if (!allDays.has(localDayKey(d))) return 0; }
+    while (allDays.has(localDayKey(d))) { s++; d.setDate(d.getDate() - 1); }
     return s;
   }, [allDays]);
   const last14 = useMemo(() => {
     const arr = []; const today = new Date();
     for (let i = 13; i >= 0; i--) {
-      const d = new Date(today); d.setDate(d.getDate() - i); const k = todayKey(d);
+      const d = new Date(today); d.setDate(d.getDate() - i); const k = localDayKey(d);
       const focusMins = focus.filter((f) => f.date === k).reduce((s, f) => s + f.minutes, 0);
       const entryMins = (studyEntries || []).filter((e) => e.date === k).reduce((s, e) => s + diffMinutes(e.start, e.end), 0);
       arr.push({ label: arabicDate(k, { day: "numeric" }, language === "en" ? "en-US" : undefined), mins: focusMins + entryMins });
@@ -5729,7 +5754,14 @@ function FocusReport({ focus, title, color, emptyMsg, studyEntries }) {
               <div key={f.id} style={S.sessionRow}>
                 <span style={{ ...S.legendDot, background: color }} />
                 <span style={S.sessionLabel}>{f.label || t("focus.report.focusSessionFallback")}</span>
-                <span style={S.sessionMins}>{fmtHM(f.minutes, language)}</span>
+                {/* targetMinutes = المدة المخطَّطة عبر المؤقّت (Priority 4) - تظهر
+                    فقط إن اختلفت عن minutes الفعلية (جلسة أُنهيت مبكراً)، فلا
+                    ازدحام بصري لأي جلسة اكتملت بالكامل أو أُدخلت يدوياً بلا خطة. */}
+                <span style={S.sessionMins}>
+                  {f.targetMinutes != null && f.targetMinutes !== f.minutes
+                    ? t("focus.report.sessionMinsOfTarget", { actual: formatNumberLatin(f.minutes, language), target: formatNumberLatin(f.targetMinutes, language), unit: t("common.units.minutes") })
+                    : fmtHM(f.minutes, language)}
+                </span>
                 <span style={S.sessionDate}>{arabicDate(f.date, { day: "numeric", month: "short" }, language === "en" ? "en-US" : undefined)}</span>
               </div>
             ))}
@@ -5824,18 +5856,18 @@ function BotsChallenge({ focus, entries, categories }) {
   }, [studyCat, generalCat]);
   const entriesMinutes = useMemo(() => {
     if (!entries || !relevantCatIds.size) return 0;
-    const today = todayKey();
+    const today = localDayKey();
     return entries.filter((e) => e.date === today && relevantCatIds.has(e.catId)).reduce((s, e) => s + diffMinutes(e.start, e.end), 0);
   }, [entries, relevantCatIds]);
   const focusMinutes = useMemo(() => {
-    const today = todayKey();
+    const today = localDayKey();
     return (focus || []).filter((f) => f.date === today).reduce((s, f) => s + f.minutes, 0);
   }, [focus]);
   const myToday = entriesMinutes + focusMinutes;
 
   const bots = useMemo(() => {
     const now = new Date();
-    const today = todayKey();
+    const today = localDayKey();
     const list = ROBOT_DATA.map((r) => ({
       ...r,
       mins: computeBotMinutes(r, now, today),
@@ -5926,8 +5958,8 @@ function CommitmentsSection({ commitments, setCommitments, categories, focus, sh
   function streakOf(c) {
     let s = 0; let d = new Date();
     const met = (k) => (c.log[k] || 0) >= c.targetMinutes;
-    if (!met(todayKey(d))) { d.setDate(d.getDate() - 1); if (!met(todayKey(d))) return 0; }
-    while (met(todayKey(d))) { s++; d.setDate(d.getDate() - 1); }
+    if (!met(localDayKey(d))) { d.setDate(d.getDate() - 1); if (!met(localDayKey(d))) return 0; }
+    while (met(localDayKey(d))) { s++; d.setDate(d.getDate() - 1); }
     return s;
   }
 
@@ -5937,7 +5969,7 @@ function CommitmentsSection({ commitments, setCommitments, categories, focus, sh
       <p style={S.profileHint}>{t("commitments.subtitle")}</p>
       <div style={S.commitList}>
         {commitments.map((c) => {
-          const todayMin = c.log[todayKey()] || 0;
+          const todayMin = c.log[localDayKey()] || 0;
           const pct = Math.min(100, Math.round((todayMin / c.targetMinutes) * 100));
           const done = todayMin >= c.targetMinutes;
           const streak = streakOf(c);
@@ -5989,8 +6021,8 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
     setCoachLoading(true); setCoachReply(null);
     try {
       const isEn = language === "en";
-      const todayFocus = (focus || []).filter((f) => f.date === todayKey()).reduce((s, f) => s + f.minutes, 0);
-      const doneToday = (tasks || []).filter((tk) => tk.done && tk.due === todayKey()).length;
+      const todayFocus = (focus || []).filter((f) => f.date === localDayKey()).reduce((s, f) => s + f.minutes, 0);
+      const doneToday = (tasks || []).filter((tk) => tk.done && tk.due === localDayKey()).length;
       // محتوى طلب الذكاء الاصطناعي (وليس واجهة المستخدم) يتبع لغة الواجهة
       // أيضاً - نفس نمط DailyEvolution/ReportsView أعلاه، لكن دون مفتاح جاهز
       // في ملفات الترجمة هنا فيُبنى النص كاملاً بلغتين.

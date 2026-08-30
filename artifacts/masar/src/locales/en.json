@@ -616,7 +616,9 @@
       "moodShort": "Mood",
       "workoutLabel": "Workout",
       "exercisesUnit": "exercises",
-      "setsUnit": "sets"
+      "setsUnit": "sets",
+      "sessionsUnit": "sessions",
+      "studyOnlyLabel": "Of which, study"
     }
   },
   "pdfReport": {
@@ -1039,6 +1041,7 @@
       "sessions": "Sessions",
       "last14Days": "Last 14 days",
       "savedSessionsLog": "Saved sessions log",
+      "sessionMinsOfTarget": "{{actual}} of {{target}} {{unit}}",
       "focusSessionFallback": "Focus session",
       "studyActivityFallback": "Study activity (from Today)"
     }

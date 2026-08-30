@@ -616,7 +616,9 @@
       "moodShort": "المزاج",
       "workoutLabel": "التمرين",
       "exercisesUnit": "تمارين",
-      "setsUnit": "مجموعات"
+      "setsUnit": "مجموعات",
+      "sessionsUnit": "جلسات",
+      "studyOnlyLabel": "منها دراسة"
     }
   },
   "pdfReport": {
@@ -1039,6 +1041,7 @@
       "sessions": "جلسات",
       "last14Days": "آخر 14 يوماً",
       "savedSessionsLog": "سجل الجلسات المحفوظة",
+      "sessionMinsOfTarget": "{{actual}} من {{target}} {{unit}}",
       "focusSessionFallback": "جلسة تركيز",
       "studyActivityFallback": "نشاط دراسة (من اليوم)"
     }

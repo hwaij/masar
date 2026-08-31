@@ -302,6 +302,17 @@ export default function MasarApp() {
       return VALID_SHORTCUT_VIEWS.includes(requested) ? requested : "today";
     } catch { return "today"; }
   });
+  // معاينة مسودات الأنظمة الغذائية (Priority 6): علم مرة واحدة فقط عند
+  // التحميل الأول (نفس نمط قراءة "view" أعلاه بالضبط)، يُقرأ هنا تحديداً -
+  // لا داخل DietPlansView نفسها - لأنها محمَّلة كسولاً (React.lazy)، فبحلول
+  // وقت تركيبها فعلياً يكون التأثير الآتي أسفل (تنظيف "?view=" من الرابط)
+  // قد نفَّذ replaceState وأزال أي معامل آخر معه بالفعل. القراءة هنا (نفس
+  // لحظة تهيئة "view" تماماً) تسبق ذلك التنظيف دائماً، فتبقى القيمة صحيحة
+  // حتى مع رابط طويل مثل "?view=dietPlans&draft=diet".
+  const [dietDraftPreview] = useState(() => {
+    try { return new URLSearchParams(window.location.search).get("draft") === "diet"; }
+    catch { return false; }
+  });
   const [entries, setEntries] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -1107,7 +1118,7 @@ export default function MasarApp() {
             <Suspense fallback={<div style={{ ...S.view, display: "flex", justifyContent: "center", padding: 40 }}><Loader2 size={24} color="#C9A24B" className="spin" /></div>}>
               {view === "nutrition" && <NutritionView healthProfile={healthProfile} showToast={showToast} profile={profile} setProfile={setProfile} subscription={subscription} journeyActive={tourOpen} voiceCommand={voiceCommand} clearVoiceCommand={clearVoiceCommand} onDisambiguationPendingChange={setNutritionAwaitingDisambiguation} />}
               {view === "nutritionPlan" && <NutritionPlanView healthProfile={healthProfile} showToast={showToast} subscription={subscription} setView={setView} />}
-              {view === "dietPlans" && <DietPlansView healthProfile={healthProfile} showToast={showToast} subscription={subscription} />}
+              {view === "dietPlans" && <DietPlansView healthProfile={healthProfile} showToast={showToast} subscription={subscription} draftPreview={dietDraftPreview} />}
               {view === "fitness" && <FitnessView healthProfile={healthProfile} showToast={showToast} profile={profile} setProfile={setProfile} journeyActive={tourOpen} />}
               {view === "steps" && <StepsView stepsLog={stepsLog} setStepsLog={setStepsLog} showToast={showToast} />}
               {view === "groups" && isSub && <GroupsView showToast={showToast} />}

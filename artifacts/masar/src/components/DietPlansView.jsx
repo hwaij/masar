@@ -59,7 +59,7 @@ function PremiumRequired({ t }) {
   );
 }
 
-export default function DietPlansView({ healthProfile, showToast, subscription }) {
+export default function DietPlansView({ healthProfile, showToast, subscription, draftPreview }) {
   const { t, i18n } = useTranslation();
   const isEn = i18n.language === "en";
   const isRtl = !isEn;
@@ -91,6 +91,13 @@ export default function DietPlansView({ healthProfile, showToast, subscription }
   const currentSystem = plan ? getDietSystem(plan.systemId) : null;
   const detailSystem = selectedSystemId ? getDietSystem(selectedSystemId) : null;
   const detailUnsuitable = detailSystem ? isDietUnsuitable(detailSystem, conditions) : false;
+  // معاينة المسودات (Priority 6): مسودة نظام (draftContent) تُعرَض كاملة فقط
+  // إن كان draftPreview مفعّلاً (رابط "?draft=diet" الخاص بالأخصائي فقط) - لا
+  // تغيير إطلاقاً لما يراه أي مستخدم عادي (completed يبقى المرجع الوحيد
+  // لغيره تماماً كما كان). isDraftView مميَّزة عن showRichContent وحدها لأنها
+  // تحكم إظهار شارة/تنبيه "مسودة لم تُعتمد" الذي لا معنى له لنظام مكتمل فعلاً.
+  const showFullContent = (sys) => !!sys?.completed || (!!draftPreview && !!sys?.draftContent);
+  const detailIsDraftView = !!(detailSystem && !detailSystem.completed && draftPreview && detailSystem.draftContent);
 
   const dataChanged = useMemo(() => {
     if (!plan) return false;
@@ -215,10 +222,19 @@ export default function DietPlansView({ healthProfile, showToast, subscription }
         <button onClick={() => { setSelectedSystemId(null); setShowAssessmentForm(false); }} style={DS.backRow}>
           <BackChevron size={16} /> {t("dietPlans.backToList")}
         </button>
-        {!detailSystem.completed ? (
+        {!showFullContent(detailSystem) ? (
           <div style={DS.sectionCard}><p style={DS.sectionText}>{t("dietPlans.structureOnlyNotice")}</p></div>
         ) : (
           <>
+            {detailIsDraftView && (
+              <div style={DS.warningCard}>
+                <AlertTriangle size={20} color="#D17B5F" style={{ flexShrink: 0, marginTop: 2 }} />
+                <div>
+                  <p style={DS.warningTitle}>{t("dietPlans.draftBannerTitle")}</p>
+                  <p style={DS.warningText}>{t("dietPlans.draftBannerMessage")}</p>
+                </div>
+              </div>
+            )}
             <div style={DS.hero}>
               <div style={DS.heroIcon}><Salad size={22} color="var(--on-accent)" /></div>
               <div>
@@ -278,7 +294,10 @@ export default function DietPlansView({ healthProfile, showToast, subscription }
               <p style={DS.sectionText}>{isEn ? detailSystem.scientificReferenceEn : detailSystem.scientificReference}</p>
             </div>
 
-            {detailUnsuitable ? (
+            {/* بناء خطة AI فعلية يبقى محصوراً بالأنظمة المعتمدة (completed) فقط -
+                محتوى مسودة لم يُعتمد بعد لا يجب أن يُستخدَم لبناء خطط فعلية
+                لمستخدمين حقيقيين، حتى في وضع المعاينة الخاص بالأخصائي. */}
+            {!detailSystem.completed ? null : detailUnsuitable ? (
               <div style={DS.warningCard}>
                 <AlertTriangle size={18} color="#D17B5F" style={{ flexShrink: 0, marginTop: 2 }} />
                 <p style={DS.warningText}>{t("dietPlans.buildPlanBlockedNotice")}</p>
@@ -411,9 +430,19 @@ export default function DietPlansView({ healthProfile, showToast, subscription }
               {sys.completed ? (
                 <div style={DS.systemOverview}>{isEn ? sys.overviewEn : sys.overview}</div>
               ) : (
-                <span style={DS.badge}>{t("dietPlans.comingSoonBadge")}</span>
+                <>
+                  <span style={DS.badge}>{t("dietPlans.comingSoonBadge")}</span>
+                  {/* شارة إضافية تظهر فقط في وضع معاينة المسودات (?draft=diet) -
+                      لا تغيير إطلاقاً لما يراه أي مستخدم عادي، الذي يبقى يرى
+                      "قيد الإعداد" فقط بلا أي إشارة لوجود مسودة خلفها. */}
+                  {draftPreview && sys.draftContent && (
+                    <span style={{ ...DS.badge, color: "#6FA8D6", background: "rgba(111,168,214,0.12)", marginInlineStart: 6 }}>
+                      {t("dietPlans.draftAvailableBadge")}
+                    </span>
+                  )}
+                </>
               )}
-              {sys.completed && unsuitable && (
+              {showFullContent(sys) && unsuitable && (
                 <span style={{ ...DS.badge, color: "#D17B5F", background: "rgba(209,123,95,0.12)" }}>
                   <AlertTriangle size={10} style={{ verticalAlign: "middle", marginInlineEnd: 3 }} />{t("dietPlans.unsuitableWarningTitle")}
                 </span>

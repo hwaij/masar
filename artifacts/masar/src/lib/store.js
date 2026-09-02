@@ -1,6 +1,9 @@
 import { supabase, hasSupabase } from "./supabase";
 
 let CURRENT_OWNER = "solo";
+// ذاكرة تخزين مؤقت للجلسة الحالية فقط لجدول food_synonyms بكامله - انظر
+// listFoodSynonymTerms أدناه.
+let _foodSynonymsCache = null;
 export function setOwner(id) { CURRENT_OWNER = id || "solo"; }
 export function getOwner() { return CURRENT_OWNER; }
 
@@ -1093,6 +1096,22 @@ export const store = {
       if (byEn) return byEn.canonical_term;
       return null;
     } catch (e) { console.error("[lookupFoodSynonym] read failed:", e); return null; }
+  },
+
+  // نفس الجدول أعلاه، لكن بكامله (لا صف واحد بمطابقة تامة) - يُستخدَم فقط
+  // لبناء مرشّحي المطابقة التقريبية (fuzzy) في nutrition.js عند فشل
+  // lookupFoodSynonym التام. الجدول صغير جداً (~150 صفاً) ومرجعي عام لا
+  // يتغيّر أثناء الجلسة، فيُجلب مرة واحدة فقط ويُخزَّن هنا (_foodSynonymsCache)
+  // لبقية الجلسة - لا داعٍ لإعادة الجلب في كل ضغطة بحث فاشلة.
+  async listFoodSynonymTerms() {
+    if (_foodSynonymsCache) return _foodSynonymsCache;
+    if (!hasSupabase) return [];
+    try {
+      const { data, error } = await supabase.from("food_synonyms").select("term_ar, term_en, canonical_term");
+      if (error) { console.error("[listFoodSynonymTerms] Supabase error:", error.message); return []; }
+      _foodSynonymsCache = data || [];
+      return _foodSynonymsCache;
+    } catch (e) { console.error("[listFoodSynonymTerms] read failed:", e); return []; }
   },
 
   async loadWaterLog() {

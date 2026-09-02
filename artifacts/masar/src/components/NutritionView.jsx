@@ -20,10 +20,11 @@ import {
   UNIT_OPTIONS, unitById, unitToGrams, unitServingSize,
   scaleMicronutrients, MICRONUTRIENT_META, personalizedRDI, compressImageToBlob,
   MEAL_TYPES, guessMealType, estimateMicronutrientsAI, translateFoodTermForUsda,
+  findFuzzyFoodSuggestions,
 } from "../lib/nutrition";
 import { getDailyNutritionSummary } from "../lib/nutrition-plan";
 import { requestNotificationPermission } from "../lib/push";
-import { searchGenericFoods, genericFoodToProduct } from "../lib/generic-foods";
+import { searchGenericFoods, genericFoodToProduct, GENERIC_FOODS } from "../lib/generic-foods";
 import { isolateNumbers } from "../lib/bidi";
 import { speak, isSpeechSupported } from "../lib/speech";
 import NumericValue from "./NumericValue";
@@ -87,6 +88,10 @@ const NS = {
   previewGrid: { display: "flex", gap: 8, margin: "12px 0" },
   previewChip: { flex: 1, textAlign: "center", background: "var(--surface-sunken)", borderRadius: 10, padding: "8px 4px" },
   notFoundNote: { fontSize: 12.5, color: "var(--muted2)", lineHeight: 1.7, marginBottom: 12 },
+  suggestionBanner: { fontSize: 12.5, color: "var(--ink-soft)", background: "var(--surface-sunken)", border: "1px solid var(--border2)", borderRadius: 10, padding: "9px 11px", marginBottom: 10, lineHeight: 1.6 },
+  suggestionLabel: { fontSize: 12.5, color: "var(--muted2)", marginBottom: 8 },
+  suggestionChipsRow: { display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 },
+  suggestionChip: { border: "1px solid var(--gold)", background: "rgba(201,162,75,0.1)", color: "var(--gold)", borderRadius: 20, padding: "7px 13px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
   notifBanner: { display: "flex", gap: 10, alignItems: "flex-start", background: "rgba(201,162,75,0.08)", border: "1px solid rgba(201,162,75,0.3)", borderRadius: 14, padding: "12px 12px", marginBottom: 14 },
   notifText: { fontSize: 12.5, color: "var(--ink)", lineHeight: 1.7, marginBottom: 8 },
   notifRow: { display: "flex", gap: 8 },
@@ -915,14 +920,33 @@ async function searchFoodCandidatesOnce(rawQuery, lang, isSub) {
   try {
     const usdaRes = await searchUSDAFoods(usdaTerm);
     usda = usdaRes.ok ? usdaRes.products : [];
-    // طبقة احتياطية ذكية (نفس منطق SearchPanel بالضبط): فقط عند فشل القاموس
-    // الثابت والنص كما هو معاً في إيجاد أي نتيجة، والنص عربي فعلاً، ومشترك
-    // فعّال (Gemini ميزة مدفوعة - انظر translateFoodTermForUsda).
-    if (usda.length === 0 && !canonical && isSub && /[؀-ۿ]/.test(normalized)) {
-      const translated = await translateFoodTermForUsda(normalized);
-      if (translated) {
-        const retryRes = await searchUSDAFoods(translated);
-        if (retryRes.ok) usda = retryRes.products;
+    // نفس تسلسل SearchPanel بالضبط (راجع تعليقه هناك): صفر نتائج من USDA
+    // يشمل حالتين - القاموس فارغ (canonical) فيُجرَّب تصحيح إملائي محلي
+    // فوري أولاً (fuzzy، بلا اشتراك)، أو القاموس موجود لكن USDA لا يملك
+    // مقابلاً فعلياً له (حالة "ورق عنب" - ترجمة صحيحة لطبق مركّب لا يوجد
+    // كصنف واحد). في كل الحالات التي يفشل فيها ما سبق: طبقة Gemini
+    // الاحتياطية (نص عربي + مشترك فعّال فقط). لا واجهة "هل تقصد" هنا (بحث
+    // صوتي بلا نقرات)، فأفضل مرشّح يُطبَّق مباشرة تلقائياً بدل عرضه كاقتراح.
+    if (usda.length === 0) {
+      let resolvedByFuzzy = false;
+      if (!canonical) {
+        const synonymTerms = await store.listFoodSynonymTerms();
+        const fuzzy = findFuzzyFoodSuggestions(normalized, GENERIC_FOODS, synonymTerms);
+        if (fuzzy.length > 0) {
+          const retryRes = await searchUSDAFoods(fuzzy[0].canonical || fuzzy[0].nameEn || fuzzy[0].name);
+          if (retryRes.ok && retryRes.products.length > 0) { usda = retryRes.products; resolvedByFuzzy = true; }
+        }
+      }
+      if (!resolvedByFuzzy && isSub && /[؀-ۿ]/.test(normalized)) {
+        const suggestion = await translateFoodTermForUsda(normalized);
+        if (suggestion) {
+          const retryRes = await searchUSDAFoods(suggestion.term);
+          usda = retryRes.ok ? retryRes.products : [];
+          if (usda.length === 0 && suggestion.components.length > 0) {
+            const compRes = await searchUSDAFoods(suggestion.components[0]);
+            if (compRes.ok) usda = compRes.products;
+          }
+        }
       }
     }
   } catch { /* شبكة USDA غير متاحة الآن - يستمر البحث بباقي المصادر بلا كسر */ }
@@ -1775,6 +1799,15 @@ function SearchPanel({ onPick, onManual, isSub }) {
   const [usdaResults, setUsdaResults] = useState([]);
   const [usdaLoading, setUsdaLoading] = useState(false);
   const [usdaError, setUsdaError] = useState(null);
+  // اقتراحات "هل تقصد" - تُملأ فقط عند فشل المسار السريع (قاموس + نص كما
+  // هو) تماماً. fuzzySuggestions: تصحيح إملائي محلي (راجع تعليق useEffect
+  // أدناه). geminiSuggestion: بانر شفافية فقط عند عرض نتائج USDA فعلية
+  // لكنها تقريب لطبق مركّب (لا "هل تقصد" قابلة للنقر، لأن النتائج بالفعل
+  // ظاهرة). geminiComponentSuggestions: مكوّنات طبق مركّب كـ"هل تقصد" قابلة
+  // للنقر، فقط إذا فشل حتى المصطلح المقترَح نفسه في USDA.
+  const [fuzzySuggestions, setFuzzySuggestions] = useState([]);
+  const [geminiSuggestion, setGeminiSuggestion] = useState(null);
+  const [geminiComponentSuggestions, setGeminiComponentSuggestions] = useState([]);
   // يحرس ضد سباق حالات بين طلبات شبكة متتالية (نفس مبدأ requestIdRef
   // السابق) - لو تغيّر النص قبل عودة رد سابق، يُتجاهل أي رد متأخر لا يحمل
   // أحدث رقم مسجَّل وقت وصوله.
@@ -1801,6 +1834,7 @@ function SearchPanel({ onPick, onManual, isSub }) {
     // النتائج المحلية الجديدة الظاهرة فوراً أعلاه.
     setOffResults([]); setCustomResults([]); setOffError(null);
     setUsdaResults([]); setUsdaError(null);
+    setFuzzySuggestions([]); setGeminiSuggestion(null); setGeminiComponentSuggestions([]);
     if (!normalized) { setOffLoading(false); setUsdaLoading(false); return; }
     const requestId = ++requestIdRef.current;
     setOffLoading(true); setUsdaLoading(true);
@@ -1826,20 +1860,50 @@ function SearchPanel({ onPick, onManual, isSub }) {
         if (!usdaRes.ok) {
           setUsdaError(isEn ? (usdaRes.errorEn || usdaRes.error) : usdaRes.error);
           setUsdaResults([]);
-        } else if (
-          usdaRes.products.length === 0 && !canonical && isSub && /[؀-ۿ]/.test(normalized)
-        ) {
-          // طبقة احتياطية ذكية عبر Gemini: تُستدعى فقط هنا - بعد فشل القاموس
-          // الثابت (canonical فارغ) والنص كما هو (usdaRes فارغ) معاً - فلا تُبطئ
-          // إطلاقاً الحالة الشائعة التي يحلّها القاموس أو النص الإنجليزي مباشرة.
-          const translated = await translateFoodTermForUsda(normalized);
-          if (requestId !== requestIdRef.current) return;
-          if (translated) {
-            const retryRes = await searchUSDAFoods(translated);
+        } else if (usdaRes.products.length === 0) {
+          // صفر نتائج من USDA - حالتان مختلفتان تصلان هنا معاً:
+          // (أ) canonical فارغ: القاموس نفسه لم يجد مرادفاً (قد يكون خطأ
+          //     إملائي، أو كلمة غير مغطاة إطلاقاً بعد).
+          // (ب) canonical موجود لكن USDA لا يملك مقابلاً فعلياً له - بالضبط
+          //     حالة "ورق عنب": القاموس يترجمها صحيحةً لـ"stuffed grape
+          //     leaves"، لكن هذا ليس صنفاً واحداً موجوداً في USDA (طبق مركّب:
+          //     أرز + ورق عنب + توابل)، فتعود نتائج البحث فارغة رغم ترجمة
+          //     صحيحة تماماً.
+          // تسلسل تحسين بالترتيب، كل طبقة فقط عند فشل ما قبلها:
+          // 1) تصحيح إملائي محلي فوري (fuzzy، بلا شبكة إضافية عملياً ولا حاجة
+          //    اشتراك) - فقط في الحالة (أ) (canonical فارغ فعلاً؛ لا معنى
+          //    لتصحيح إملائي لنص القاموس ترجمه بنجاح أصلاً). إن وُجد مرشّح
+          //    معقول، يُعرض كـ"هل تقصد" قابلة للنقر ونتوقف هنا (توفيراً
+          //    لاستدعاء Gemini المدفوع/الأبطأ حين يكفي تصحيح حرف واحد فقط).
+          // 2) وإلا (لا تصحيح إملائي معقول، أو الحالة (ب) مباشرةً) ونص عربي
+          //    فعلاً ومشترك فعّال (Gemini ميزة مدفوعة - انظر
+          //    translateFoodTermForUsda): تُطلَب ترجمة/تحديد أقرب صنف قابل
+          //    للبحث، مع مكوّنات احتياطية للأطباق المركّبة كـ"ورق عنب".
+          setUsdaResults([]);
+          let resolvedByFuzzy = false;
+          if (!canonical) {
+            const synonymTerms = await store.listFoodSynonymTerms();
             if (requestId !== requestIdRef.current) return;
-            setUsdaResults(retryRes.ok ? sortUsdaResults(retryRes.products) : []);
-          } else {
-            setUsdaResults([]);
+            const fuzzy = findFuzzyFoodSuggestions(normalized, GENERIC_FOODS, synonymTerms);
+            if (fuzzy.length > 0) {
+              setFuzzySuggestions(fuzzy);
+              resolvedByFuzzy = true;
+            }
+          }
+          if (!resolvedByFuzzy && isSub && /[؀-ۿ]/.test(normalized)) {
+            const suggestion = await translateFoodTermForUsda(normalized);
+            if (requestId !== requestIdRef.current) return;
+            if (suggestion) {
+              const retryRes = await searchUSDAFoods(suggestion.term);
+              if (requestId !== requestIdRef.current) return;
+              if (retryRes.ok && retryRes.products.length > 0) {
+                setUsdaResults(sortUsdaResults(retryRes.products));
+                // بانر شفافية فقط عند تقريب فعلي (طبق مركّب) - لا نُظهره لمطابقة مباشرة واضحة.
+                if (suggestion.approximate) setGeminiSuggestion({ term: suggestion.term });
+              } else if (suggestion.components.length > 0) {
+                setGeminiComponentSuggestions(suggestion.components);
+              }
+            }
           }
         } else {
           setUsdaResults(sortUsdaResults(usdaRes.products));
@@ -1868,7 +1932,7 @@ function SearchPanel({ onPick, onManual, isSub }) {
       if (requestId === requestIdRef.current) setOffLoading(false);
     }, 350);
     return () => clearTimeout(timer);
-  }, [normalized, isEn]);
+  }, [normalized, isEn, isSub]);
 
   // ترتيب العرض: المحلي الفوري أولاً، ثم USDA (قاعدة عامة موثّقة وضخمة)،
   // ثم custom_foods (مساهمات مستخدمين)، ثم Open Food Facts (منتجات تجارية
@@ -1891,8 +1955,31 @@ function SearchPanel({ onPick, onManual, isSub }) {
       </div>
       {offError && <div style={NS.errorText}>{offError}</div>}
       {usdaError && <div style={NS.errorText}>{usdaError}</div>}
-      {searched && !networkLoading && merged.length === 0 && (
-        <p style={NS.notFoundNote}>{t("nutrition.noSearchResults")}</p>
+      {!networkLoading && geminiSuggestion && merged.length > 0 && (
+        <div style={NS.suggestionBanner}>{t("nutrition.approximateResultsNote", { query, term: geminiSuggestion.term })}</div>
+      )}
+      {searched && !networkLoading && merged.length === 0 && fuzzySuggestions.length === 0 && geminiComponentSuggestions.length === 0 && (
+        <p style={NS.notFoundNote}>{t("nutrition.noSearchResultsWithHint", { query })}</p>
+      )}
+      {searched && !networkLoading && fuzzySuggestions.length > 0 && (
+        <>
+          <p style={NS.suggestionLabel}>{t("nutrition.didYouMean")}</p>
+          <div style={NS.suggestionChipsRow}>
+            {fuzzySuggestions.map((s, i) => (
+              <button key={i} type="button" style={NS.suggestionChip} onClick={() => setQuery(s.name)}>{s.name}</button>
+            ))}
+          </div>
+        </>
+      )}
+      {searched && !networkLoading && fuzzySuggestions.length === 0 && geminiComponentSuggestions.length > 0 && (
+        <>
+          <p style={NS.suggestionLabel}>{t("nutrition.didYouMean")}</p>
+          <div style={NS.suggestionChipsRow}>
+            {geminiComponentSuggestions.map((c, i) => (
+              <button key={i} type="button" style={NS.suggestionChip} onClick={() => setQuery(c)}>{c}</button>
+            ))}
+          </div>
+        </>
       )}
       {merged.map((p) => (
         <button key={`${p.origin}-${p.barcode}-${p.name}`} onClick={() => onPick(p)} style={NS.resultRow}>

@@ -3,6 +3,7 @@
 // التوثيق: https://world.openfoodfacts.org/data
 
 import { parseJsonLoose, analyze } from "./helpers";
+import { findFuzzyMatches } from "./fuzzy";
 
 const OFF_PRODUCT_URL = (barcode) => `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json`;
 const OFF_SEARCH_URL = (query) => `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&json=true&page_size=20`;
@@ -327,30 +328,90 @@ export async function searchUSDAFoods(term) {
   }
 }
 
-// طبقة احتياطية ذكية لترجمة اسم طعام عربي إلى المصطلح الإنجليزي القياسي في
-// USDA - تُستدعى من SearchPanel (NutritionView.jsx) فقط عند فشل المسارين
-// السريعين معاً (قاموس food_synonyms الثابت + محاولة النص كما هو) في
-// إيجاد أي نتيجة USDA فعلية، حتى لا تُبطئ الحالة الشائعة التي يحلّها
-// القاموس فوراً بلا أي انتظار إضافي.
+// طبقة احتياطية ذكية عبر Gemini - آخر حل في تسلسل البحث (بعد فشل القاموس
+// الثابت + محاولة النص كما هو + المطابقة التقريبية/fuzzy معاً - راجع
+// findFuzzyFoodSuggestions أدناه واستدعاء SearchPanel في NutritionView.jsx
+// لتفاصيل الترتيب الكامل)، حتى لا تُبطئ الحالة الشائعة التي يحلّها القاموس
+// أو التصحيح الإملائي فوراً بلا أي انتظار إضافي.
+//
+// أوسع من "ترجمة كلمة" بسيطة: تتعرّف أيضاً على الأطباق العربية/الخليجية
+// المركّبة (مثل "ورق عنب" - أرز + عنب + توابل، لا مقابل واحد دقيق له في
+// USDA) فتقترح إما أقرب صنف مفرد قابل للبحث عنه (مع الإفصاح أنه تقريب لا
+// مطابقة دقيقة)، أو مكوّناته الأساسية كبديل عند فشل ذلك الصنف المفرد نفسه.
 //
 // تعتمد على analyze() (Gemini) - ميزة مدفوعة صراحة في مسار (انظر تعليق
 // netlify/functions/gemini.js: "Gemini access is a paid feature") تُحدَّد
 // أهليتها بالكامل خادمياً بفحص الاشتراك، لا هنا. أي فشل (غير مشترك، لا
-// اتصال، حد طلبات...) يُعامَل بصمت كـ"لا ترجمة متاحة الآن" فيبقى البحث بلا
-// نتيجة كما كان تماماً - هذا تحسين ثانوي اختياري، لا مساراً أساسياً يستحق
+// اتصال، رد غير مفهوم...) يُعامَل بصمت بإرجاع null فيبقى البحث بلا نتيجة
+// إضافية كما كان تماماً - هذا تحسين ثانوي اختياري، لا مساراً أساسياً يستحق
 // رسالة خطأ مزعجة عند فشله.
+//
+// القيمة المُرجعة: { term, approximate, components } أو null عند أي فشل.
+// term: أفضل مصطلح إنجليزي مفرد يستحق تجربته في USDA. approximate: true
+// إن كان هذا تقريباً لطبق مركّب لا مقابل دقيق له (تُعرض حينها ملاحظة شفافة
+// للمستخدم بدل ادّعاء تطابق دقيق). components: أسماء المكوّنات الأساسية
+// (إنجليزي، بحد أقصى 3) للطبق المركّب - تُستخدَم فقط كاقتراح "هل تقصد"
+// احتياطي إن فشل البحث حتى بـterm نفسه.
 export async function translateFoodTermForUsda(term) {
   const cleaned = (term || "").trim();
   if (!cleaned) return null;
   try {
-    const prompt = `Translate this food name to the standard English term used in nutrition databases like USDA FoodData Central. Reply with ONLY the English food name in a few words, nothing else - no quotes, no punctuation, no explanation.\n\nFood name: "${cleaned}"`;
-    const text = await analyze(prompt, 30);
-    const result = (text || "").trim().replace(/^["'«»]+|["'«».]+$/g, "");
-    return result.length > 0 && result.length < 60 ? result : null;
+    const prompt = `You are a nutrition-database search assistant for a food-tracking app that queries USDA FoodData Central (English-only, and it has no exact single entry for many composite regional dishes).
+
+A user searched for this food name (it may be Arabic, and it may be a composite dish with no single exact USDA match): "${cleaned}"
+
+Reply with ONLY a JSON object, no markdown, no explanation, in exactly this shape:
+{"term": "<best single English search term to try in USDA FoodData Central>", "approximate": <true if this is a rough/composite approximation rather than a direct exact match, otherwise false>, "components": [<if approximate is true because it's a composite dish with no good single match, list 1-3 short English names of its main ingredients to search separately as a fallback - otherwise an empty array>]}
+
+Example for "ورق عنب" (stuffed grape leaves - a composite rice+leaves dish with no exact single USDA entry): {"term": "stuffed grape leaves", "approximate": true, "components": ["rice", "grape leaves"]}
+Example for "دجاج مشوي" (grilled chicken - a direct match exists): {"term": "grilled chicken", "approximate": false, "components": []}`;
+    const text = await analyze(prompt, 150);
+    const parsed = parseJsonLoose(text);
+    const resultTerm = String(parsed.term || "").trim();
+    if (!resultTerm || resultTerm.length > 60) return null;
+    const components = Array.isArray(parsed.components)
+      ? parsed.components.map((c) => String(c || "").trim()).filter((c) => c.length > 0 && c.length < 40).slice(0, 3)
+      : [];
+    return { term: resultTerm, approximate: !!parsed.approximate, components };
   } catch (e) {
     console.error("[nutrition] translateFoodTermForUsda failed (falling back silently):", e);
     return null;
   }
+}
+
+// تصحيح إملائي محلي فوري (بلا شبكة، ما عدا جلب مرادفات food_synonyms مرة
+// واحدة لكل جلسة - انظر store.listFoodSynonymTerms) - يُستدعى فقط بعد فشل
+// القاموس التام والنص كما هو معاً، وقبل اللجوء لـGemini (طبقة مدفوعة وأبطأ)
+// حتى تُحَل أخطاء الطباعة الشائعة (مثل "دجاذ" بدل "دجاج"، "ارز" بدل "أرز")
+// فوراً بلا انتظار شبكة إن أمكن، وحتى لا نستهلك طبقة Gemini المدفوعة لحالة
+// كان يكفي فيها تصحيح حرف واحد. genericFoods: مصفوفة GENERIC_FOODS الخام
+// (يمرّرها المستدعي - لا استيراد مباشر من generic-foods.js هنا تفادياً
+// لاستيراد دائري، فهي تستورد normalizeSearchTerm من هذا الملف أصلاً).
+// synonymTerms: نتيجة store.listFoodSynonymTerms() (مصفوفة {term_ar,
+// term_en, canonical_term}).
+//
+// المرشّحون يشملون searchTerms العربية لكل صنف محلي أيضاً لا الاسم الكامل
+// فقط - "صدر دجاج مشوي" ككل بعيد جداً عن "دجاذ" (مسافة تعديل كبيرة)، لكن
+// كلمة "دجاج" ضمن searchTerms لنفس الصنف قريبة جداً (تعديل حرف واحد) وهي
+// بالضبط ما يستحق اقتراحه.
+export function findFuzzyFoodSuggestions(normalizedQuery, genericFoods, synonymTerms) {
+  if (!normalizedQuery) return [];
+  const candidates = [];
+  for (const f of genericFoods || []) {
+    candidates.push({ text: normalizeSearchTerm(f.name), name: f.name, nameEn: f.nameEn, kind: "generic" });
+    for (const term of f.searchTerms || []) {
+      if (!/[؀-ۿ]/.test(term)) continue; // مرشّحون عرب فقط - الاستعلام الفاشل عربي أصلاً هنا
+      candidates.push({ text: normalizeSearchTerm(term), name: term, nameEn: f.nameEn, kind: "generic" });
+    }
+  }
+  for (const s of synonymTerms || []) {
+    if (!s.term_ar) continue;
+    candidates.push({
+      text: normalizeSearchTerm(s.term_ar), name: s.term_ar, nameEn: s.term_en,
+      canonical: s.canonical_term, kind: "synonym",
+    });
+  }
+  return findFuzzyMatches(normalizedQuery, candidates, 3);
 }
 
 // خيارات سريعة لحجم الحصة — تُعبّئ خانة "الكمية (غم)" ولا تمنع المستخدم

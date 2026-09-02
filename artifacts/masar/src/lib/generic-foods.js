@@ -32,12 +32,21 @@ import { normalizeSearchTerm } from "./nutrition";
 
 export const GENERIC_FOODS = [
   // ===== بيض — eggs =====
-  { id: "egg_boiled", category: "egg", name: "بيض مسلوق", nameEn: "Boiled egg", searchTerms: ["بيض", "egg", "eggs", "boiled egg"], caloriesPer100g: 155, proteinPer100g: 13, carbsPer100g: 1.1, fatPer100g: 11, fiberPer100g: 0, servingGrams: 50, micronutrients: { vitamin_a: 140, vitamin_d: 2, vitamin_b12: 0.9, iron: 1.2, calcium: 50, potassium: 126, zinc: 1.1 } },
-  { id: "egg_fried", category: "egg", name: "بيض مقلي", nameEn: "Fried egg", searchTerms: ["بيض مقلي", "fried egg"], caloriesPer100g: 196, proteinPer100g: 13.6, carbsPer100g: 0.8, fatPer100g: 15, fiberPer100g: 0, servingGrams: 50 },
-  { id: "egg_omelette", category: "egg", name: "أومليت", nameEn: "Omelette", searchTerms: ["اومليت", "omelet", "omelette"], caloriesPer100g: 154, proteinPer100g: 10.6, carbsPer100g: 1.6, fatPer100g: 11.7, fiberPer100g: 0, servingGrams: 120 },
-  { id: "egg_scrambled", category: "egg", name: "بيض مخفوق", nameEn: "Scrambled egg", searchTerms: ["بيض مخفوق", "scrambled egg", "scrambled eggs"], caloriesPer100g: 149, proteinPer100g: 10, carbsPer100g: 1.6, fatPer100g: 11, fiberPer100g: 0, servingGrams: 110 },
-  { id: "egg_white", category: "egg", name: "بياض البيض", nameEn: "Egg white", searchTerms: ["بياض بيض", "egg whites"], caloriesPer100g: 52, proteinPer100g: 10.9, carbsPer100g: 0.7, fatPer100g: 0.2, fiberPer100g: 0, servingGrams: 33, micronutrients: { potassium: 163 } },
-  { id: "egg_yolk", category: "egg", name: "صفار البيض", nameEn: "Egg yolk", searchTerms: ["صفار بيض", "egg yolks"], caloriesPer100g: 322, proteinPer100g: 15.9, carbsPer100g: 3.6, fatPer100g: 26.5, fiberPer100g: 0, servingGrams: 17, micronutrients: { vitamin_a: 380, vitamin_d: 5, vitamin_b12: 1.9, iron: 2.7, calcium: 129 } },
+  // خلل حقيقي وُجد وأُصلح: البيض (مصدر كوليسترول معروف - كله في الصفار
+  // تحديداً) كان بلا أي قيمة كوليسترول هنا إطلاقاً، فيظهر "0 مغ" مُلفَّقاً
+  // بدل القيمة الحقيقية عبر genericFoodToProduct أدناه. القيم التالية مرجعية
+  // عامة قياسية (USDA FoodData Central، لكل 100غ من الصنف المطهو كما هو):
+  // بيضة مسلوقة/مقلية/مخفوقة كاملة ≈ نفس كثافة الكوليسترول تقريباً (كله في
+  // الصفار، والطهو لا يزيله)، بياض البيض تقريباً معدوم الكوليسترول تماماً
+  // (الكوليسترول كله في الصفار حصراً)، وصفار البيض عالي جداً كثافةً. قيمة
+  // الأومليت وحدها تقريبية عمداً (وصفة متغيّرة بإضافات كالحليب/الجبن تُخفِّف
+  // الكثافة لكل 100غ من الطبق النهائي، بخلاف بقية الأصناف وهي بيض صرف).
+  { id: "egg_boiled", category: "egg", name: "بيض مسلوق", nameEn: "Boiled egg", searchTerms: ["بيض", "egg", "eggs", "boiled egg"], caloriesPer100g: 155, proteinPer100g: 13, carbsPer100g: 1.1, fatPer100g: 11, fiberPer100g: 0, cholesterolPer100g: 373, servingGrams: 50, micronutrients: { vitamin_a: 140, vitamin_d: 2, vitamin_b12: 0.9, iron: 1.2, calcium: 50, potassium: 126, zinc: 1.1 } },
+  { id: "egg_fried", category: "egg", name: "بيض مقلي", nameEn: "Fried egg", searchTerms: ["بيض مقلي", "fried egg"], caloriesPer100g: 196, proteinPer100g: 13.6, carbsPer100g: 0.8, fatPer100g: 15, fiberPer100g: 0, cholesterolPer100g: 372, servingGrams: 50 },
+  { id: "egg_omelette", category: "egg", name: "أومليت", nameEn: "Omelette", searchTerms: ["اومليت", "omelet", "omelette"], caloriesPer100g: 154, proteinPer100g: 10.6, carbsPer100g: 1.6, fatPer100g: 11.7, fiberPer100g: 0, cholesterolPer100g: 200, servingGrams: 120 },
+  { id: "egg_scrambled", category: "egg", name: "بيض مخفوق", nameEn: "Scrambled egg", searchTerms: ["بيض مخفوق", "scrambled egg", "scrambled eggs"], caloriesPer100g: 149, proteinPer100g: 10, carbsPer100g: 1.6, fatPer100g: 11, fiberPer100g: 0, cholesterolPer100g: 372, servingGrams: 110 },
+  { id: "egg_white", category: "egg", name: "بياض البيض", nameEn: "Egg white", searchTerms: ["بياض بيض", "egg whites"], caloriesPer100g: 52, proteinPer100g: 10.9, carbsPer100g: 0.7, fatPer100g: 0.2, fiberPer100g: 0, cholesterolPer100g: 0, servingGrams: 33, micronutrients: { potassium: 163 } },
+  { id: "egg_yolk", category: "egg", name: "صفار البيض", nameEn: "Egg yolk", searchTerms: ["صفار بيض", "egg yolks"], caloriesPer100g: 322, proteinPer100g: 15.9, carbsPer100g: 3.6, fatPer100g: 26.5, fiberPer100g: 0, cholesterolPer100g: 1085, servingGrams: 17, micronutrients: { vitamin_a: 380, vitamin_d: 5, vitamin_b12: 1.9, iron: 2.7, calcium: 129 } },
 
   // ===== نشويات وحبوب — grains =====
   { id: "rice_white_cooked", category: "grain", name: "أرز أبيض مطبوخ", nameEn: "White rice, cooked", searchTerms: ["أرز", "رز", "rice", "white rice"], caloriesPer100g: 130, proteinPer100g: 2.7, carbsPer100g: 28, fatPer100g: 0.3, fiberPer100g: 0.4, servingGrams: 150 },
@@ -164,7 +173,11 @@ export function searchGenericFoods(normalizedQuery) {
 // تبقى صفراً (غير مذكورة في مصدر البيانات هنا - لا اختراع قيمة غير معروفة
 // فعلياً). micronutrientsPer100g تُؤخذ من حقل food.micronutrients أعلاه إن
 // وُجد (تقدير USDA تقريبي لصنف محدَّد) وإلا كائن فارغ كما كان دائماً.
-// نفس المبدأ ينطبق على الكوليسترول (يبقى صفراً هنا لنفس السبب).
+// خلل حقيقي وُجد وأُصلح: الكوليسترول كان صفراً ثابتاً هنا لكل الأصناف بلا
+// استثناء (حتى البيض، مصدر كوليسترول معروف) - أصبح يُقرأ الآن من
+// food.cholesterolPer100g إن وُجد (البيض فقط حتى الآن)، ويبقى صفراً فقط
+// لما لا يملك قيمة موثَّقة فعلياً بعد - لا افتراض كوليسترول لأي صنف آخر لم
+// تُراجَع قيمته الحقيقية بعد.
 // origin: "generic" هو العلامة الوحيدة التي تُستخدم لاحقاً (ConfirmQuantityCard)
 // لوسم أي فيتامين/معدن من هذا المصدر بـmicroApprox=true في سجل التغذية -
 // تمييزاً عن بيانات حقيقية دقيقة من باركود Open Food Facts أو ملصق حقيقي.
@@ -182,7 +195,7 @@ export function genericFoodToProduct(food, isEn) {
     fiberPer100g: food.fiberPer100g,
     sugarPer100g: 0,
     sodiumPer100gMg: 0,
-    cholesterolPer100gMg: 0,
+    cholesterolPer100gMg: food.cholesterolPer100g ?? 0,
     servingSizeLabel: null,
     servingGrams: food.servingGrams || null,
     micronutrientsPer100g: food.micronutrients || {},

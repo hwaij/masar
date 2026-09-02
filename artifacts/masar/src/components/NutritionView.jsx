@@ -19,7 +19,7 @@ import {
   labelToPer100Product, DAILY_GUIDELINES,
   UNIT_OPTIONS, unitById, unitToGrams, unitServingSize,
   scaleMicronutrients, MICRONUTRIENT_META, personalizedRDI, compressImageToBlob,
-  MEAL_TYPES, guessMealType, estimateMicronutrientsAI,
+  MEAL_TYPES, guessMealType, estimateMicronutrientsAI, translateFoodTermForUsda,
 } from "../lib/nutrition";
 import { getDailyNutritionSummary } from "../lib/nutrition-plan";
 import { requestNotificationPermission } from "../lib/push";
@@ -888,7 +888,7 @@ function MealTypeSelector({ value, onChange }) {
 // فتُطلَق الاستعلامات الثلاثة غير المتزامنة معاً بـPromise.allSettled بدل
 // حراسة سباق حالات مبنية على مؤقت debounce (غير مفيدة هنا أصلاً - لا كتابة
 // جارية لإلغاء استعلامات سابقة من أجلها).
-async function searchFoodCandidatesOnce(rawQuery, lang) {
+async function searchFoodCandidatesOnce(rawQuery, lang, isSub) {
   const isEn = lang === "en";
   const normalized = normalizeSearchTerm(rawQuery);
   if (!normalized) return [];
@@ -914,7 +914,17 @@ async function searchFoodCandidatesOnce(rawQuery, lang) {
   let usda = [];
   try {
     const usdaRes = await searchUSDAFoods(usdaTerm);
-    if (usdaRes.ok) usda = usdaRes.products;
+    usda = usdaRes.ok ? usdaRes.products : [];
+    // طبقة احتياطية ذكية (نفس منطق SearchPanel بالضبط): فقط عند فشل القاموس
+    // الثابت والنص كما هو معاً في إيجاد أي نتيجة، والنص عربي فعلاً، ومشترك
+    // فعّال (Gemini ميزة مدفوعة - انظر translateFoodTermForUsda).
+    if (usda.length === 0 && !canonical && isSub && /[؀-ۿ]/.test(normalized)) {
+      const translated = await translateFoodTermForUsda(normalized);
+      if (translated) {
+        const retryRes = await searchUSDAFoods(translated);
+        if (retryRes.ok) usda = retryRes.products;
+      }
+    }
   } catch { /* شبكة USDA غير متاحة الآن - يستمر البحث بباقي المصادر بلا كسر */ }
 
   const off = (offSettled.status === "fulfilled" && offSettled.value.ok)
@@ -1754,7 +1764,7 @@ function PreviousFoodsPanel({ nutritionLog, onPickPrevious, t }) {
   );
 }
 
-function SearchPanel({ onPick, onManual }) {
+function SearchPanel({ onPick, onManual, isSub }) {
   const { t, i18n } = useTranslation();
   const isEn = i18n.language === "en";
   const [query, setQuery] = useState("");
@@ -1816,6 +1826,21 @@ function SearchPanel({ onPick, onManual }) {
         if (!usdaRes.ok) {
           setUsdaError(isEn ? (usdaRes.errorEn || usdaRes.error) : usdaRes.error);
           setUsdaResults([]);
+        } else if (
+          usdaRes.products.length === 0 && !canonical && isSub && /[؀-ۿ]/.test(normalized)
+        ) {
+          // طبقة احتياطية ذكية عبر Gemini: تُستدعى فقط هنا - بعد فشل القاموس
+          // الثابت (canonical فارغ) والنص كما هو (usdaRes فارغ) معاً - فلا تُبطئ
+          // إطلاقاً الحالة الشائعة التي يحلّها القاموس أو النص الإنجليزي مباشرة.
+          const translated = await translateFoodTermForUsda(normalized);
+          if (requestId !== requestIdRef.current) return;
+          if (translated) {
+            const retryRes = await searchUSDAFoods(translated);
+            if (requestId !== requestIdRef.current) return;
+            setUsdaResults(retryRes.ok ? sortUsdaResults(retryRes.products) : []);
+          } else {
+            setUsdaResults([]);
+          }
         } else {
           setUsdaResults(sortUsdaResults(usdaRes.products));
         }
@@ -2715,7 +2740,7 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
   async function handleVoiceLogFood(cmd) {
     showToast(t("speech.voice.searchingFood"));
     const normalized = normalizeSearchTerm(cmd.foodName);
-    const results = await searchFoodCandidatesOnce(cmd.foodName, i18n.language);
+    const results = await searchFoodCandidatesOnce(cmd.foodName, i18n.language, isSub);
     const classification = classifyFoodMatches(results, normalized);
     if (classification.kind === "single") {
       proceedWithVoiceFoodMatch(classification.product, cmd.qty, cmd.unit);
@@ -3228,6 +3253,7 @@ ${missingMealsLine}
               <SearchPanel
                 onPick={(product) => { setPendingProduct({ product, source: "search" }); setSheet("confirm"); }}
                 onManual={() => setSheet("manual")}
+                isSub={isSub}
               />
             )}
 

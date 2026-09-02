@@ -2,7 +2,7 @@
 // وحسابات ماء/سعرات اليوم. Open Food Facts مجاني ولا يحتاج مفتاح API.
 // التوثيق: https://world.openfoodfacts.org/data
 
-import { parseJsonLoose } from "./helpers";
+import { parseJsonLoose, analyze } from "./helpers";
 
 const OFF_PRODUCT_URL = (barcode) => `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json`;
 const OFF_SEARCH_URL = (query) => `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&json=true&page_size=20`;
@@ -324,6 +324,32 @@ export async function searchUSDAFoods(term) {
       error: "تعذّر البحث في قاعدة USDA الآن.",
       errorEn: "Couldn't search the USDA database right now.",
     };
+  }
+}
+
+// طبقة احتياطية ذكية لترجمة اسم طعام عربي إلى المصطلح الإنجليزي القياسي في
+// USDA - تُستدعى من SearchPanel (NutritionView.jsx) فقط عند فشل المسارين
+// السريعين معاً (قاموس food_synonyms الثابت + محاولة النص كما هو) في
+// إيجاد أي نتيجة USDA فعلية، حتى لا تُبطئ الحالة الشائعة التي يحلّها
+// القاموس فوراً بلا أي انتظار إضافي.
+//
+// تعتمد على analyze() (Gemini) - ميزة مدفوعة صراحة في مسار (انظر تعليق
+// netlify/functions/gemini.js: "Gemini access is a paid feature") تُحدَّد
+// أهليتها بالكامل خادمياً بفحص الاشتراك، لا هنا. أي فشل (غير مشترك، لا
+// اتصال، حد طلبات...) يُعامَل بصمت كـ"لا ترجمة متاحة الآن" فيبقى البحث بلا
+// نتيجة كما كان تماماً - هذا تحسين ثانوي اختياري، لا مساراً أساسياً يستحق
+// رسالة خطأ مزعجة عند فشله.
+export async function translateFoodTermForUsda(term) {
+  const cleaned = (term || "").trim();
+  if (!cleaned) return null;
+  try {
+    const prompt = `Translate this food name to the standard English term used in nutrition databases like USDA FoodData Central. Reply with ONLY the English food name in a few words, nothing else - no quotes, no punctuation, no explanation.\n\nFood name: "${cleaned}"`;
+    const text = await analyze(prompt, 30);
+    const result = (text || "").trim().replace(/^["'«»]+|["'«».]+$/g, "");
+    return result.length > 0 && result.length < 60 ? result : null;
+  } catch (e) {
+    console.error("[nutrition] translateFoodTermForUsda failed (falling back silently):", e);
+    return null;
   }
 }
 

@@ -1141,6 +1141,120 @@ insert into food_synonyms (term_ar, term_en, canonical_term) values
   ('كولا', 'cola', 'Cola')
 on conflict (term_ar) do nothing;
 
+-- إصلاح: البحث العربي كان يفشل حتى لما تكون الكلمة الأساسية موجودة فعلاً في
+-- الجدول (مثلاً "دجاج" موجودة)، لأن lookupFoodSynonym() يطابق النص كاملاً
+-- (.eq) لا جزئياً - فأي عبارة موصوفة كـ"دجاج مشوي" أو "بيض مسلوق" لن تُطابَق
+-- أبداً ما لم تكن هي نفسها صفاً مستقلاً هنا. هذه الدفعة تضيف: (أ) عبارات
+-- موصوفة شائعة (طريقة الطهي/الصفة + الطعام) و(ب) أطعمة ولحوم/أسماك/خضروات/
+-- فواكه ووجبات خليجية/عربية شائعة أخرى غير مغطاة في الدفعتين أعلاه. لا تُبطئ
+-- البحث - القاموس يبقى أول مسار فوري كما هو، وهذه الدفعة توسّعه فقط. الطبقة
+-- الاحتياطية الذكية عبر Gemini (translateFoodTermForUsda في nutrition.js)
+-- تبقى الحل العام لأي عبارة مستقبلية غير مغطاة هنا.
+insert into food_synonyms (term_ar, term_en, canonical_term) values
+  -- عبارات موصوفة شائعة (صفة/طريقة طهي + طعام) - هذه أهم إضافة لأنها أكثر
+  -- ما يكتبه المستخدمون فعلياً في البحث، لا الكلمة المفردة وحدها
+  ('دجاج مشوي', 'grilled chicken', 'Chicken, broilers or fryers, breast, meat only, cooked, grilled'),
+  ('دجاج مقلي', 'fried chicken', 'Chicken, broilers or fryers, breast, meat only, cooked, fried'),
+  ('دجاج مسلوق', 'boiled chicken', 'Chicken, broilers or fryers, breast, meat only, cooked, boiled'),
+  ('صدر دجاج', 'chicken breast', 'Chicken breast'),
+  ('صدور دجاج', 'chicken breast', 'Chicken breast'),
+  ('ورك دجاج', 'chicken thigh', 'Chicken thigh'),
+  ('جناح دجاج', 'chicken wing', 'Chicken wing'),
+  ('أجنحة دجاج', 'chicken wings', 'Chicken wings'),
+  ('بيض مسلوق', 'boiled egg', 'Egg, whole, boiled'),
+  ('بيض مقلي', 'fried egg', 'Egg, whole, fried'),
+  ('بيض مخفوق', 'scrambled egg', 'Egg, whole, scrambled'),
+  ('بياض بيض', 'egg white', 'Egg white'),
+  ('صفار بيض', 'egg yolk', 'Egg yolk'),
+  ('لحم مشوي', 'grilled meat', 'Beef, grilled'),
+  ('لحم مقلي', 'fried meat', 'Beef, fried'),
+  ('لحم مسلوق', 'boiled meat', 'Beef, boiled'),
+  ('لحم مفروم', 'ground beef', 'Ground beef'),
+  ('كباب', 'kebab', 'Beef kebab'),
+  ('شيش طاووق', 'chicken shish tawook', 'Grilled chicken skewers'),
+  ('سمك مشوي', 'grilled fish', 'Fish, grilled'),
+  ('سمك مقلي', 'fried fish', 'Fish, fried'),
+  ('أرز أبيض', 'white rice', 'White rice, cooked'),
+  ('أرز بني', 'brown rice', 'Brown rice, cooked'),
+  ('أرز بسمتي', 'basmati rice', 'Basmati rice, cooked'),
+  ('خبز أبيض', 'white bread', 'White bread'),
+  ('خبز أسمر', 'whole wheat bread', 'Whole wheat bread'),
+  ('خبز بر', 'whole wheat bread', 'Whole wheat bread'),
+  ('حليب كامل الدسم', 'whole milk', 'Whole milk'),
+  ('حليب قليل الدسم', 'low fat milk', 'Low fat milk'),
+  ('حليب خالي الدسم', 'skim milk', 'Skim milk'),
+  -- لحوم ودواجن وأسماك إضافية
+  ('لحم بقري', 'beef', 'Beef'),
+  ('لحم ضأن', 'lamb', 'Lamb'),
+  ('لحم إبل', 'camel meat', 'Camel meat'),
+  ('كبدة', 'liver', 'Liver'),
+  ('كبد', 'liver', 'Liver'),
+  ('نقانق', 'sausage', 'Sausage'),
+  ('سجق', 'sausage', 'Sausage'),
+  ('هوت دوج', 'hot dog', 'Hot dog'),
+  ('برجر', 'burger patty', 'Beef burger patty'),
+  ('هامبرغر', 'hamburger', 'Hamburger'),
+  ('ديك رومي', 'turkey', 'Turkey'),
+  ('حبار', 'squid', 'Squid'),
+  ('سلطعون', 'crab', 'Crab'),
+  ('محار', 'oyster', 'Oyster'),
+  ('هامور', 'grouper', 'Grouper'),
+  ('زبيدي', 'pomfret', 'Pomfret'),
+  -- خضروات وفواكه إضافية
+  ('ثوم', 'garlic', 'Garlic'),
+  ('فلفل أخضر', 'green pepper', 'Green pepper'),
+  ('فلفل أحمر', 'red pepper', 'Red pepper'),
+  ('فلفل حار', 'chili pepper', 'Chili pepper'),
+  ('قرنبيط', 'cauliflower', 'Cauliflower'),
+  ('ملفوف', 'cabbage', 'Cabbage'),
+  ('كرنب', 'cabbage', 'Cabbage'),
+  ('فطر', 'mushroom', 'Mushroom'),
+  ('عيش الغراب', 'mushroom', 'Mushroom'),
+  ('ذرة', 'corn', 'Corn'),
+  ('بازلاء', 'peas', 'Peas'),
+  ('بامية', 'okra', 'Okra'),
+  ('لفت', 'turnip', 'Turnip'),
+  ('فجل', 'radish', 'Radish'),
+  ('كرفس', 'celery', 'Celery'),
+  ('بقدونس', 'parsley', 'Parsley'),
+  ('نعناع', 'mint', 'Mint'),
+  ('أفوكادو', 'avocado', 'Avocado'),
+  ('أناناس', 'pineapple', 'Pineapple'),
+  ('خوخ', 'peach', 'Peach'),
+  ('مشمش', 'apricot', 'Apricot'),
+  ('كمثرى', 'pear', 'Pear'),
+  ('إجاص', 'pear', 'Pear'),
+  ('كرز', 'cherry', 'Cherry'),
+  ('جوافة', 'guava', 'Guava'),
+  ('ليمون', 'lemon', 'Lemon'),
+  ('يوسفي', 'tangerine', 'Tangerine'),
+  ('مندرين', 'mandarin', 'Mandarin'),
+  -- أطباق ووجبات خليجية/عربية شائعة
+  ('كبسة', 'kabsa', 'Kabsa (rice and meat dish)'),
+  ('مندي', 'mandi', 'Mandi (rice and meat dish)'),
+  ('مجبوس', 'machboos', 'Machboos (rice and meat dish)'),
+  ('برياني', 'biryani', 'Biryani'),
+  ('حمص بطحينة', 'hummus', 'Hummus'),
+  ('متبل', 'baba ghanoush', 'Baba ghanoush'),
+  ('تبولة', 'tabbouleh', 'Tabbouleh'),
+  ('فتوش', 'fattoush', 'Fattoush'),
+  ('ورق عنب', 'stuffed grape leaves', 'Stuffed grape leaves'),
+  ('محشي', 'stuffed vegetables', 'Stuffed vegetables'),
+  ('شاورما', 'shawarma', 'Shawarma'),
+  ('فلافل', 'falafel', 'Falafel'),
+  ('سمبوسة', 'samosa', 'Samosa'),
+  ('مقلوبة', 'maqluba', 'Maqluba (upside-down rice dish)'),
+  ('ملوخية', 'molokhia', 'Molokhia'),
+  ('عدس شوربة', 'lentil soup', 'Lentil soup'),
+  ('شوربة عدس', 'lentil soup', 'Lentil soup'),
+  ('كنافة', 'kunafa', 'Kunafa'),
+  ('بقلاوة', 'baklava', 'Baklava'),
+  ('لقيمات', 'luqaimat', 'Luqaimat (sweet dumplings)'),
+  ('جريش', 'jareesh', 'Jareesh (cracked wheat dish)'),
+  ('هريس', 'harees', 'Harees (wheat and meat dish)'),
+  ('بلح الشام', 'balah el sham', 'Balah el sham (fried pastry)')
+on conflict (term_ar) do nothing;
+
 alter table water_log enable row level security;
 drop policy if exists water_log_anon_solo on water_log;
 drop policy if exists water_log_user_own on water_log;

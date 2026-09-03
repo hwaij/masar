@@ -1106,7 +1106,7 @@ export default function MasarApp() {
         {view === "achieve" && (isSub ? <AchieveView achieve={achieve} setAchieve={setAchieve} profile={profile} focus={focus} tasks={tasks} prayerLog={prayerLog} religious={religious} addPoints={addPoints} showToast={showToast} setView={setView} /> : (
           <div style={S.view}><UpsellCard icon={Rocket} title={i18n.language === "en" ? "Achieve is waiting for you in Masar Premium" : "أنجز ينتظرك في مسار الكامل"} message={i18n.language === "en" ? "Achieve knows your hobbies and suggests challenges, projects, and learning paths made specifically for you." : "أنجز يعرف هواياتك ويقترح لك تحديات ومشاريع ومسارات تعلّم تناسبك أنت تحديداً."} /></div>
         ))}
-        {view === "reports" && (isSub ? <ReportsView entries={entries} categories={categories} focus={focus} profile={profile} setProfile={setProfile} healthProfile={healthProfile} sleepLog={sleepLog} setSleepLog={setSleepLog} stepsLog={stepsLog} showToast={showToast} tasks={tasks} goals={goals} journeyActive={tourOpen} /> : (
+        {view === "reports" && (true ? <ReportsView entries={entries} categories={categories} focus={focus} profile={profile} setProfile={setProfile} healthProfile={healthProfile} sleepLog={sleepLog} setSleepLog={setSleepLog} stepsLog={stepsLog} showToast={showToast} tasks={tasks} goals={goals} journeyActive={tourOpen} /> : (
           <div style={S.view}><UpsellCard icon={TrendingUp} title={i18n.language === "en" ? "Your detailed reports in Masar Premium" : "تقاريرك التفصيلية في مسار الكامل"} message={i18n.language === "en" ? "See your progress with clear numbers and analysis, and track your sleep and rest pattern across days." : "شاهد تقدّمك بأرقام وتحليلات واضحة، وتتبّع نومك ونمط راحتك عبر الأيام."} /></div>
         ))}
         {view === "assistant" && (isSub ? <AssistantView entries={entries} tasks={tasks} categories={categories} focus={focus} prayerLog={prayerLog} religious={religious} profile={profile} setProfile={setProfile} stats={stats} setView={setView} healthProfile={healthProfile} goals={goals} showToast={showToast} journeyActive={tourOpen} /> : (
@@ -2786,6 +2786,10 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
     [days, nutritionLog, sleepLog, stepsLog, workoutLog, fitnessLog, focus, weightLog, studyEntries]
   );
   const [expandedDay, setExpandedDay] = useState(null);
+  // مؤشّر تحميل زر تصدير Excel فقط (منفصل تماماً عن exporting الخاص بـPDF
+  // أعلاه) - مكتبة exceljs ثقيلة نسبياً فتُحمَّل ديناميكياً هنا فقط عند
+  // الحاجة الفعلية (لا في الحزمة الرئيسية)، فقد يستغرق أول ضغطة لحظة.
+  const [exportingExcel, setExportingExcel] = useState(false);
 
   function exportDailyCsv() {
     // اسم شخصي كما أدخله المستخدم بنفسه (profile.name) بدل المعرّف التقني -
@@ -2804,6 +2808,36 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     showToast(t("reportsView.daily.csvExported"));
+  }
+
+  // نفس بيانات exportDailyCsv بالضبط + أعمدة احتياج/حالة محسوبة فعلياً عبر
+  // getDailyNutritionSummary (لا حساب مكرَّر) وتلوين تلقائي - راجع
+  // src/lib/excelReport.js لتفاصيل الحدود والألوان.
+  async function exportDailyExcel() {
+    if (exportingExcel) return;
+    const exportName = profile?.name?.trim() || t("reportsView.daily.csvUnnamedUser");
+    setExportingExcel(true);
+    try {
+      const { buildDailyReportExcelBuffer } = await import("../lib/excelReport");
+      const buffer = await buildDailyReportExcelBuffer(dailyReportRows, {
+        healthProfile, owner: exportName, isEn: language === "en",
+      });
+      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `masar-daily-report-${days[0]}-to-${days[days.length - 1]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast(t("reportsView.daily.excelExported"));
+    } catch (e) {
+      console.error("[exportDailyExcel] failed:", e);
+      showToast(t("reportsView.daily.excelExportFailed"));
+    } finally {
+      setExportingExcel(false);
+    }
   }
 
   // ===== "Masar Insight": فقرة قصيرة من Gemini مبنية حصراً على الأرقام
@@ -3513,7 +3547,12 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
         ) : (
           <>
             <p style={RS.dailyIntro}>{t("reportsView.daily.intro")}</p>
-            <button onClick={exportDailyCsv} style={S.exportBtn} title={t("reportsView.daily.exportCsvNote")}><Download size={14} /> {t("reportsView.daily.exportCsv")}</button>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={exportDailyCsv} style={{ ...S.exportBtn, flex: 1 }} title={t("reportsView.daily.exportCsvNote")}><Download size={14} /> {t("reportsView.daily.exportCsv")}</button>
+              <button onClick={exportDailyExcel} disabled={exportingExcel} style={{ ...S.exportBtn, flex: 1 }} title={t("reportsView.daily.exportExcelNote")}>
+                {exportingExcel ? <Loader2 size={14} className="spin" /> : <Download size={14} />} {t("reportsView.daily.exportExcel")}
+              </button>
+            </div>
             <p style={{ fontSize: 10.5, color: "var(--muted2)", lineHeight: 1.6, margin: "-8px 0 12px" }}>{t("reportsView.daily.exportCsvNote")}</p>
             <div className="stagger-in">
               {[...dailyReportRows].reverse().map((row) => {

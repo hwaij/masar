@@ -117,6 +117,16 @@ const NS = {
   photoPreview: { width: "100%", maxHeight: 200, objectFit: "cover", borderRadius: 14, marginBottom: 12 },
   itemsChipsRow: { display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 },
   itemChip: { fontSize: 12, fontWeight: 600, color: "var(--ink-soft)", background: "var(--surface-sunken)", border: "1px solid var(--border2)", borderRadius: 20, padding: "5px 12px" },
+  aiFoodCard: { background: "var(--surface-sunken)", border: "1px solid var(--border2)", borderRadius: 14, padding: "12px 12px", marginBottom: 10 },
+  aiFoodCardHead: { display: "flex", alignItems: "center", gap: 8, marginBottom: 8 },
+  aiFoodNameInput: { flex: 1, background: "var(--surface-raised)", border: "1px solid var(--border2)", borderRadius: 10, padding: "8px 10px", color: "var(--ink)", fontSize: 13.5, fontWeight: 700, fontFamily: "inherit" },
+  aiFoodDeleteBtn: { background: "none", border: "none", color: "var(--muted2)", cursor: "pointer", padding: 6, flexShrink: 0 },
+  aiFoodServingInput: { width: "100%", background: "var(--surface-raised)", border: "1px solid var(--border2)", borderRadius: 10, padding: "7px 10px", color: "var(--ink-soft)", fontSize: 12.5, fontFamily: "inherit", marginBottom: 8 },
+  aiFoodMacroGrid: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6 },
+  aiFoodMacroField: { display: "flex", flexDirection: "column", gap: 3 },
+  aiFoodMacroLabel: { fontSize: 9.5, color: "var(--muted2)", fontWeight: 700 },
+  aiFoodMacroInput: { width: "100%", background: "var(--surface-raised)", border: "1px solid var(--border2)", borderRadius: 8, padding: "6px 4px", color: "var(--ink)", fontSize: 12.5, textAlign: "center", fontFamily: "inherit" },
+  addFoodItemBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", background: "transparent", border: "1.5px dashed var(--border2)", color: "var(--muted2)", borderRadius: 12, padding: "10px 0", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", marginBottom: 12 },
   editableGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 4 },
 
   aiAnalysisCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "14px 14px", marginBottom: 14 },
@@ -2023,58 +2033,90 @@ function SearchPanel({ onPick, onManual, isSub }) {
 // (lib/nutrition.js) فقط، ولا يعرف شيئاً عن كون المزوّد الفعلي Gemini من
 // عدمه. كل قيمة في النتيجة قابلة للتعديل يدوياً قبل الحفظ، والتنبيه أسفل
 // الحقول ثابت لا يمكن إغلاقه.
+// خلل حقيقي وُجد وأُصلح: كانت هذه الشاشة تعرض تقديراً واحداً مجمَّعاً لكل
+// الوجبة (سعرات/ماكروز واحدة)، فيُحفَظ صنف واحد فقط بالضبط بغض النظر عن
+// عدد الأصناف الفعلية في الصورة - لا يمكن حذف صنف واحد لم يُؤكَل فعلاً، أو
+// تعديل كمية صنف واحد بمعزل عن الباقي. الآن recognizeMealFromImage تُرجع
+// صنفاً مستقلاً لكل عنصر طعام مميَّز في الصورة (foods[])، وهذه الشاشة تعرض
+// قائمة قابلة للتعديل الكامل: تعديل الاسم/الحصة/الماكروز لكل صنف، حذف صنف،
+// إضافة صنف يدوياً - ولا يُحفظ أي شيء في nutrition_log إلا بعد ضغط التأكيد
+// النهائي، الذي يحفظ كل صنف مؤكَّد كسجل مستقل (نفس مسار addEntry بالضبط،
+// كأن المستخدم بحث عن كل صنف يدوياً وأضافه على حدة).
 function AIPhotoPanel({ onSave, onManual, preselectedMealType }) {
   const { t, i18n } = useTranslation();
+  const isEn = i18n.language === "en";
   const [preview, setPreview] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState(null);
-  const [result, setResult] = useState(null); // { items, calories, protein, carbs, fat } - القيم المعروضة/القابلة للتعديل حالياً
-  const [baseResult, setBaseResult] = useState(null); // نفس شكل result، لكن ثابت: تقدير الذكاء الاصطناعي الخام لحصة واحدة (١×) كما وصل، يُستخدم أساساً لإعادة حساب عدد الحصص دون تراكم أخطاء تقريب
-  const [multiplier, setMultiplier] = useState(1);
+  const [foods, setFoods] = useState(null); // [{ localId, name, servingEstimate, calories, protein, carbs, fat, micronutrients }] أو null قبل أي تحليل
   const [mealType, setMealType] = useState(() => preselectedMealType || guessMealType());
+  const [saving, setSaving] = useState(false);
   const cameraInputRef = useRef(null);
   const galleryInputRef = useRef(null);
+
+  const defaultServingLabel = isEn ? "1 serving" : "حصة واحدة";
 
   async function handleFile(e) {
     const file = e.target.files?.[0];
     if (!file) return;
     setPreview(URL.createObjectURL(file));
     setError(null);
-    setResult(null);
-    setBaseResult(null);
-    setMultiplier(1);
+    setFoods(null);
     setAnalyzing(true);
     const res = await recognizeMealFromImage(file, i18n.language);
     setAnalyzing(false);
-    if (!res.ok) { setError(i18n.language === "en" ? (res.errorEn || res.error) : res.error); return; }
-    const initial = { items: res.items, calories: res.calories, protein: res.protein, carbs: res.carbs, fat: res.fat, micronutrients: res.micronutrients || {} };
-    setResult(initial);
-    setBaseResult(initial);
+    if (!res.ok) { setError(isEn ? (res.errorEn || res.error) : res.error); return; }
+    if (res.foods.length === 0) {
+      setError(isEn ? "Couldn't identify any food in this photo. Try another photo or add the food manually." : "تعذّر التعرّف على أي طعام في هذه الصورة. جرّب صورة أخرى أو أضف الطعام يدوياً.");
+      return;
+    }
+    setFoods(res.foods.map((f) => ({ ...f, localId: uid() })));
   }
 
-  function change(field, val) { setResult((r) => ({ ...r, [field]: val })); }
-  // عدد الحصص هنا يعني "كم مرة مثل ما في الصورة" - لا وحدة فعلية (غم/مل/كوب)
-  // معقولة لصورة وجبة مختلطة، فتُعامَل الصورة كاملة كـ"حصة واحدة" وتُضرب كل
-  // قيمها الأربع بعدد الحصص المختار، بنفس سهولة أزرار ×1..×5 في باقي طرق
-  // الإضافة. يُعاد الحساب دائماً من baseResult (تقدير الحصة الواحدة الأصلي)
-  // لا من القيم المعروضة حالياً، تفادياً لتراكم أخطاء تقريب عبر ضغطات متكررة.
-  // الفيتامينات المقدَّرة (micronutrients) تُضرَب بنفس عدد الحصص أيضاً، بنفس
-  // منطق الأربعة الأساسية تماماً.
-  function applyMultiplier(n) {
-    setMultiplier(n);
-    if (!baseResult) return;
-    const scaledMicros = {};
-    for (const [key, val] of Object.entries(baseResult.micronutrients || {})) {
-      scaledMicros[key] = Math.round(val * n * 100) / 100;
+  function updateFood(localId, field, val) {
+    setFoods((list) => list.map((f) => (f.localId === localId ? { ...f, [field]: val } : f)));
+  }
+  function removeFood(localId) {
+    setFoods((list) => list.filter((f) => f.localId !== localId));
+  }
+  function addFoodItem() {
+    setFoods((list) => [
+      ...(list || []),
+      { localId: uid(), name: "", servingEstimate: defaultServingLabel, calories: 0, protein: 0, carbs: 0, fat: 0, micronutrients: {} },
+    ]);
+  }
+
+  // يحفظ كل صنف له اسم فعلي (يتجاهل بصمت أي صف أُضيف يدوياً ثم تُرك بلا
+  // اسم) كسجل مستقل بالتتابع عبر onSave (=addEntry) - بلا أي حفظ جزئي: لو
+  // فشل صنف ما، الأصناف السابقة الناجحة تبقى محفوظة فعلياً (addEntry نفسها
+  // تُبلغ عن فشلها لكل استدعاء على حدة) بينما showToast/الشاشة التالية تتبع
+  // آخر صنف نجح فقط - نفس القيد المقبول أصلاً عند إضافة عدة أصناف يدوياً
+  // متتالية اليوم.
+  async function handleConfirm() {
+    const valid = (foods || []).filter((f) => f.name.trim().length > 0);
+    if (valid.length === 0) return;
+    setSaving(true);
+    for (const f of valid) {
+      await onSave({
+        id: uid(),
+        foodName: f.name.trim(),
+        calories: Number(f.calories) || 0, protein: Number(f.protein) || 0,
+        carbs: Number(f.carbs) || 0, fat: Number(f.fat) || 0,
+        // الصوديوم/الكوليسترول لا يمكن تقديرهما بصرياً بثقة معقولة من صورة
+        // (لا أثر مرئي للملح المضاف أو الكوليسترول في الطعام المطبوخ، خلافاً
+        // لحجم الحصة الذي يُقدَّر بصرياً بشكل معقول) - يبقيان صفراً هنا عمداً
+        // (لا اختراع رقم دقيق المظهر لعنصر غير مرئي إطلاقاً)، خلافاً
+        // للألياف/السكر غير المطلوبين من AI هنا أيضاً بنفس الحذر.
+        fiber: 0, sugar: 0, sodium: 0, cholesterol: 0,
+        servingInfo: f.servingEstimate.trim() || defaultServingLabel, source: "ai_photo", mealType,
+        // نفس علامة "≈ تقريبي" الموحّدة المستخدَمة لأطعمة generic-foods.js -
+        // لا تمييز إضافي بين المصدرين من منظور المستخدم، كلاهما تقدير عام لا
+        // تحليل دقيق لهذا الطعام بعينه.
+        micronutrients: f.micronutrients || {},
+        microApprox: Object.keys(f.micronutrients || {}).length > 0,
+      });
     }
-    setResult({
-      items: baseResult.items,
-      calories: Math.round((baseResult.calories || 0) * n),
-      protein: Math.round((baseResult.protein || 0) * n * 10) / 10,
-      carbs: Math.round((baseResult.carbs || 0) * n * 10) / 10,
-      fat: Math.round((baseResult.fat || 0) * n * 10) / 10,
-      micronutrients: scaledMicros,
-    });
+    setSaving(false);
   }
 
   return (
@@ -2113,69 +2155,60 @@ function AIPhotoPanel({ onSave, onManual, preselectedMealType }) {
         </>
       )}
 
-      {result && (
+      {foods && (
         <>
-          {result.items?.length > 0 && (
-            <div style={NS.itemsChipsRow}>
-              {result.items.map((it, i) => <span key={i} style={NS.itemChip}>{it}</span>)}
-            </div>
-          )}
           <div style={NS.disclaimerBox}>
             <Sparkles size={15} color="#C9A24B" style={{ flexShrink: 0, marginTop: 1 }} />
             <span>{t("nutrition.aiEstimateNote")}</span>
           </div>
-          <label style={S.label}>{t("nutrition.servingsCountPhotoRepresents")}</label>
-          <div style={NS.multiplierRow}>
-            {[1, 2, 3, 4, 5].map((n) => (
-              <button key={n} onClick={() => applyMultiplier(n)} style={{ ...NS.multiplierBtn, ...(multiplier === n ? NS.multiplierBtnActive : {}) }}>×{n}</button>
-            ))}
-            <input
-              type="number" inputMode="decimal" value={multiplier}
-              onChange={(e) => applyMultiplier(Math.max(0.25, Number(e.target.value) || 0))}
-              style={NS.multiplierInput}
-            />
-          </div>
-          <div style={NS.editableGrid}>
-            <div>
-              <label style={S.label}>{t("nutrition.calories")}</label>
-              <input type="number" inputMode="decimal" value={result.calories} onChange={(e) => change("calories", Number(e.target.value))} style={S.input} />
+          <label style={S.label}>{t("nutrition.confirmDetectedFoods")}</label>
+          {foods.map((f) => (
+            <div key={f.localId} style={NS.aiFoodCard}>
+              <div style={NS.aiFoodCardHead}>
+                <input
+                  value={f.name}
+                  onChange={(e) => updateFood(f.localId, "name", e.target.value)}
+                  placeholder={t("nutrition.foodNamePlaceholder")}
+                  style={NS.aiFoodNameInput}
+                />
+                <button onClick={() => removeFood(f.localId)} style={NS.aiFoodDeleteBtn} aria-label={t("nutrition.removeItem")}>
+                  <Trash2 size={16} />
+                </button>
+              </div>
+              <input
+                value={f.servingEstimate}
+                onChange={(e) => updateFood(f.localId, "servingEstimate", e.target.value)}
+                placeholder={defaultServingLabel}
+                style={NS.aiFoodServingInput}
+              />
+              <div style={NS.aiFoodMacroGrid}>
+                <div style={NS.aiFoodMacroField}>
+                  <span style={NS.aiFoodMacroLabel}>{t("common.units.kcal")}</span>
+                  <input type="number" inputMode="decimal" value={f.calories} onChange={(e) => updateFood(f.localId, "calories", Number(e.target.value))} style={NS.aiFoodMacroInput} />
+                </div>
+                <div style={NS.aiFoodMacroField}>
+                  <span style={NS.aiFoodMacroLabel}>{t("common.units.protein")}</span>
+                  <input type="number" inputMode="decimal" value={f.protein} onChange={(e) => updateFood(f.localId, "protein", Number(e.target.value))} style={NS.aiFoodMacroInput} />
+                </div>
+                <div style={NS.aiFoodMacroField}>
+                  <span style={NS.aiFoodMacroLabel}>{t("common.units.carbs")}</span>
+                  <input type="number" inputMode="decimal" value={f.carbs} onChange={(e) => updateFood(f.localId, "carbs", Number(e.target.value))} style={NS.aiFoodMacroInput} />
+                </div>
+                <div style={NS.aiFoodMacroField}>
+                  <span style={NS.aiFoodMacroLabel}>{t("common.units.fat")}</span>
+                  <input type="number" inputMode="decimal" value={f.fat} onChange={(e) => updateFood(f.localId, "fat", Number(e.target.value))} style={NS.aiFoodMacroInput} />
+                </div>
+              </div>
             </div>
-            <div>
-              <label style={S.label}>{t("common.units.protein")} ({t("common.units.g")})</label>
-              <input type="number" inputMode="decimal" value={result.protein} onChange={(e) => change("protein", Number(e.target.value))} style={S.input} />
-            </div>
-            <div>
-              <label style={S.label}>{t("common.units.carbs")} ({t("common.units.g")})</label>
-              <input type="number" inputMode="decimal" value={result.carbs} onChange={(e) => change("carbs", Number(e.target.value))} style={S.input} />
-            </div>
-            <div>
-              <label style={S.label}>{t("common.units.fat")} ({t("common.units.g")})</label>
-              <input type="number" inputMode="decimal" value={result.fat} onChange={(e) => change("fat", Number(e.target.value))} style={S.input} />
-            </div>
-          </div>
+          ))}
+          <button onClick={addFoodItem} style={NS.addFoodItemBtn}><Plus size={15} /> {t("nutrition.addFoodItem")}</button>
           <MealTypeSelector value={mealType} onChange={setMealType} />
           <button
-            onClick={() => onSave({
-              id: uid(),
-              foodName: result.items?.length > 0 ? result.items.join(i18n.language === "en" ? ", " : "، ") : t("nutrition.mealFallbackName"),
-              calories: Number(result.calories) || 0, protein: Number(result.protein) || 0,
-              carbs: Number(result.carbs) || 0, fat: Number(result.fat) || 0,
-              // الصوديوم/الكوليسترول لا يمكن تقديرهما بصرياً بثقة معقولة من صورة
-              // (لا أثر مرئي للملح المضاف أو الكوليسترول في الطعام المطبوخ،
-              // خلافاً لحجم الحصة الذي يُقدَّر بصرياً بشكل معقول) - يبقيان صفراً
-              // هنا عمداً (لا اختراع رقم دقيق المظهر لعنصر غير مرئي إطلاقاً)،
-              // خلافاً للألياف/السكر غير المطلوبين من AI هنا أيضاً بنفس الحذر.
-              fiber: 0, sugar: 0, sodium: 0, cholesterol: 0,
-              servingInfo: multiplier !== 1 ? t("nutrition.aiEstimateTimes", { n: fmtQty(multiplier) }) : t("nutrition.aiEstimate"), source: "ai_photo", mealType,
-              // نفس علامة "≈ تقريبي" الموحّدة المستخدَمة لأطعمة generic-foods.js -
-              // لا تمييز إضافي بين المصدرين من منظور المستخدم، كلاهما تقدير
-              // عام لا تحليل دقيق لهذا الطعام بعينه.
-              micronutrients: result.micronutrients || {},
-              microApprox: Object.keys(result.micronutrients || {}).length > 0,
-            })}
-            style={S.saveBtn}
+            onClick={handleConfirm}
+            disabled={saving || foods.every((f) => f.name.trim().length === 0)}
+            style={{ ...S.saveBtn, opacity: saving || foods.every((f) => f.name.trim().length === 0) ? 0.6 : 1 }}
           >
-            {t("nutrition.addToTodayLog")}
+            {saving ? <Loader2 size={16} className="spin" /> : t("nutrition.confirmAndAddAll")}
           </button>
         </>
       )}

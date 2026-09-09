@@ -54,7 +54,7 @@ create table if not exists profile (
   hobbies                text default '',
   field                  text default '',
   tour_seen              boolean not null default false,
-  theme                  text not null default 'dark' check (theme in ('dark', 'light')),
+  theme                  text not null default 'dark' check (theme in ('dark', 'light', 'pink', 'blue', 'system')),
   notifications_enabled  boolean not null default false,
   notifications_asked    boolean not null default false,
   updated_at             timestamptz default now()

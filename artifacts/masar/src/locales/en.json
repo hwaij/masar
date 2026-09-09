@@ -1191,6 +1191,13 @@
     "appearance": "Appearance",
     "light": "Light (white)",
     "dark": "Dark (black/navy)",
+    "themeOptions": {
+      "light": "Default",
+      "pink": "Pink",
+      "blue": "Blue",
+      "dark": "Dark",
+      "system": "Automatic (System)"
+    },
     "accessibility": "Accessibility",
     "accessibilityNote": "You can enable more than one option at once — each is independent.",
     "fontSize": "Font size",

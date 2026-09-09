@@ -246,10 +246,29 @@ export const store = {
     return { ok: true };
   },
 
+  // القيمة الخام التي اختارها المستخدم فعلياً (Batch 2 - Item 4: أنماط
+  // متعددة قابلة للتخصيص - dark/light/pink/blue/system) بلا أي تحليل لـ
+  // "system" هنا - تُستخدم لتهيئة حالة React نفسها (SettingsView يحتاج
+  // معرفة أن المستخدم اختار "system" تحديداً ليُبرز ذلك الخيار، لا اللون
+  // الفعلي المُطبَّق الناتج عنه).
+  getLocalThemeChoice() {
+    const choice = lsGet("masar_profile", { theme: "dark" }).theme;
+    return ["dark", "light", "pink", "blue", "system"].includes(choice) ? choice : "dark";
+  },
+  // يحلّ "system" فعلياً إلى dark/light حسب تفضيل نظام التشغيل الحالي -
+  // القيم الأخرى تُعاد كما هي. مستقل عن حالة React تماماً، قابل للاستدعاء
+  // في أي وقت لإعادة الحل (مثال: عند تغيّر تفضيل النظام لحظياً).
+  resolveTheme(choice) {
+    if (choice === "system") {
+      return (typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
+    }
+    return ["dark", "light", "pink", "blue"].includes(choice) ? choice : "dark";
+  },
   // قراءة متزامنة فورية (لا تنتظر Supabase) لتطبيق المظهر قبل أول رسم
-  // للصفحة، فلا يظهر ومضة بالمظهر الخاطئ قبل اكتمال loadProfile().
+  // للصفحة، فلا يظهر ومضة بالمظهر الخاطئ قبل اكتمال loadProfile() - القيمة
+  // المُعادة هنا محلولة بالفعل (resolveTheme)، تُطبَّق مباشرة كسمة DOM.
   getLocalTheme() {
-    return lsGet("masar_profile", { theme: "dark" }).theme === "light" ? "light" : "dark";
+    return store.resolveTheme(store.getLocalThemeChoice());
   },
   // نفس فكرة getLocalTheme لكن للغة الواجهة — تُقرأ متزامنة عند تهيئة
   // i18next (قبل أول رسم) حتى لا تظهر ومضة باللغة الافتراضية قبل تطبيق

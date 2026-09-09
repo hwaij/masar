@@ -47,6 +47,47 @@
   --header-bg: rgba(247,245,240,0.92);
 }
 
+/* ثيم "وردي" (Batch 2 - Item 4): نفس فلسفة الوضع الفاتح أعلاه (خلفية فاتحة
+   دافئة، لا عكس ميكانيكي) لكن بدرجة وردية بدل المحايدة، ولون تمييز وردي
+   غامق بدل الذهبي (بتباين كافٍ كنص فوق الخلفية الفاتحة). --muted و
+   --on-accent يبقيان بلا تغيير عمداً بنفس منطق الوضع الفاتح. */
+:root[data-theme="pink"] {
+  --bg: #FDF3F6;
+  --panel: #FFFFFF;
+  --gold: #C2447A;
+  --ink: #3A2530;
+  --line: #F3DCE6;
+  --teal: #FCE8F0;
+  --teal-border: #EFC0D6;
+  --muted2: #8A6B78;
+  --surface-sunken: #FBEAF0;
+  --surface-raised: #F8E3EC;
+  --border2: #EFCEDD;
+  --ink-soft: #5C4450;
+  --warm-tint: #FFF0F5;
+  --warm-border: #F2CFE0;
+  --header-bg: rgba(253,243,246,0.92);
+}
+
+/* ثيم "أزرق" (Batch 2 - Item 4): نفس المبدأ بدرجة زرقاء باردة. */
+:root[data-theme="blue"] {
+  --bg: #F1F6FB;
+  --panel: #FFFFFF;
+  --gold: #2E6DA8;
+  --ink: #1E2A38;
+  --line: #DCE8F2;
+  --teal: #E4F0F9;
+  --teal-border: #B9D8ED;
+  --muted2: #6B7C8C;
+  --surface-sunken: #E9F1F8;
+  --surface-raised: #E2EDF5;
+  --border2: #CBDDEC;
+  --ink-soft: #35495C;
+  --warm-tint: #EAF3FB;
+  --warm-border: #C9E0F0;
+  --header-bg: rgba(241,246,251,0.92);
+}
+
 /* إتاحة الوصول: ثلاثة محاور مستقلة تُطبَّق عبر سمات على <html> (راجع
    MasarApp.jsx)، ويمكن الجمع بينها معاً (لا تتعارض لأنها تعمل على طبقات
    CSS مختلفة تماماً: zoom عام، متغيّر تباعد يقرأه styles.js، وألوان). */

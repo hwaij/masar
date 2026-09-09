@@ -16,7 +16,7 @@ import {
   Wallet, ArrowDownCircle, ArrowUpCircle, Crown,
   Utensils, Dumbbell, Menu, Users,
   Accessibility, ALargeSmall, Contrast, StretchHorizontal, Volume2, VolumeX,
-  Smartphone, Copy, Mic, MicOff, CalendarDays, Bed,
+  Smartphone, Copy, Mic, MicOff, CalendarDays, Bed, Monitor,
 } from "lucide-react";
 import { fivePrayers, nextPrayer, to12h } from "../lib/prayer";
 import { ADHKAR_CATEGORIES, ADHKAR } from "../lib/adhkar";
@@ -320,7 +320,10 @@ export default function MasarApp() {
   const [gamify, setGamify] = useState({ points: 0, badges: [] });
   const [profile, setProfile] = useState({ name: "", about: "", hobbies: "", field: "", tourSeen: false, tourProgress: {}, theme: "dark", language: "ar" });
   const [tourOpen, setTourOpen] = useState(false);
-  const [theme, setTheme] = useState(() => store.getLocalTheme());
+  // theme يحمل اختيار المستخدم الخام (قد يكون "system" - راجع
+  // getLocalThemeChoice) لا اللون المحلول الفعلي، حتى تعرف شاشة الإعدادات
+  // أي خيار هو المُفعَّل فعلاً لإبرازه، بمعزل عن اللون المطبَّق على DOM.
+  const [theme, setTheme] = useState(() => store.getLocalThemeChoice());
   const [fontSize, setFontSize] = useState(() => store.getLocalFontSize());
   const [highContrast, setHighContrast] = useState(() => store.getLocalHighContrast());
   const [spacious, setSpacious] = useState(() => store.getLocalSpacious());
@@ -561,8 +564,9 @@ export default function MasarApp() {
 
   // مزامنة المظهر مع الحساب بعد اكتمال كل تحميل — يغطي حالة تسجيل الدخول
   // من متصفح/جهاز آخر كان قد اختار مظهراً مختلفاً سابقاً على هذا الحساب.
+  // القيمة تبقى خاماً (قد تكون "system") - نفس مبدأ getLocalThemeChoice.
   useEffect(() => {
-    if (loaded) setTheme(profile.theme === "light" ? "light" : "dark");
+    if (loaded) setTheme(["dark", "light", "pink", "blue", "system"].includes(profile.theme) ? profile.theme : "dark");
   }, [loaded]);
 
   // نفس فكرة مزامنة المظهر أعلاه لكن للغة الواجهة — تغيير اللغة يطبَّق فوراً
@@ -574,9 +578,19 @@ export default function MasarApp() {
 
   // يُطبَّق فوراً على الجذر عند أي تغيّر (تبديل يدوي أو مزامنة من الحساب) —
   // لا يحفظ هنا؛ الحفظ الفعلي (محلياً وسحابياً) يتم فقط عند تبديل صريح من
-  // المستخدم في toggleTheme، حتى لا تتكرر كتابة سحابية عند كل تحميل صفحة.
+  // المستخدم في toggleTheme/setThemeChoice، حتى لا تتكرر كتابة سحابية عند
+  // كل تحميل صفحة. theme هنا قد يكون "system" (اختيار خام) - يُحلّ فعلياً
+  // عبر resolveTheme قبل تطبيقه كسمة DOM (لا قواعد CSS لـ"system" نفسها).
   useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme);
+    document.documentElement.setAttribute("data-theme", store.resolveTheme(theme));
+    // "system" فقط يحتاج الاستماع لتغيّر تفضيل نظام التشغيل لحظياً (تبديل
+    // المستخدم لوضع داكن/فاتح من إعدادات جهازه دون فتح مسار من جديد) -
+    // بقية الاختيارات ثابتة لا تحتاج أي مستمع.
+    if (theme !== "system" || typeof window === "undefined" || !window.matchMedia) return undefined;
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = () => document.documentElement.setAttribute("data-theme", store.resolveTheme("system"));
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
   }, [theme]);
 
   const toggleTheme = useCallback(() => {
@@ -585,6 +599,15 @@ export default function MasarApp() {
       store.saveTheme(next);
       return next;
     });
+  }, []);
+
+  // اختيار صريح من قائمة الأنماط الكاملة (Default/Pink/Blue/Dark/System) في
+  // شاشة الإعدادات - منفصل عن toggleTheme السريع أعلاه (يبقى كما هو، زر
+  // تبديل ثنائي سريع في الترويسة فقط).
+  const setThemeChoice = useCallback((choice) => {
+    if (!["dark", "light", "pink", "blue", "system"].includes(choice)) return;
+    setTheme(choice);
+    store.saveTheme(choice);
   }, []);
 
   // مزامنة إعدادات إتاحة الوصول الثلاثة مع الحساب بعد اكتمال كل تحميل - نفس
@@ -1134,7 +1157,7 @@ export default function MasarApp() {
         {view === "groups" && !isSub && (
           <div style={S.view}><UpsellCard icon={Users} title={i18n.language === "en" ? "Friend Challenges in Masar Premium" : "تحديات الأصدقاء في مسار الكامل"} message={i18n.language === "en" ? "Create a study group with your friends and compete on study hours and workout completion, with live updates between you." : "أنشئ جروب دراسة مع أصدقائك وتنافسوا بساعات الدراسة وإنجاز الرياضة، بتحديث لحظي بينكم."} /></div>
         )}
-        {view === "settings" && <SettingsView categories={categories} setCategories={setCategories} gamify={gamify} hasCloud={store.hasCloud} showToast={showToast} profile={profile} setProfile={setProfile} pointsLog={pointsLog} onStartTour={startTour} subscription={subscription} theme={theme} toggleTheme={toggleTheme} fontSize={fontSize} changeFontSize={changeFontSize} highContrast={highContrast} toggleHighContrast={toggleHighContrast} spacious={spacious} toggleSpacious={toggleSpacious} accessibilityMode={accessibilityMode} toggleAccessibilityMode={toggleAccessibilityMode} />}
+        {view === "settings" && <SettingsView categories={categories} setCategories={setCategories} gamify={gamify} hasCloud={store.hasCloud} showToast={showToast} profile={profile} setProfile={setProfile} pointsLog={pointsLog} onStartTour={startTour} subscription={subscription} theme={theme} toggleTheme={toggleTheme} setThemeChoice={setThemeChoice} fontSize={fontSize} changeFontSize={changeFontSize} highContrast={highContrast} toggleHighContrast={toggleHighContrast} spacious={spacious} toggleSpacious={toggleSpacious} accessibilityMode={accessibilityMode} toggleAccessibilityMode={toggleAccessibilityMode} />}
       </div>
       </div>
       {toast && <div style={S.toast} className="toast-in" role="status" aria-live="polite">{toast}</div>}
@@ -6585,7 +6608,20 @@ function AccountIdDebugModal({ onClose, showToast, isEn }) {
   );
 }
 
-function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, profile, setProfile, pointsLog, onStartTour, subscription, theme, toggleTheme, fontSize, changeFontSize, highContrast, toggleHighContrast, spacious, toggleSpacious, accessibilityMode, toggleAccessibilityMode }) {
+// خمسة أنماط ثابتة (Batch 2 - Item 4): "افتراضي" هو الوضع الفاتح الحالي
+// بعينه (لا نمط جديد سادس)، والألوان هنا فقط لمعاينة الدائرة الصغيرة في
+// زر الاختيار - لون التمييز (--gold) الفعلي لكل نمط مُعرَّف في masar.css.
+// "system" بلا لون ثابت (أيقونة شاشة بدل دائرة) لأنه يتحوّل فعلياً حسب
+// تفضيل نظام التشغيل، لا لوناً واحداً.
+const THEME_OPTIONS = [
+  { id: "light", swatch: "#9A7529" },
+  { id: "pink", swatch: "#C2447A" },
+  { id: "blue", swatch: "#2E6DA8" },
+  { id: "dark", swatch: "#C9A24B" },
+  { id: "system" },
+];
+
+function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, profile, setProfile, pointsLog, onStartTour, subscription, theme, toggleTheme, setThemeChoice, fontSize, changeFontSize, highContrast, toggleHighContrast, spacious, toggleSpacious, accessibilityMode, toggleAccessibilityMode }) {
   const { t, i18n } = useTranslation();
   const isEn = i18n.language === "en";
   const isSub = isActiveSubscriber(subscription);
@@ -6694,13 +6730,23 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
       <h1 style={S.sectionTitle}>{t("settings.title")}</h1>
       <div style={S.catEditorCard}>
         <div style={S.catEditorHeader}>{theme === "dark" ? <Moon size={15} color="#C9A24B" /> : <Sun size={15} color="#C9A24B" />}<span>{t("settings.appearance")}</span></div>
-        <div style={S.rangeToggle}>
-          <button onClick={() => theme !== "light" && toggleTheme()} style={{ ...S.rangeBtn, flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, ...(theme === "light" ? S.rangeBtnActive : {}) }}>
-            <Sun size={14} /> {t("settings.light")}
-          </button>
-          <button onClick={() => theme !== "dark" && toggleTheme()} style={{ ...S.rangeBtn, flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, ...(theme === "dark" ? S.rangeBtnActive : {}) }}>
-            <Moon size={14} /> {t("settings.dark")}
-          </button>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {THEME_OPTIONS.map((opt) => (
+            <button
+              key={opt.id}
+              onClick={() => setThemeChoice(opt.id)}
+              style={{
+                ...S.rangeBtn, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                flex: "1 1 28%", minWidth: 96,
+                ...(theme === opt.id ? S.rangeBtnActive : {}),
+              }}
+            >
+              {opt.id === "system"
+                ? <Monitor size={14} />
+                : <span style={{ width: 13, height: 13, borderRadius: "50%", background: opt.swatch, border: "1px solid rgba(0,0,0,0.18)", flexShrink: 0 }} />}
+              {t(`settings.themeOptions.${opt.id}`)}
+            </button>
+          ))}
         </div>
       </div>
       <div style={S.catEditorCard}>

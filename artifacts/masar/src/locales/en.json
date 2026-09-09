@@ -1099,7 +1099,7 @@
     }
   },
   "achieve": {
-    "identityNudge": "Add your hobbies and a short bio in Settings first, so Achieve can personalize its help for you",
+    "identityNudge": "Add your hobbies and a short bio in the \"You\" section first, so Achieve can personalize its help for you",
     "addedPartial": "Added only {{saved}} of {{total}} — couldn't save the rest",
     "addedItems": "Added {{count}} new items",
     "addedTasks": "Added {{count}} ready-made tasks",
@@ -1123,7 +1123,7 @@
     "heroTitle": "Achieve",
     "heroSub": "Challenges, projects, and paths designed for your hobbies and field",
     "smartModeUnavailable": "Smart mode isn't available right now — showing you ready-made tasks instead.",
-    "goToSettings": "Go to Settings",
+    "goToSettings": "Go to \"You\"",
     "moodCardTitle": "How's your day?",
     "moodCardSub": "Tell Achieve your mood so it can suggest something to lift it right now.",
     "moods": {
@@ -1157,8 +1157,8 @@
     ],
     "heroTitle": "Achieve Assistant",
     "heroSub": "Your personal coach. It sees your day and helps you grow.",
-    "setupNudge": "Add your hobbies and a short bio in Settings first, so Achieve can personalize its help for you.",
-    "goToSettings": "Go to Settings",
+    "setupNudge": "Add your hobbies and a short bio in the \"You\" section first, so Achieve can personalize its help for you.",
+    "goToSettings": "Go to \"You\"",
     "chatTitle": "Chat with Achieve",
     "clearConversation": "Clear conversation",
     "loadingHistory": "Loading conversation...",

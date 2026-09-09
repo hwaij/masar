@@ -1114,7 +1114,7 @@ export default function MasarApp() {
         {view === "assistant" && (isSub ? <AssistantView entries={entries} tasks={tasks} categories={categories} focus={focus} prayerLog={prayerLog} religious={religious} profile={profile} setProfile={setProfile} stats={stats} setView={setView} healthProfile={healthProfile} goals={goals} showToast={showToast} journeyActive={tourOpen} /> : (
           <div style={S.view}><UpsellCard icon={MessageCircle} title={i18n.language === "en" ? "Your AI assistant in Masar Premium" : "مساعدك الذكي في مسار الكامل"} message={i18n.language === "en" ? "A personal coach who analyzes your day and habits and suggests practical steps based on your actual data." : "مدرّب شخصي يحلّل يومك وعاداتك ويقترح خطوات عملية بناءً على بياناتك الفعلية."} /></div>
         ))}
-        {view === "you" && <YouView healthProfile={healthProfile} setHealthProfile={setHealthProfile} showToast={showToast} />}
+        {view === "you" && <YouView healthProfile={healthProfile} setHealthProfile={setHealthProfile} showToast={showToast} profile={profile} setProfile={setProfile} />}
         {(view === "nutrition" || view === "nutritionPlan" || view === "dietPlans" || view === "fitness" || view === "steps" || (view === "groups" && isSub) || (view === "vault" && isSub)) && (
           <LazySectionErrorBoundary key={view} isEn={i18n.language === "en"}>
             <Suspense fallback={<div style={{ ...S.view, display: "flex", justifyContent: "center", padding: 40 }}><Loader2 size={24} color="#C9A24B" className="spin" /></div>}>
@@ -1268,7 +1268,7 @@ const JOURNEY_STAGES = [
       { view: "groups", target: '[data-tour="groups-create-card"]', requiresSub: true }, // 0
       { view: "assistant", target: '[data-tour="assistant-suggestion-0"]', requiresSub: true, requiresIdentity: true }, // 1
       { view: "achieve", target: '[data-tour="achieve-coach-card"]', requiresSub: true, requiresIdentity: true }, // 2
-      { view: "settings", target: '[data-tour="settings-identity-card"]', neverLast: true }, // 3: آخر خطوة بالرحلة كلها
+      { view: "you", target: '[data-tour="you-identity-card"]', neverLast: true }, // 3: آخر خطوة بالرحلة كلها (هويتي انتقلت من الإعدادات إلى "أنت")
     ],
   },
 ];
@@ -4189,7 +4189,7 @@ function AssistantView({ entries, tasks, categories, focus, prayerLog, religious
             <div style={S.setupText}>
               {t("assistant.setupNudge")}
               <div>
-                <button onClick={() => setView("settings")} style={{ ...S.linkBtn, marginTop: 8 }}>{t("assistant.goToSettings")}</button>
+                <button onClick={() => setView("you")} style={{ ...S.linkBtn, marginTop: 8 }}>{t("assistant.goToSettings")}</button>
               </div>
             </div>
           </div>
@@ -6275,7 +6275,7 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
           <div style={S.setupText}>
             {IDENTITY_NUDGE}
             <div>
-              <button onClick={() => setView("settings")} style={{ ...S.linkBtn, marginTop: 8 }}>{t("achieve.goToSettings")}</button>
+              <button onClick={() => setView("you")} style={{ ...S.linkBtn, marginTop: 8 }}>{t("achieve.goToSettings")}</button>
             </div>
           </div>
         </div>
@@ -6660,7 +6660,6 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
   return (
     <div style={S.view}>
       <h1 style={S.sectionTitle}>{t("settings.title")}</h1>
-      <ProfileCard profile={profile} setProfile={setProfile} showToast={showToast} />
       <div style={S.catEditorCard}>
         <div style={S.catEditorHeader}>{theme === "dark" ? <Moon size={15} color="#C9A24B" /> : <Sun size={15} color="#C9A24B" />}<span>{t("settings.appearance")}</span></div>
         <div style={S.rangeToggle}>
@@ -6920,7 +6919,7 @@ const BMI_CATEGORY_KEY_MAP = {
   "نقص وزن": "underweight", "وزن طبيعي": "normal", "زيادة وزن": "overweight", "سمنة": "obese",
 };
 
-function YouView({ healthProfile, setHealthProfile, showToast }) {
+function YouView({ healthProfile, setHealthProfile, showToast, profile, setProfile }) {
   const { t, i18n } = useTranslation();
   const language = i18n.language;
   const hasData = !!(healthProfile.heightCm && healthProfile.weightKg && healthProfile.age && healthProfile.gender && healthProfile.activityLevel);
@@ -7048,6 +7047,7 @@ function YouView({ healthProfile, setHealthProfile, showToast }) {
             <div style={YS.heroSub}>{language === "en" ? "Your basic data — the foundation the nutrition and fitness sections build on later." : "بياناتك الأساسية — أساس تُبنى عليه أقسام التغذية والرياضة لاحقاً."}</div>
           </div>
         </div>
+        <ProfileCard profile={profile} setProfile={setProfile} showToast={showToast} />
         <div style={YS.formCard} data-tour="you-form-card">
           <div style={YS.row2}>
             <div style={YS.col}>
@@ -7114,6 +7114,8 @@ function YouView({ healthProfile, setHealthProfile, showToast }) {
           <div style={YS.heroSub}>{language === "en" ? "Your data and calculated health results." : "بياناتك ونتائجك الصحية المحسوبة."}</div>
         </div>
       </div>
+
+      <ProfileCard profile={profile} setProfile={setProfile} showToast={showToast} />
 
       {showDisclaimer && (
         <div style={YS.warningCard}>
@@ -7215,7 +7217,7 @@ function ProfileCard({ profile, setProfile, showToast }) {
   }
 
   return (
-    <div style={S.profileCard} data-tour="settings-identity-card">
+    <div style={S.profileCard} data-tour="you-identity-card">
       <div style={S.catEditorHeader}><User size={15} color="#C9A24B" /><span>{isEn ? "My Identity" : "هويتي"}</span></div>
       <p style={S.profileHint}>{isEn ? "This data makes Achieve's suggestions and analysis personal to you." : "هذه البيانات تجعل اقتراحات أنجز والتحليل مرتبطة بك شخصياً."}</p>
       <label style={S.label}>{isEn ? "Your name" : "اسمك"}</label>

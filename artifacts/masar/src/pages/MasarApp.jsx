@@ -3679,6 +3679,29 @@ function SleepSection({ sleepLog, setSleepLog, days, range, showToast }) {
   const today = localDayKey();
   const todayEntry = sleepLog.find((s) => s.date === today);
 
+  // اختيار يوم سابق لتسجيل/تعديل نومه (نموذج "سجّل ليلة أمس" فقط، وهو
+  // استرجاعي بطبيعته أصلاً) - بلا أي تأثير على بطاقتَي "خطة الليلة" و"تأكيد
+  // الاستيقاظ" أدناه، فهما مرتبطتان بمفهوم "الليلة/اليوم" الحالي حصراً ولا
+  // معنى لتأريخهما بيوم ماضٍ.
+  const [selectedDate, setSelectedDate] = useState(today);
+  const isViewingToday = selectedDate === today;
+  const selectedEntry = sleepLog.find((s) => s.date === selectedDate);
+
+  function shiftDay(delta) {
+    const [y, m, dd] = selectedDate.split("-").map(Number);
+    const d = new Date(y, m - 1, dd);
+    d.setDate(d.getDate() + delta);
+    const next = localDayKey(d);
+    if (next > today) return;
+    setSelectedDate(next);
+  }
+
+  useEffect(() => {
+    setHoursInput(selectedEntry?.hours != null ? String(selectedEntry.hours) : "7.5");
+    setSleepTime(selectedEntry?.sleepTime || "23:00");
+    setWakeTime(selectedEntry?.wakeTime || "07:00");
+  }, [selectedDate]); // eslint-disable-line react-hooks/exhaustive-deps
+
   async function submitEntry() {
     let hours, sTime = null, wTime = null;
     if (mode === "times") {
@@ -3688,15 +3711,15 @@ function SleepSection({ sleepLog, setSleepLog, days, range, showToast }) {
       hours = parseFloat(hoursInput);
     }
     if (!Number.isFinite(hours) || hours <= 0 || hours > 24) { showToast(t("sleep.invalidHours")); return; }
-    const existing = sleepLog.find((s) => s.date === today);
+    const existing = sleepLog.find((s) => s.date === selectedDate);
     // يحافظ على أي خطة مساء مُدخَلة مسبقاً لهذا اليوم (plannedBedtime/
     // plannedWakeTime) بدل استبدالها بلا داعٍ - هذا النموذج يُحدِّث الفعلي فقط.
     const entry = {
-      id: existing ? existing.id : uid(), date: today, sleepTime: sTime, wakeTime: wTime, hours,
+      id: existing ? existing.id : uid(), date: selectedDate, sleepTime: sTime, wakeTime: wTime, hours,
       plannedBedtime: existing?.plannedBedtime ?? null, plannedWakeTime: existing?.plannedWakeTime ?? null,
     };
     const prevLog = sleepLog;
-    setSleepLog((prev) => existing ? prev.map((s) => (s.date === today ? entry : s)) : [entry, ...prev]);
+    setSleepLog((prev) => existing ? prev.map((s) => (s.date === selectedDate ? entry : s)) : [entry, ...prev]);
     const ok = await store.saveSleepEntry(entry);
     if (ok) showToast(t("sleep.logged"));
     else { setSleepLog(prevLog); showToast(t("common.errors.saveFailed")); }
@@ -3853,6 +3876,24 @@ function SleepSection({ sleepLog, setSleepLog, days, range, showToast }) {
         </div>
       )}
 
+      <div style={S.dateRow}>
+        <button onClick={() => shiftDay(-1)} style={S.iconBtn} aria-label={t("nutrition.previousDay")}>
+          {i18n.language === "en" ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
+        </button>
+        <div style={S.dateLabel}>
+          {arabicDate(selectedDate, { weekday: "long", day: "numeric", month: "long" }, i18n.language === "en" ? "en-US" : undefined)}
+          {isViewingToday && <span style={S.todayPill}>{t("nav.today")}</span>}
+        </div>
+        <button
+          onClick={() => shiftDay(1)}
+          disabled={isViewingToday}
+          style={{ ...S.iconBtn, ...(isViewingToday ? { opacity: 0.4, cursor: "not-allowed" } : {}) }}
+          aria-label={t("nutrition.nextDay")}
+        >
+          {i18n.language === "en" ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+        </button>
+      </div>
+
       <div style={S.rangeToggle}>
         <button onClick={() => setMode("hours")} style={{ ...S.rangeBtn, flex: 1, ...(mode === "hours" ? S.rangeBtnActive : {}) }}>{t("sleep.hoursCount")}</button>
         <button onClick={() => setMode("times")} style={{ ...S.rangeBtn, flex: 1, ...(mode === "times" ? S.rangeBtnActive : {}) }}>{t("sleep.sleepWakeTimes")}</button>
@@ -3875,7 +3916,7 @@ function SleepSection({ sleepLog, setSleepLog, days, range, showToast }) {
           </div>
         </div>
       )}
-      <button onClick={submitEntry} style={{ ...S.saveBtn, marginTop: 12 }}>{todayEntry ? t("sleep.updateLastNight") : t("sleep.logLastNight")}</button>
+      <button onClick={submitEntry} style={{ ...S.saveBtn, marginTop: 12 }}>{selectedEntry ? t("sleep.updateLastNight") : t("sleep.logLastNight")}</button>
 
       <div style={{ ...S.kpiRow, marginTop: 16 }}>
         <div style={S.kpiCard}>
@@ -6958,20 +6999,38 @@ function YouView({ healthProfile, setHealthProfile, showToast }) {
   // لتسجيله في weight_log التاريخي. متاح فقط بعد اكتمال الملف الصحي مرة
   // (نفس شرط ظهور شاشة الملخص hasData) لأنه يحتاج بقية الحقول جاهزة أصلاً.
   const [quickWeight, setQuickWeight] = useState("");
+  // تاريخ الوزن السريع: افتراضياً اليوم، قابل للرجوع ليوم سابق (زر "أمس" +
+  // تنقّل بالأسهم) لمن نسي تسجيل وزنه أيامها. فقط عند اختيار اليوم الحالي
+  // فعلاً يُحدَّث الوزن "الحالي" في health_profile (ومقاييسه المشتقة BMI/
+  // IBW/REE/TEE) - تسجيل وزن ليوم ماضٍ يُضاف فقط لسجل weight_log التاريخي،
+  // بلا لمس القيمة "الحالية" لتفادي إظهار وزن قديم كأنه وزن المستخدم الآن.
+  const today = localDayKey();
+  const [quickWeightDate, setQuickWeightDate] = useState(today);
+  const isQuickWeightToday = quickWeightDate === today;
+  function shiftQuickWeightDay(delta) {
+    const [y, m, dd] = quickWeightDate.split("-").map(Number);
+    const d = new Date(y, m - 1, dd);
+    d.setDate(d.getDate() + delta);
+    const next = localDayKey(d);
+    if (next > today) return;
+    setQuickWeightDate(next);
+  }
   async function logQuickWeight() {
     const weightKg = Number(quickWeight);
     if (!weightKg || weightKg <= 0) { showToast(t("you.invalidWeight")); return; }
-    const metrics = computeHealthMetrics({ heightCm: healthProfile.heightCm, weightKg, age: healthProfile.age, gender: healthProfile.gender, activityLevel: healthProfile.activityLevel });
-    const next = {
-      ...healthProfile, weightKg,
-      bmi: metrics.bmi?.value ?? null, bmiCategory: metrics.bmi?.category ?? null,
-      ibw: metrics.ibw, ree: metrics.ree, tee: metrics.tee,
-    };
-    const prevHealthProfile = healthProfile;
-    setHealthProfile(next);
-    const res = await store.saveHealthProfile(next);
-    if (!res.ok) { setHealthProfile(prevHealthProfile); showToast(t("common.errors.saveFailed")); return; }
-    store.saveWeightEntry(localDayKey(), weightKg);
+    if (isQuickWeightToday) {
+      const metrics = computeHealthMetrics({ heightCm: healthProfile.heightCm, weightKg, age: healthProfile.age, gender: healthProfile.gender, activityLevel: healthProfile.activityLevel });
+      const next = {
+        ...healthProfile, weightKg,
+        bmi: metrics.bmi?.value ?? null, bmiCategory: metrics.bmi?.category ?? null,
+        ibw: metrics.ibw, ree: metrics.ree, tee: metrics.tee,
+      };
+      const prevHealthProfile = healthProfile;
+      setHealthProfile(next);
+      const res = await store.saveHealthProfile(next);
+      if (!res.ok) { setHealthProfile(prevHealthProfile); showToast(t("common.errors.saveFailed")); return; }
+    }
+    store.saveWeightEntry(quickWeightDate, weightKg);
     setQuickWeight("");
     showToast(t("you.weightLogged"));
   }
@@ -7088,6 +7147,23 @@ function YouView({ healthProfile, setHealthProfile, showToast }) {
 
       <div style={YS.formCard} data-tour="you-quick-weight-card">
         <label style={S.label}>{t("you.quickWeightLabel")}</label>
+        <div style={{ ...S.dateRow, marginBottom: 10 }}>
+          <button onClick={() => shiftQuickWeightDay(-1)} style={S.iconBtn} aria-label={t("nutrition.previousDay")}>
+            {language === "en" ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+          </button>
+          <div style={{ ...S.dateLabel, fontSize: 12.5 }}>
+            {arabicDate(quickWeightDate, { weekday: "long", day: "numeric", month: "long" }, language === "en" ? "en-US" : undefined)}
+            {isQuickWeightToday && <span style={S.todayPill}>{t("nav.today")}</span>}
+          </div>
+          <button
+            onClick={() => shiftQuickWeightDay(1)}
+            disabled={isQuickWeightToday}
+            style={{ ...S.iconBtn, ...(isQuickWeightToday ? { opacity: 0.4, cursor: "not-allowed" } : {}) }}
+            aria-label={t("nutrition.nextDay")}
+          >
+            {language === "en" ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+          </button>
+        </div>
         <div style={{ display: "flex", gap: 8 }}>
           <input type="number" inputMode="decimal" value={quickWeight} onChange={(e) => setQuickWeight(e.target.value)} placeholder={healthProfile.weightKg ? String(healthProfile.weightKg) : (language === "en" ? "e.g. 70" : "مثال: 70")} style={{ ...S.input, flex: 1 }} />
           <button onClick={logQuickWeight} disabled={!quickWeight} style={{ ...S.saveBtn, width: "auto", padding: "0 20px" }}>{t("you.logWeightBtn")}</button>

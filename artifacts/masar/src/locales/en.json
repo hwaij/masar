@@ -1556,6 +1556,8 @@
     "daysCompletedThisWeek": "Days completed this week",
     "completedTodayCheck": "Workout completed today",
     "markDoneToday": "✓ Today's workout done",
+    "completedDayCheck": "Workout completed this day",
+    "markDoneDay": "✓ This day's workout done",
     "dayLabel": "Day {{n}} · {{dayLabel}}",
     "experienceLevels": {
       "beginner": "Beginner",

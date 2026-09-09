@@ -1,10 +1,11 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
-import { Footprints, Plus } from "lucide-react";
+import { Footprints, Plus, ChevronLeft, ChevronRight } from "lucide-react";
 import { store } from "../lib/store";
+import { arabicDate } from "../lib/helpers";
 import { localDayKey } from "../lib/tips";
 import { S } from "./styles";
 
@@ -38,22 +39,37 @@ const SS = {
 export default function StepsView({ stepsLog, setStepsLog, showToast }) {
   const { t, i18n } = useTranslation();
   const log = stepsLog;
-  const [inputValue, setInputValue] = useState(() => String(stepsLog[localDayKey()]?.steps ?? ""));
-  const [saving, setSaving] = useState(false);
   const today = localDayKey();
+  const [selectedDate, setSelectedDate] = useState(today);
+  const isViewingToday = selectedDate === today;
+  const [inputValue, setInputValue] = useState(() => String(stepsLog[today]?.steps ?? ""));
+  const [saving, setSaving] = useState(false);
 
-  const todaySteps = log[today]?.steps ?? 0;
+  useEffect(() => {
+    setInputValue(String(log[selectedDate]?.steps ?? ""));
+  }, [selectedDate]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const selectedSteps = log[selectedDate]?.steps ?? 0;
+
+  function shiftDay(delta) {
+    const [y, m, dd] = selectedDate.split("-").map(Number);
+    const d = new Date(y, m - 1, dd);
+    d.setDate(d.getDate() + delta);
+    const next = localDayKey(d);
+    if (next > today) return;
+    setSelectedDate(next);
+  }
 
   async function saveSteps(value) {
     const steps = Math.max(0, Math.round(Number(value)));
     if (!Number.isFinite(steps)) { showToast(t("steps.invalidValue")); return; }
     setSaving(true);
-    const prev = log[today];
-    setStepsLog((p) => ({ ...p, [today]: { steps, source: "manual" } }));
-    const res = await store.saveStepsEntry(today, steps, "manual");
+    const prev = log[selectedDate];
+    setStepsLog((p) => ({ ...p, [selectedDate]: { steps, source: "manual" } }));
+    const res = await store.saveStepsEntry(selectedDate, steps, "manual");
     setSaving(false);
     if (!res.ok) {
-      setStepsLog((p) => { const next = { ...p }; if (prev) next[today] = prev; else delete next[today]; return next; });
+      setStepsLog((p) => { const next = { ...p }; if (prev) next[selectedDate] = prev; else delete next[selectedDate]; return next; });
       showToast(t("common.errors.saveFailed"));
       return;
     }
@@ -90,9 +106,27 @@ export default function StepsView({ stepsLog, setStepsLog, showToast }) {
         </div>
       </div>
 
+      <div style={S.dateRow}>
+        <button onClick={() => shiftDay(-1)} style={S.iconBtn} aria-label={t("nutrition.previousDay")}>
+          {i18n.language === "en" ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
+        </button>
+        <div style={S.dateLabel}>
+          {arabicDate(selectedDate, { weekday: "long", day: "numeric", month: "long" }, i18n.language === "en" ? "en-US" : undefined)}
+          {isViewingToday && <span style={S.todayPill}>{t("nav.today")}</span>}
+        </div>
+        <button
+          onClick={() => shiftDay(1)}
+          disabled={isViewingToday}
+          style={{ ...S.iconBtn, ...(isViewingToday ? { opacity: 0.4, cursor: "not-allowed" } : {}) }}
+          aria-label={t("nutrition.nextDay")}
+        >
+          {i18n.language === "en" ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+        </button>
+      </div>
+
       <div style={SS.trackCard} data-tour="steps-today-card">
-        <div style={SS.todayLabel}>{t("steps.todayLabel")}</div>
-        <div style={SS.todayValue}>{todaySteps.toLocaleString(i18n.language === "en" ? "en-US" : "ar-EG")}</div>
+        <div style={SS.todayLabel}>{isViewingToday ? t("steps.todayLabel") : ""}</div>
+        <div style={SS.todayValue}>{selectedSteps.toLocaleString(i18n.language === "en" ? "en-US" : "ar-EG")}</div>
 
         <div style={SS.inputRow}>
           <input

@@ -11,7 +11,7 @@ import { BarChart, Bar, LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tool
 import { store, getOwner } from "../lib/store";
 import { useModuleTour } from "../lib/useModuleTour";
 import SpotlightTour from "./SpotlightTour";
-import { uid, formatNumberLatin } from "../lib/helpers";
+import { uid, formatNumberLatin, arabicDate } from "../lib/helpers";
 import { isolateNumbers } from "../lib/bidi";
 import { localDayKey } from "../lib/tips";
 import {
@@ -773,6 +773,22 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
   }, [fitnessLog]);
 
   const todayDone = !!fitnessLog[today];
+
+  // زر "أكملت تمريني اليوم" اليدوي (منفصل تماماً عن وضع التركيز الحي أعلاه)
+  // يقبل الآن تأريخاً ليوم سابق أيضاً - لمن نسي تسجيل يوم مضى. finishFocusWorkout
+  // (إنهاء جلسة حيّة الآن) يبقى مرتبطاً بـtoday الحقيقي دون أي تغيير، فلا معنى
+  // لتأريخ جلسة تُنهى الآن بيوم ماضٍ.
+  const [manualLogDate, setManualLogDate] = useState(today);
+  const isManualLogToday = manualLogDate === today;
+  const manualLogDone = !!fitnessLog[manualLogDate];
+  function shiftManualLogDay(delta) {
+    const [y, m, dd] = manualLogDate.split("-").map(Number);
+    const d = new Date(y, m - 1, dd);
+    d.setDate(d.getDate() + delta);
+    const next = localDayKey(d);
+    if (next > today) return;
+    setManualLogDate(next);
+  }
   const showConditionDisclaimer = (healthProfile?.conditions || []).some((c) => c !== NO_CONDITION);
   const showInjuryDisclaimer = (fitnessProfile.injuries || []).length > 0;
 
@@ -1092,10 +1108,10 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
   }
 
   async function toggleTodayDone() {
-    const next = !todayDone;
-    setFitnessLog((prev) => ({ ...prev, [today]: next }));
-    const res = await store.saveFitnessDayCompleted(today, next);
-    if (!res.ok) { setFitnessLog((prev) => ({ ...prev, [today]: !next })); showToast(t("fitness.logSaveFailed")); return; }
+    const next = !manualLogDone;
+    setFitnessLog((prev) => ({ ...prev, [manualLogDate]: next }));
+    const res = await store.saveFitnessDayCompleted(manualLogDate, next);
+    if (!res.ok) { setFitnessLog((prev) => ({ ...prev, [manualLogDate]: !next })); showToast(t("fitness.logSaveFailed")); return; }
     if (next) showToast(t("fitness.workoutLogged"));
   }
 
@@ -1511,8 +1527,27 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
           <span style={FS.weekProgressValue}>{`${weekCompletedCount} / ${fitnessProfile.daysPerWeek}`}</span>
         </div>
         <div style={FS.barTrack}><div style={{ ...FS.barFill, width: `${Math.min(100, Math.round((weekCompletedCount / fitnessProfile.daysPerWeek) * 100))}%` }} /></div>
-        <button onClick={toggleTodayDone} style={{ ...FS.todayDoneBtn, ...(todayDone ? FS.todayDoneBtnOn : FS.todayDoneBtnOff) }}>
-          {todayDone ? <><Check size={16} /> {t("fitness.completedTodayCheck")}</> : t("fitness.markDoneToday")}
+        <div style={{ ...S.dateRow, marginTop: 10, marginBottom: 6 }}>
+          <button onClick={() => shiftManualLogDay(-1)} style={S.iconBtn} aria-label={t("nutrition.previousDay")}>
+            {i18n.language === "en" ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+          </button>
+          <div style={{ ...S.dateLabel, fontSize: 12.5 }}>
+            {arabicDate(manualLogDate, { weekday: "long", day: "numeric", month: "long" }, i18n.language === "en" ? "en-US" : undefined)}
+            {isManualLogToday && <span style={S.todayPill}>{t("nav.today")}</span>}
+          </div>
+          <button
+            onClick={() => shiftManualLogDay(1)}
+            disabled={isManualLogToday}
+            style={{ ...S.iconBtn, ...(isManualLogToday ? { opacity: 0.4, cursor: "not-allowed" } : {}) }}
+            aria-label={t("nutrition.nextDay")}
+          >
+            {i18n.language === "en" ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+          </button>
+        </div>
+        <button onClick={toggleTodayDone} style={{ ...FS.todayDoneBtn, ...(manualLogDone ? FS.todayDoneBtnOn : FS.todayDoneBtnOff) }}>
+          {isManualLogToday
+            ? (manualLogDone ? <><Check size={16} /> {t("fitness.completedTodayCheck")}</> : t("fitness.markDoneToday"))
+            : (manualLogDone ? <><Check size={16} /> {t("fitness.completedDayCheck")}</> : t("fitness.markDoneDay"))}
         </button>
       </div>
 

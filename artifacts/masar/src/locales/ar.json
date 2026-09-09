@@ -1556,6 +1556,8 @@
     "daysCompletedThisWeek": "أيام مكتملة هذا الأسبوع",
     "completedTodayCheck": "أكملت تمريناً اليوم",
     "markDoneToday": "✓ تم تمرين اليوم",
+    "completedDayCheck": "أكملت تمريناً هذا اليوم",
+    "markDoneDay": "✓ تم تمرين هذا اليوم",
     "dayLabel": "اليوم {{n}} · {{dayLabel}}",
     "experienceLevels": {
       "beginner": "مبتدئ",

@@ -12,7 +12,7 @@ import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend,
 } from "recharts";
 import { store, getOwner } from "../lib/store";
-import { todayKey, uid, analyze, escapeHtml, COLOR_CHOICES, arabicDate } from "../lib/helpers";
+import { uid, analyze, escapeHtml, COLOR_CHOICES, arabicDate } from "../lib/helpers";
 import { localDayKey } from "../lib/tips";
 import { pickDailyMoneyTip, MONEY_TIP_CATEGORY_LABELS } from "../lib/money-tips";
 import {
@@ -302,7 +302,7 @@ export default function VaultView({ showToast }) {
         const newInstances = [];
         let accountsAfterRecurring = finalAccounts;
         for (const tpl of due) {
-          const instance = { ...tpl, id: uid(), date: todayKey(), createdAt: new Date().toISOString(), recurringSourceId: tpl.id };
+          const instance = { ...tpl, id: uid(), date: localDayKey(), createdAt: new Date().toISOString(), recurringSourceId: tpl.id };
           await store.addVaultTransaction(instance);
           newInstances.push(instance);
           if (instance.accountId) {
@@ -865,7 +865,7 @@ export default function VaultView({ showToast }) {
       <h2>${t("vault.spendByCategory")}</h2>
       <table><tr><th>${t("vault.category")}</th><th>${t("vault.amount")}</th></tr>${catRows || `<tr><td colspan=2>${t("common.states.noDataYet")}</td></tr>`}</table>
       ${budgetRows.length > 0 ? `<h2>${t("vault.budgetsTitle")}</h2><table><tr><th>${t("vault.category")}</th><th>${t("vault.pdfSpent")}</th><th>${t("vault.pdfBudget")}</th></tr>${budgetRowsHtml}</table>` : ""}
-      <div class="footer">${isEn ? "Masar · Your personal tool for time and self-development" : "مسار · أداتك الشخصية للوقت وتطوير الذات"} · ${arabicDate(todayKey(), { day: "numeric", month: "long", year: "numeric" }, isEn ? "en-US" : undefined)}</div>
+      <div class="footer">${isEn ? "Masar · Your personal tool for time and self-development" : "مسار · أداتك الشخصية للوقت وتطوير الذات"} · ${arabicDate(localDayKey(), { day: "numeric", month: "long", year: "numeric" }, isEn ? "en-US" : undefined)}</div>
       </body></html>`;
     const win = window.open("", "_blank");
     if (win) { win.document.write(html); win.document.close(); }

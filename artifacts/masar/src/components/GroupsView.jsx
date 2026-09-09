@@ -5,7 +5,8 @@ import {
   Timer, Dumbbell, Crown, Loader2, Plus, RefreshCw, Clock, Hash, Settings2,
 } from "lucide-react";
 import { store } from "../lib/store";
-import { todayKey, fmtHM } from "../lib/helpers";
+import { fmtHM } from "../lib/helpers";
+import { localDayKey } from "../lib/tips";
 import { S } from "./styles";
 
 const REACTION_EMOJIS = ["👍", "🔥", "👏"];
@@ -121,7 +122,7 @@ export default function GroupsView({ showToast }) {
   const memberNamesRef = useRef({});
   const pingTimerRef = useRef(null);
 
-  const today = todayKey();
+  const today = localDayKey();
 
   const refreshGroups = useCallback(async () => {
     setLoadingGroups(true);

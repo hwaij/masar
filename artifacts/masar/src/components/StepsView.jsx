@@ -5,7 +5,6 @@ import {
 } from "recharts";
 import { Footprints, Plus } from "lucide-react";
 import { store } from "../lib/store";
-import { todayKey } from "../lib/helpers";
 import { localDayKey } from "../lib/tips";
 import { S } from "./styles";
 
@@ -39,9 +38,9 @@ const SS = {
 export default function StepsView({ stepsLog, setStepsLog, showToast }) {
   const { t, i18n } = useTranslation();
   const log = stepsLog;
-  const [inputValue, setInputValue] = useState(() => String(stepsLog[todayKey()]?.steps ?? ""));
+  const [inputValue, setInputValue] = useState(() => String(stepsLog[localDayKey()]?.steps ?? ""));
   const [saving, setSaving] = useState(false);
-  const today = todayKey();
+  const today = localDayKey();
 
   const todaySteps = log[today]?.steps ?? 0;
 

@@ -2488,6 +2488,15 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
   const [saveError, setSaveError] = useState(null);
   const [dailyAnalysis, setDailyAnalysis] = useState(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
+  // خلل حقيقي وُجد وأُصلح: هدف اليوم هنا كان يعتمد دائماً على nutritionPlan:
+  // null (تقسيم TEE العام 30/40/30) حتى لو أنشأ المستخدم فعلياً خطة غذائية
+  // شخصية بهدف محدَّد (تنشيف/تضخيم) في شاشة "النظام الغذائي" - فتظهر شاشتا
+  // التغذية والخطة الغذائية هدفين مختلفين لنفس المستخدم لنفس اليوم رغم أن كلا
+  // الشاشتين تستدعيان نفس getDailyNutritionSummary الموحَّدة. الآن تُحمَّل
+  // الخطة الفعلية (إن وُجدت) وتُمرَّر هنا أيضاً - نفس مصدر الحقيقة الوحيد في
+  // كل الشاشات، بلا أي تغيير للمستخدمين الذين لم ينشئوا خطة بعد (تبقى null
+  // فتُطبَّق نفس صيغة TEE القديمة تماماً كما كانت).
+  const [nutritionPlan, setNutritionPlan] = useState(null);
 
   const isSub = isActiveSubscriber(subscription);
   // خلل حقيقي وُجد وأُصلح: كانت هذه القيمة تُبنى بـtodayKey() (يعتمد
@@ -2508,10 +2517,11 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
 
   useEffect(() => {
     let active = true;
-    Promise.all([store.loadNutritionLog(), store.loadWaterLog()]).then(([nl, wl]) => {
+    Promise.all([store.loadNutritionLog(), store.loadWaterLog(), store.loadNutritionPlan()]).then(([nl, wl, np]) => {
       if (!active) return;
       setNutritionLog(nl);
       setWaterLog(wl);
+      setNutritionPlan(np);
       setLoaded(true);
     });
     return () => { active = false; };
@@ -2631,11 +2641,10 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
     const aiEstimated = !!totals.microAiEstimated?.[key];
     return { key, label: t(`nutrition.micronutrients.${key}`), unit: meta.unit, rdi, value, approx, aiEstimated, pct: Math.min(100, Math.round((value / rdi) * 100)) };
   });
-  // ملخّص يومي موحَّد (getDailyNutritionSummary, nutrition-plan.js) - مصدر
-  // الهدف هنا يبقى tee دوماً (nutritionPlan: null عمداً) لمطابقة سلوك هذه
-  // الشاشة الحالي بالحرف؛ لو مُرِّرت خطة نشطة هنا لاحقاً سيتغيّر مصدر
-  // الهدف فعلياً - قرار مقصود لا يُتَّخذ هنا الآن.
-  const dailySummary = getDailyNutritionSummary({ totals, healthProfile, nutritionPlan: null });
+  // ملخّص يومي موحَّد (getDailyNutritionSummary, nutrition-plan.js) - يستخدم
+  // الآن الخطة الفعلية المحمَّلة أعلاه إن وُجدت (تدقيق شامل: توحيد مصدر
+  // الهدف عبر كل الشاشات - راجع تعليق useState الخاص بـnutritionPlan أعلاه).
+  const dailySummary = getDailyNutritionSummary({ totals, healthProfile, nutritionPlan });
   const tee = dailySummary.calorieGoal;
   const teePercent = dailySummary.adherencePct;
   // أهداف الماكروز لدوائر التقدم: نسبة عامة معروفة (بروتين 30%، كارب 40%،

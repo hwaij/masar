@@ -3945,10 +3945,10 @@ function AssistantView({ entries, tasks, categories, focus, prayerLog, religious
     Promise.all([
       store.loadFitnessProfile(), store.loadFitnessLog(),
       store.loadNutritionLog(), store.loadWaterLog(),
-      store.loadMentalHealthLog(),
-    ]).then(([fitnessProfile, fitnessLog, nutritionLog, waterLog, mentalLog]) => {
+      store.loadMentalHealthLog(), store.loadNutritionPlan(),
+    ]).then(([fitnessProfile, fitnessLog, nutritionLog, waterLog, mentalLog, nutritionPlan]) => {
       if (!active) return;
-      setExtra({ fitnessProfile, fitnessLog, nutritionLog, waterLog, mentalLog });
+      setExtra({ fitnessProfile, fitnessLog, nutritionLog, waterLog, mentalLog, nutritionPlan });
     });
     return () => { active = false; };
   }, []);
@@ -4031,10 +4031,14 @@ function AssistantView({ entries, tasks, categories, focus, prayerLog, religious
       // كافية للمقارنة)، بغض النظر عن كون رقم اليوم صفراً (صفر رقم حقيقي
       // وليس افتراضاً).
       if (healthProfile?.tee) {
-        // ملخّص يومي موحَّد (getDailyNutritionSummary) - nutritionPlan: null
-        // عمداً هنا أيضاً (مطابقة سلوك NutritionView.jsx الحالي: tee دوماً).
+        // ملخّص يومي موحَّد (getDailyNutritionSummary) - خلل حقيقي وُجد وأُصلح:
+        // كان nutritionPlan: null ثابتاً هنا (تجاهل أي خطة غذائية شخصية فعلية
+        // للمستخدم) بينما NutritionPlanView تستخدم الخطة الحقيقية - تعارض بين
+        // ما يراه المساعد الذكي وما يراه المستخدم فعلياً في شاشته. الآن تُستخدم
+        // نفس الخطة المحمَّلة أعلاه (extra.nutritionPlan)، فيبقى المصدر واحداً
+        // موحَّداً عبر كل الشاشات (تبقى null تلقائياً لمن لم ينشئ خطة بعد).
         const todayTotals = sumNutritionEntries((extra.nutritionLog || []).filter((e) => e.date === today));
-        const daySummary = getDailyNutritionSummary({ totals: todayTotals, healthProfile, nutritionPlan: null });
+        const daySummary = getDailyNutritionSummary({ totals: todayTotals, healthProfile, nutritionPlan: extra.nutritionPlan });
         const caloriesToday = Math.round(daySummary.caloriesConsumed);
         lines.push(isEn
           ? `Nutrition today: ${caloriesToday} kcal out of ${Math.round(daySummary.calorieGoal)} kcal (TEE)`

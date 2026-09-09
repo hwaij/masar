@@ -70,6 +70,9 @@ const NS = {
   scannerBox: { width: "100%", borderRadius: 14, overflow: "hidden", background: "#000", marginBottom: 12, minHeight: 220 },
   scanHint: { fontSize: 12, color: "var(--muted2)", textAlign: "center", marginBottom: 10 },
   errorText: { fontSize: 12.5, color: "#D17B5F", background: "rgba(209,123,95,0.1)", border: "1px solid rgba(209,123,95,0.3)", borderRadius: 10, padding: "9px 11px", marginBottom: 12, lineHeight: 1.6 },
+  // نغمة ودّية خفيفة (قسم الحلا) - تُستخدم فقط لردود "بيضة الفصح" اللطيفة
+  // عند تصوير غير-طعام (مو خطأ حقيقي، فلا تُستخدم ألوان errorText التحذيرية).
+  noticeText: { fontSize: 13, color: "var(--ink)", background: "var(--teal)", border: "1px solid var(--teal-border)", borderRadius: 10, padding: "10px 12px", marginBottom: 12, lineHeight: 1.6, textAlign: "center" },
   searchRow: { display: "flex", gap: 8, marginBottom: 12 },
   searchInput: { flex: 1, background: "var(--surface-sunken)", border: "1px solid var(--border2)", borderRadius: 10, padding: "10px 12px", color: "var(--ink)", fontSize: 14, fontFamily: "inherit" },
   searchBtn: { background: "var(--gold)", color: "var(--bg)", border: "none", borderRadius: 10, width: 44, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 },
@@ -2021,6 +2024,9 @@ function AIPhotoPanel({ onSave, onManual, preselectedMealType, isSub }) {
   const [preview, setPreview] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState(null);
+  // رد "بيضة الفصح" الودّي عند تصوير غير-طعام (وجه/غرض) - منفصل عن error
+  // عمداً ليأخذ نغمة لطيفة (NS.noticeText) لا نغمة تحذير.
+  const [notice, setNotice] = useState(null);
   // items: [{ localId, query, servingEstimate, status, product, candidates, grams }] أو null قبل أي تحليل.
   // status: 'searching' | 'matched' | 'multiple' | 'unmatched'.
   const [items, setItems] = useState(null);
@@ -2061,13 +2067,18 @@ function AIPhotoPanel({ onSave, onManual, preselectedMealType, isSub }) {
     if (!file) return;
     setPreview(URL.createObjectURL(file));
     setError(null);
+    setNotice(null);
     setItems(null);
     setAnalyzing(true);
     const res = await recognizeMealFromImage(file, i18n.language);
     setAnalyzing(false);
     if (!res.ok) { setError(isEn ? (res.errorEn || res.error) : res.error); return; }
     if (res.foods.length === 0) {
-      setError(isEn ? "Couldn't identify any food in this photo. Try another photo or add the food manually." : "تعذّر التعرّف على أي طعام في هذه الصورة. جرّب صورة أخرى أو أضف الطعام يدوياً.");
+      if (res.easterEgg) {
+        setNotice(isEn ? res.easterEgg.messageEn : res.easterEgg.message);
+      } else {
+        setError(isEn ? "Couldn't identify any food in this photo. Try another photo or add the food manually." : "تعذّر التعرّف على أي طعام في هذه الصورة. جرّب صورة أخرى أو أضف الطعام يدوياً.");
+      }
       return;
     }
     const newItems = res.foods.map((f) => ({
@@ -2163,6 +2174,13 @@ function AIPhotoPanel({ onSave, onManual, preselectedMealType, isSub }) {
         <>
           <div style={NS.errorText}>{error}</div>
           <button onClick={() => { setPreview(null); setError(null); }} style={{ ...S.exportBtn, marginBottom: 8 }}>{t("nutrition.retryWithAnotherPhoto")}</button>
+        </>
+      )}
+
+      {notice && (
+        <>
+          <div style={NS.noticeText}>{notice}</div>
+          <button onClick={() => { setPreview(null); setNotice(null); }} style={{ ...S.exportBtn, marginBottom: 8 }}>{t("nutrition.retryWithAnotherPhoto")}</button>
         </>
       )}
 

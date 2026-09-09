@@ -896,30 +896,51 @@ const CHUNK_LOAD_ERROR_MESSAGE_EN = "The app just updated to a new version — p
 // الحقيقية (نفس searchFoodCandidatesOnce المستخدمة في البحث اليدوي والأمر
 // الصوتي) ليحصل على القيم الفعلية، تماماً بنفس مبدأ "تعرّف على الهوية فقط"
 // المطبَّق أصلاً في translateFoodTermForUsda للنص العربي.
+// مفتاح تحكم واحد لإيقاف "بيضة الفصح" الفكاهية الخفيفة أدناه بسهولة إن
+// سبّبت إزعاجاً - false يعيد الرد لرسالة الخطأ الجافة القديمة فقط، بلا أي
+// تعديل آخر في المنطق.
+const AI_PHOTO_EASTER_EGG_ENABLED = true;
+
+// ردود "بيضة الفصح" - محتوى ثابت مكتوب مسبقاً (لا AI يولّده)، خفيف وبسيط
+// فقط: ممنوع نهائياً أي تلميح عن وزن/شكل/جسم الشخص مهما كان الشكل. حالة
+// الوجه البشري تُعامَل كـ"قسم الحلا" (مجاملة "ما شاء الله") لا كخطأ إطلاقاً،
+// وحالة أي شيء آخر غير طعام تحصل على مزحة بسيطة عن التصوير فقط لا عن الشخص.
+const NON_FOOD_RESPONSES = {
+  person: { text: "ما شاء الله 😊", textEn: "Mashallah! 😊" },
+  other: {
+    text: "هذا مو وجبة! جرب تصوير شي تاكله 😄",
+    textEn: "That's not a meal! Try snapping something you're about to eat 😄",
+  },
+};
+
 export async function recognizeMealFromImage(imageFile, lang = "ar") {
   try {
     const { base64, mimeType } = await compressImageToBase64(imageFile);
     const prompt = lang === "en"
-      ? `Analyze this meal photo. Identify each distinct food item visible SEPARATELY - don't combine different foods into one combined entry (e.g. rice and grilled chicken on the same plate must be two separate items, not one "rice with chicken" item).
+      ? `Analyze this photo. Identify each distinct food item visible SEPARATELY - don't combine different foods into one combined entry (e.g. rice and grilled chicken on the same plate must be two separate items, not one "rice with chicken" item).
 
 Return only valid JSON with no extra text or markdown, in exactly this shape:
-{"foods":[{"name":"string","servingEstimate":"string"}]}
+{"foods":[{"name":"string","servingEstimate":"string"}],"nonFoodSubject":"none"|"person"|"other"}
 
 For each food item:
 - "name": the food's identity only (e.g. "grilled chicken breast", "white rice", "chicken shawarma") - as specific as you can tell from the photo, in English. Do NOT include any calorie or nutrition number in this field.
 - "servingEstimate": a short description of the apparent portion size (e.g. "1 cup", "150g", "2 pieces", "1 slice"). If you cannot confidently judge the portion size from the photo, use exactly the phrase "1 serving" instead of guessing a specific-sounding number you aren't confident about.
 
-Do not include calories, protein, carbs, fat, or any other nutrition value anywhere in your answer - identification only, no nutrition estimates.`
-      : `حلّل صورة الوجبة هذه. حدّد كل صنف طعام مميَّز ظاهر في الصورة بشكل منفصل - لا تدمج أطعمة مختلفة في صنف واحد (مثال: أرز ودجاج مشوي في نفس الطبق يجب أن يكونا صنفين منفصلين، لا صنفاً واحداً "أرز مع دجاج").
+"nonFoodSubject": ONLY set this when the "foods" array is empty (no food visible at all). Use "person" if the photo's main subject is a person or a person's face, "other" if it shows anything else non-food (an object, a place, an animal, a screen, etc.), or "none" if food items were found above.
+
+Do not include calories, protein, carbs, fat, or any other nutrition value anywhere in your answer - identification only, no nutrition estimates. Never comment on a person's body, weight, or appearance - "nonFoodSubject" is only a category label, not a description.`
+      : `حلّل هذه الصورة. حدّد كل صنف طعام مميَّز ظاهر في الصورة بشكل منفصل - لا تدمج أطعمة مختلفة في صنف واحد (مثال: أرز ودجاج مشوي في نفس الطبق يجب أن يكونا صنفين منفصلين، لا صنفاً واحداً "أرز مع دجاج").
 
 أرجع فقط JSON صالحاً بدون أي نص أو markdown إضافي، بهذا الشكل بالضبط:
-{"foods":[{"name":"نص","servingEstimate":"نص"}]}
+{"foods":[{"name":"نص","servingEstimate":"نص"}],"nonFoodSubject":"none"|"person"|"other"}
 
 لكل صنف طعام:
 - "name": هوية الطعام فقط (مثال: "صدر دجاج مشوي"، "أرز أبيض"، "شاورما دجاج") - بأدق وصف ممكن من الصورة، بالعربية. لا تضع أي رقم سعرات أو غذائي في هذا الحقل إطلاقاً.
 - "servingEstimate": وصف قصير لحجم الحصة الظاهر (مثال: "كوب واحد"، "150غم"، "قطعتان"، "شريحة واحدة"). إن لم تستطع تقدير حجم الحصة بثقة معقولة من الصورة، استخدم بالضبط عبارة "حصة واحدة" بدل تخمين رقم دقيق المظهر لست واثقاً منه.
 
-لا تضع أي سعرات أو بروتين أو كارب أو دهون أو أي قيمة غذائية أخرى في إجابتك إطلاقاً - تعرّف على الهوية فقط، بلا أي تقدير غذائي.`;
+"nonFoodSubject": ضعه فقط عندما تكون قائمة "foods" فارغة (لا يوجد طعام إطلاقاً). استخدم "person" إن كان محور الصورة شخصاً أو وجه شخص، أو "other" لأي شيء آخر غير طعام (غرض، مكان، حيوان، شاشة...)، أو "none" إن وُجد طعام أعلاه.
+
+لا تضع أي سعرات أو بروتين أو كارب أو دهون أو أي قيمة غذائية أخرى في إجابتك إطلاقاً - تعرّف على الهوية فقط، بلا أي تقدير غذائي. ممنوع نهائياً أي تعليق عن وزن أو شكل أو مظهر الشخص - "nonFoodSubject" مجرد تصنيف، لا وصف.`;
     const { geminiAnalyzeImage } = await import("./gemini.js");
     const text = await geminiAnalyzeImage(prompt, base64, mimeType, 500);
     const parsed = parseJsonLoose(text);
@@ -934,7 +955,15 @@ Do not include calories, protein, carbs, fat, or any other nutrition value anywh
           ? f.servingEstimate.trim()
           : (lang === "en" ? "1 serving" : "حصة واحدة"),
       }));
-    return { ok: true, foods };
+    let easterEgg = null;
+    if (AI_PHOTO_EASTER_EGG_ENABLED && foods.length === 0) {
+      const subject = parsed.nonFoodSubject === "person" ? "person" : (parsed.nonFoodSubject === "other" ? "other" : null);
+      if (subject) {
+        const resp = NON_FOOD_RESPONSES[subject];
+        easterEgg = { kind: subject, message: resp.text, messageEn: resp.textEn };
+      }
+    }
+    return { ok: true, foods, easterEgg };
   } catch (e) {
     console.error("[nutrition] recognizeMealFromImage failed:", e);
     const chunkError = isChunkLoadError(e);

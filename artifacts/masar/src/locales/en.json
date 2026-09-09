@@ -1771,7 +1771,16 @@
     "invalidValue": "Enter a valid number of steps.",
     "historyTitle": "Last 7 days",
     "noHistoryYet": "No steps logged yet.",
-    "quickAddLabel": "Add {{count}} steps"
+    "quickAddLabel": "Add {{count}} steps",
+    "dailyGoalLabel": "Your daily goal (steps)",
+    "dailyGoalPlaceholder": "e.g. 6000",
+    "setGoalBtn": "Set your daily goal",
+    "editGoalBtn": "Edit goal",
+    "goalProgress": "{{steps}} of {{goal}} steps",
+    "goalReached": "🎉 You reached your goal today!",
+    "goalRemaining": "{{remaining}} steps left",
+    "invalidGoal": "Enter a valid number greater than zero for your goal.",
+    "goalSaved": "Your daily goal was saved."
   },
   "groups": {
     "errors": {

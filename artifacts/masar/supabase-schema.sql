@@ -122,6 +122,9 @@ create table if not exists health_profile (
 alter table health_profile add column if not exists food_likes text default '';
 alter table health_profile add column if not exists food_dislikes text default '';
 alter table health_profile add column if not exists lifestyle_preferences text default '';
+-- هدف الخطوات اليومي: رقم شخصي يحدده المستخدم بنفسه، لا قيمة افتراضية
+-- مفروضة (لا 10000 كـ"معيار عالمي") - يبقى null حتى يضبطه المستخدم بنفسه.
+alter table health_profile add column if not exists daily_steps_goal integer check (daily_steps_goal is null or daily_steps_goal > 0);
 
 -- قسم "الرياضة": إعداد أولي (هدف/معدات/أيام أسبوعياً) وسجل بسيط لأيام
 -- التمرين المكتملة. الجدول الأسبوعي نفسه (تمارينه وتفاصيلها) يُولَّد
@@ -1999,8 +2002,12 @@ create table if not exists notification_preferences (
   category_sleep     boolean not null default true,
   category_quran     boolean not null default true,
   category_tasks     boolean not null default true,
+  category_steps     boolean not null default true,
   updated_at         timestamptz not null default now()
 );
+-- إضافة لاحقة (Batch 2 - Item 2: هدف الخطوات) لقاعدة موجودة فعلاً - عمود
+-- تفعيل مستقل لفئة "steps" بنفس نمط بقية الفئات أعلاه.
+alter table notification_preferences add column if not exists category_steps boolean not null default true;
 alter table notification_preferences enable row level security;
 drop policy if exists notification_preferences_user_own on notification_preferences;
 create policy notification_preferences_user_own on notification_preferences for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
@@ -2021,13 +2028,17 @@ create policy notification_preferences_user_own on notification_preferences for 
 create table if not exists notification_log (
   id              uuid primary key default gen_random_uuid(),
   owner           text not null,
-  category        text not null check (category in ('prayer', 'water', 'meals', 'sleep', 'quran', 'tasks')),
+  category        text not null check (category in ('prayer', 'water', 'meals', 'sleep', 'quran', 'tasks', 'steps')),
   occurrence_key  text not null,
   lang            text not null default 'ar',
   sent_at         timestamptz not null default now(),
   status          text not null default 'sent' check (status in ('sent', 'failed')),
   unique (owner, category, occurrence_key)
 );
+-- إضافة "steps" لاحقاً (Batch 2 - Item 2) لقاعدة موجودة فعلاً - القيد أعلاه
+-- في create table لا يُعاد تطبيقه على جدول موجود، فيُحدَّث صراحةً هنا.
+alter table notification_log drop constraint if exists notification_log_category_check;
+alter table notification_log add constraint notification_log_category_check check (category in ('prayer', 'water', 'meals', 'sleep', 'quran', 'tasks', 'steps'));
 create index if not exists notification_log_owner on notification_log (owner);
 create index if not exists notification_log_owner_sent_at on notification_log (owner, sent_at);
 alter table notification_log enable row level security;

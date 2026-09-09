@@ -245,6 +245,13 @@ exports.handler = async (event) => {
     console.error("[scheduled-prayer-reminders] processing sleep bedtime countdown failed:", e);
     summary.push({ type: "sleep", id: "bedtimeCountdown", error: String(e) });
   }
+  try {
+    const result = await processStepsGoal({ url, headers, todayKey, nowHHMM });
+    summary.push({ type: "steps", id: "goal", ...result });
+  } catch (e) {
+    console.error("[scheduled-prayer-reminders] processing steps goal failed:", e);
+    summary.push({ type: "steps", id: "goal", error: String(e) });
+  }
 
   console.log("[scheduled-prayer-reminders] run summary:", JSON.stringify(summary));
   return { statusCode: 200, body: JSON.stringify(summary) };
@@ -299,7 +306,7 @@ async function processReminder({ url, headers, category, occurrenceKey, nowHHMM,
   // واحد بعد) يُعامَل بالقيم الافتراضية أدناه (مطابقة لقيم العمود الافتراضية
   // في المخطط).
   const prefsRows = await fetchJson(
-    `${url}/rest/v1/notification_preferences?owner=in.${inList(ownersWithSubs)}&select=owner,daily_cap,quiet_hours_start,quiet_hours_end,category_prayer,category_water,category_meals,category_sleep`,
+    `${url}/rest/v1/notification_preferences?owner=in.${inList(ownersWithSubs)}&select=owner,daily_cap,quiet_hours_start,quiet_hours_end,category_prayer,category_water,category_meals,category_sleep,category_steps`,
     headers,
   );
   const prefsByOwner = new Map(prefsRows.map((r) => [r.owner, r]));
@@ -343,10 +350,16 @@ async function processReminder({ url, headers, category, occurrenceKey, nowHHMM,
   // إرسال متوازٍ لكل (مستخدم × جهاز) معاً - لا تسلسل. اللغة عربية افتراضياً
   // (لا عمود لغة يُقرأ خادمياً بسهولة بعد؛ يمكن ربطها بـprofile.language
   // لاحقاً بلا تغيير في هذا المسار).
-  const notificationPayload = JSON.stringify({ title: message.title, body: message.body, url: linkPath });
+  // message قد يكون كائناً ثابتاً (كل الفئات الحالية - نفس النص للجميع)، أو
+  // دالة (owner) => {title, body} لرسالة مُخصَّصة رقمياً لكل مستخدم (مثال:
+  // "باقي لك 1500 خطوة" - يختلف الرقم فعلياً باختلاف تقدّم كل مستخدم اليوم) -
+  // إضافة توافقية بحتة، كل الاستدعاءات الحالية تمرّر كائناً ثابتاً كما هي.
+  const isPersonalized = typeof message === "function";
 
   const results = await Promise.all(
     eligibleOwners.map(async (owner) => {
+      const ownerMessage = isPersonalized ? message(owner) : message;
+      const notificationPayload = JSON.stringify({ title: ownerMessage.title, body: ownerMessage.body, url: linkPath });
       const ownerSubs = subsByOwner.get(owner) || [];
       const sendResults = await Promise.all(
         ownerSubs.map((sub) => sendToSubscriptionRow({ url, headers, sub, notificationPayload })),
@@ -544,4 +557,62 @@ async function processSleepBedtimeCountdown({ url, headers, todayKey, nowHHMM, n
     linkPath: "/sleep",
     restrictOwners: dueOwners,
   });
+}
+
+// تذكير "هدف الخطوات" (Batch 2 - Item 2): لا نافذة زمنية عامة (تقدّم
+// الخطوات لا علاقة له بوقت اليوم) - يُستدعى في كل تشغيلة بلا استثناء (نفس
+// نمط processSleepWake)، ويفحص لكل مستخدم عيّن هدفاً شخصياً
+// (health_profile.daily_steps_goal) عدد خطواته المسجَّل اليوم فعلياً
+// (steps_log)، فيرسل رسالة مُخصَّصة رقمياً (باقي كذا خطوة / وصلت هدفك) -
+// مرة واحدة فقط لكل حالة (اقترب/وصل) في اليوم، عبر occurrence_key منفصل
+// لكل حالة (منع التكرار المركزي عبر notification_log كباقي الفئات).
+async function processStepsGoal({ url, headers, todayKey, nowHHMM }) {
+  const goals = await fetchJson(
+    `${url}/rest/v1/health_profile?daily_steps_goal=not.is.null&select=owner,daily_steps_goal`,
+    headers,
+  );
+  if (goals.length === 0) return { eligible: 0, sent: 0 };
+  const goalByOwner = new Map(goals.map((r) => [r.owner, r.daily_steps_goal]));
+
+  const stepsRows = await fetchJson(
+    `${url}/rest/v1/steps_log?date=eq.${todayKey}&owner=in.${inList([...goalByOwner.keys()])}&select=owner,steps`,
+    headers,
+  );
+  const stepsByOwner = new Map(stepsRows.map((r) => [r.owner, r.steps]));
+
+  const reachedOwners = new Set();
+  const remainingByOwner = new Map();
+  for (const [owner, goal] of goalByOwner) {
+    const steps = stepsByOwner.get(owner);
+    if (steps == null || !(goal > 0)) continue;
+    if (steps >= goal) reachedOwners.add(owner);
+    else if (steps / goal >= 0.8) remainingByOwner.set(owner, goal - steps);
+  }
+
+  let sentTotal = 0;
+  let eligibleTotal = 0;
+
+  if (reachedOwners.size > 0) {
+    const message = buildMessage("steps", "ar", { variant: "reached" });
+    const result = await processReminder({
+      url, headers, category: "steps",
+      occurrenceKey: buildOccurrenceKey(todayKey, "steps_reached"),
+      nowHHMM, fulfilledOwners: new Set(), message,
+      linkPath: "/steps", restrictOwners: reachedOwners,
+    });
+    sentTotal += result.sent; eligibleTotal += result.eligible;
+  }
+
+  if (remainingByOwner.size > 0) {
+    const message = (owner) => buildMessage("steps", "ar", { variant: "near", remaining: remainingByOwner.get(owner) });
+    const result = await processReminder({
+      url, headers, category: "steps",
+      occurrenceKey: buildOccurrenceKey(todayKey, "steps_near"),
+      nowHHMM, fulfilledOwners: new Set(), message,
+      linkPath: "/steps", restrictOwners: new Set(remainingByOwner.keys()),
+    });
+    sentTotal += result.sent; eligibleTotal += result.eligible;
+  }
+
+  return { eligible: eligibleTotal, sent: sentTotal };
 }

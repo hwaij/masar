@@ -9,7 +9,7 @@
 // الفئات المدعومة، والفئة الوحيدة التي تتجاوز Quiet Hours (الصلاة، بموافقة
 // صريحة من صاحب المنتج - يختارها المستخدم عمداً، بخلاف تذكيرات الماء/
 // الوجبات/المهام التي يجب أن تحترم وقت هدوئه بصرامة).
-const CATEGORIES = ["prayer", "water", "meals", "sleep", "quran", "tasks"];
+const CATEGORIES = ["prayer", "water", "meals", "sleep", "quran", "tasks", "steps"];
 const QUIET_HOURS_EXEMPT_CATEGORIES = new Set(["prayer"]);
 
 function assertValidCategory(category) {
@@ -130,6 +130,17 @@ const MESSAGES = {
   tasks: {
     ar: () => ({ title: "✅ مهامك اليوم", body: "لديك مهام لم تُنجَز بعد في مسار." }),
     en: () => ({ title: "✅ Today's tasks", body: "You have some tasks still open in Masar." }),
+  },
+  // "reached": وصل هدفه اليومي بالفعل. "near": بلغ 80% فأكثر لكن لم يصل بعد -
+  // ctx.remaining هو الرقم الفعلي المتبقي لهذا المستخدم تحديداً (رسالة
+  // مُخصَّصة رقمياً، انظر استخدام message كدالة في processReminder).
+  steps: {
+    ar: (ctx) => ctx?.variant === "reached"
+      ? { title: "🎉 وصلت هدف خطواتك اليوم!", body: "أحسنت! حافظ على هذا النشاط." }
+      : { title: "🎯 اقتربت من هدفك", body: `باقي لك ${ctx?.remaining ?? ""} خطوة لتصل هدفك اليوم.` },
+    en: (ctx) => ctx?.variant === "reached"
+      ? { title: "🎉 You reached your step goal!", body: "Great job! Keep up the activity." }
+      : { title: "🎯 Almost there", body: `${ctx?.remaining ?? ""} steps left to reach your goal today.` },
   },
 };
 

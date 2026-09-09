@@ -1771,7 +1771,16 @@
     "invalidValue": "أدخل رقماً صحيحاً للخطوات.",
     "historyTitle": "آخر 7 أيام",
     "noHistoryYet": "لا توجد خطوات مسجَّلة بعد.",
-    "quickAddLabel": "أضف {{count}} خطوة"
+    "quickAddLabel": "أضف {{count}} خطوة",
+    "dailyGoalLabel": "هدفك اليومي (خطوة)",
+    "dailyGoalPlaceholder": "مثال: 6000",
+    "setGoalBtn": "حدّد هدفك اليومي",
+    "editGoalBtn": "تعديل الهدف",
+    "goalProgress": "{{steps}} من {{goal}} خطوة",
+    "goalReached": "🎉 وصلت هدفك اليوم!",
+    "goalRemaining": "باقي لك {{remaining}} خطوة",
+    "invalidGoal": "أدخل رقماً صحيحاً أكبر من صفر لهدفك.",
+    "goalSaved": "تم حفظ هدفك اليومي."
   },
   "groups": {
     "errors": {

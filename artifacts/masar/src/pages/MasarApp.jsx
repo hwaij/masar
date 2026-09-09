@@ -295,7 +295,7 @@ export default function MasarApp() {
   // التطبيق برابط "/?view=X" - لا علاقة له بأي منطق بيانات، مجرد قراءة
   // لمرة واحدة عند التحميل الأول لتحديد الشاشة الافتتاحية، مع قائمة بيضاء
   // صريحة حتى لا يقود رابط خارجي المستخدم لشاشة غير موجودة.
-  const VALID_SHORTCUT_VIEWS = ["today", "prayer", "adhkar", "tips", "you", "nutrition", "nutritionPlan", "dietPlans", "fitness", "focus", "tasks", "goals", "vault", "reports", "groups", "assistant", "achieve", "settings", "sleep"];
+  const VALID_SHORTCUT_VIEWS = ["today", "prayer", "adhkar", "tips", "you", "nutrition", "nutritionPlan", "dietPlans", "fitness", "focus", "tasks", "goals", "vault", "reports", "groups", "assistant", "achieve", "settings", "sleep", "steps"];
   const [view, setView] = useState(() => {
     try {
       const requested = new URLSearchParams(window.location.search).get("view");
@@ -345,7 +345,7 @@ export default function MasarApp() {
   const [healthProfile, setHealthProfile] = useState({
     heightCm: null, weightKg: null, age: null, gender: null, activityLevel: null, conditions: [],
     bmi: null, bmiCategory: null, ibw: null, ree: null, tee: null,
-    foodLikes: "", foodDislikes: "", lifestylePreferences: "",
+    foodLikes: "", foodDislikes: "", lifestylePreferences: "", dailyStepsGoal: null,
   });
   const [subscription, setSubscription] = useState({ isSubscriber: false, subscriptionEnd: null, isVip: false, subscriptionType: null });
   const isSub = isActiveSubscriber(subscription);
@@ -400,7 +400,7 @@ export default function MasarApp() {
         withTimeout(store.loadHealthProfile(), T, {
           heightCm: null, weightKg: null, age: null, gender: null, activityLevel: null, conditions: [],
           bmi: null, bmiCategory: null, ibw: null, ree: null, tee: null,
-          foodLikes: "", foodDislikes: "", lifestylePreferences: "",
+          foodLikes: "", foodDislikes: "", lifestylePreferences: "", dailyStepsGoal: null,
         }),
       ]);
 
@@ -1125,7 +1125,7 @@ export default function MasarApp() {
               {view === "nutritionPlan" && <NutritionPlanView healthProfile={healthProfile} showToast={showToast} subscription={subscription} setView={setView} />}
               {view === "dietPlans" && <DietPlansView healthProfile={healthProfile} showToast={showToast} subscription={subscription} draftPreview={dietDraftPreview} />}
               {view === "fitness" && <FitnessView healthProfile={healthProfile} showToast={showToast} profile={profile} setProfile={setProfile} journeyActive={tourOpen} />}
-              {view === "steps" && <StepsView stepsLog={stepsLog} setStepsLog={setStepsLog} showToast={showToast} />}
+              {view === "steps" && <StepsView stepsLog={stepsLog} setStepsLog={setStepsLog} showToast={showToast} healthProfile={healthProfile} setHealthProfile={setHealthProfile} />}
               {view === "groups" && isSub && <GroupsView showToast={showToast} />}
               {view === "vault" && isSub && <VaultView showToast={showToast} />}
             </Suspense>

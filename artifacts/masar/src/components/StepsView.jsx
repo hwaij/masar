@@ -34,9 +34,18 @@ const SS = {
 
   chartCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 12px", marginBottom: 16 },
   chartTitle: { fontSize: 13, fontWeight: 700, color: "var(--muted2)", marginBottom: 8 },
+
+  goalCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 16px", marginBottom: 16 },
+  goalRow: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
+  goalText: { fontSize: 13, fontWeight: 700, color: "var(--ink)" },
+  goalEditLink: { background: "none", border: "none", color: "#6FA8DC", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", padding: 0 },
+  progressTrack: { height: 10, borderRadius: 6, background: "var(--surface-sunken)", overflow: "hidden" },
+  progressFill: { height: "100%", borderRadius: 6, background: "#6FA8DC", transition: "width 0.3s ease" },
+  setGoalBtn: { display: "flex", alignItems: "center", justifyContent: "center", width: "100%", background: "transparent", border: "1.5px dashed var(--border2)", color: "var(--muted2)", borderRadius: 12, padding: "10px 0", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
+  goalInputRow: { display: "flex", gap: 8 },
 };
 
-export default function StepsView({ stepsLog, setStepsLog, showToast }) {
+export default function StepsView({ stepsLog, setStepsLog, showToast, healthProfile, setHealthProfile }) {
   const { t, i18n } = useTranslation();
   const log = stepsLog;
   const today = localDayKey();
@@ -44,6 +53,29 @@ export default function StepsView({ stepsLog, setStepsLog, showToast }) {
   const isViewingToday = selectedDate === today;
   const [inputValue, setInputValue] = useState(() => String(stepsLog[today]?.steps ?? ""));
   const [saving, setSaving] = useState(false);
+
+  // هدف الخطوات اليومي (Batch 2 - Item 2): رقم شخصي يحدده المستخدم بنفسه فقط
+  // (health_profile.daily_steps_goal) - لا قيمة افتراضية مفروضة (لا 10000 كـ
+  // "معيار عالمي")؛ يبقى null (زر "حدّد هدفك" بدل شريط تقدّم) حتى يضبطه
+  // المستخدم بنفسه، وقابل للتعديل دائماً بعدها.
+  const dailyGoal = healthProfile?.dailyStepsGoal || null;
+  const [editingGoal, setEditingGoal] = useState(false);
+  const [goalInput, setGoalInput] = useState(() => (dailyGoal ? String(dailyGoal) : ""));
+  const [savingGoal, setSavingGoal] = useState(false);
+
+  async function saveGoal() {
+    const goal = Math.round(Number(goalInput));
+    if (!Number.isFinite(goal) || goal <= 0) { showToast(t("steps.invalidGoal")); return; }
+    setSavingGoal(true);
+    const prev = healthProfile;
+    const next = { ...healthProfile, dailyStepsGoal: goal };
+    setHealthProfile(next);
+    const res = await store.saveHealthProfile(next);
+    setSavingGoal(false);
+    if (!res.ok) { setHealthProfile(prev); showToast(t("common.errors.saveFailed")); return; }
+    setEditingGoal(false);
+    showToast(t("steps.goalSaved"));
+  }
 
   useEffect(() => {
     setInputValue(String(log[selectedDate]?.steps ?? ""));
@@ -151,6 +183,38 @@ export default function StepsView({ stepsLog, setStepsLog, showToast }) {
             </button>
           ))}
         </div>
+      </div>
+
+      <div style={SS.goalCard} data-tour="steps-goal-card">
+        {editingGoal ? (
+          <div style={SS.goalInputRow}>
+            <input
+              type="number" inputMode="numeric" min="1"
+              value={goalInput}
+              onChange={(e) => setGoalInput(e.target.value)}
+              placeholder={t("steps.dailyGoalPlaceholder")}
+              style={{ ...SS.input, flex: 1 }}
+              aria-label={t("steps.dailyGoalLabel")}
+            />
+            <button onClick={saveGoal} disabled={savingGoal || !goalInput} style={SS.saveBtn}>{t("common.buttons.save")}</button>
+          </div>
+        ) : dailyGoal ? (
+          <>
+            <div style={SS.goalRow}>
+              <span style={SS.goalText}>
+                {selectedSteps >= dailyGoal
+                  ? t("steps.goalReached")
+                  : t("steps.goalProgress", { steps: selectedSteps.toLocaleString(i18n.language === "en" ? "en-US" : "ar-EG"), goal: dailyGoal.toLocaleString(i18n.language === "en" ? "en-US" : "ar-EG") })}
+              </span>
+              <button onClick={() => { setGoalInput(String(dailyGoal)); setEditingGoal(true); }} style={SS.goalEditLink}>{t("steps.editGoalBtn")}</button>
+            </div>
+            <div style={SS.progressTrack}>
+              <div style={{ ...SS.progressFill, width: `${Math.min(100, Math.round((selectedSteps / dailyGoal) * 100))}%` }} />
+            </div>
+          </>
+        ) : (
+          <button onClick={() => { setGoalInput(""); setEditingGoal(true); }} style={SS.setGoalBtn}>{t("steps.setGoalBtn")}</button>
+        )}
       </div>
 
       <div style={SS.chartCard}>

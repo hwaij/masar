@@ -345,6 +345,7 @@ export default function MasarApp() {
   const [healthProfile, setHealthProfile] = useState({
     heightCm: null, weightKg: null, age: null, gender: null, activityLevel: null, conditions: [],
     bmi: null, bmiCategory: null, ibw: null, ree: null, tee: null,
+    foodLikes: "", foodDislikes: "", lifestylePreferences: "",
   });
   const [subscription, setSubscription] = useState({ isSubscriber: false, subscriptionEnd: null, isVip: false, subscriptionType: null });
   const isSub = isActiveSubscriber(subscription);
@@ -399,6 +400,7 @@ export default function MasarApp() {
         withTimeout(store.loadHealthProfile(), T, {
           heightCm: null, weightKg: null, age: null, gender: null, activityLevel: null, conditions: [],
           bmi: null, bmiCategory: null, ibw: null, ree: null, tee: null,
+          foodLikes: "", foodDislikes: "", lifestylePreferences: "",
         }),
       ]);
 
@@ -6889,6 +6891,9 @@ function YouView({ healthProfile, setHealthProfile, showToast }) {
     gender: healthProfile.gender ?? "",
     activityLevel: healthProfile.activityLevel ?? "",
     conditions: healthProfile.conditions || [],
+    foodLikes: healthProfile.foodLikes ?? "",
+    foodDislikes: healthProfile.foodDislikes ?? "",
+    lifestylePreferences: healthProfile.lifestylePreferences ?? "",
   }));
 
   useEffect(() => {
@@ -6899,6 +6904,9 @@ function YouView({ healthProfile, setHealthProfile, showToast }) {
       gender: healthProfile.gender ?? "",
       activityLevel: healthProfile.activityLevel ?? "",
       conditions: healthProfile.conditions || [],
+      foodLikes: healthProfile.foodLikes ?? "",
+      foodDislikes: healthProfile.foodDislikes ?? "",
+      lifestylePreferences: healthProfile.lifestylePreferences ?? "",
     });
   }, [healthProfile]);
 
@@ -6929,6 +6937,7 @@ function YouView({ healthProfile, setHealthProfile, showToast }) {
       heightCm, weightKg, age, gender: draft.gender, activityLevel: draft.activityLevel, conditions: draft.conditions,
       bmi: metrics.bmi?.value ?? null, bmiCategory: metrics.bmi?.category ?? null,
       ibw: metrics.ibw, ree: metrics.ree, tee: metrics.tee,
+      foodLikes: draft.foodLikes || "", foodDislikes: draft.foodDislikes || "", lifestylePreferences: draft.lifestylePreferences || "",
     };
     const prevHealthProfile = healthProfile;
     setHealthProfile(next);
@@ -7019,6 +7028,15 @@ function YouView({ healthProfile, setHealthProfile, showToast }) {
           {/* "missing locale key": you.saveAndCalculate */}
           <button onClick={save} style={S.saveBtn} data-tour="you-save-btn">{language === "en" ? "Save and calculate" : "احفظ واحسب"}</button>
         </div>
+        <div style={YS.formCard} data-tour="you-preferences-card">
+          <label style={S.label}>{language === "en" ? "Foods I like (optional)" : "أطعمة أحبها (اختياري)"}</label>
+          <input value={draft.foodLikes} onChange={(e) => change("foodLikes", e.target.value)} placeholder={language === "en" ? "e.g. Grilled chicken, lentils, dates" : "مثال: الدجاج المشوي، العدس، التمر"} style={S.input} />
+          <label style={S.label}>{language === "en" ? "Foods I dislike or avoid (optional)" : "أطعمة لا أحبها أو أتجنبها (اختياري)"}</label>
+          <input value={draft.foodDislikes} onChange={(e) => change("foodDislikes", e.target.value)} placeholder={language === "en" ? "e.g. Mushrooms, seafood, dairy" : "مثال: الفطر، المأكولات البحرية، الألبان"} style={S.input} />
+          <label style={S.label}>{language === "en" ? "Lifestyle preferences (optional)" : "تفضيلات نمط الحياة (اختياري)"}</label>
+          <input value={draft.lifestylePreferences} onChange={(e) => change("lifestylePreferences", e.target.value)} placeholder={language === "en" ? "e.g. Early riser, prefers home workouts, limited time on weekdays" : "مثال: أستيقظ باكراً، أفضّل التمرين بالمنزل، وقتي محدود أيام الأسبوع"} style={S.input} />
+          <button onClick={save} style={{ ...S.saveBtn, marginTop: 12 }}>{language === "en" ? "Save preferences" : "حفظ التفضيلات"}</button>
+        </div>
       </div>
     );
   }
@@ -7055,6 +7073,18 @@ function YouView({ healthProfile, setHealthProfile, showToast }) {
         {/* "missing locale key": you.updateMyData */}
         <button onClick={() => setEditing(true)} style={{ ...S.exportBtn, width: "auto", padding: "9px 14px", marginBottom: 0 }}><Edit3 size={14} /> {language === "en" ? "Update my data" : "تحديث بياناتي"}</button>
       </div>
+
+      {!!(healthProfile.foodLikes || healthProfile.foodDislikes || healthProfile.lifestylePreferences) && (
+        <div style={YS.summaryCard}>
+          <div>
+            <div style={YS.summaryLabel}>{language === "en" ? "Your preferences" : "تفضيلاتك"}</div>
+            {healthProfile.foodLikes && <div style={{ ...YS.summaryValue, fontSize: 13 }}>{language === "en" ? "Likes: " : "أحب: "}{healthProfile.foodLikes}</div>}
+            {healthProfile.foodDislikes && <div style={{ ...YS.summaryValue, fontSize: 13, marginTop: 2 }}>{language === "en" ? "Dislikes: " : "لا أحب: "}{healthProfile.foodDislikes}</div>}
+            {healthProfile.lifestylePreferences && <div style={{ ...YS.summaryValue, fontSize: 13, marginTop: 2 }}>{language === "en" ? "Lifestyle: " : "نمط الحياة: "}{healthProfile.lifestylePreferences}</div>}
+          </div>
+          <button onClick={() => setEditing(true)} style={{ ...S.exportBtn, width: "auto", padding: "9px 14px", marginBottom: 0 }}><Edit3 size={14} /> {language === "en" ? "Edit" : "تعديل"}</button>
+        </div>
+      )}
 
       <div style={YS.formCard} data-tour="you-quick-weight-card">
         <label style={S.label}>{t("you.quickWeightLabel")}</label>

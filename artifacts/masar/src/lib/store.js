@@ -498,6 +498,7 @@ export const store = {
     const local = lsGet("masar_health_profile", {
       heightCm: null, weightKg: null, age: null, gender: null, activityLevel: null, conditions: [],
       bmi: null, bmiCategory: null, ibw: null, ree: null, tee: null,
+      foodLikes: "", foodDislikes: "", lifestylePreferences: "",
     });
     if (!useCloud()) return local;
     try {
@@ -507,6 +508,7 @@ export const store = {
         heightCm: data.height_cm, weightKg: data.weight_kg, age: data.age, gender: data.gender,
         activityLevel: data.activity_level, conditions: data.conditions || [],
         bmi: data.bmi, bmiCategory: data.bmi_category, ibw: data.ibw_kg, ree: data.ree, tee: data.tee,
+        foodLikes: data.food_likes || "", foodDislikes: data.food_dislikes || "", lifestylePreferences: data.lifestyle_preferences || "",
       };
       lsSet("masar_health_profile", result);
       return result;
@@ -521,6 +523,7 @@ export const store = {
           height_cm: p.heightCm, weight_kg: p.weightKg, age: p.age, gender: p.gender,
           activity_level: p.activityLevel, conditions: p.conditions || [],
           bmi: p.bmi, bmi_category: p.bmiCategory, ibw_kg: p.ibw, ree: p.ree, tee: p.tee,
+          food_likes: p.foodLikes || "", food_dislikes: p.foodDislikes || "", lifestyle_preferences: p.lifestylePreferences || "",
           updated_at: new Date().toISOString(),
         });
         if (error) { console.error("[saveHealthProfile] Supabase error:", error.message); return { ok: false, error: error.message }; }

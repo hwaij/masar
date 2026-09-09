@@ -116,6 +116,13 @@ create table if not exists health_profile (
   updated_at      timestamptz default now()
 );
 
+-- تفضيلات شخصية إضافية لقسم "أنت" (أطعمة محبَّبة/مرفوضة وتفضيلات نمط
+-- حياة عامة) - نص حر يقرأه المساعد الذكي ومولّد الخطط الغذائية كسياق
+-- إضافي، بلا أي تأثير على حسابات BMI/IBW/REE/TEE أعلاه.
+alter table health_profile add column if not exists food_likes text default '';
+alter table health_profile add column if not exists food_dislikes text default '';
+alter table health_profile add column if not exists lifestyle_preferences text default '';
+
 -- قسم "الرياضة": إعداد أولي (هدف/معدات/أيام أسبوعياً) وسجل بسيط لأيام
 -- التمرين المكتملة. الجدول الأسبوعي نفسه (تمارينه وتفاصيلها) يُولَّد
 -- بالكامل في الكود من قاعدة تمارين ثابتة محلية — لا يُخزَّن هنا.

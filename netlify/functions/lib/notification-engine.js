@@ -114,9 +114,13 @@ const MESSAGES = {
   sleep: {
     ar: (ctx) => ctx?.variant === "wake"
       ? { title: "☀️ حان وقت الاستيقاظ", body: "هل استيقظت؟" }
+      : ctx?.variant === "countdown"
+      ? { title: "🌙 قربت على موعد نومك", body: "موعد نومك المخطَّط بعد نصف ساعة تقريباً - جهّز نفسك." }
       : { title: "🌙 حان وقت النوم", body: "لا تنسَ أن تحصل على قسط كافٍ من النوم." },
     en: (ctx) => ctx?.variant === "wake"
       ? { title: "☀️ Time to wake up", body: "Did you wake up?" }
+      : ctx?.variant === "countdown"
+      ? { title: "🌙 Bedtime coming up", body: "Your planned bedtime is in about 30 minutes - start winding down." }
       : { title: "🌙 It's bedtime", body: "Don't forget to get enough sleep." },
   },
   quran: {

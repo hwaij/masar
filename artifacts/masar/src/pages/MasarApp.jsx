@@ -16,7 +16,7 @@ import {
   Wallet, ArrowDownCircle, ArrowUpCircle, Crown,
   Utensils, Dumbbell, Menu, Users,
   Accessibility, ALargeSmall, Contrast, StretchHorizontal, Volume2, VolumeX,
-  Smartphone, Copy, Mic, MicOff, CalendarDays,
+  Smartphone, Copy, Mic, MicOff, CalendarDays, Bed,
 } from "lucide-react";
 import { fivePrayers, nextPrayer, to12h } from "../lib/prayer";
 import { ADHKAR_CATEGORIES, ADHKAR } from "../lib/adhkar";
@@ -295,7 +295,7 @@ export default function MasarApp() {
   // التطبيق برابط "/?view=X" - لا علاقة له بأي منطق بيانات، مجرد قراءة
   // لمرة واحدة عند التحميل الأول لتحديد الشاشة الافتتاحية، مع قائمة بيضاء
   // صريحة حتى لا يقود رابط خارجي المستخدم لشاشة غير موجودة.
-  const VALID_SHORTCUT_VIEWS = ["today", "prayer", "adhkar", "tips", "you", "nutrition", "nutritionPlan", "dietPlans", "fitness", "focus", "tasks", "goals", "vault", "reports", "groups", "assistant", "achieve", "settings"];
+  const VALID_SHORTCUT_VIEWS = ["today", "prayer", "adhkar", "tips", "you", "nutrition", "nutritionPlan", "dietPlans", "fitness", "focus", "tasks", "goals", "vault", "reports", "groups", "assistant", "achieve", "settings", "sleep"];
   const [view, setView] = useState(() => {
     try {
       const requested = new URLSearchParams(window.location.search).get("view");
@@ -1115,6 +1115,9 @@ export default function MasarApp() {
           <div style={S.view}><UpsellCard icon={MessageCircle} title={i18n.language === "en" ? "Your AI assistant in Masar Premium" : "مساعدك الذكي في مسار الكامل"} message={i18n.language === "en" ? "A personal coach who analyzes your day and habits and suggests practical steps based on your actual data." : "مدرّب شخصي يحلّل يومك وعاداتك ويقترح خطوات عملية بناءً على بياناتك الفعلية."} /></div>
         ))}
         {view === "you" && <YouView healthProfile={healthProfile} setHealthProfile={setHealthProfile} showToast={showToast} profile={profile} setProfile={setProfile} />}
+        {view === "sleep" && (isSub ? <SleepView sleepLog={sleepLog} setSleepLog={setSleepLog} showToast={showToast} /> : (
+          <div style={S.view}><UpsellCard icon={Bed} title={i18n.language === "en" ? "Track your sleep in Masar Premium" : "تتبّع نومك في مسار الكامل"} message={i18n.language === "en" ? "Log your bedtime and wake time, see your sleep duration automatically, and track your pattern across days." : "سجّل وقت نومك واستيقاظك، واعرف مدة نومك تلقائياً، وتابع نمطك عبر الأيام."} /></div>
+        ))}
         {(view === "nutrition" || view === "nutritionPlan" || view === "dietPlans" || view === "fitness" || view === "steps" || (view === "groups" && isSub) || (view === "vault" && isSub)) && (
           <LazySectionErrorBoundary key={view} isEn={i18n.language === "en"}>
             <Suspense fallback={<div style={{ ...S.view, display: "flex", justifyContent: "center", padding: 40 }}><Loader2 size={24} color="#C9A24B" className="spin" /></div>}>
@@ -3662,6 +3665,35 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
           labels={{ skip: t("onboarding.skip"), next: t("onboarding.next"), start: t("common.buttons.ok"), tapHere: t("onboarding.tapHere") }}
         />
       )}
+    </div>
+  );
+}
+
+// شاشة "النوم" المستقلة (Batch 2 - Item 1): تعيد استخدام SleepSection نفسها
+// بلا أي تغيير في منطق الحساب/الحفظ (لا تكرار منطق) - فقط ترويسة مستقلة
+// ونطاق أسبوعي ثابت (7 أيام محلية) محسوب هنا بدل الاعتماد حصراً على تبويب
+// "الصحة" داخل التقارير. تبويب "الصحة" في التقارير يبقى كما هو تماماً بلا
+// أي تغيير (لا حذف لوصول قائم) - هذه إضافة وصول مباشر من القائمة الجانبية
+// فقط، لمن يريد فتح النوم مباشرة بلا المرور بالتقارير.
+function SleepView({ sleepLog, setSleepLog, showToast }) {
+  const { t, i18n } = useTranslation();
+  const language = i18n.language;
+  const days = useMemo(() => {
+    const arr = []; const today = new Date();
+    for (let i = 6; i >= 0; i--) { const d = new Date(today); d.setDate(d.getDate() - i); arr.push(localDayKey(d)); }
+    return arr;
+  }, []);
+
+  return (
+    <div style={S.view}>
+      <div style={YS.hero}>
+        <div style={YS.heroIcon}><Bed size={22} color="var(--on-accent)" /></div>
+        <div>
+          <div style={YS.heroTitle}>{t("nav.sleep")}</div>
+          <div style={YS.heroSub}>{language === "en" ? "Log your sleep and track your rest pattern over the week." : "سجّل نومك وتابع نمط راحتك خلال الأسبوع."}</div>
+        </div>
+      </div>
+      <SleepSection sleepLog={sleepLog} setSleepLog={setSleepLog} days={days} range="week" showToast={showToast} />
     </div>
   );
 }

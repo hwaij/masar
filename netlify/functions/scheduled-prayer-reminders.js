@@ -69,6 +69,10 @@ const WATER_ANCHORS_MIN = { water_midday: 12 * 60 + 30, water_afternoon: 16 * 60
 // إلى QUIET_HOURS_EXEMPT_CATEGORIES في notification-engine.js إطلاقاً (يبقى
 // ذلك الاستثناء خاصاً بالصلاة وحدها كما هو موثَّق هناك).
 const SLEEP_BEDTIME_ANCHOR_MIN = 21 * 60;
+// تذكير "قبل موعد نومك المخطَّط" (منفصل عن التذكير الثابت أعلاه، الذي يخاطب
+// من لم يخطِّط لليلته بعد بغض النظر عن وقته - هذا يخاطب فقط من خطَّط فعلاً
+// وله planned_bedtime شخصي، فيصله التذكير قبل موعده هو تحديداً بهذا الهامش).
+const BEDTIME_COUNTDOWN_LEAD_MIN = 30;
 
 function isDueNow(nowMin, anchorMin, halfWidth) {
   return nowMin >= anchorMin - halfWidth && nowMin < anchorMin + halfWidth;
@@ -233,6 +237,13 @@ exports.handler = async (event) => {
   } catch (e) {
     console.error("[scheduled-prayer-reminders] processing sleep wake failed:", e);
     summary.push({ type: "sleep", id: "wake", error: String(e) });
+  }
+  try {
+    const result = await processSleepBedtimeCountdown({ url, headers, todayKey, nowHHMM, nowMin });
+    summary.push({ type: "sleep", id: "bedtimeCountdown", ...result });
+  } catch (e) {
+    console.error("[scheduled-prayer-reminders] processing sleep bedtime countdown failed:", e);
+    summary.push({ type: "sleep", id: "bedtimeCountdown", error: String(e) });
   }
 
   console.log("[scheduled-prayer-reminders] run summary:", JSON.stringify(summary));
@@ -436,8 +447,9 @@ async function processWater({ url, headers, occurrenceKey, todayKey, nowHHMM }) 
 // المستخدمين معاً (فُحصت مسبقاً في exports.handler عبر SLEEP_BEDTIME_ANCHOR_MIN)
 // - تماماً كنمط الوجبات/الماء. "أنجز الفعل بالفعل" هنا يعني "خطَّط بالفعل
 // لليلته" (planned_bedtime مُسجَّل اليوم في sleep_log)، لا تسجيل نوم فعلي (ذلك
-// يأتي لاحقاً عبر تذكير الاستيقاظ/الإدخال اليدوي). linkPath يوجِّه إلى /reports
-// (قسم النوم يُفتَح من هناك حالياً - لا رابط تعمُّق مباشر لقسم فرعي بعد).
+// يأتي لاحقاً عبر تذكير الاستيقاظ/الإدخال اليدوي). linkPath يوجِّه إلى /sleep
+// (شاشة "النوم" المستقلة في القائمة الجانبية - أُضيفت لاحقاً؛ كانت قبلها
+// تفتح على /reports فقط لغياب رابط تعمُّق مباشر).
 async function processSleepBedtime({ url, headers, occurrenceKey, todayKey, nowHHMM }) {
   const planned = await fetchJson(
     `${url}/rest/v1/sleep_log?date=eq.${todayKey}&planned_bedtime=not.is.null&select=owner`,
@@ -452,7 +464,7 @@ async function processSleepBedtime({ url, headers, occurrenceKey, todayKey, nowH
     nowHHMM,
     fulfilledOwners: new Set(planned.map((r) => r.owner)),
     message,
-    linkPath: "/reports",
+    linkPath: "/sleep",
   });
 }
 
@@ -492,7 +504,44 @@ async function processSleepWake({ url, headers, todayKey, nowHHMM, nowMin }) {
     nowHHMM,
     fulfilledOwners,
     message,
-    linkPath: "/reports",
+    linkPath: "/sleep",
+    restrictOwners: dueOwners,
+  });
+}
+
+// تذكير "قبل موعد نومك المخطَّط" (Batch 2 - Item 1): نفس بنية processSleepWake
+// بالضبط (لا نافذة عامة واحدة - كل مستخدم له موعده الشخصي planned_bedtime)،
+// لكن بهامش زمني BEDTIME_COUNTDOWN_LEAD_MIN قبل ذلك الموعد بدل عنده تماماً.
+// occurrenceKey مستقل تماماً عن تذكير "bedtime" الثابت أعلاه (ذاك يخاطب من
+// لم يخطِّط بعد، هذا يخاطب من خطَّط فعلاً) فلا تعارض إرسال بينهما لنفس اليوم.
+async function processSleepBedtimeCountdown({ url, headers, todayKey, nowHHMM, nowMin }) {
+  const planned = await fetchJson(
+    `${url}/rest/v1/sleep_log?date=eq.${todayKey}&planned_bedtime=not.is.null&select=owner,planned_bedtime`,
+    headers,
+  );
+  if (planned.length === 0) return { eligible: 0, sent: 0 };
+
+  const dueOwners = new Set(
+    planned
+      .filter((r) => {
+        const [bh, bm] = r.planned_bedtime.split(":").map(Number);
+        return isDueNow(nowMin, bh * 60 + bm - BEDTIME_COUNTDOWN_LEAD_MIN, REMINDER_WINDOW_HALF_MIN);
+      })
+      .map((r) => r.owner),
+  );
+  if (dueOwners.size === 0) return { eligible: 0, sent: 0 };
+
+  const occurrenceKey = buildOccurrenceKey(todayKey, "bedtimeCountdown");
+  const message = buildMessage("sleep", "ar", { variant: "countdown" });
+  return processReminder({
+    url,
+    headers,
+    category: "sleep",
+    occurrenceKey,
+    nowHHMM,
+    fulfilledOwners: new Set(),
+    message,
+    linkPath: "/sleep",
     restrictOwners: dueOwners,
   });
 }

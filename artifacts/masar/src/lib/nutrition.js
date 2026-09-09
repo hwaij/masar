@@ -886,15 +886,16 @@ const CHUNK_LOAD_ERROR_MESSAGE_EN = "The app just updated to a new version — p
 // النظر عن lang، بنفس نمط errorEn الإضافي في بقية هذا الملف.
 // المستدعي في NutritionView.jsx يمرر i18n.language: recognizeMealFromImage(file, i18n.language).
 //
-// خلل حقيقي وُجد وأُصلح: كانت هذه الدالة تُرجع تقديراً واحداً مجمَّعاً
-// للوجبة كاملة (سعرات/ماكروز واحدة لكل الصورة)، فلا يملك المستخدم أي طريقة
-// لتعديل/حذف/إضافة صنف واحد بعينه قبل الحفظ - كل الوجبة تُحفَظ أو لا تُحفَظ
-// كوحدة واحدة. الآن تُرجع مصفوفة foods (صنف واحد لكل عنصر طعام مميَّز في
-// الصورة)، كل عنصر بتقديره الخاص (سعرات/ماكروز/حصة تقريبية/فيتامينات) -
-// يسمح لـAIPhotoPanel بعرض قائمة قابلة للتعديل الكامل صنفاً صنفاً قبل أي
-// حفظ، مطابقةً تماماً لما يحدث فعلياً عند تسجيل عدة أصناف منفصلة يدوياً.
-// نفس آلية Gemini بالضبط (geminiAnalyzeImage، لا تغيير في التكامل نفسه أو
-// في بوابة الاشتراك) - فقط شكل الـprompt/الاستجابة المُتوقَّعة تغيّر.
+// تصحيح جوهري: هذه الدالة كانت تطلب من Gemini تخمين سعرات/ماكروز/فيتامينات
+// الوجبة مباشرة من مظهرها البصري - أي رقم غذائي في التطبيق يجب أن يأتي إما
+// من قاعدة بيانات حقيقية (generic-foods/USDA/custom_foods/OFF) أو من ملصق
+// غذائي حقيقي بيد المستخدم (معالج "إضافة منتج جديد" المرتبط بباركود)، لا
+// من تخمين بصري لذكاء اصطناعي مهما بدا معقولاً. الآن Gemini يُحدِّد فقط
+// "هوية" كل صنف طعام ظاهر (الاسم + وصف حجم الحصة الظاهر) بلا أي رقم غذائي
+// إطلاقاً - المستدعي (AIPhotoPanel) يُطابِق كل اسم بعدها مع قاعدة البيانات
+// الحقيقية (نفس searchFoodCandidatesOnce المستخدمة في البحث اليدوي والأمر
+// الصوتي) ليحصل على القيم الفعلية، تماماً بنفس مبدأ "تعرّف على الهوية فقط"
+// المطبَّق أصلاً في translateFoodTermForUsda للنص العربي.
 export async function recognizeMealFromImage(imageFile, lang = "ar") {
   try {
     const { base64, mimeType } = await compressImageToBase64(imageFile);
@@ -902,52 +903,37 @@ export async function recognizeMealFromImage(imageFile, lang = "ar") {
       ? `Analyze this meal photo. Identify each distinct food item visible SEPARATELY - don't combine different foods into one combined entry (e.g. rice and grilled chicken on the same plate must be two separate items, not one "rice with chicken" item).
 
 Return only valid JSON with no extra text or markdown, in exactly this shape:
-{"foods":[{"name":"string","servingEstimate":"string","calories":number,"protein":number,"carbs":number,"fat":number,"micronutrients":{}}]}
+{"foods":[{"name":"string","servingEstimate":"string"}]}
 
 For each food item:
-- "name": the food name in English.
+- "name": the food's identity only (e.g. "grilled chicken breast", "white rice", "chicken shawarma") - as specific as you can tell from the photo, in English. Do NOT include any calorie or nutrition number in this field.
 - "servingEstimate": a short description of the apparent portion size (e.g. "1 cup", "150g", "2 pieces", "1 slice"). If you cannot confidently judge the portion size from the photo, use exactly the phrase "1 serving" instead of guessing a specific-sounding number you aren't confident about.
-- calories/protein/carbs/fat: an approximate estimate for THIS item's apparent portion only (calories, and protein/carbs/fat in grams). Estimate as best you can based on the apparent portion size - don't return zero if the item is clearly visible, only use zero for a macro that is genuinely near-zero for that specific food (e.g. carbs for plain grilled chicken).
-- "micronutrients": a JSON object for this specific item only, using only these exact keys where relevant: vitamin_d (mcg), vitamin_c (mg), vitamin_a (mcg), vitamin_b12 (mcg), iron (mg), calcium (mg), potassium (mg), zinc (mg), magnesium (mg). Only include a key if you have reasonable confidence in it based on this specific food (e.g. eggs -> vitamin_d/b12, spinach -> iron, citrus -> vitamin_c). Never invent a precise-looking number you aren't confident about - omit that key instead, or return {} if none apply to this item.`
+
+Do not include calories, protein, carbs, fat, or any other nutrition value anywhere in your answer - identification only, no nutrition estimates.`
       : `حلّل صورة الوجبة هذه. حدّد كل صنف طعام مميَّز ظاهر في الصورة بشكل منفصل - لا تدمج أطعمة مختلفة في صنف واحد (مثال: أرز ودجاج مشوي في نفس الطبق يجب أن يكونا صنفين منفصلين، لا صنفاً واحداً "أرز مع دجاج").
 
 أرجع فقط JSON صالحاً بدون أي نص أو markdown إضافي، بهذا الشكل بالضبط:
-{"foods":[{"name":"نص","servingEstimate":"نص","calories":رقم,"protein":رقم,"carbs":رقم,"fat":رقم,"micronutrients":{}}]}
+{"foods":[{"name":"نص","servingEstimate":"نص"}]}
 
 لكل صنف طعام:
-- "name": اسم الطعام بالعربية.
+- "name": هوية الطعام فقط (مثال: "صدر دجاج مشوي"، "أرز أبيض"، "شاورما دجاج") - بأدق وصف ممكن من الصورة، بالعربية. لا تضع أي رقم سعرات أو غذائي في هذا الحقل إطلاقاً.
 - "servingEstimate": وصف قصير لحجم الحصة الظاهر (مثال: "كوب واحد"، "150غم"، "قطعتان"، "شريحة واحدة"). إن لم تستطع تقدير حجم الحصة بثقة معقولة من الصورة، استخدم بالضبط عبارة "حصة واحدة" بدل تخمين رقم دقيق المظهر لست واثقاً منه.
-- calories/protein/carbs/fat: تقدير تقريبي لهذا الصنف تحديداً فقط بحجمه الظاهر (سعرات حرارية، وبروتين/كارب/دهون بالغرام). قدّر بأفضل ما تستطيع بناءً على الحجم الظاهر - لا تُرجع صفراً إن كان الصنف ظاهراً بوضوح، استخدم صفراً فقط لعنصر غذائي قريب من الصفر فعلياً لذلك الصنف تحديداً (مثال: الكارب لصدر دجاج مشوي صرف).
-- "micronutrients": كائن JSON لهذا الصنف تحديداً فقط، بهذه المفاتيح فقط حيث تكون ذات صلة: vitamin_d (بالميكروغرام mcg)، vitamin_c (بالميليغرام mg)، vitamin_a (بالميكروغرام mcg)، vitamin_b12 (بالميكروغرام mcg)، iron (بالميليغرام mg)، calcium (بالميليغرام mg)، potassium (بالميليغرام mg)، zinc (بالميليغرام mg)، magnesium (بالميليغرام mg). أضف مفتاحاً فقط إن كنت واثقاً بشكل معقول منه بناءً على هذا الصنف تحديداً (مثل بيض ← فيتامين د/ب12، سبانخ ← حديد، حمضيات ← فيتامين ج). لا تخترع أبداً رقماً دقيق المظهر لست واثقاً منه - احذف ذلك المفتاح بدلاً من ذلك، أو أرجع {} إن لم ينطبق أي منها على هذا الصنف.`;
+
+لا تضع أي سعرات أو بروتين أو كارب أو دهون أو أي قيمة غذائية أخرى في إجابتك إطلاقاً - تعرّف على الهوية فقط، بلا أي تقدير غذائي.`;
     const { geminiAnalyzeImage } = await import("./gemini.js");
-    const text = await geminiAnalyzeImage(prompt, base64, mimeType, 1200);
+    const text = await geminiAnalyzeImage(prompt, base64, mimeType, 500);
     const parsed = parseJsonLoose(text);
     const rawFoods = Array.isArray(parsed.foods) ? parsed.foods : [];
-    // نفس مبدأ "لا اختراع قيم" في readNutritionLabel أدناه - فقط المفاتيح
-    // المعروفة (MICRONUTRIENT_META) وقيمها رقمية فعلاً تُقبَل لكل صنف.
     const foods = rawFoods
       .filter((f) => f && typeof f.name === "string" && f.name.trim().length > 0)
-      .map((f) => {
-        const rawMicros = f.micronutrients && typeof f.micronutrients === "object" ? f.micronutrients : {};
-        const micronutrients = {};
-        for (const key of Object.keys(MICRONUTRIENT_META)) {
-          const v = rawMicros[key];
-          if (v != null && !Number.isNaN(Number(v))) micronutrients[key] = Number(v);
-        }
-        return {
-          name: f.name.trim(),
-          // نص حر دائماً (لا رقم مُلزَم) - "حصة واحدة"/"1 serving" هي بالضبط
-          // ما تُعلَّم Gemini إرجاعه أعلاه عند عدم الثقة، بدل رقم مختلَق.
-          servingEstimate: typeof f.servingEstimate === "string" && f.servingEstimate.trim()
-            ? f.servingEstimate.trim()
-            : (lang === "en" ? "1 serving" : "حصة واحدة"),
-          calories: Number(f.calories) || 0,
-          protein: Number(f.protein) || 0,
-          carbs: Number(f.carbs) || 0,
-          fat: Number(f.fat) || 0,
-          micronutrients,
-        };
-      });
+      .map((f) => ({
+        name: f.name.trim(),
+        // نص حر دائماً (لا رقم مُلزَم) - "حصة واحدة"/"1 serving" هي بالضبط
+        // ما تُعلَّم Gemini إرجاعه أعلاه عند عدم الثقة، بدل رقم مختلَق.
+        servingEstimate: typeof f.servingEstimate === "string" && f.servingEstimate.trim()
+          ? f.servingEstimate.trim()
+          : (lang === "en" ? "1 serving" : "حصة واحدة"),
+      }));
     return { ok: true, foods };
   } catch (e) {
     console.error("[nutrition] recognizeMealFromImage failed:", e);

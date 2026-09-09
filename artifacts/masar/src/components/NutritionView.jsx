@@ -1233,152 +1233,115 @@ function ConfirmQuantityCard({ product: initialProduct, source, onAdd, onCancel,
   );
 }
 
-function ManualEntryForm({ barcode, onSave, onCancel, preselectedMealType, initialDraft, voiceConfirmTrigger, onInvalidVoiceConfirm }) {
-  const { t } = useTranslation();
-  const [draft, setDraft] = useState({
-    foodName: initialDraft?.foodName || "", brand: "", country: "", servingSizeLabel: "", unit: initialDraft?.unit || "g", qty: initialDraft?.qty != null ? String(initialDraft.qty) : "",
-    calories: "", protein: "", carbs: "", fat: "", fiber: "", sugar: "", sodium: "", cholesterol: "", imageUrl: "",
-  });
-  const [multiplier, setMultiplier] = useState(1);
-  const [mealType, setMealType] = useState(() => preselectedMealType || guessMealType());
-  function change(field, val) { setDraft((d) => ({ ...d, [field]: val })); }
-  const valid = draft.foodName.trim() && Number(draft.calories) > 0;
-  const unitMeta = unitById(draft.unit);
-  // لا يوجد حجم حصة حقيقي معروف بعد لهذا الطعام الجديد (لم يُبنَ من باركود)،
-  // فـ"الحصة الواحدة" هنا تعني وحدة طبيعية واحدة دائماً (1 كوب/ملعقة/قطعة/
-  // غرام...) - نفس ما تُرجعه unitServingSize عند غياب servingGrams. أزرار
-  // ×1..×5 تملأ خانة الكمية تلقائياً فقط عند الضغط عليها صراحة؛ التبديل بين
-  // الوحدات وحده لا يغيّر رقماً كتبه المستخدم يدوياً بالفعل.
-  function applyMultiplier(n) {
-    setMultiplier(n);
-    change("qty", String(fmtQty(n)));
+// تصحيح جوهري: هذا النموذج كان يطلب من المستخدم كتابة سعرات/بروتين/كارب/
+// دهون/ألياف/سكر/صوديوم/كوليسترول بيده مباشرة - أي رقم غذائي في التطبيق
+// يجب أن يأتي من قاعدة بيانات حقيقية (generic-foods/USDA/custom_foods/OFF)
+// أو من ملصق غذائي حقيقي بيد المستخدم (معالج "إضافة منتج جديد" المرتبط
+// بباركود فعلي فقط - AddProductWizard). لا حقل رقمي حر هنا بعد الآن: يكتب
+// المستخدم اسم الطعام فقط، ونطابقه مع القاعدة الحقيقية بنفس آلية البحث/
+// الأمر الصوتي بالضبط (searchFoodCandidatesOnce + classifyFoodMatches) -
+// نتيجة واحدة واضحة تنتقل مباشرة لـConfirmQuantityCard (نفس شاشة تأكيد
+// الكمية الموحّدة)، عدة نتائج قريبة تُعرض كـ"هل تقصد" يختار منها، ولا نتيجة
+// إطلاقاً تعني ببساطة أن هذا الصنف غير موجود بعد - لا اختراع رقم له مطلقاً.
+function ManualEntryForm({ onSave, onCancel, showToast, preselectedMealType, initialDraft, isSub, voiceConfirmTrigger, onInvalidVoiceConfirm }) {
+  const { t, i18n } = useTranslation();
+  const [query, setQuery] = useState(initialDraft?.foodName || "");
+  const [searching, setSearching] = useState(false);
+  const [searched, setSearched] = useState(false);
+  const [candidates, setCandidates] = useState([]);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+
+  async function runSearch(text) {
+    const q = text.trim();
+    if (!q) return;
+    setSearching(true);
+    setSearched(false);
+    setCandidates([]);
+    const normalized = normalizeSearchTerm(q);
+    const results = await searchFoodCandidatesOnce(q, i18n.language, isSub);
+    const classification = classifyFoodMatches(results, normalized);
+    setSearching(false);
+    setSearched(true);
+    if (classification.kind === "single") setSelectedProduct(classification.product);
+    else if (classification.kind === "multiple") setCandidates(classification.candidates);
   }
 
-  // مستخرَجة من onClick السابق لزر الحفظ بلا أي تغيير في المنطق - الآن
-  // تُستدعى من مكانين: ضغطة الزر المرئية، وأمر "تأكيد" الصوتي (انظر خطاف
-  // voiceConfirmTrigger أدناه)، فلا يوجد مساران منفصلان لنفس عملية الحفظ.
-  function handleSave() {
-    const per100 = {
-      calories: Number(draft.calories) || 0, protein: Number(draft.protein) || 0,
-      carbs: Number(draft.carbs) || 0, fat: Number(draft.fat) || 0,
-      fiber: Number(draft.fiber) || 0, sugar: Number(draft.sugar) || 0, sodium: Number(draft.sodium) || 0,
-      cholesterol: Number(draft.cholesterol) || 0,
-    };
-    const grams = unitToGrams(draft.unit, draft.qty, null) || 100;
-    const factor = grams / 100;
-    onSave({
-      id: uid(), foodName: draft.foodName.trim(),
-      calories: Math.round(per100.calories * factor), protein: Math.round(per100.protein * factor * 10) / 10,
-      carbs: Math.round(per100.carbs * factor * 10) / 10, fat: Math.round(per100.fat * factor * 10) / 10,
-      fiber: Math.round(per100.fiber * factor * 10) / 10, sugar: Math.round(per100.sugar * factor * 10) / 10,
-      sodium: Math.round(per100.sodium * factor), cholesterol: Math.round(per100.cholesterol * factor),
-      unit: draft.unit, mealType,
-      servingInfo: draft.servingSizeLabel.trim() || `${draft.qty || grams} ${t(`nutrition.unitOptions.${draft.unit}`)}`, source: "manual", barcode,
-      productPer100: per100, brand: draft.brand.trim(), country: draft.country.trim(),
-      servingSizeLabel: draft.servingSizeLabel.trim(), servingGrams: grams || null,
-      imageUrl: draft.imageUrl.trim(),
-    });
-  }
-
-  // أمر "تأكيد" الصوتي يُترجَم لضغطة هذا الزر نفسها بلا أي منطق حفظ موازٍ -
-  // لكن إن كانت البيانات ما تزال ناقصة (السعرات تحديداً، الحقل الوحيد
-  // الإلزامي فعلياً) لا يُحفظ شيء بصمت؛ تغذية راجعة صادقة عبر onInvalidVoiceConfirm
-  // بدل فشل غامض (نفس المبدأ العام لكل الأوامر الصوتية في هذا التطبيق).
-  // الحارس الأول (skippedFirstRun) يمنع التنفيذ عند التركيب الأول (mount) -
-  // voiceConfirmTrigger يبدأ من نفس القيمة المُمرَّرة من الأب دون أي ضغط فعلي بعد.
-  const skippedFirstConfirmRun = useRef(true);
+  // بحث تلقائي فوري فقط عند وصول اسم جاهز من مصدر آخر فشل هو نفسه (أمر صوتي
+  // لم يجد مطابقة) - تركيب أول فقط، لا يتكرر عند أي تغيير لاحق في initialDraft.
   useEffect(() => {
-    if (voiceConfirmTrigger == null) return;
-    if (skippedFirstConfirmRun.current) { skippedFirstConfirmRun.current = false; return; }
-    if (valid) handleSave(); else onInvalidVoiceConfirm?.();
+    if (initialDraft?.foodName) runSearch(initialDraft.foodName);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [voiceConfirmTrigger]);
+  }, []);
+
+  if (selectedProduct) {
+    return (
+      <ConfirmQuantityCard
+        product={selectedProduct}
+        source="manual"
+        onAdd={onSave}
+        onCancel={() => { setSelectedProduct(null); setCandidates([]); }}
+        showToast={showToast}
+        preselectedMealType={preselectedMealType}
+        initialQty={initialDraft?.qty}
+        initialUnit={initialDraft?.unit}
+        voiceConfirmTrigger={voiceConfirmTrigger}
+        onInvalidVoiceConfirm={onInvalidVoiceConfirm}
+      />
+    );
+  }
 
   return (
     <>
-      {barcode && <p style={NS.notFoundNote}>{t("nutrition.productNotFound", { barcode })}</p>}
       <label style={S.label} htmlFor="manualFoodName">{t("nutrition.foodName")}</label>
-      <input id="manualFoodName" value={draft.foodName} onChange={(e) => change("foodName", e.target.value)} placeholder={t("nutrition.foodNamePlaceholder")} style={S.input} />
-      <div style={{ display: "flex", gap: 10 }}>
-        <div style={{ flex: 1 }}>
-          <label style={S.label} htmlFor="manualBrand">{t("nutrition.brand")}</label>
-          <input id="manualBrand" value={draft.brand} onChange={(e) => change("brand", e.target.value)} placeholder={t("nutrition.optional")} style={S.input} />
-        </div>
-        <div style={{ flex: 1 }}>
-          <label style={S.label} htmlFor="manualCountry">{t("nutrition.country")}</label>
-          <input id="manualCountry" value={draft.country} onChange={(e) => change("country", e.target.value)} placeholder={t("nutrition.optional")} style={S.input} />
-        </div>
-      </div>
-      <label style={S.label} htmlFor="manualServingDesc">{t("nutrition.servingDesc")}</label>
-      <input id="manualServingDesc" value={draft.servingSizeLabel} onChange={(e) => change("servingSizeLabel", e.target.value)} placeholder={t("nutrition.servingDescPlaceholder")} style={S.input} />
-      <div style={{ display: "flex", gap: 10 }}>
-        <div style={{ flex: 1 }}>
-          <label style={S.label} htmlFor="manualUnit">{t("nutrition.unitOfMeasure")}</label>
-          <select id="manualUnit" value={draft.unit} onChange={(e) => change("unit", e.target.value)} style={NS.unitSelect}>
-            {UNIT_OPTIONS.map((u) => <option key={u.id} value={u.id}>{t(`nutrition.unitOptions.${u.id}`)}</option>)}
-          </select>
-        </div>
-        <div style={{ flex: 1 }}>
-          <label style={S.label} htmlFor="manualQty">{t("nutrition.quantityNow", { unit: t(`nutrition.unitOptions.${draft.unit}`) })}</label>
-          <input id="manualQty" type="number" inputMode="decimal" value={draft.qty} onChange={(e) => change("qty", e.target.value)} placeholder="35" style={S.input} />
-        </div>
-      </div>
-      <label style={S.label} htmlFor="manualMultiplier">{t("nutrition.servingsCountOneUnit", { unit: t(`nutrition.unitOptions.${draft.unit}`) })}</label>
-      <div style={NS.multiplierRow}>
-        {[1, 2, 3, 4, 5].map((n) => (
-          <button key={n} onClick={() => applyMultiplier(n)} style={{ ...NS.multiplierBtn, ...(multiplier === n ? NS.multiplierBtnActive : {}) }}>×{n}</button>
-        ))}
+      <div style={{ display: "flex", gap: 8 }}>
         <input
-          id="manualMultiplier"
-          type="number" inputMode="decimal" value={multiplier}
-          onChange={(e) => applyMultiplier(Math.max(0.25, Number(e.target.value) || 0))}
-          style={NS.multiplierInput}
+          id="manualFoodName"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") runSearch(query); }}
+          placeholder={t("nutrition.foodNamePlaceholder")}
+          style={{ ...S.input, flex: 1 }}
         />
+        <button onClick={() => runSearch(query)} disabled={searching || !query.trim()} style={{ ...S.saveBtn, marginTop: 0, width: "auto", padding: "0 18px", opacity: searching || !query.trim() ? 0.6 : 1 }}>
+          {searching ? <Loader2 size={16} className="spin" /> : t("nutrition.manualSearchBtn")}
+        </button>
       </div>
-      {unitMeta.approx && <p style={NS.unitApproxNote}>{t("nutrition.approxConversionNoUnit")}</p>}
-      <p style={{ ...S.label, marginTop: 16, marginBottom: 4 }}>{t("nutrition.nutritionValuesPer100g")}</p>
-      <label style={S.label} htmlFor="manualCalories">{t("nutrition.calories")}</label>
-      <input id="manualCalories" type="number" inputMode="decimal" value={draft.calories} onChange={(e) => change("calories", e.target.value)} placeholder={t("nutrition.caloriesPlaceholder")} style={S.input} />
-      <div style={{ display: "flex", gap: 10 }}>
-        <div style={{ flex: 1 }}>
-          <label style={S.label} htmlFor="manualProtein">{t("common.units.protein")} ({t("common.units.g")})</label>
-          <input id="manualProtein" type="number" inputMode="decimal" value={draft.protein} onChange={(e) => change("protein", e.target.value)} placeholder="0" style={S.input} />
+      <p style={NS.notFoundNote}>{t("nutrition.manualSearchHint")}</p>
+
+      {searching && (
+        <div style={{ display: "flex", justifyContent: "center", padding: "16px 0" }}>
+          <Loader2 size={20} className="spin" color="var(--gold)" />
         </div>
-        <div style={{ flex: 1 }}>
-          <label style={S.label} htmlFor="manualCarbs">{t("common.units.carbs")} ({t("common.units.g")})</label>
-          <input id="manualCarbs" type="number" inputMode="decimal" value={draft.carbs} onChange={(e) => change("carbs", e.target.value)} placeholder="0" style={S.input} />
-        </div>
-        <div style={{ flex: 1 }}>
-          <label style={S.label} htmlFor="manualFat">{t("common.units.fat")} ({t("common.units.g")})</label>
-          <input id="manualFat" type="number" inputMode="decimal" value={draft.fat} onChange={(e) => change("fat", e.target.value)} placeholder="0" style={S.input} />
-        </div>
-      </div>
-      <div style={{ display: "flex", gap: 10 }}>
-        <div style={{ flex: 1 }}>
-          <label style={S.label} htmlFor="manualFiber">{t("common.units.fiber")} ({t("common.units.g")})</label>
-          <input id="manualFiber" type="number" inputMode="decimal" value={draft.fiber} onChange={(e) => change("fiber", e.target.value)} placeholder="0" style={S.input} />
-        </div>
-        <div style={{ flex: 1 }}>
-          <label style={S.label} htmlFor="manualSugar">{t("common.units.sugar")} ({t("common.units.g")})</label>
-          <input id="manualSugar" type="number" inputMode="decimal" value={draft.sugar} onChange={(e) => change("sugar", e.target.value)} placeholder="0" style={S.input} />
-        </div>
-        <div style={{ flex: 1 }}>
-          <label style={S.label} htmlFor="manualSodium">{t("common.units.sodium")} ({t("common.units.mg")})</label>
-          <input id="manualSodium" type="number" inputMode="decimal" value={draft.sodium} onChange={(e) => change("sodium", e.target.value)} placeholder="0" style={S.input} />
-        </div>
-      </div>
-      <div style={{ display: "flex", gap: 10 }}>
-        <div style={{ flex: 1 }}>
-          <label style={S.label} htmlFor="manualCholesterol">{t("common.units.cholesterol")} ({t("common.units.mg")})</label>
-          <input id="manualCholesterol" type="number" inputMode="decimal" value={draft.cholesterol} onChange={(e) => change("cholesterol", e.target.value)} placeholder="0" style={S.input} />
-        </div>
-      </div>
-      <label style={S.label} htmlFor="manualImageUrl">{t("nutrition.productImageUrlOptional")}</label>
-      <input id="manualImageUrl" value={draft.imageUrl} onChange={(e) => change("imageUrl", e.target.value)} placeholder="https://..." style={S.input} />
-      <MealTypeSelector value={mealType} onChange={setMealType} />
-      <button onClick={handleSave} style={S.saveBtn} disabled={!valid}>
-        {t("nutrition.saveAndAddToLog")}
-      </button>
+      )}
+
+      {searched && !searching && candidates.length > 0 && (
+        <>
+          <p style={NS.suggestionLabel}>{t("nutrition.didYouMean")}</p>
+          {candidates.map((p) => (
+            <button key={`${p.origin}-${p.barcode}-${p.name}`} onClick={() => setSelectedProduct(p)} style={NS.resultRow}>
+              {p.imageUrl ? <img src={p.imageUrl} alt="" style={NS.resultImg} /> : (
+                <div style={{ ...NS.resultImg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <CategoryIcon category={p.category} />
+                </div>
+              )}
+              <div style={{ flex: 1 }}>
+                <div style={NS.resultName}>{p.name}</div>
+                <div style={NS.resultMeta}>
+                  {t("nutrition.calPer100g", { cal: Math.round(p.caloriesPer100g) })}
+                  {" · "}{t("common.units.protein")} {Math.round(p.proteinPer100g)}{t("common.units.g")}
+                  {" · "}{t("common.units.carbs")} {Math.round(p.carbsPer100g)}{t("common.units.g")}
+                  {" · "}{t("common.units.fat")} {Math.round(p.fatPer100g)}{t("common.units.g")}
+                </div>
+              </div>
+            </button>
+          ))}
+        </>
+      )}
+
+      {searched && !searching && candidates.length === 0 && !selectedProduct && (
+        <p style={NS.notFoundNote}>{t("nutrition.manualNotFoundTryAgain", { query })}</p>
+      )}
+
       <button onClick={onCancel} style={{ ...S.exportBtn, marginTop: 8, marginBottom: 0 }}>{t("common.buttons.back")}</button>
     </>
   );
@@ -2042,13 +2005,25 @@ function SearchPanel({ onPick, onManual, isSub }) {
 // إضافة صنف يدوياً - ولا يُحفظ أي شيء في nutrition_log إلا بعد ضغط التأكيد
 // النهائي، الذي يحفظ كل صنف مؤكَّد كسجل مستقل (نفس مسار addEntry بالضبط،
 // كأن المستخدم بحث عن كل صنف يدوياً وأضافه على حدة).
-function AIPhotoPanel({ onSave, onManual, preselectedMealType }) {
+// تصحيح جوهري: كانت هذه الشاشة تعرض سعرات/ماكروز خمّنها Gemini بصرياً
+// مباشرة من الصورة، قابلة للتعديل كأرقام حرة - أي رقم غذائي في التطبيق
+// يجب أن يأتي من قاعدة بيانات حقيقية فقط. الآن recognizeMealFromImage
+// تُعرِّف هوية كل صنف فقط (بلا أي رقم)، وهذا المكوّن يطابق كل اسم مع قاعدة
+// البيانات الحقيقية بنفس آلية البحث اليدوي/الأمر الصوتي بالضبط
+// (searchFoodCandidatesOnce + classifyFoodMatches): مطابقة واحدة واضحة
+// تُعرض بقيمها الحقيقية فوراً (قابلة للتعديل بالكمية/الوزن فقط، لا بالسعرات
+// نفسها)، عدة مطابقات قريبة تُعرض كـ"هل تقصد" يختار منها المستخدم، ولا
+// مطابقة تعني ببساطة تعديل الاسم والمحاولة مرة أخرى - لا اختراع رقم لصنف
+// غير موجود بالقاعدة مطلقاً.
+function AIPhotoPanel({ onSave, onManual, preselectedMealType, isSub }) {
   const { t, i18n } = useTranslation();
   const isEn = i18n.language === "en";
   const [preview, setPreview] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState(null);
-  const [foods, setFoods] = useState(null); // [{ localId, name, servingEstimate, calories, protein, carbs, fat, micronutrients }] أو null قبل أي تحليل
+  // items: [{ localId, query, servingEstimate, status, product, candidates, grams }] أو null قبل أي تحليل.
+  // status: 'searching' | 'matched' | 'multiple' | 'unmatched'.
+  const [items, setItems] = useState(null);
   const [mealType, setMealType] = useState(() => preselectedMealType || guessMealType());
   const [saving, setSaving] = useState(false);
   const cameraInputRef = useRef(null);
@@ -2056,12 +2031,37 @@ function AIPhotoPanel({ onSave, onManual, preselectedMealType }) {
 
   const defaultServingLabel = isEn ? "1 serving" : "حصة واحدة";
 
+  function setItem(localId, patch) {
+    setItems((list) => list.map((it) => (it.localId === localId ? { ...it, ...patch } : it)));
+  }
+
+  // يطابق اسماً واحداً مع قاعدة البيانات الحقيقية (نفس مصادر البحث الأربعة
+  // المستخدمة في SearchPanel/الأمر الصوتي بالضبط) - يُستدعى عند التحليل
+  // الأولي لكل صنف اكتشفه AI، وأيضاً عند "غيّر الصنف المطابَق"/"ابحث" لأي
+  // صنف لاحقاً.
+  async function matchItem(localId, text) {
+    const q = text.trim();
+    if (!q) { setItem(localId, { status: "unmatched", product: null, candidates: [] }); return; }
+    setItem(localId, { status: "searching" });
+    const normalized = normalizeSearchTerm(q);
+    const results = await searchFoodCandidatesOnce(q, i18n.language, isSub);
+    const classification = classifyFoodMatches(results, normalized);
+    if (classification.kind === "single") {
+      const product = classification.product;
+      setItem(localId, { status: "matched", product, candidates: [], grams: product.servingGrams ? Math.round(product.servingGrams) : 100 });
+    } else if (classification.kind === "multiple") {
+      setItem(localId, { status: "multiple", candidates: classification.candidates, product: null });
+    } else {
+      setItem(localId, { status: "unmatched", candidates: [], product: null });
+    }
+  }
+
   async function handleFile(e) {
     const file = e.target.files?.[0];
     if (!file) return;
     setPreview(URL.createObjectURL(file));
     setError(null);
-    setFoods(null);
+    setItems(null);
     setAnalyzing(true);
     const res = await recognizeMealFromImage(file, i18n.language);
     setAnalyzing(false);
@@ -2070,50 +2070,61 @@ function AIPhotoPanel({ onSave, onManual, preselectedMealType }) {
       setError(isEn ? "Couldn't identify any food in this photo. Try another photo or add the food manually." : "تعذّر التعرّف على أي طعام في هذه الصورة. جرّب صورة أخرى أو أضف الطعام يدوياً.");
       return;
     }
-    setFoods(res.foods.map((f) => ({ ...f, localId: uid() })));
+    const newItems = res.foods.map((f) => ({
+      localId: uid(), query: f.name, servingEstimate: f.servingEstimate,
+      status: "searching", product: null, candidates: [], grams: 100,
+    }));
+    setItems(newItems);
+    newItems.forEach((it) => matchItem(it.localId, it.query));
   }
 
-  function updateFood(localId, field, val) {
-    setFoods((list) => list.map((f) => (f.localId === localId ? { ...f, [field]: val } : f)));
+  function removeItem(localId) {
+    setItems((list) => list.filter((it) => it.localId !== localId));
   }
-  function removeFood(localId) {
-    setFoods((list) => list.filter((f) => f.localId !== localId));
-  }
-  function addFoodItem() {
-    setFoods((list) => [
+  function addManualItem() {
+    setItems((list) => [
       ...(list || []),
-      { localId: uid(), name: "", servingEstimate: defaultServingLabel, calories: 0, protein: 0, carbs: 0, fat: 0, micronutrients: {} },
+      { localId: uid(), query: "", servingEstimate: defaultServingLabel, status: "unmatched", product: null, candidates: [], grams: 100 },
     ]);
   }
+  function changeMatch(localId) {
+    setItem(localId, { status: "unmatched", product: null, candidates: [] });
+  }
+  function pickCandidate(localId, product) {
+    setItem(localId, { status: "matched", product, candidates: [], query: product.name, grams: product.servingGrams ? Math.round(product.servingGrams) : 100 });
+  }
 
-  // يحفظ كل صنف له اسم فعلي (يتجاهل بصمت أي صف أُضيف يدوياً ثم تُرك بلا
-  // اسم) كسجل مستقل بالتتابع عبر onSave (=addEntry) - بلا أي حفظ جزئي: لو
-  // فشل صنف ما، الأصناف السابقة الناجحة تبقى محفوظة فعلياً (addEntry نفسها
-  // تُبلغ عن فشلها لكل استدعاء على حدة) بينما showToast/الشاشة التالية تتبع
-  // آخر صنف نجح فقط - نفس القيد المقبول أصلاً عند إضافة عدة أصناف يدوياً
-  // متتالية اليوم.
+  const matchedItems = (items || []).filter((it) => it.status === "matched" && it.product);
+  const pendingCount = (items || []).length - matchedItems.length;
+
+  // يحفظ فقط الأصناف المطابَقة فعلياً مع قاعدة بيانات حقيقية (status==="matched")
+  // كسجل مستقل بالتتابع عبر onSave (=addEntry) - أي صنف لم يُطابَق بعد
+  // (بانتظار اختيار من "هل تقصد" أو بحث آخر) يُستبعد بصمت من الحفظ، لا
+  // يُحفظ بقيمة مختلَقة أبداً.
   async function handleConfirm() {
-    const valid = (foods || []).filter((f) => f.name.trim().length > 0);
-    if (valid.length === 0) return;
+    if (matchedItems.length === 0) return;
     setSaving(true);
-    for (const f of valid) {
+    for (const it of matchedItems) {
+      const grams = Number(it.grams) || (it.product.servingGrams ? Math.round(it.product.servingGrams) : 100);
+      const preview = scaleNutrients(it.product, grams);
+      const isMl = it.product.per100Basis === "ml";
       await onSave({
-        id: uid(),
-        foodName: f.name.trim(),
-        calories: Number(f.calories) || 0, protein: Number(f.protein) || 0,
-        carbs: Number(f.carbs) || 0, fat: Number(f.fat) || 0,
-        // الصوديوم/الكوليسترول لا يمكن تقديرهما بصرياً بثقة معقولة من صورة
-        // (لا أثر مرئي للملح المضاف أو الكوليسترول في الطعام المطبوخ، خلافاً
-        // لحجم الحصة الذي يُقدَّر بصرياً بشكل معقول) - يبقيان صفراً هنا عمداً
-        // (لا اختراع رقم دقيق المظهر لعنصر غير مرئي إطلاقاً)، خلافاً
-        // للألياف/السكر غير المطلوبين من AI هنا أيضاً بنفس الحذر.
-        fiber: 0, sugar: 0, sodium: 0, cholesterol: 0,
-        servingInfo: f.servingEstimate.trim() || defaultServingLabel, source: "ai_photo", mealType,
-        // نفس علامة "≈ تقريبي" الموحّدة المستخدَمة لأطعمة generic-foods.js -
-        // لا تمييز إضافي بين المصدرين من منظور المستخدم، كلاهما تقدير عام لا
-        // تحليل دقيق لهذا الطعام بعينه.
-        micronutrients: f.micronutrients || {},
-        microApprox: Object.keys(f.micronutrients || {}).length > 0,
+        id: uid(), foodName: it.product.name, ...preview,
+        unit: isMl ? "ml" : "g",
+        servingInfo: `${grams} ${isMl ? t("nutrition.unitOptions.ml") : t("common.units.g")}`,
+        source: "ai_photo", mealType,
+        microApprox: it.product.origin === "generic",
+        micronutrients: scaleMicronutrients(it.product.micronutrientsPer100g, grams),
+        quantity: grams,
+        productBasis: {
+          caloriesPer100g: it.product.caloriesPer100g, proteinPer100g: it.product.proteinPer100g,
+          carbsPer100g: it.product.carbsPer100g, fatPer100g: it.product.fatPer100g,
+          fiberPer100g: it.product.fiberPer100g, sugarPer100g: it.product.sugarPer100g,
+          sodiumPer100gMg: it.product.sodiumPer100gMg, cholesterolPer100gMg: it.product.cholesterolPer100gMg,
+          micronutrientsPer100g: it.product.micronutrientsPer100g || {},
+          per100Basis: isMl ? "ml" : "g",
+          servingGrams: it.product.servingGrams || null,
+        },
       });
     }
     setSaving(false);
@@ -2155,58 +2166,109 @@ function AIPhotoPanel({ onSave, onManual, preselectedMealType }) {
         </>
       )}
 
-      {foods && (
+      {items && (
         <>
           <div style={NS.disclaimerBox}>
             <Sparkles size={15} color="#C9A24B" style={{ flexShrink: 0, marginTop: 1 }} />
             <span>{t("nutrition.aiEstimateNote")}</span>
           </div>
           <label style={S.label}>{t("nutrition.confirmDetectedFoods")}</label>
-          {foods.map((f) => (
-            <div key={f.localId} style={NS.aiFoodCard}>
+          {items.map((it) => (
+            <div key={it.localId} style={NS.aiFoodCard}>
               <div style={NS.aiFoodCardHead}>
                 <input
-                  value={f.name}
-                  onChange={(e) => updateFood(f.localId, "name", e.target.value)}
+                  value={it.query}
+                  onChange={(e) => setItem(it.localId, { query: e.target.value })}
+                  onKeyDown={(e) => { if (e.key === "Enter" && it.status !== "matched") matchItem(it.localId, it.query); }}
                   placeholder={t("nutrition.foodNamePlaceholder")}
+                  readOnly={it.status === "matched"}
                   style={NS.aiFoodNameInput}
                 />
-                <button onClick={() => removeFood(f.localId)} style={NS.aiFoodDeleteBtn} aria-label={t("nutrition.removeItem")}>
+                <button onClick={() => removeItem(it.localId)} style={NS.aiFoodDeleteBtn} aria-label={t("nutrition.removeItem")}>
                   <Trash2 size={16} />
                 </button>
               </div>
-              <input
-                value={f.servingEstimate}
-                onChange={(e) => updateFood(f.localId, "servingEstimate", e.target.value)}
-                placeholder={defaultServingLabel}
-                style={NS.aiFoodServingInput}
-              />
-              <div style={NS.aiFoodMacroGrid}>
-                <div style={NS.aiFoodMacroField}>
-                  <span style={NS.aiFoodMacroLabel}>{t("common.units.kcal")}</span>
-                  <input type="number" inputMode="decimal" value={f.calories} onChange={(e) => updateFood(f.localId, "calories", Number(e.target.value))} style={NS.aiFoodMacroInput} />
+              {it.servingEstimate && it.status !== "matched" && <div style={NS.aiFoodServingInput}>{it.servingEstimate}</div>}
+
+              {it.status === "searching" && (
+                <div style={{ display: "flex", justifyContent: "center", padding: "10px 0" }}>
+                  <Loader2 size={18} className="spin" color="var(--gold)" />
                 </div>
-                <div style={NS.aiFoodMacroField}>
-                  <span style={NS.aiFoodMacroLabel}>{t("common.units.protein")}</span>
-                  <input type="number" inputMode="decimal" value={f.protein} onChange={(e) => updateFood(f.localId, "protein", Number(e.target.value))} style={NS.aiFoodMacroInput} />
-                </div>
-                <div style={NS.aiFoodMacroField}>
-                  <span style={NS.aiFoodMacroLabel}>{t("common.units.carbs")}</span>
-                  <input type="number" inputMode="decimal" value={f.carbs} onChange={(e) => updateFood(f.localId, "carbs", Number(e.target.value))} style={NS.aiFoodMacroInput} />
-                </div>
-                <div style={NS.aiFoodMacroField}>
-                  <span style={NS.aiFoodMacroLabel}>{t("common.units.fat")}</span>
-                  <input type="number" inputMode="decimal" value={f.fat} onChange={(e) => updateFood(f.localId, "fat", Number(e.target.value))} style={NS.aiFoodMacroInput} />
-                </div>
-              </div>
+              )}
+
+              {it.status === "matched" && it.product && (() => {
+                const grams = Number(it.grams) || 100;
+                const preview = scaleNutrients(it.product, grams);
+                const isMl = it.product.per100Basis === "ml";
+                return (
+                  <>
+                    <div style={NS.resultMeta}>{t("nutrition.calPer100g", { cal: Math.round(it.product.caloriesPer100g) })}</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "8px 0" }}>
+                      <input
+                        type="number" inputMode="decimal" value={it.grams}
+                        onChange={(e) => setItem(it.localId, { grams: Number(e.target.value) || 0 })}
+                        style={{ ...S.input, width: 90 }}
+                      />
+                      <span style={{ fontSize: 12.5, color: "var(--muted2)" }}>{isMl ? t("nutrition.unitOptions.ml") : t("common.units.g")}</span>
+                      {[1, 2, 3].map((n) => (
+                        <button
+                          key={n}
+                          onClick={() => setItem(it.localId, { grams: Math.round((it.product.servingGrams || 100) * n) })}
+                          style={NS.multiplierBtn}
+                        >×{n}</button>
+                      ))}
+                    </div>
+                    <div style={NS.aiFoodMacroGrid}>
+                      <div style={NS.aiFoodMacroField}><span style={NS.aiFoodMacroLabel}>{t("common.units.kcal")}</span><span>{preview.calories}</span></div>
+                      <div style={NS.aiFoodMacroField}><span style={NS.aiFoodMacroLabel}>{t("common.units.protein")}</span><span>{preview.protein}</span></div>
+                      <div style={NS.aiFoodMacroField}><span style={NS.aiFoodMacroLabel}>{t("common.units.carbs")}</span><span>{preview.carbs}</span></div>
+                      <div style={NS.aiFoodMacroField}><span style={NS.aiFoodMacroLabel}>{t("common.units.fat")}</span><span>{preview.fat}</span></div>
+                    </div>
+                    <button onClick={() => changeMatch(it.localId)} style={{ background: "none", border: "none", color: "var(--gold)", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", padding: "6px 0" }}>
+                      {t("nutrition.aiItemChangeMatch")}
+                    </button>
+                  </>
+                );
+              })()}
+
+              {it.status === "multiple" && (
+                <>
+                  <p style={NS.suggestionLabel}>{t("nutrition.didYouMean")}</p>
+                  {it.candidates.map((p) => (
+                    <button key={`${p.origin}-${p.barcode}-${p.name}`} onClick={() => pickCandidate(it.localId, p)} style={NS.resultRow}>
+                      {p.imageUrl ? <img src={p.imageUrl} alt="" style={NS.resultImg} /> : (
+                        <div style={{ ...NS.resultImg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <CategoryIcon category={p.category} />
+                        </div>
+                      )}
+                      <div style={{ flex: 1 }}>
+                        <div style={NS.resultName}>{p.name}</div>
+                        <div style={NS.resultMeta}>{t("nutrition.calPer100g", { cal: Math.round(p.caloriesPer100g) })}</div>
+                      </div>
+                    </button>
+                  ))}
+                </>
+              )}
+
+              {it.status === "unmatched" && (
+                <>
+                  {it.query.trim() && <p style={NS.notFoundNote}>{t("nutrition.aiItemNoMatch")}</p>}
+                  <button onClick={() => matchItem(it.localId, it.query)} disabled={!it.query.trim()} style={{ ...S.exportBtn, marginTop: 4, marginBottom: 0, opacity: it.query.trim() ? 1 : 0.6 }}>
+                    {t("nutrition.aiItemSearchAgain")}
+                  </button>
+                </>
+              )}
             </div>
           ))}
-          <button onClick={addFoodItem} style={NS.addFoodItemBtn}><Plus size={15} /> {t("nutrition.addFoodItem")}</button>
+          <button onClick={addManualItem} style={NS.addFoodItemBtn}><Plus size={15} /> {t("nutrition.addFoodItem")}</button>
+          {pendingCount > 0 && matchedItems.length > 0 && (
+            <p style={NS.notFoundNote}>{t("nutrition.aiPendingItemsNote", { count: pendingCount })}</p>
+          )}
           <MealTypeSelector value={mealType} onChange={setMealType} />
           <button
             onClick={handleConfirm}
-            disabled={saving || foods.every((f) => f.name.trim().length === 0)}
-            style={{ ...S.saveBtn, opacity: saving || foods.every((f) => f.name.trim().length === 0) ? 0.6 : 1 }}
+            disabled={saving || matchedItems.length === 0}
+            style={{ ...S.saveBtn, opacity: saving || matchedItems.length === 0 ? 0.6 : 1 }}
           >
             {saving ? <Loader2 size={16} className="spin" /> : t("nutrition.confirmAndAddAll")}
           </button>
@@ -3023,11 +3085,14 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
     } else {
       if (res.error) setLookupError(i18n.language === "en" ? (res.errorEn || res.error) : res.error);
       setPendingBarcode(barcode);
-      // معالج "منتج جديد" الثلاثي الخطوات يستخدم قراءة الملصق بالذكاء
-      // الاصطناعي (مسار الكامل) - غير المشترك يذهب للنموذج اليدوي الكامل
-      // مباشرة (كان السلوك الأصلي دائماً)، لا لمعالج سيصطدم بقفل لاحقاً بلا
-      // تفسير واضح في نقطة الدخول.
-      setSheet(isSub ? "addProduct" : "manual");
+      // تصحيح جوهري: باركود حقيقي ممسوح فعلياً وغير موجود بأي قاعدة بيانات
+      // كان يقود غير المشترك للنموذج اليدوي القديم (أرقام حرة يكتبها من
+      // الملصق الحقيقي أمامه) بينما المشترك يحصل على معالج "منتج جديد" -
+      // الآن يذهب الجميع لنفس المعالج بلا أي شرط اشتراك، لأن نسخ أرقام
+      // ملصق حقيقي بيد المستخدم (تصويراً أو كتابةً يدوية كبديل داخل المعالج
+      // نفسه) هو الاستثناء الوحيد المشروع لكتابة رقم غذائي يدوياً في التطبيق
+      // - ولا يجب أن يكون مقفلاً خلف اشتراك.
+      setSheet("addProduct");
     }
   }, [isSub]);
 
@@ -3411,6 +3476,7 @@ ${missingMealsLine}
                 onSave={(entry) => addEntry(entry)}
                 onManual={() => setSheet("manual")}
                 preselectedMealType={preselectedMealType}
+                isSub={isSub}
               />
             )}
 
@@ -3431,12 +3497,15 @@ ${missingMealsLine}
             )}
 
             {sheet === "addProduct" && (
-              <AddProductWizard
-                initialBarcode={pendingBarcode}
-                onSave={saveManualEntry}
-                onManual={() => setSheet("manual")}
-                showToast={showToast}
-              />
+              <>
+                {lookupError && <div style={NS.errorText}>{lookupError}</div>}
+                <AddProductWizard
+                  initialBarcode={pendingBarcode}
+                  onSave={saveManualEntry}
+                  onManual={() => setSheet("manual")}
+                  showToast={showToast}
+                />
+              </>
             )}
 
             {sheet === "manual" && (
@@ -3444,8 +3513,8 @@ ${missingMealsLine}
                 {lookupError && <div style={NS.errorText}>{lookupError}</div>}
                 <ManualEntryForm
                   key={pendingVoiceDraft ? `voice-${pendingVoiceDraft.foodName}-${pendingVoiceDraft.qty}-${pendingVoiceDraft.unit}` : "static"}
-                  barcode={pendingBarcode} onSave={saveManualEntry} onCancel={closeSheet} preselectedMealType={preselectedMealType}
-                  initialDraft={pendingVoiceDraft}
+                  onSave={saveManualEntry} onCancel={closeSheet} showToast={showToast} preselectedMealType={preselectedMealType}
+                  initialDraft={pendingVoiceDraft} isSub={isSub}
                   voiceConfirmTrigger={voiceConfirmTrigger}
                   onInvalidVoiceConfirm={() => speak(t("speech.voice.invalidConfirm"), i18n.language)}
                 />

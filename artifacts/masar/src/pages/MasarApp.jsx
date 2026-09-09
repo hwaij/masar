@@ -5090,7 +5090,7 @@ function TipsView({ tipsLog, setTipsLog, showToast, subscription }) {
         if (!tip && tipId === FALLBACK_TIP.id) tip = FALLBACK_TIP;
         if (!tip) {
           console.warn(`[TipsView] archive: معرّف نصيحة غير معروف (${tipId}) ليوم ${date} - يُعرض ببطاقة بديلة بدل إسقاطه`);
-          tip = { id: tipId, category: "selfdev", text: t("tips.oldTipUnavailable") };
+          tip = { id: tipId, category: "general", text: t("tips.oldTipUnavailable") };
         }
         return { date, tip };
       }),

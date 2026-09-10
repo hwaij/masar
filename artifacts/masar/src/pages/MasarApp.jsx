@@ -1121,25 +1121,25 @@ export default function MasarApp() {
         {/* "missing locale key" لكل بطاقات الترقية أدناه (goals/vault/achieve/reportsView/assistant.upsellTitle
             و upsellMessage) - لا مفتاح مخصص لها بعد في ملفات الترجمة، استُخدم نص إنجليزي/عربي حرفي بديل مؤقتاً. */}
         {view === "goals" && (isSub ? <GoalsView goals={goals} setGoals={setGoals} addPoints={addPoints} showToast={showToast} profile={profile} setProfile={setProfile} journeyActive={tourOpen} /> : (
-          <div style={S.view}><UpsellCard icon={Target} title={i18n.language === "en" ? "Plan your goals with Masar Premium" : "خطّط لأهدافك مع مسار الكامل"} message={i18n.language === "en" ? "Set your weekly, monthly, and yearly goals, and track your progress on a visual calendar with periodic reviews and points accountability." : "حدّد أهدافك الأسبوعية والشهرية والسنوية، وتابع إنجازك على تقويم بصري مع مراجعات دورية ومحاسبة بالنقاط."} /></div>
+          <div style={S.view}><UpsellCard icon={Target} title={i18n.language === "en" ? "Plan your goals with Masarak Premium" : "خطّط لأهدافك مع مسارك الكامل"} message={i18n.language === "en" ? "Set your weekly, monthly, and yearly goals, and track your progress on a visual calendar with periodic reviews and points accountability." : "حدّد أهدافك الأسبوعية والشهرية والسنوية، وتابع إنجازك على تقويم بصري مع مراجعات دورية ومحاسبة بالنقاط."} /></div>
         ))}
         {view === "vault" && !isSub && (
-          <div style={S.view}><UpsellCard icon={Wallet} title={i18n.language === "en" ? "Track your money with Masar Premium" : "تتبّع أموالك مع مسار الكامل"} message={i18n.language === "en" ? "Log your balance and expenses in your currency, and know exactly where your money goes, with a new financial tip every day." : "سجّل رصيدك ومصروفاتك بعملتك، واعرف أين تذهب أموالك بالضبط، مع نصيحة مالية جديدة كل يوم."} /></div>
+          <div style={S.view}><UpsellCard icon={Wallet} title={i18n.language === "en" ? "Track your money with Masarak Premium" : "تتبّع أموالك مع مسارك الكامل"} message={i18n.language === "en" ? "Log your balance and expenses in your currency, and know exactly where your money goes, with a new financial tip every day." : "سجّل رصيدك ومصروفاتك بعملتك، واعرف أين تذهب أموالك بالضبط، مع نصيحة مالية جديدة كل يوم."} /></div>
         )}
         {view === "tasks" && <TasksView tasks={tasks} setTasks={setTasks} categories={categories} addPoints={addPoints} showToast={showToast} subscription={subscription} profile={profile} setProfile={setProfile} journeyActive={tourOpen} />}
         {view === "focus" && <FocusView focus={focus} setFocus={setFocus} commitments={commitments} setCommitments={setCommitments} categories={categories} entries={entries} addPoints={addPoints} showToast={showToast} subscription={subscription} />}
         {view === "achieve" && (isSub ? <AchieveView achieve={achieve} setAchieve={setAchieve} profile={profile} focus={focus} tasks={tasks} prayerLog={prayerLog} religious={religious} addPoints={addPoints} showToast={showToast} setView={setView} /> : (
-          <div style={S.view}><UpsellCard icon={Rocket} title={i18n.language === "en" ? "Achieve is waiting for you in Masar Premium" : "أنجز ينتظرك في مسار الكامل"} message={i18n.language === "en" ? "Achieve knows your hobbies and suggests challenges, projects, and learning paths made specifically for you." : "أنجز يعرف هواياتك ويقترح لك تحديات ومشاريع ومسارات تعلّم تناسبك أنت تحديداً."} /></div>
+          <div style={S.view}><UpsellCard icon={Rocket} title={i18n.language === "en" ? "Achieve is waiting for you in Masarak Premium" : "أنجز ينتظرك في مسارك الكامل"} message={i18n.language === "en" ? "Achieve knows your hobbies and suggests challenges, projects, and learning paths made specifically for you." : "أنجز يعرف هواياتك ويقترح لك تحديات ومشاريع ومسارات تعلّم تناسبك أنت تحديداً."} /></div>
         ))}
         {view === "reports" && (true ? <ReportsView entries={entries} categories={categories} focus={focus} profile={profile} setProfile={setProfile} healthProfile={healthProfile} sleepLog={sleepLog} setSleepLog={setSleepLog} stepsLog={stepsLog} showToast={showToast} tasks={tasks} goals={goals} journeyActive={tourOpen} /> : (
-          <div style={S.view}><UpsellCard icon={TrendingUp} title={i18n.language === "en" ? "Your detailed reports in Masar Premium" : "تقاريرك التفصيلية في مسار الكامل"} message={i18n.language === "en" ? "See your progress with clear numbers and analysis, and track your sleep and rest pattern across days." : "شاهد تقدّمك بأرقام وتحليلات واضحة، وتتبّع نومك ونمط راحتك عبر الأيام."} /></div>
+          <div style={S.view}><UpsellCard icon={TrendingUp} title={i18n.language === "en" ? "Your detailed reports in Masarak Premium" : "تقاريرك التفصيلية في مسارك الكامل"} message={i18n.language === "en" ? "See your progress with clear numbers and analysis, and track your sleep and rest pattern across days." : "شاهد تقدّمك بأرقام وتحليلات واضحة، وتتبّع نومك ونمط راحتك عبر الأيام."} /></div>
         ))}
         {view === "assistant" && (isSub ? <AssistantView entries={entries} tasks={tasks} categories={categories} focus={focus} prayerLog={prayerLog} religious={religious} profile={profile} setProfile={setProfile} stats={stats} setView={setView} healthProfile={healthProfile} goals={goals} showToast={showToast} journeyActive={tourOpen} /> : (
-          <div style={S.view}><UpsellCard icon={MessageCircle} title={i18n.language === "en" ? "Your AI assistant in Masar Premium" : "مساعدك الذكي في مسار الكامل"} message={i18n.language === "en" ? "A personal coach who analyzes your day and habits and suggests practical steps based on your actual data." : "مدرّب شخصي يحلّل يومك وعاداتك ويقترح خطوات عملية بناءً على بياناتك الفعلية."} /></div>
+          <div style={S.view}><UpsellCard icon={MessageCircle} title={i18n.language === "en" ? "Your AI assistant in Masarak Premium" : "مساعدك الذكي في مسارك الكامل"} message={i18n.language === "en" ? "A personal coach who analyzes your day and habits and suggests practical steps based on your actual data." : "مدرّب شخصي يحلّل يومك وعاداتك ويقترح خطوات عملية بناءً على بياناتك الفعلية."} /></div>
         ))}
         {view === "you" && <YouView healthProfile={healthProfile} setHealthProfile={setHealthProfile} showToast={showToast} profile={profile} setProfile={setProfile} />}
         {view === "sleep" && (isSub ? <SleepView sleepLog={sleepLog} setSleepLog={setSleepLog} showToast={showToast} /> : (
-          <div style={S.view}><UpsellCard icon={Bed} title={i18n.language === "en" ? "Track your sleep in Masar Premium" : "تتبّع نومك في مسار الكامل"} message={i18n.language === "en" ? "Log your bedtime and wake time, see your sleep duration automatically, and track your pattern across days." : "سجّل وقت نومك واستيقاظك، واعرف مدة نومك تلقائياً، وتابع نمطك عبر الأيام."} /></div>
+          <div style={S.view}><UpsellCard icon={Bed} title={i18n.language === "en" ? "Track your sleep in Masarak Premium" : "تتبّع نومك في مسارك الكامل"} message={i18n.language === "en" ? "Log your bedtime and wake time, see your sleep duration automatically, and track your pattern across days." : "سجّل وقت نومك واستيقاظك، واعرف مدة نومك تلقائياً، وتابع نمطك عبر الأيام."} /></div>
         ))}
         {(view === "nutrition" || view === "nutritionPlan" || view === "dietPlans" || view === "fitness" || view === "steps" || (view === "groups" && isSub) || (view === "vault" && isSub)) && (
           <LazySectionErrorBoundary key={view} isEn={i18n.language === "en"}>
@@ -1155,7 +1155,7 @@ export default function MasarApp() {
           </LazySectionErrorBoundary>
         )}
         {view === "groups" && !isSub && (
-          <div style={S.view}><UpsellCard icon={Users} title={i18n.language === "en" ? "Friend Challenges in Masar Premium" : "تحديات الأصدقاء في مسار الكامل"} message={i18n.language === "en" ? "Create a study group with your friends and compete on study hours and workout completion, with live updates between you." : "أنشئ جروب دراسة مع أصدقائك وتنافسوا بساعات الدراسة وإنجاز الرياضة، بتحديث لحظي بينكم."} /></div>
+          <div style={S.view}><UpsellCard icon={Users} title={i18n.language === "en" ? "Friend Challenges in Masarak Premium" : "تحديات الأصدقاء في مسارك الكامل"} message={i18n.language === "en" ? "Create a study group with your friends and compete on study hours and workout completion, with live updates between you." : "أنشئ جروب دراسة مع أصدقائك وتنافسوا بساعات الدراسة وإنجاز الرياضة، بتحديث لحظي بينكم."} /></div>
         )}
         {view === "settings" && <SettingsView categories={categories} setCategories={setCategories} gamify={gamify} hasCloud={store.hasCloud} showToast={showToast} profile={profile} setProfile={setProfile} pointsLog={pointsLog} onStartTour={startTour} subscription={subscription} theme={theme} toggleTheme={toggleTheme} setThemeChoice={setThemeChoice} fontSize={fontSize} changeFontSize={changeFontSize} highContrast={highContrast} toggleHighContrast={toggleHighContrast} spacious={spacious} toggleSpacious={toggleSpacious} accessibilityMode={accessibilityMode} toggleAccessibilityMode={toggleAccessibilityMode} />}
       </div>
@@ -1541,7 +1541,7 @@ function LanguagePicker({ onPick }) {
   return (
     <div style={{ ...S.app, ...S.loaderWrap, flexDirection: "column", gap: 32, padding: "24px", textAlign: "center" }}>
       <div style={{ fontFamily: "'Amiri', serif", fontSize: 38, fontWeight: 700, letterSpacing: 2 }}>
-        Masar · مسار
+        Masarak · مسارك
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 14, width: "100%", maxWidth: 320 }}>
         <button
@@ -1747,7 +1747,7 @@ function LandingPage({ onSignIn, onEmailSignIn, onEmailSignUp }) {
       <div style={{ maxWidth: 480, margin: "0 auto", padding: "0 20px 60px" }}>
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}
           style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 64, paddingBottom: 40, textAlign: "center" }}>
-          <div style={{ fontSize: 64, color: "#C9A24B", marginBottom: 16, filter: "drop-shadow(0 0 24px rgba(201,162,75,0.4))" }}>◐</div>
+          <img src="/logo-mark.png" alt="" style={{ width: 72, height: 72, marginBottom: 16, filter: "drop-shadow(0 0 24px rgba(201,162,75,0.4))" }} />
           <h1 style={{ fontFamily: "'Amiri', serif", fontSize: 42, fontWeight: 700, margin: 0, letterSpacing: 2 }}>{t("landing.wordmark")}</h1>
           <p style={{ fontSize: 16, color: "var(--muted2)", marginTop: 12, lineHeight: 1.8, maxWidth: 300 }}>
             {t("landing.tagline")}
@@ -3012,7 +3012,7 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
     // حتى لا يظهر داخل ملف الـ PDF نفسه.
     const appUrl = window.location.href;
     const logoUrl = `${window.location.origin}/logo-mark.png`;
-    const htmlAr = `<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>تقرير مسار ${rangeLabel}</title>
+    const htmlAr = `<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>تقرير مسارك ${rangeLabel}</title>
       <style>
         @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&family=Amiri:wght@700&display=swap');
         body{font-family:'Tajawal',sans-serif;color:#2B2621;padding:88px 40px 40px;max-width:700px;margin:auto;background:#FBF8F2}
@@ -3035,8 +3035,8 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
         .back-btn{position:fixed;top:14px;left:14px;z-index:999;display:flex;align-items:center;gap:6px;background:#8a6d28;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-family:'Tajawal',sans-serif;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,0.2)}
         @media print{ body{padding-top:40px} .back-btn{display:none !important} }
       </style></head><body>
-      <button class="back-btn" onclick="window.close(); setTimeout(function(){ window.location.href='${appUrl}'; }, 250);">✕ إغلاق والعودة لمسار</button>
-      <div class="brand"><img src="${logoUrl}" alt="مسار" /><span>مسار</span></div>
+      <button class="back-btn" onclick="window.close(); setTimeout(function(){ window.location.href='${appUrl}'; }, 250);">✕ إغلاق والعودة لمسارك</button>
+      <div class="brand"><img src="${logoUrl}" alt="مسارك" /><span>مسارك</span></div>
       <h1>تقرير ${rangeLabel}</h1>
       <div class="meta">الفترة: من ${periodStart} إلى ${periodEnd}${profile?.about ? " · " + escapeHtml(profile.about) : ""}</div>
       <div class="kpis">
@@ -3052,8 +3052,8 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
         ${sleepAvgHours !== null ? `<div class="kpi"><div class="v">${sleepAvgHours.toFixed(1)} س</div><div class="l">متوسط النوم</div></div>` : ""}
         ${nutritionActiveDays > 0 ? `<div class="kpi"><div class="v">${nutritionAvgCalories}</div><div class="l">متوسط السعرات اليومي</div></div>` : ""}
       </div>` : ""}
-      ${smartTip ? `<h2>توصية مسار الذكية</h2><div class="smart-box">${escapeHtml(isolateNumbers(smartTip))}</div>` : ""}
-      <div class="footer">مسار · أداتك الشخصية للوقت وتطوير الذات · صدر بتاريخ ${arabicDate(localDayKey(), { day: "numeric", month: "long", year: "numeric" })}</div>
+      ${smartTip ? `<h2>توصية مسارك الذكية</h2><div class="smart-box">${escapeHtml(isolateNumbers(smartTip))}</div>` : ""}
+      <div class="footer">مسارك · أداتك الشخصية للوقت وتطوير الذات · صدر بتاريخ ${arabicDate(localDayKey(), { day: "numeric", month: "long", year: "numeric" })}</div>
       </body></html>`;
     // فرع إنجليزي مواز كامل - نفس البنية والـCSS تماماً لكن بخصائص منطقية
     // معكوسة (LTR بدل RTL: border-left/padding-left بدل right، محاذاة نص
@@ -3085,7 +3085,7 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
         @media print{ body{padding-top:40px} .back-btn{display:none !important} }
       </style></head><body>
       <button class="back-btn" onclick="window.close(); setTimeout(function(){ window.location.href='${appUrl}'; }, 250);">${t("pdfReport.closeAndReturn")}</button>
-      <div class="brand"><img src="${logoUrl}" alt="Masar" /><span>${t("splash.wordmark")}</span></div>
+      <div class="brand"><img src="${logoUrl}" alt="Masarak" /><span>${t("splash.wordmark")}</span></div>
       <h1>${reportHeader}</h1>
       <div class="meta">${t("pdfReport.period", { start: periodStart, end: periodEnd })}${profile?.about ? " · " + escapeHtml(profile.about) : ""}</div>
       <div class="kpis">
@@ -7327,7 +7327,7 @@ function RoadmapCard() {
   ];
   return (
     <div style={S.roadmapCard}>
-      <div style={S.chartTitle}>{isEn ? "How Masar evolves with you" : "كيف يتطوّر مسار معك"}</div>
+      <div style={S.chartTitle}>{isEn ? "How Masarak evolves with you" : "كيف يتطوّر مسارك معك"}</div>
       {phases.map((p, i) => (
         <div key={i} style={S.roadmapPhaseRow}>
           <div style={S.roadmapPhaseHead}><span style={S.roadmapPhaseTag}>{p.phase}</span><span style={S.roadmapPhaseTitle}>{p.title}</span></div>

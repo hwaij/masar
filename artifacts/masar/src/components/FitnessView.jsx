@@ -453,9 +453,9 @@ function FinishSummaryView({ summary, isEn, gender, t, showToast, onClose }) {
     const result = await shareAchievementCard({
       template,
       photoFile,
-      brandLabel: "مسار",
+      brandLabel: "مسارك",
       title: t("fitness.shareCardTitle"),
-      footer: isEn ? "via Masar" : "عبر تطبيق مسار",
+      footer: isEn ? "via Masarak" : "عبر تطبيق مسارك",
       shareText,
       isRtl: !isEn,
       durationText,

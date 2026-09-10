@@ -41,7 +41,7 @@
     "signInGoogle": "Sign in with Google",
     "signIn": "Sign in",
     "vipBadge": "Permanent VIP member",
-    "subBadge": "Masar subscriber",
+    "subBadge": "Masarak subscriber",
     "cloudSynced": "Synced to cloud",
     "localStorage": "Local storage"
   },
@@ -79,11 +79,11 @@
       "title": "Your day's progress",
       "update": "Update",
       "summarize": "Summarize my day",
-      "emptyPrompt": "Ask Masar to summarize your day and suggest a step for tomorrow.",
+      "emptyPrompt": "Ask Masarak to summarize your day and suggest a step for tomorrow.",
       "noEntriesError": "Log a few activities first so I can summarize your day.",
       "errorGeneric": "Couldn't analyze right now, try again.",
-      "upsellTitle": "Your daily progress in Masar Premium",
-      "upsellMessage": "Masar summarizes your day and suggests one practical step for tomorrow, based on your actual activities."
+      "upsellTitle": "Your daily progress in Masarak Premium",
+      "upsellMessage": "Masarak summarizes your day and suggests one practical step for tomorrow, based on your actual activities."
     },
     "entryModal": {
       "editActivity": "Edit activity",
@@ -119,7 +119,7 @@
       "subscribeInstagram": "Subscribe now via Instagram"
     },
     "errors": {
-      "NOT_CONFIGURED": "This feature is available to Masar Premium subscribers. Subscribe now to unlock it.",
+      "NOT_CONFIGURED": "This feature is available to Masarak Premium subscribers. Subscribe now to unlock it.",
       "NOT_SIGNED_IN": "Sign in first to use this feature.",
       "NETWORK": "Couldn't connect to the internet. Check your connection and try again.",
       "connectionIssueTitle": "Connection problem",
@@ -163,22 +163,22 @@
     }
   },
   "splash": {
-    "wordmark": "Masar",
+    "wordmark": "Masarak",
     "messages": [
       "Every small step today builds a better tomorrow",
-      "Start your day... and let Masar take care of the rest",
+      "Start your day... and let Masarak take care of the rest",
       "Consistency in little is better than giving up on a lot",
       "A good intention today is the start of tomorrow's blessing",
       "Your time is a trust — spending it well today is both worship and productivity",
       "Don't put off your path — every journey begins with a step",
       "Balancing this life and the next is true success",
       "Every remembrance you speak today is a light that stays with you",
-      "Organize your day, and Masar will organize the rest",
+      "Organize your day, and Masarak will organize the rest",
       "Track your time · Elevate your day"
     ]
   },
   "landing": {
-    "wordmark": "Masar",
+    "wordmark": "Masarak",
     "tagline": "Your daily companion for organizing your time and strengthening your Islamic habits",
     "loading": "Loading...",
     "continueWithGoogle": "Continue with Google",
@@ -254,19 +254,19 @@
       "step1Title": "Add your first task",
       "step1Body": "Type a task name above, then tap here to add it.",
       "step2Title": "Mark it done",
-      "step2Body": "Tap the circle next to any task to complete it — Masar tracks your daily consistency automatically."
+      "step2Body": "Tap the circle next to any task to complete it — Masarak tracks your daily consistency automatically."
     },
     "goalsTour": {
       "step1Title": "Set your first goal",
       "step1Body": "Type a goal above, choose weekly, monthly, or yearly, then tap here to add it.",
       "step2Title": "Track your progress",
-      "step2Body": "Masar reminds you at review time and adjusts your points based on whether you achieved it."
+      "step2Body": "Masarak reminds you at review time and adjusts your points based on whether you achieved it."
     },
     "aiTour": {
       "step1Title": "Try it with a real question",
-      "step1Body": "Tap this example — Masar answers using your actual logged data, not generic advice.",
+      "step1Body": "Tap this example — Masarak answers using your actual logged data, not generic advice.",
       "step2Title": "Ask anything, anytime",
-      "step2Body": "Type your own questions whenever you like — Masar always answers based on what you've really logged."
+      "step2Body": "Type your own questions whenever you like — Masarak always answers based on what you've really logged."
     },
     "reportsTour": {
       "step1Title": "The full picture",
@@ -301,8 +301,8 @@
       "title": "Stage 1: Getting started & Worship",
       "steps": [
         {
-          "title": "Welcome to Masar",
-          "body": "We'll walk through one connected tour that shows you Masar step by step — from your home screen to every important section. First stage: getting started and Worship."
+          "title": "Welcome to Masarak",
+          "body": "We'll walk through one connected tour that shows you Masarak step by step — from your home screen to every important section. First stage: getting started and Worship."
         },
         {
           "title": "Your day wheel",
@@ -321,8 +321,8 @@
           "body": "If you have tasks due today, they'll show up here below your activities — we'll cover tasks in detail in a later stage."
         },
         {
-          "title": "Your way around Masar",
-          "body": "Everything in Masar is one tap away from here. Tap to open the menu."
+          "title": "Your way around Masarak",
+          "body": "Everything in Masarak is one tap away from here. Tap to open the menu."
         },
         {
           "title": "The Worship section",
@@ -334,7 +334,7 @@
         },
         {
           "title": "Log a prayer",
-          "body": "Tap here to log a prayer you've actually prayed — Masar times it and awards you points."
+          "body": "Tap here to log a prayer you've actually prayed — Masarak times it and awards you points."
         },
         {
           "title": "Istighfar, Adhkar & Quran",
@@ -355,7 +355,7 @@
       "steps": [
         {
           "title": "Your basic data",
-          "body": "Your height, weight, age, gender, and activity level here let Masar calculate your BMI and daily calorie needs."
+          "body": "Your height, weight, age, gender, and activity level here let Masarak calculate your BMI and daily calorie needs."
         },
         {
           "title": "Nutrition",
@@ -371,7 +371,7 @@
         },
         {
           "title": "Track your water",
-          "body": "Tap here each time you drink a glass of water, and Masar tracks your daily goal."
+          "body": "Tap here each time you drink a glass of water, and Masarak tracks your daily goal."
         },
         {
           "title": "Your fitness goal",
@@ -379,19 +379,19 @@
         },
         {
           "title": "Your available equipment",
-          "body": "Choose your environment — a full gym, home with light weights, or no equipment at all — Masar builds a program that fits it."
+          "body": "Choose your environment — a full gym, home with light weights, or no equipment at all — Masarak builds a program that fits it."
         },
         {
           "title": "Your program & Focus Mode",
-          "body": "Once saved, Masar builds you a complete weekly program with fitting exercises, plus a Focus Mode with an automatic rest timer between sets and a suggested next weight for each exercise."
+          "body": "Once saved, Masarak builds you a complete weekly program with fitting exercises, plus a Focus Mode with an automatic rest timer between sets and a suggested next weight for each exercise."
         },
         {
           "title": "Nutrition Plan",
-          "body": "If you've completed your data in \"You\", Masar calculates precise calorie, protein, carb, and fat targets here, with live tracking of how you're doing today."
+          "body": "If you've completed your data in \"You\", Masarak calculates precise calorie, protein, carb, and fat targets here, with live tracking of how you're doing today."
         },
         {
           "title": "Diet Plans",
-          "body": "Ready-made diet systems (like DASH) — Masar checks their suitability for your health conditions before suggesting anything."
+          "body": "Ready-made diet systems (like DASH) — Masarak checks their suitability for your health conditions before suggesting anything."
         }
       ]
     },
@@ -400,7 +400,7 @@
       "steps": [
         {
           "title": "Focus & Study",
-          "body": "This is where you start a focus or study timer — Masar tracks your time automatically and awards you points."
+          "body": "This is where you start a focus or study timer — Masarak tracks your time automatically and awards you points."
         },
         {
           "title": "Tasks",
@@ -408,7 +408,7 @@
         },
         {
           "title": "Goals",
-          "body": "Set a weekly, monthly, or yearly goal — Masar reminds you at review time and adjusts your points based on whether you achieved it."
+          "body": "Set a weekly, monthly, or yearly goal — Masarak reminds you at review time and adjusts your points based on whether you achieved it."
         },
         {
           "title": "Vault",
@@ -429,7 +429,7 @@
         },
         {
           "title": "AI Assistant",
-          "body": "Tap any ready-made question and Masar answers using your actual logged data - not generic advice. Needs a subscription and your identity filled in Settings."
+          "body": "Tap any ready-made question and Masarak answers using your actual logged data - not generic advice. Needs a subscription and your identity filled in Settings."
         },
         {
           "title": "Achieve",
@@ -437,7 +437,7 @@
         },
         {
           "title": "Complete your identity",
-          "body": "Add your name, a short bio, your hobbies, and your field here - this unlocks the Assistant and Achieve, and makes every Masar suggestion more accurate."
+          "body": "Add your name, a short bio, your hobbies, and your field here - this unlocks the Assistant and Achieve, and makes every Masarak suggestion more accurate."
         }
       ]
     }
@@ -454,7 +454,7 @@
       "prayer": "Track your prayers and daily worship habits like istighfar and Quran reading.",
       "adhkar": "Your daily adhkar counter.",
       "tips": "A new tip every day, blending worldly and spiritual wisdom, plus an archive of past ones.",
-      "you": "Your personal and health info — the more accurate this is, the better every suggestion across Masar becomes.",
+      "you": "Your personal and health info — the more accurate this is, the better every suggestion across Masarak becomes.",
       "nutrition": "Log meals and see your calories, macros, and nutrients update in real time.",
       "nutritionPlan": "A personalized nutrition plan based on your goals and health data.",
       "dietPlans": "Browse ready-made diet plan templates.",
@@ -471,7 +471,7 @@
     }
   },
   "tasksView": {
-    "upsellCategoriesTitle": "Create unlimited tasks with Masar Premium",
+    "upsellCategoriesTitle": "Create unlimited tasks with Masarak Premium",
     "taskAdded": "Task added",
     "allDoneToast": "🎉 You completed all of today's tasks!",
     "undidTask": "Undid a task",
@@ -481,7 +481,7 @@
     "previousWeek": "Previous week",
     "nextWeek": "Next week",
     "addTaskAria": "Add task",
-    "upsellUnlimitedTitle": "Unlimited tasks with Masar Premium",
+    "upsellUnlimitedTitle": "Unlimited tasks with Masarak Premium",
     "upsellUnlimitedMessage": "Organize all your tasks with no limit, and get reminders and full tracking every day.",
     "emptyTitle": "No tasks today",
     "emptySub": "Add a task to start planning",
@@ -583,7 +583,7 @@
       "trendTasks": "Task completion",
       "trendNew": "New",
       "trendFlat": "No change",
-      "insightTitle": "Masar Insight for the week",
+      "insightTitle": "Masarak Insight for the week",
       "insightLoading": "Analyzing your week...",
       "insightFailed": "Couldn't analyze this week right now, try again later.",
       "insightEmpty": "Get a short analysis of your week based on your real numbers, with one concrete improvement opportunity for next week.",
@@ -599,12 +599,12 @@
       "totalMealsLogged": "Meals logged",
       "bestWeekTitle": "Best training week",
       "bestWeekValue": "Week of {{date}}: {{volume}} {{unit}} training volume",
-      "mealsScopeNote": "Meals logged shows only the last 90 days (the nutrition log's available range) - the other numbers cover your full history in Masar."
+      "mealsScopeNote": "Meals logged shows only the last 90 days (the nutrition log's available range) - the other numbers cover your full history in Masarak."
     },
     "daily": {
       "intro": "Your data day by day, exactly as entered - no aggregation or interpretation. Good for personal review or exporting for analysis.",
       "exportCsv": "Export CSV",
-      "exportCsvNote": "This personal export includes the name you entered in your profile. If Masar is ever used to export research data for multiple participants, that export must use an anonymized participant ID instead of real names.",
+      "exportCsvNote": "This personal export includes the name you entered in your profile. If Masarak is ever used to export research data for multiple participants, that export must use an anonymized participant ID instead of real names.",
       "csvUnnamedUser": "User",
       "csvExported": "CSV file downloaded.",
       "exportExcel": "Export Excel",
@@ -629,11 +629,11 @@
     }
   },
   "pdfReport": {
-    "titleWeek": "Masar Weekly Report",
-    "titleMonth": "Masar Monthly Report",
+    "titleWeek": "Masarak Weekly Report",
+    "titleMonth": "Masarak Monthly Report",
     "headerWeek": "Weekly Report",
     "headerMonth": "Monthly Report",
-    "closeAndReturn": "✕ Close and return to Masar",
+    "closeAndReturn": "✕ Close and return to Masarak",
     "period": "Period: {{start}} to {{end}}",
     "totalTimeLogged": "Total time logged",
     "activeDays": "Active days",
@@ -646,8 +646,8 @@
     "healthAndNutrition": "Health & Nutrition",
     "averageSleep": "Average sleep",
     "averageDailyCalories": "Average daily calories",
-    "smartRecommendation": "Masar's Smart Recommendation",
-    "footer": "Masar · Your personal tool for time and self-development · Issued on {{date}}",
+    "smartRecommendation": "Masarak's Smart Recommendation",
+    "footer": "Masarak · Your personal tool for time and self-development · Issued on {{date}}",
     "aiPromptWeek": "You are a self-development coach writing in clear, natural English with no long dashes. The user's stats over the past week:\n- Total logged activity time: {{totalTime}}, across {{activeDays}} of {{totalDays}} days\n- Study/focus time: {{studyTime}}\n{{sleepLine}}\n{{nutritionLine}}\nWrite a short, practical recommendation (3-4 sentences) based only on these specific figures (don't invent any number not mentioned), that encourages honestly and suggests one practical step for the coming period. Keep numbers clearly separated (don't stack more than two back to back in one sentence). Return plain text only, no markdown.",
     "aiPromptMonth": "You are a self-development coach writing in clear, natural English with no long dashes. The user's stats over the past month:\n- Total logged activity time: {{totalTime}}, across {{activeDays}} of {{totalDays}} days\n- Study/focus time: {{studyTime}}\n{{sleepLine}}\n{{nutritionLine}}\nWrite a short, practical recommendation (3-4 sentences) based only on these specific figures (don't invent any number not mentioned), that encourages honestly and suggests one practical step for the coming period. Keep numbers clearly separated (don't stack more than two back to back in one sentence). Return plain text only, no markdown."
   },
@@ -667,7 +667,7 @@
     "averageSleep": "Average sleep",
     "usualBedtime": "Usual bedtime",
     "logToSeeResult": "Log your sleep to see this",
-    "manualTrackingNote": "Sleep is tracked manually with the help of timed reminders — Masar doesn't detect your sleep automatically.",
+    "manualTrackingNote": "Sleep is tracked manually with the help of timed reminders — Masarak doesn't detect your sleep automatically.",
     "tonightPlanTitle": "Tonight's plan",
     "editPlan": "Edit plan",
     "setPlan": "Set a plan",
@@ -790,8 +790,8 @@
     "heroSub": "A new, reliable nutrition fact every day.",
     "categoryFallback": "Nutrition",
     "comeBackTomorrow": "Come back tomorrow for a new nutrition fact",
-    "upsellTitle": "Fresh nutrition facts in Masar Premium",
-    "upsellMessage": "You enjoyed your first day's fact. Get a new nutrition fact every day with Masar Premium.",
+    "upsellTitle": "Fresh nutrition facts in Masarak Premium",
+    "upsellMessage": "You enjoyed your first day's fact. Get a new nutrition fact every day with Masarak Premium.",
     "archiveTitle": "Tips archive",
     "modalTitle": "Today's tip",
     "categories": {
@@ -1030,13 +1030,13 @@
     "logTime": "Log time",
     "persistNote": "Every session is saved permanently, and keeps counting even if you leave the page or close the device and come back later.",
     "studyReportEmpty": "No study sessions yet. Run the timer in study mode.",
-    "studyReportUpsellTitle": "Study report in Masar Premium",
+    "studyReportUpsellTitle": "Study report in Masarak Premium",
     "studyReportUpsellMessage": "Track the details of your study sessions and your progress, organized across days.",
     "generalReportTitle": "General report",
     "generalReportEmpty": "No general sessions yet. Run the timer in general activity mode.",
-    "generalReportUpsellTitle": "General report in Masar Premium",
+    "generalReportUpsellTitle": "General report in Masarak Premium",
     "generalReportUpsellMessage": "See the details of all your general focus sessions and how they're distributed across days.",
-    "challengeUpsellTitle": "Challenge in Masar Premium",
+    "challengeUpsellTitle": "Challenge in Masarak Premium",
     "challengeUpsellMessage": "Compete against realistic challenge characters with your daily focus time, and see your ranking among them.",
     "wellDone": "Well done! 🎉",
     "endTimeQuestion": "Should we log it with the current end time, or would you like to set a different time?",
@@ -1180,7 +1180,7 @@
     "colorsSaveFailed": "Couldn't save custom colors, please try again",
     "sectionColorSaveFailed": "Couldn't save the section color, please try again",
     "soundSaveFailed": "Couldn't save the sound setting, please try again",
-    "unlimitedCategoriesUpsell": "Create unlimited categories with Masar Premium",
+    "unlimitedCategoriesUpsell": "Create unlimited categories with Masarak Premium",
     "categoryAdded": "Category added",
     "categorySaveFailed": "Couldn't save the category, please try again",
     "categoryNameEmpty": "Category name can't be empty",
@@ -1215,19 +1215,19 @@
     "defaultGold": "Default (gold)",
     "colorSwatchAria": "Color option {{color}}",
     "notifications": "Notifications",
-    "notifNote": "Turn on notifications so Masar can remind you to drink water and log your meals.",
+    "notifNote": "Turn on notifications so Masarak can remind you to drink water and log your meals.",
     "notifOnTurnOff": "Notifications on — Turn off",
     "enableNotif": "Enable notifications",
     "notifStatus": {
       "unsupported": { "title": "Not supported on this device", "desc": "Your browser or device doesn't support notifications, unfortunately." },
-      "installRequired": { "title": "Install the app first", "desc": "On iPhone/iPad you need to install Masar to your home screen first before you can enable notifications.", "steps": "Share → Add to Home Screen → open Masar from its new icon → then enable notifications from here." },
-      "permissionRequired": { "title": "Not enabled yet", "desc": "Turn them on so Masar can remind you about important things." },
-      "enabled": { "title": "Enabled", "desc": "You'll receive Masar notifications on this device." },
+      "installRequired": { "title": "Install the app first", "desc": "On iPhone/iPad you need to install Masarak to your home screen first before you can enable notifications.", "steps": "Share → Add to Home Screen → open Masarak from its new icon → then enable notifications from here." },
+      "permissionRequired": { "title": "Not enabled yet", "desc": "Turn them on so Masarak can remind you about important things." },
+      "enabled": { "title": "Enabled", "desc": "You'll receive Masarak notifications on this device." },
       "failed": { "title": "Didn't complete", "desc": "We tried to enable this but it didn't finish. Try again." },
       "retry": "Try again"
     },
     "soundEffects": "Sound effects",
-    "soundNote": "Short, very soft sounds only for meaningful moments (logging a prayer, reaching a goal, completing a challenge) — no sound for ordinary button presses. Off by default, since Masar may be used in quiet places like prayer or study.",
+    "soundNote": "Short, very soft sounds only for meaningful moments (logging a prayer, reaching a goal, completing a challenge) — no sound for ordinary button presses. Off by default, since Masarak may be used in quiet places like prayer or study.",
     "soundOff": "Off",
     "soundOn": "On",
     "replayTour": "Replay the onboarding tour",
@@ -1239,20 +1239,20 @@
     "locked": "Locked",
     "yourCategories": "Your categories",
     "newCategoryPlaceholder": "New category name...",
-    "categoriesUpsellTitle": "Unlimited categories with Masar Premium",
+    "categoriesUpsellTitle": "Unlimited categories with Masarak Premium",
     "categoriesUpsellMessage": "Organize your activities with as many colorful categories as your life needs.",
     "pointsLog": "Points log"
   },
   "subscription": {
     "subscribeInstagram": "Subscribe now via Instagram",
     "vipTitle": "Your VIP Membership",
-    "activeTitle": "Your Masar Subscription",
-    "inactiveTitle": "Subscribe to Masar",
+    "activeTitle": "Your Masarak Subscription",
+    "inactiveTitle": "Subscribe to Masarak",
     "vipSub": "A permanent premium membership, with no expiration date 👑",
     "activeSub": "Active {{plan}} subscription",
     "planMonthly": "monthly",
     "planYearly": "yearly",
-    "inactiveSub": "Unlock everything Masar offers, at the lowest cost",
+    "inactiveSub": "Unlock everything Masarak offers, at the lowest cost",
     "endsOn": "Ends on",
     "monthly": "Monthly",
     "yearly": "Yearly"
@@ -1454,7 +1454,7 @@
     "productAdded": "Product added successfully",
     "logFoodFirst": "Log some foods today first so I can analyze your eating pattern.",
     "analysisFailed": "Couldn't analyze today's nutrition right now, try again shortly.",
-    "notifNote": "Enable notifications so Masar can remind you to drink water and log your meals.",
+    "notifNote": "Enable notifications so Masarak can remind you to drink water and log your meals.",
     "kcal": "kcal",
     "dailyGoal": "Daily goal: {{tee}} kcal",
     "completeYourProfile": "Complete your profile in \"You\" to see your daily goal",
@@ -1528,7 +1528,7 @@
     "noFoodThisDay": "No food logged for this day.",
     "searchByNameOption": "Search by Name",
     "photographMealAi": "Photograph Meal with AI",
-    "premiumBadge": "Masar Premium",
+    "premiumBadge": "Masarak Premium",
     "photographLabelOption": "Photograph Nutrition Label",
     "addNewProductOption": "Add New Product",
     "searchingForProduct": "Searching for the product..."
@@ -1702,7 +1702,7 @@
     "summaryExercisesValue": "{{done}} of {{total}}",
     "shareAchievementBtn": "Share Achievement",
     "shareCardTitle": "I finished my workout today! 💪",
-    "shareIntroLine": "I finished my workout today via Masar 💪",
+    "shareIntroLine": "I finished my workout today via Masarak 💪",
     "shareCopiedImage": "Achievement image copied",
     "shareCopiedText": "Achievement text copied",
     "shareDownloaded": "Achievement image downloaded",
@@ -1877,7 +1877,7 @@
     "draftAvailableBadge": "Draft ready for review",
     "draftBannerTitle": "Draft - not yet approved",
     "draftBannerMessage": "This content is a first draft awaiting review and approval by a nutrition specialist. It is not shown to regular users and is not final.",
-    "structureOnlyNotice": "This system was added as a ready structure inside Masar, and awaits its scientific content being filled in by a nutrition specialist before being shown in full.",
+    "structureOnlyNotice": "This system was added as a ready structure inside Masarak, and awaits its scientific content being filled in by a nutrition specialist before being shown in full.",
     "viewSystem": "View details",
     "backToList": "All systems",
     "overview": "What is it?",
@@ -1934,8 +1934,8 @@
     "suggestAlternativeBtn": "Suggest an alternative",
     "alternativeFailed": "Couldn't suggest an alternative right now, try again",
     "alternativeDisclaimer": "A guided suggestion based on your chosen system's principles, not professional nutrition advice.",
-    "premiumRequiredTitle": "Build your personal plan in Masar Premium",
-    "premiumRequiredMessage": "Subscribe to Masar Premium so AI can build you a personal diet plan within the principles of the system you choose, get smart alternatives, and track your adherence."
+    "premiumRequiredTitle": "Build your personal plan in Masarak Premium",
+    "premiumRequiredMessage": "Subscribe to Masarak Premium so AI can build you a personal diet plan within the principles of the system you choose, get smart alternatives, and track your adherence."
   },
   "nutritionPlan": {
     "heroTitle": "Nutrition Plan",
@@ -2001,8 +2001,8 @@
     "deletePlanConfirm": "Delete your current nutrition plan?",
     "planDeleted": "Plan deleted",
     "deleteFailedGeneric": "Couldn't delete, try again",
-    "premiumRequiredTitle": "Meal suggestions and daily tips in Masar Premium",
-    "premiumRequiredMessage": "Subscribe to Masar Premium so AI can suggest actual food items within your plan's numbers, and give you a daily nutrition tip based on your real data.",
+    "premiumRequiredTitle": "Meal suggestions and daily tips in Masarak Premium",
+    "premiumRequiredMessage": "Subscribe to Masarak Premium so AI can suggest actual food items within your plan's numbers, and give you a daily nutrition tip based on your real data.",
     "noEntriesToday": "No meals logged yet today",
     "noAdviceYet": "Tap \"Refresh today's tip\" to get your first tip."
   },
@@ -2039,7 +2039,7 @@
       "cancelledDraft": "Cancelled.",
       "invalidConfirm": "Please complete the remaining nutrition info, at least calories, before saving.",
       "processingAI": "Understanding your request with AI...",
-      "needsSubscriptionForAI": "Understanding any free-form phrasing requires a Masar Premium subscription. Try one of the supported fixed phrases, like: open Nutrition, or add a cup of water.",
+      "needsSubscriptionForAI": "Understanding any free-form phrasing requires a Masarak Premium subscription. Try one of the supported fixed phrases, like: open Nutrition, or add a cup of water.",
       "unrecognized": "I didn't understand that command. Available commands: open a section like Nutrition or Fitness, add a cup of water, log an amount, unit, and food name, or say confirm.",
       "waitingNext": "Waiting for your next command...",
       "sessionTimedOut": "The listening session ended due to inactivity. Press the mic button to start a new session.",

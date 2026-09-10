@@ -852,7 +852,7 @@ export default function VaultView({ showToast }) {
         @media print{ body{padding-top:40px} .back-btn{display:none !important} }
       </style></head><body>
       <button class="back-btn" onclick="window.close(); setTimeout(function(){ window.location.href='${appUrl}'; }, 250);">${isEn ? "✕ Close" : "✕ إغلاق والعودة"}</button>
-      <div class="brand"><img src="${logoUrl}" alt="مسار" /><span>${isEn ? "Masar" : "مسار"}</span></div>
+      <div class="brand"><img src="${logoUrl}" alt="مسارك" /><span>${isEn ? "Masarak" : "مسارك"}</span></div>
       <h1>${t("vault.pdfTitle")}</h1>
       <div class="meta">${periodLabel}</div>
       <div class="kpis">
@@ -865,7 +865,7 @@ export default function VaultView({ showToast }) {
       <h2>${t("vault.spendByCategory")}</h2>
       <table><tr><th>${t("vault.category")}</th><th>${t("vault.amount")}</th></tr>${catRows || `<tr><td colspan=2>${t("common.states.noDataYet")}</td></tr>`}</table>
       ${budgetRows.length > 0 ? `<h2>${t("vault.budgetsTitle")}</h2><table><tr><th>${t("vault.category")}</th><th>${t("vault.pdfSpent")}</th><th>${t("vault.pdfBudget")}</th></tr>${budgetRowsHtml}</table>` : ""}
-      <div class="footer">${isEn ? "Masar · Your personal tool for time and self-development" : "مسار · أداتك الشخصية للوقت وتطوير الذات"} · ${arabicDate(localDayKey(), { day: "numeric", month: "long", year: "numeric" }, isEn ? "en-US" : undefined)}</div>
+      <div class="footer">${isEn ? "Masarak · Your personal tool for time and self-development" : "مسارك · أداتك الشخصية للوقت وتطوير الذات"} · ${arabicDate(localDayKey(), { day: "numeric", month: "long", year: "numeric" }, isEn ? "en-US" : undefined)}</div>
       </body></html>`;
     const win = window.open("", "_blank");
     if (win) { win.document.write(html); win.document.close(); }

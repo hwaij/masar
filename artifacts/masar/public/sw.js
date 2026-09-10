@@ -17,7 +17,7 @@ self.addEventListener("fetch", () => {});
 self.addEventListener("push", (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch { data = {}; }
-  const title = data.title || "مسار";
+  const title = data.title || "مسارك";
   const isEnglish = data.lang === "en";
   const options = {
     body: data.body || "",

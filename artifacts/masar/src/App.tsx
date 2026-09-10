@@ -40,8 +40,8 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
           </div>
           <div style={{ fontSize: 13, color: "#8A8782", maxWidth: 320, lineHeight: 1.7 }}>
             {isEn
-              ? "Couldn't load Masar right now. Try refreshing the page, and if the problem continues, contact us."
-              : "تعذّر تحميل مسار الآن. جرّب تحديث الصفحة، وإذا استمرت المشكلة تواصل معنا."}
+              ? "Couldn't load Masarak right now. Try refreshing the page, and if the problem continues, contact us."
+              : "تعذّر تحميل مسارك الآن. جرّب تحديث الصفحة، وإذا استمرت المشكلة تواصل معنا."}
           </div>
           <button
             onClick={() => window.location.reload()}

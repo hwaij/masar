@@ -259,7 +259,7 @@ function buildSmartPrompt(rawText, lang) {
   const escaped = String(rawText || "").replace(/"/g, '\\"');
   const shape = `{"action":"navigate"|"add_water"|"log_food"|"confirm"|"cancel"|"end_session"|"read_status"|"read_tip"|"read_page"|"log_prayer"|"next_prayer_query"|"prayer_time_query"|"unclear","target":"today"|"prayer"|"adhkar"|"tips"|"you"|"nutrition"|"nutritionPlan"|"dietPlans"|"fitness"|"focus"|"tasks"|"goals"|"vault"|"reports"|"groups"|"assistant"|"achieve"|"settings"|"home"|null,"food_name":string|null,"quantity":number|null,"unit":"g"|"ml"|"piece"|null,"prayer":"fajr"|"dhuhr"|"asr"|"maghrib"|"isha"|null}`;
   if (lang === "en") {
-    return `Convert the following spoken voice command (real transcribed speech, may be phrased any way, in English or Arabic, any Arabic dialect) into ONLY a structured JSON object representing the user's intent inside the "Masar" app (a personal wellbeing app covering nutrition, fitness, prayer, remembrance/adhkar, tasks, goals, a personal finance vault, reports, focus/study, and an AI assistant). Return no extra text or markdown, in exactly this shape:
+    return `Convert the following spoken voice command (real transcribed speech, may be phrased any way, in English or Arabic, any Arabic dialect) into ONLY a structured JSON object representing the user's intent inside the "Masarak" app (a personal wellbeing app covering nutrition, fitness, prayer, remembrance/adhkar, tasks, goals, a personal finance vault, reports, focus/study, and an AI assistant). Return no extra text or markdown, in exactly this shape:
 ${shape}
 
 Rules:
@@ -281,7 +281,7 @@ Spoken text: "${escaped}"
 
 Return only a valid JSON object in exactly that shape, with no explanation.`;
   }
-  return `حوّل الأمر الصوتي التالي (نص منطوق حقيقي من تعرّف صوتي، قد يكون بأي صياغة أو لهجة عربية، أو إنجليزياً) إلى كائن JSON منظَّم فقط يمثّل نيّة المستخدم داخل تطبيق "مسار" (تطبيق شامل للعناية بالحياة اليومية: التغذية، الرياضة، الصلاة، الأذكار، المهام، الأهداف، خزنة مالية شخصية، التقارير، التركيز/الدراسة، ومساعد ذكي). بلا أي نص أو markdown إضافي، بهذا الشكل بالضبط:
+  return `حوّل الأمر الصوتي التالي (نص منطوق حقيقي من تعرّف صوتي، قد يكون بأي صياغة أو لهجة عربية، أو إنجليزياً) إلى كائن JSON منظَّم فقط يمثّل نيّة المستخدم داخل تطبيق "مسارك" (تطبيق شامل للعناية بالحياة اليومية: التغذية، الرياضة، الصلاة، الأذكار، المهام، الأهداف، خزنة مالية شخصية، التقارير، التركيز/الدراسة، ومساعد ذكي). بلا أي نص أو markdown إضافي، بهذا الشكل بالضبط:
 ${shape}
 
 القواعد:

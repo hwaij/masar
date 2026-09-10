@@ -764,12 +764,12 @@ export function describeCameraError(err, lang = "ar") {
   if (name === "NotAllowedError" || name === "PermissionDeniedError") {
     if (en) {
       return isIOS
-        ? "It looks like camera access is disabled. On your iPhone: Settings → Masar (or Safari if the app isn't installed on your home screen) → enable camera access, then try again."
-        : "It looks like camera access is disabled. On your device: Settings → Apps → Masar (or your browser) → Permissions → enable camera access, then try again.";
+        ? "It looks like camera access is disabled. On your iPhone: Settings → Masarak (or Safari if the app isn't installed on your home screen) → enable camera access, then try again."
+        : "It looks like camera access is disabled. On your device: Settings → Apps → Masarak (or your browser) → Permissions → enable camera access, then try again.";
     }
     return isIOS
-      ? "يبدو أن إذن الكاميرا معطّل. من إعدادات آيفون: الإعدادات ← مسار (أو Safari إن لم يكن التطبيق مثبّتاً على شاشتك الرئيسية) ← فعّل إذن الكاميرا، ثم أعد المحاولة."
-      : "يبدو أن إذن الكاميرا معطّل. من إعدادات جهازك: الإعدادات ← التطبيقات ← مسار (أو المتصفح) ← الأذونات ← فعّل إذن الكاميرا، ثم أعد المحاولة.";
+      ? "يبدو أن إذن الكاميرا معطّل. من إعدادات آيفون: الإعدادات ← مسارك (أو Safari إن لم يكن التطبيق مثبّتاً على شاشتك الرئيسية) ← فعّل إذن الكاميرا، ثم أعد المحاولة."
+      : "يبدو أن إذن الكاميرا معطّل. من إعدادات جهازك: الإعدادات ← التطبيقات ← مسارك (أو المتصفح) ← الأذونات ← فعّل إذن الكاميرا، ثم أعد المحاولة.";
   }
   if (name === "NotFoundError" || name === "DevicesNotFoundError") {
     return en

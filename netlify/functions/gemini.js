@@ -77,7 +77,7 @@ async function requireActiveSubscriber(accessToken) {
     const sub = Array.isArray(rows) ? rows[0] : rows;
     const today = new Date().toISOString().slice(0, 10);
     const active = !!sub && (sub.is_vip === true || (sub.is_subscriber === true && sub.subscription_end && sub.subscription_end >= today));
-    if (!active) return { ok: false, status: 403, error: "هذه الميزة متاحة لمشتركي مسار الكامل. اشترك الآن لتفعيلها." };
+    if (!active) return { ok: false, status: 403, error: "هذه الميزة متاحة لمشتركي مسارك الكامل. اشترك الآن لتفعيلها." };
     return { ok: true };
   } catch (e) {
     console.error("[gemini] subscription check failed:", e);

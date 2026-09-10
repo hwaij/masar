@@ -131,8 +131,8 @@ exports.handler = async (event) => {
   }
   const notificationPayload = JSON.stringify(
     lang === "en"
-      ? { title: "🎉 Notifications are working!", body: "You'll get Masar reminders here.", url: "/settings" }
-      : { title: "🎉 الإشعارات تعمل!", body: "ستصلك تذكيرات مسار من هنا.", url: "/settings" },
+      ? { title: "🎉 Notifications are working!", body: "You'll get Masarak reminders here.", url: "/settings" }
+      : { title: "🎉 الإشعارات تعمل!", body: "ستصلك تذكيرات مسارك من هنا.", url: "/settings" },
   );
 
   let subscriptions;

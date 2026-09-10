@@ -104,8 +104,8 @@ const MESSAGES = {
     en: () => ({ title: "💧 Time for some water?", body: "Don't forget to stay hydrated today." }),
   },
   meals: {
-    ar: (ctx) => ({ title: "🍽️ وجبتك بانتظارك", body: `يمكنك تسجيل ${ctx?.mealLabel || "وجبتك"} في مسار متى ناسبك.` }),
-    en: (ctx) => ({ title: "🍽️ Your meal awaits", body: `You can log ${ctx?.mealLabel || "your meal"} in Masar whenever it suits you.` }),
+    ar: (ctx) => ({ title: "🍽️ وجبتك بانتظارك", body: `يمكنك تسجيل ${ctx?.mealLabel || "وجبتك"} في مسارك متى ناسبك.` }),
+    en: (ctx) => ({ title: "🍽️ Your meal awaits", body: `You can log ${ctx?.mealLabel || "your meal"} in Masarak whenever it suits you.` }),
   },
   // فئة النوم لها متغيّران بحسب context.variant (Priority 3): "bedtime" وقت
   // النوم المخطَّط (تذكير فقط - لا يعرف مسار متى ينام المستخدم فعلياً)،
@@ -128,8 +128,8 @@ const MESSAGES = {
     en: () => ({ title: "📖 A moment with the Quran", body: "A quiet moment for some dhikr or reading, if you'd like." }),
   },
   tasks: {
-    ar: () => ({ title: "✅ مهامك اليوم", body: "لديك مهام لم تُنجَز بعد في مسار." }),
-    en: () => ({ title: "✅ Today's tasks", body: "You have some tasks still open in Masar." }),
+    ar: () => ({ title: "✅ مهامك اليوم", body: "لديك مهام لم تُنجَز بعد في مسارك." }),
+    en: () => ({ title: "✅ Today's tasks", body: "You have some tasks still open in Masarak." }),
   },
   // "reached": وصل هدفه اليومي بالفعل. "near": بلغ 80% فأكثر لكن لم يصل بعد -
   // ctx.remaining هو الرقم الفعلي المتبقي لهذا المستخدم تحديداً (رسالة

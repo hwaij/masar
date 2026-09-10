@@ -47,6 +47,7 @@ import {
 } from "../lib/helpers";
 import { isolateNumbers } from "../lib/bidi";
 import { S } from "../components/styles";
+import { Button, Card } from "../components/ui";
 import NumericValue from "../components/NumericValue";
 import DayWheel from "../components/DayWheel";
 // محمَّلة عند الطلب فقط (React.lazy) لا مع الحزمة الرئيسية: هذه أقسام
@@ -2033,22 +2034,22 @@ function TodayView({ date, setDate, entries, setEntries, categories, setCategori
       </div>
 
       {mandatoryVisible.length > 0 && (
-        <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, padding: "10px 12px", marginBottom: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--gold)" }}>{t("todayView.dailyMandatoryTitle")}</span>
-            <span style={{ fontSize: 11, color: mandatoryDoneCount === mandatoryVisible.length ? "#5FA8A0" : "var(--muted2)", direction: "ltr" }}>{mandatoryDoneCount}/{mandatoryVisible.length}</span>
+        <Card padding="md" style={{ marginBottom: "var(--space-3)" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--space-2)" }}>
+            <span style={{ fontSize: "var(--text-sm)", fontWeight: "var(--font-bold)", color: "var(--gold)" }}>{t("todayView.dailyMandatoryTitle")}</span>
+            <span style={{ fontSize: "var(--text-xs)", color: mandatoryDoneCount === mandatoryVisible.length ? "var(--success)" : "var(--muted2)", direction: "ltr" }}>{mandatoryDoneCount}/{mandatoryVisible.length}</span>
           </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}>
             {mandatoryVisible.map((task) => {
               const done = !!todayMandatory[task.key];
               return (
-                <button key={task.key} onClick={() => toggleMandatoryToday(task)} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", borderRadius: 20, border: done ? "1px solid rgba(95,168,160,0.5)" : "1px solid var(--line)", background: done ? "rgba(95,168,160,0.1)" : "transparent", color: done ? "#5FA8A0" : "var(--muted2)", fontSize: 12, cursor: "pointer", fontFamily: "inherit", textDecoration: done ? "line-through" : "none" }}>
+                <button key={task.key} onClick={() => toggleMandatoryToday(task)} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", borderRadius: "var(--radius-pill)", border: done ? "1px solid var(--success-border)" : "1px solid var(--line)", background: done ? "var(--success-soft)" : "transparent", color: done ? "var(--success)" : "var(--muted2)", fontSize: "var(--text-sm)", cursor: "pointer", fontFamily: "inherit", textDecoration: done ? "line-through" : "none" }}>
                   <span>{task.icon}</span><span>{mandatoryTaskLabel(task, t)}</span>
                 </button>
               );
             })}
           </div>
-        </div>
+        </Card>
       )}
 
       <div style={S.wheelSection} className="masar-hero-graphic" data-tour="today-daywheel">
@@ -2115,10 +2116,10 @@ function TodayView({ date, setDate, entries, setEntries, categories, setCategori
 
       <div style={S.entryListHeader}>
         <span>{t("todayView.log")}</span>
-        <button onClick={() => { setEditingEntry(null); setModalOpen(true); }} style={S.addBtn} data-tour="today-add-activity"><Plus size={16} /><span>{t("todayView.addActivity")}</span></button>
+        <Button variant="primary" size="sm" icon={<Plus size={16} />} onClick={() => { setEditingEntry(null); setModalOpen(true); }} data-tour="today-add-activity">{t("todayView.addActivity")}</Button>
       </div>
       <div style={S.entryList} className="stagger-in responsive-card-list">
-        {dayEntries.length === 0 && <div style={S.emptyState}><div style={S.emptyStateTitle}>{t("todayView.startYourDay")}</div><div style={S.emptyStateSub}>{t("todayView.emptyStateSub")}</div></div>}
+        {dayEntries.length === 0 && <Card padding="lg" style={{ textAlign: "center", color: "var(--muted)" }}><div style={S.emptyStateTitle}>{t("todayView.startYourDay")}</div><div style={S.emptyStateSub}>{t("todayView.emptyStateSub")}</div></Card>}
         {dayEntries.map((e) => {
           const cat = catMap[e.catId] || { name: t("todayView.unspecified"), color: "#9A968F" };
           async function adjustMins(delta) {
@@ -2131,7 +2132,7 @@ function TodayView({ date, setDate, entries, setEntries, categories, setCategori
             if (!res.ok) { setEntries((prev) => prev.map((x) => x.id === e.id ? e : x)); showToast(t("common.errors.saveFailed")); }
           }
           return (
-            <div key={e.id} style={S.entryRow} onClick={() => { setEditingEntry(e); setModalOpen(true); }}>
+            <Card key={e.id} padding="md" interactive style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }} onClick={() => { setEditingEntry(e); setModalOpen(true); }}>
               <span style={{ ...S.entryBar, background: cat.color }} />
               <div style={S.entryInfo}><div style={S.entryName}>{catDisplayName(cat, language)}</div>{e.note && <div style={S.entryNote}>{e.note}</div>}</div>
               <div style={S.entryTime}><div style={S.entryDuration}>{fmtHM(diffMinutes(e.start, e.end), language)}</div></div>
@@ -2140,21 +2141,21 @@ function TodayView({ date, setDate, entries, setEntries, categories, setCategori
                 <button onClick={() => adjustMins(2)} style={{ ...S.deleteBtn, fontSize: 12, color: "#C9A24B" }}>+2</button>
                 <button onClick={(ev) => { ev.stopPropagation(); deleteEntry(e.id); }} aria-label={t("todayView.deleteEntryAria")} style={S.deleteBtn}><Trash2 size={14} aria-hidden="true" /></button>
               </div>
-            </div>
+            </Card>
           );
         })}
       </div>
 
       {dayTasks.length > 0 && (
-        <div style={S.quickTasks}>
+        <Card padding="md">
           <div style={S.quickTasksTitle}>{t("todayView.todaysTasks")}</div>
           {dayTasks.map((qt) => (
             <div key={qt.id} style={S.quickTaskRow} onClick={() => toggleTask(qt)}>
-              <span style={{ ...S.checkbox, ...(qt.done ? S.checkboxDone : {}) }}>{qt.done && <Check size={12} />}</span>
+              <span style={{ ...S.checkbox, ...(qt.done ? { background: "var(--success)", borderColor: "var(--success)" } : {}) }}>{qt.done && <Check size={12} />}</span>
               <span style={{ ...S.quickTaskText, ...(qt.done ? S.quickTaskTextDone : {}) }}>{qt.title}</span>
             </div>
           ))}
-        </div>
+        </Card>
       )}
 
       {modalOpen && <EntryModal entry={editingEntry} date={date} categories={categories} onSave={saveEntry} onClose={() => { setModalOpen(false); setEditingEntry(null); }} />}

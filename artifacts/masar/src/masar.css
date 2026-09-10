@@ -20,6 +20,74 @@
   /* لون نص/أيقونة ثابت على الشارات والأزرار الذهبية دائماً — لا يتغيّر
      بين الوضعين عمداً لأن خلفيتها (الذهبي) نفسها لا تتغيّر بنفس المنطق. */
   --on-accent: #0A0A0B;
+
+  /* لون ثانوي (أزرق مستوحى من تدرّج اللوقو الجديد) - يكمّل الذهبي الأساسي
+     دون منافسته، لأي عنصر يحتاج تمييزاً بصرياً ثانياً (مثال: فئة "ثانوية"
+     من الأزرار، أو تمييز حالة مقابل الحالة الذهبية الافتراضية). #6FA8DC
+     نفسه مُستخدَم أصلاً في أماكن متفرّقة بالتطبيق (ألوان أقسام التغذية/
+     الصحة النفسية) - هذا يُثبّته رسمياً كـtoken بدل قيمة متكررة يدوياً. */
+  --secondary: #6FA8DC;
+  --secondary-soft: rgba(111,168,220,0.12);
+  --secondary-border: rgba(111,168,220,0.35);
+
+  /* ظلال خفيفة جداً على الخلفيات الداكنة (الأسود لا يُظهر ظلالاً تقليدية
+     بوضوح) - تُستخدَم فقط لفصل بصري خفيف جداً للبطاقات المرتفعة، لا
+     "عمق" درامي. */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.35);
+  --shadow-md: 0 4px 14px rgba(0,0,0,0.38);
+  --shadow-lg: 0 10px 28px rgba(0,0,0,0.42);
+}
+
+/* ============================================================
+   Design Tokens عامة (لا تتغيّر بين الأوضاع) - مرحلة تأسيس نظام تصميم
+   موحّد: مقياس تباعد، حواف دائرية، وطباعة، بمعزل عن الألوان (المُعرَّفة
+   لكل وضع أعلاه/أدناه). أي مكوّن جديد أو مُعاد تصميمه يعتمد على هذه القيم
+   بدل أرقام حرة متكررة، حتى يبقى أي تعديل مستقبلي بمكان واحد. القيم
+   مبنية على الأنماط المتكررة أصلاً بالتطبيق (8/10/12/14/16/20px حواف،
+   11-15px نصوص) لا مقياساً مختلفاً يكسر الشكل الحالي بلا داعٍ. */
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-pill: 999px;
+
+  --text-xs: 11px;
+  --text-sm: 12.5px;
+  --text-base: 14px;
+  --text-md: 15px;
+  --text-lg: 17px;
+  --text-xl: 20px;
+  --text-2xl: 26px;
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.75;
+  --font-regular: 400;
+  --font-medium: 600;
+  --font-bold: 700;
+
+  /* ألوان الحالة (نجاح/تحذير/خطأ) - تثبيت رسمي لقيم كانت مبعثرة بأماكن
+     متعددة بنفس الأرقام تقريباً (مثال: #5FA8A0 للنجاح، #D17B5F للخطأ) -
+     لا تتغيّر بين الأوضاع لأنها ألوان دلالية عالمية (أخضر=نجاح، أحمر=خطر)
+     تحافظ على تباين كافٍ في الوضعين الداكن والفاتح كما هي. */
+  --success: #5FA8A0;
+  --success-soft: rgba(95,168,160,0.1);
+  --success-border: rgba(95,168,160,0.35);
+  --warning: var(--gold);
+  --warning-soft: rgba(201,162,75,0.1);
+  --warning-border: rgba(201,162,75,0.35);
+  --danger: #D17B5F;
+  --danger-soft: rgba(209,123,95,0.1);
+  --danger-border: rgba(209,123,95,0.35);
 }
 
 /* الوضع الفاتح: لوحة ألوان مصمّمة خصيصاً للقراءة على خلفية بيضاء دافئة،
@@ -45,6 +113,14 @@
   --warm-tint: #FBF3E4;
   --warm-border: #E8D9B5;
   --header-bg: rgba(247,245,240,0.92);
+  /* أزرق أعمق قليلاً من قيمة الوضع الداكن (#6FA8DC) لأنه فوق خلفية فاتحة
+     يحتاج تبايناً أعلى ليقرأ بوضوح كنص/حد، بنفس منطق تعميق الذهبي أعلاه. */
+  --secondary: #3E7CB8;
+  --secondary-soft: rgba(62,124,184,0.1);
+  --secondary-border: rgba(62,124,184,0.3);
+  --shadow-sm: 0 1px 2px rgba(43,38,33,0.06);
+  --shadow-md: 0 4px 14px rgba(43,38,33,0.08);
+  --shadow-lg: 0 10px 28px rgba(43,38,33,0.1);
 }
 
 /* ثيم "وردي" (Batch 2 - Item 4): نفس فلسفة الوضع الفاتح أعلاه (خلفية فاتحة
@@ -67,6 +143,12 @@
   --warm-tint: #FFF0F5;
   --warm-border: #F2CFE0;
   --header-bg: rgba(253,243,246,0.92);
+  --secondary: #3E7CB8;
+  --secondary-soft: rgba(62,124,184,0.1);
+  --secondary-border: rgba(62,124,184,0.3);
+  --shadow-sm: 0 1px 2px rgba(58,37,48,0.06);
+  --shadow-md: 0 4px 14px rgba(58,37,48,0.08);
+  --shadow-lg: 0 10px 28px rgba(58,37,48,0.1);
 }
 
 /* ثيم "أزرق" (Batch 2 - Item 4): نفس المبدأ بدرجة زرقاء باردة. */
@@ -86,6 +168,15 @@
   --warm-tint: #EAF3FB;
   --warm-border: #C9E0F0;
   --header-bg: rgba(241,246,251,0.92);
+  /* هنا الأساسي نفسه أزرق، فالثانوي يأخذ لوناً دافئاً مكمّلاً (كهرماني)
+     بدل تكرار نفس العائلة اللونية، حتى يبقى الفرق البصري بين "أساسي/ثانوي"
+     مفيداً فعلياً بدل تدرّجين متشابهين. */
+  --secondary: #C9A24B;
+  --secondary-soft: rgba(201,162,75,0.1);
+  --secondary-border: rgba(201,162,75,0.3);
+  --shadow-sm: 0 1px 2px rgba(30,42,56,0.06);
+  --shadow-md: 0 4px 14px rgba(30,42,56,0.08);
+  --shadow-lg: 0 10px 28px rgba(30,42,56,0.1);
 }
 
 /* إتاحة الوصول: ثلاثة محاور مستقلة تُطبَّق عبر سمات على <html> (راجع
@@ -126,6 +217,14 @@ html[data-theme="dark"][data-contrast="high"] {
   --teal-border: #66E0D0;
   --header-bg: #000000;
   --on-accent: #000000;
+  --secondary: #66E0D0;
+  --secondary-soft: #000000;
+  --secondary-border: #66E0D0;
+  --success: #66E0D0;
+  --danger: #FF8A65;
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
 }
 html[data-theme="light"][data-contrast="high"] {
   --bg: #FFFFFF;
@@ -145,6 +244,50 @@ html[data-theme="light"][data-contrast="high"] {
   --teal-border: #00695C;
   --header-bg: #FFFFFF;
   --on-accent: #FFFFFF;
+  --secondary: #00695C;
+  --secondary-soft: #FFFFFF;
+  --secondary-border: #00695C;
+  --success: #00695C;
+  --danger: #B33A00;
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+}
+
+/* ============================================================
+   مكوّنات مشتركة (Button/Card) - نموذج أولي لمرحلة 1 من تحسين الجماليات.
+   تُستخدَم فقط عبر components/ui.jsx (Button/Card) - لا تُطبَّق تلقائياً
+   على أي زر/بطاقة قديمة بالتطبيق، حتى تبقى هذه المرحلة معزولة بالشاشة
+   النموذجية المتفَق عليها فقط، بانتظار التعميم بمرحلة لاحقة. */
+.ui-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
+  border-radius: var(--radius-md); font-family: inherit; font-weight: var(--font-bold);
+  cursor: pointer; border: 1px solid transparent; white-space: nowrap;
+  transition: transform 0.12s ease, opacity 0.12s ease, filter 0.15s ease, box-shadow 0.15s ease;
+}
+.ui-btn-md { padding: 12px 20px; font-size: var(--text-base); }
+.ui-btn-sm { padding: 8px 14px; font-size: var(--text-sm); }
+.ui-btn-full { width: 100%; }
+.ui-btn-primary { background: var(--gold); color: var(--on-accent); box-shadow: var(--shadow-sm); }
+.ui-btn-primary:hover:not(:disabled) { filter: brightness(1.08); box-shadow: var(--shadow-md); }
+.ui-btn-secondary { background: var(--secondary-soft); color: var(--secondary); border-color: var(--secondary-border); }
+.ui-btn-secondary:hover:not(:disabled) { background: var(--secondary-border); }
+.ui-btn-outline { background: transparent; color: var(--muted2); border-color: var(--border2); }
+.ui-btn-outline:hover:not(:disabled) { background: var(--surface-sunken); color: var(--ink); }
+.ui-btn-danger { background: var(--danger-soft); color: var(--danger); border-color: var(--danger-border); }
+.ui-btn-danger:hover:not(:disabled) { background: var(--danger-border); }
+
+.ui-card {
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm); transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.ui-card-interactive { cursor: pointer; }
+.ui-card-interactive:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+.ui-card-pad-md { padding: var(--space-4); }
+.ui-card-pad-lg { padding: var(--space-5); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-card-interactive:hover { transform: none; }
 }
 
 * { box-sizing: border-box; }

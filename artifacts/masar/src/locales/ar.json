@@ -1402,6 +1402,8 @@
     "openCameraToScan": "افتح الكاميرا للمسح",
     "productName": "اسم المنتج",
     "autoSuggestedNote": "الاسم مقترح تلقائياً من صورة الملصق - عدّله إن لزم.",
+    "identifyNameFromPhoto": "تعرّف على الاسم من صورة الشعار (اختياري)",
+    "aiNameNotFound": "تعذّر قراءة اسم واضح من الصورة. اكتب الاسم يدوياً.",
     "productPhotoOptional": "صورة المنتج (اختياري)",
     "removePhoto": "إزالة الصورة",
     "optionalStepNote": "هذه الخطوة اختيارية - يمكنك المتابعة بلا صورة (تخطّي).",

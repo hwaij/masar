@@ -15,7 +15,7 @@ import {
   fetchProductByBarcode, searchProductsByName, searchUSDAFoods, scaleNutrients,
   sumNutritionEntries, waterGoalCups, servingPresets, quantityInProductBasis,
   isSecureContextForCamera, describeCameraError,
-  normalizeSearchTerm, recognizeMealFromImage, readNutritionLabel,
+  normalizeSearchTerm, recognizeMealFromImage, readNutritionLabel, identifyProductNameFromPhoto,
   labelToPer100Product, DAILY_GUIDELINES,
   UNIT_OPTIONS, unitById, unitToGrams, unitServingSize,
   scaleMicronutrients, MICRONUTRIENT_META, personalizedRDI, compressImageToBlob,
@@ -1401,6 +1401,23 @@ function AddProductWizard({ initialBarcode, onSave, onManual, showToast }) {
   const [barcodeMode, setBarcodeMode] = useState("manual");
   const [showScanner, setShowScanner] = useState(false);
   const [name, setName] = useState("");
+  // الاستثناء الوحيد المسموح لـAI هنا: تعرّف على اسم المنتج فقط من صورة
+  // شعاره/عبوته (لا أي رقم غذائي) - انظر تعليق identifyProductNameFromPhoto
+  // في lib/nutrition.js. مساعدة اختيارية بحتة، لا تُستبدَل بها الملصق الحقيقي.
+  const [nameIdBusy, setNameIdBusy] = useState(false);
+  const [nameIdError, setNameIdError] = useState(null);
+  const nameIdCameraRef = useRef(null);
+  async function handleIdentifyNamePhoto(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setNameIdError(null);
+    setNameIdBusy(true);
+    const res = await identifyProductNameFromPhoto(file, i18n.language);
+    setNameIdBusy(false);
+    if (!res.ok) { setNameIdError(i18n.language === "en" ? (res.errorEn || res.error) : res.error); return; }
+    if (res.name) setName(res.name);
+    else setNameIdError(t("nutrition.aiNameNotFound"));
+  }
 
   // الخطوة 3: صورة المنتج + التسجيل الاختياري في سجل اليوم
   const [photoFile, setPhotoFile] = useState(null);
@@ -1581,6 +1598,14 @@ function AddProductWizard({ initialBarcode, onSave, onManual, showToast }) {
           {label?.productName && name === label.productName && (
             <p style={NS.unitApproxNote}>{t("nutrition.autoSuggestedNote")}</p>
           )}
+          <input ref={nameIdCameraRef} type="file" accept="image/*" capture="environment" onChange={handleIdentifyNamePhoto} style={{ display: "none" }} />
+          <button onClick={() => nameIdCameraRef.current?.click()} disabled={nameIdBusy} style={{ ...S.exportBtn, marginBottom: 8 }}>
+            {nameIdBusy
+              ? <Loader2 size={14} className="spin" style={{ display: "inline", verticalAlign: "-2px", marginInlineEnd: 6 }} />
+              : <Camera size={14} style={{ display: "inline", verticalAlign: "-2px", marginInlineEnd: 6 }} />}
+            {t("nutrition.identifyNameFromPhoto")}
+          </button>
+          {nameIdError && <p style={NS.unitApproxNote}>{nameIdError}</p>}
           <div style={NS.wizardNavRow}>
             <button onClick={() => setStep(1)} style={NS.wizardBackBtn}>{i18n.language === "en" ? <ChevronLeft size={16} /> : <ChevronRight size={16} />} {t("common.buttons.back")}</button>
             <button onClick={() => setStep(3)} disabled={!step2Valid} style={NS.wizardNextBtn}>{t("common.buttons.next")} {i18n.language === "en" ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}</button>

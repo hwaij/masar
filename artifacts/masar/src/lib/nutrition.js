@@ -973,6 +973,38 @@ Do not include calories, protein, carbs, fat, or any other nutrition value anywh
   }
 }
 
+// الاستثناء الوحيد المسموح لاستخدام AI في مسار الباركود غير الموجود: عندما
+// يفشل custom_foods وOpen Food Facts معاً، يجوز لـGemini المساعدة فقط في
+// تخمين اسم/هوية المنتج من صورة شعاره/عبوته (نفس مبدأ "تعرّف على الهوية
+// فقط" في recognizeMealFromImage أعلاه) لتعبئة حقل الاسم داخل معالج "منتج
+// جديد" - ممنوع نهائياً أي رقم غذائي هنا، القيم الحقيقية تأتي فقط من تصوير
+// الملصق الحقيقي (readNutritionLabel) أو الإدخال اليدوي من نفس الملصق.
+export async function identifyProductNameFromPhoto(imageFile, lang = "ar") {
+  try {
+    const { base64, mimeType } = await compressImageToBase64(imageFile);
+    const prompt = lang === "en"
+      ? `Look at this photo of a packaged product (its logo/brand/front label). Return only valid JSON with no extra text or markdown, in exactly this shape:
+{"name":"string"}
+"name": the product's brand and name only, as specific as you can read from the packaging, in English. If you cannot read a real name, use exactly "" (empty string) — never guess a name you aren't confident about.
+Do not include any calorie or nutrition value anywhere in your answer - product identity only.`
+      : `انظر لهذه الصورة لعبوة منتج (شعاره/اسمه التجاري/واجهته). أرجع فقط JSON صالحاً بدون أي نص أو markdown إضافي، بهذا الشكل بالضبط:
+{"name":"نص"}
+"name": الاسم التجاري للمنتج فقط، بأدق ما تقرأه من العبوة، بالعربية إن كانت مكتوبة عربية وإلا كما تظهر. إن لم تستطع قراءة اسم حقيقي بثقة، استخدم بالضبط "" (نص فارغ) - لا تخمّن اسماً لست واثقاً منه.
+لا تضع أي رقم سعرات أو غذائي في إجابتك إطلاقاً - هوية المنتج فقط.`;
+    const { geminiAnalyzeImage } = await import("./gemini.js");
+    const text = await geminiAnalyzeImage(prompt, base64, mimeType, 200);
+    const parsed = parseJsonLoose(text);
+    const name = typeof parsed.name === "string" ? parsed.name.trim() : "";
+    return { ok: true, name };
+  } catch (e) {
+    console.error("[nutrition] identifyProductNameFromPhoto failed:", e);
+    const chunkError = isChunkLoadError(e);
+    const error = chunkError ? CHUNK_LOAD_ERROR_MESSAGE : "تعذّر التعرّف على اسم المنتج الآن. اكتب الاسم يدوياً.";
+    const errorEn = chunkError ? CHUNK_LOAD_ERROR_MESSAGE_EN : "Couldn't identify the product name right now. Type the name manually.";
+    return { ok: false, error, errorEn };
+  }
+}
+
 // نقطة تكامل معزولة ثانية ومنفصلة تماماً عن recognizeMealFromImage: تلك
 // تقدّر وجبة كاملة بصرياً (تخمين)، بينما هذه تقرأ أرقاماً مطبوعة صريحة على
 // جدول القيم الغذائية (Nutrition Facts) - مهمة مختلفة جوهرياً (قراءة نص لا

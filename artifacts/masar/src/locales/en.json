@@ -1402,6 +1402,8 @@
     "openCameraToScan": "Open camera to scan",
     "productName": "Product name",
     "autoSuggestedNote": "This name was auto-suggested from the label photo — edit if needed.",
+    "identifyNameFromPhoto": "Identify name from a logo photo (optional)",
+    "aiNameNotFound": "Couldn't read a clear name from the photo. Type the name manually.",
     "productPhotoOptional": "Product photo (optional)",
     "removePhoto": "Remove photo",
     "optionalStepNote": "This step is optional — you can continue without a photo (skip).",

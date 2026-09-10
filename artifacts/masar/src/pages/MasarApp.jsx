@@ -3717,12 +3717,12 @@ function SleepView({ sleepLog, setSleepLog, showToast }) {
           <div style={YS.heroSub}>{language === "en" ? "Log your sleep and track your rest pattern over the week." : "سجّل نومك وتابع نمط راحتك خلال الأسبوع."}</div>
         </div>
       </div>
-      <SleepSection sleepLog={sleepLog} setSleepLog={setSleepLog} days={days} range="week" showToast={showToast} />
+      <SleepSection sleepLog={sleepLog} setSleepLog={setSleepLog} days={days} range="week" showToast={showToast} standalone />
     </div>
   );
 }
 
-function SleepSection({ sleepLog, setSleepLog, days, range, showToast }) {
+function SleepSection({ sleepLog, setSleepLog, days, range, showToast, standalone = false }) {
   const { t, i18n } = useTranslation();
   const language = i18n.language;
   const RC = useRecharts();
@@ -3863,14 +3863,160 @@ function SleepSection({ sleepLog, setSleepLog, days, range, showToast }) {
     };
   });
 
+  // standalone=true فقط لشاشة النوم المستقلة الجديدة (SleepView) - يستخدم
+  // Card/Button ونمط dashboard-grid-2. standalone=false (الافتراضي) يبقي
+  // نفس الشكل القديم بالحرف تماماً لاستخدام ReportsView الآخر لهذا المكوّن
+  // نفسه (تبويب الصحة) - تلك شاشة خارج نطاق هذه الدفعة، فلا يجوز أي تغيير
+  // بصري عليها. المنطق/الحالة/الدوال أعلاه مشتركة تماماً بين المسارين.
+  if (!standalone) {
+    return (
+      <div style={S.chartCard}>
+        <div style={S.chartTitle}>{t("sleep.chartTitle")}</div>
+        <p style={{ fontSize: 11, color: "var(--muted2)", lineHeight: 1.6, margin: "-6px 0 12px" }}>{t("sleep.manualTrackingNote")}</p>
+
+        <div style={{ background: "var(--surface-sunken)", borderRadius: 12, padding: "12px 14px", marginBottom: 14 }} data-tour="sleep-plan-card">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--ink)" }}>{t("sleep.tonightPlanTitle")}</div>
+            {!showPlanForm && (
+              <button onClick={() => setShowPlanForm(true)} style={{ background: "transparent", border: "none", color: "var(--gold)", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                {hasPlanToday ? t("sleep.editPlan") : t("sleep.setPlan")}
+              </button>
+            )}
+          </div>
+          {hasPlanToday && !showPlanForm && (
+            <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 6 }}>
+              {isolateNumbers(t("sleep.planSummary", { bedtime: to12h(todayEntry.plannedBedtime), wake: to12h(todayEntry.plannedWakeTime), hours: plannedDurationHours }))}
+            </div>
+          )}
+          {!hasPlanToday && !showPlanForm && <div style={{ fontSize: 12, color: "var(--muted2)", marginTop: 6 }}>{t("sleep.noPlanYet")}</div>}
+          {showPlanForm && (
+            <div style={{ marginTop: 10 }}>
+              <div style={{ display: "flex", gap: 10 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={S.label}>{t("sleep.plannedBedtimeLabel")}</label>
+                  <input type="time" value={planBedtime} onChange={(e) => setPlanBedtime(e.target.value)} style={{ ...S.input, marginTop: 6 }} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={S.label}>{t("sleep.plannedWakeLabel")}</label>
+                  <input type="time" value={planWakeTime} onChange={(e) => setPlanWakeTime(e.target.value)} style={{ ...S.input, marginTop: 6 }} />
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                <button onClick={savePlan} style={{ ...S.saveBtn, marginTop: 0, flex: 1 }}>{t("common.buttons.save")}</button>
+                <button onClick={() => setShowPlanForm(false)} style={{ ...S.exportBtn, marginTop: 0, marginBottom: 0, width: "auto", padding: "0 16px" }}>{t("common.buttons.cancel")}</button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {hasPlanToday && !actualWakeConfirmed && (
+          <div style={{ background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.3)", borderRadius: 12, padding: "12px 14px", marginBottom: 14 }} data-tour="sleep-wake-confirm-card">
+            <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--ink)" }}>{t("sleep.wakeConfirmTitle")}</div>
+            {!showWakeConfirm ? (
+              <button onClick={() => setShowWakeConfirm(true)} style={{ ...S.saveBtn, marginTop: 10 }}>{t("sleep.confirmWakeBtn")}</button>
+            ) : (
+              <div style={{ marginTop: 10 }}>
+                <p style={{ fontSize: 11, color: "var(--muted2)", lineHeight: 1.6, marginBottom: 8 }}>{t("sleep.confirmWakeHint")}</p>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={S.label}>{t("sleep.bedtime")}</label>
+                    <input type="time" value={confirmSleepTime} onChange={(e) => setConfirmSleepTime(e.target.value)} style={{ ...S.input, marginTop: 6 }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={S.label}>{t("sleep.wakeTime")}</label>
+                    <input type="time" value={confirmWakeTime} onChange={(e) => setConfirmWakeTime(e.target.value)} style={{ ...S.input, marginTop: 6 }} />
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                  <button onClick={confirmActualWake} style={{ ...S.saveBtn, marginTop: 0, flex: 1 }}>{t("common.buttons.save")}</button>
+                  <button onClick={() => setShowWakeConfirm(false)} style={{ ...S.exportBtn, marginTop: 0, marginBottom: 0, width: "auto", padding: "0 16px" }}>{t("common.buttons.cancel")}</button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div style={S.dateRow}>
+          <button onClick={() => shiftDay(-1)} style={S.iconBtn} aria-label={t("nutrition.previousDay")}>
+            {i18n.language === "en" ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
+          </button>
+          <div style={S.dateLabel}>
+            {arabicDate(selectedDate, { weekday: "long", day: "numeric", month: "long" }, i18n.language === "en" ? "en-US" : undefined)}
+            {isViewingToday && <span style={S.todayPill}>{t("nav.today")}</span>}
+          </div>
+          <button
+            onClick={() => shiftDay(1)}
+            disabled={isViewingToday}
+            style={{ ...S.iconBtn, ...(isViewingToday ? { opacity: 0.4, cursor: "not-allowed" } : {}) }}
+            aria-label={t("nutrition.nextDay")}
+          >
+            {i18n.language === "en" ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+          </button>
+        </div>
+
+        <div style={S.rangeToggle}>
+          <button onClick={() => setMode("hours")} style={{ ...S.rangeBtn, flex: 1, ...(mode === "hours" ? S.rangeBtnActive : {}) }}>{t("sleep.hoursCount")}</button>
+          <button onClick={() => setMode("times")} style={{ ...S.rangeBtn, flex: 1, ...(mode === "times" ? S.rangeBtnActive : {}) }}>{t("sleep.sleepWakeTimes")}</button>
+        </div>
+
+        {mode === "hours" ? (
+          <>
+            <label style={S.label}>{t("sleep.howManyHours")}</label>
+            <input type="number" step="0.25" min="0" max="24" value={hoursInput} onChange={(e) => setHoursInput(e.target.value)} style={{ ...S.input, marginTop: 6 }} />
+          </>
+        ) : (
+          <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+            <div style={{ flex: 1 }}>
+              <label style={S.label}>{t("sleep.bedtime")}</label>
+              <input type="time" value={sleepTime} onChange={(e) => setSleepTime(e.target.value)} style={{ ...S.input, marginTop: 6 }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={S.label}>{t("sleep.wakeTime")}</label>
+              <input type="time" value={wakeTime} onChange={(e) => setWakeTime(e.target.value)} style={{ ...S.input, marginTop: 6 }} />
+            </div>
+          </div>
+        )}
+        <button onClick={submitEntry} style={{ ...S.saveBtn, marginTop: 12 }}>{selectedEntry ? t("sleep.updateLastNight") : t("sleep.logLastNight")}</button>
+
+        <div style={{ ...S.kpiRow, marginTop: 16 }}>
+          <div style={S.kpiCard}>
+            <div style={S.kpiValue}>{avgHours === null ? "—" : isolateNumbers(`${avgHours.toFixed(1)} ${t("common.units.hours")}`)}</div>
+            <div style={S.kpiLabel}>{t("sleep.averageSleep")}</div>
+          </div>
+          <div style={S.kpiCard}>
+            <div style={S.kpiValue}>{typicalBedtime ? isolateNumbers(to12h(typicalBedtime)) : "—"}</div>
+            <div style={S.kpiLabel}>{t("sleep.usualBedtime")}</div>
+          </div>
+          <div style={S.kpiCard}>
+            <div style={S.kpiValue}>{rating ? rating.emoji : "—"}</div>
+            <div style={S.kpiLabel}>{rating ? rating.label : t("sleep.logToSeeResult")}</div>
+          </div>
+        </div>
+
+        {!RC ? <ChartLoading /> : (
+          <RC.ResponsiveContainer width="100%" height={150}>
+            <RC.BarChart data={chartData} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
+              <RC.CartesianGrid strokeDasharray="2 4" stroke="var(--surface-raised)" vertical={false} />
+              <RC.XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: range === "week" ? 11 : 8, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} interval={range === "week" ? 0 : 3} />
+              <RC.YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
+              <RC.Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [`${v} ${t("common.units.hours")}`, ""]} />
+              <RC.Bar dataKey="hours" radius={[3, 3, 3, 3]} fill="#5FA8A0" maxBarSize={range === "week" ? 28 : 12} isAnimationActive={!reduceMotion} animationDuration={450} />
+            </RC.BarChart>
+          </RC.ResponsiveContainer>
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div style={S.chartCard}>
+    <div className="dashboard-grid-2">
+    <Card padding="md" style={{ marginBottom: "var(--space-4)" }}>
       <div style={S.chartTitle}>{t("sleep.chartTitle")}</div>
       {/* الصدق التقني المطلوب صراحةً: هذا تسجيل يدوي بمساعدة تذكيرات وقتية
           فقط - مسار لا "يعرف" نوم المستخدم تلقائياً بأي شكل. */}
       <p style={{ fontSize: 11, color: "var(--muted2)", lineHeight: 1.6, margin: "-6px 0 12px" }}>{t("sleep.manualTrackingNote")}</p>
 
-      <div style={{ background: "var(--surface-sunken)", borderRadius: 12, padding: "12px 14px", marginBottom: 14 }} data-tour="sleep-plan-card">
+      <div style={{ background: "var(--surface-sunken)", borderRadius: "var(--m-radius-md)", padding: "12px 14px", marginBottom: 14 }} data-tour="sleep-plan-card">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--ink)" }}>{t("sleep.tonightPlanTitle")}</div>
           {!showPlanForm && (
@@ -3898,18 +4044,18 @@ function SleepSection({ sleepLog, setSleepLog, days, range, showToast }) {
               </div>
             </div>
             <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-              <button onClick={savePlan} style={{ ...S.saveBtn, marginTop: 0, flex: 1 }}>{t("common.buttons.save")}</button>
-              <button onClick={() => setShowPlanForm(false)} style={{ ...S.exportBtn, marginTop: 0, marginBottom: 0, width: "auto", padding: "0 16px" }}>{t("common.buttons.cancel")}</button>
+              <Button variant="primary" onClick={savePlan} style={{ flex: 1 }}>{t("common.buttons.save")}</Button>
+              <Button variant="outline" onClick={() => setShowPlanForm(false)}>{t("common.buttons.cancel")}</Button>
             </div>
           </div>
         )}
       </div>
 
       {hasPlanToday && !actualWakeConfirmed && (
-        <div style={{ background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.3)", borderRadius: 12, padding: "12px 14px", marginBottom: 14 }} data-tour="sleep-wake-confirm-card">
+        <div style={{ background: "var(--warning-soft)", border: "1px solid var(--warning-border)", borderRadius: "var(--m-radius-md)", padding: "12px 14px", marginBottom: 14 }} data-tour="sleep-wake-confirm-card">
           <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--ink)" }}>{t("sleep.wakeConfirmTitle")}</div>
           {!showWakeConfirm ? (
-            <button onClick={() => setShowWakeConfirm(true)} style={{ ...S.saveBtn, marginTop: 10 }}>{t("sleep.confirmWakeBtn")}</button>
+            <Button variant="primary" fullWidth onClick={() => setShowWakeConfirm(true)} style={{ marginTop: 10 }}>{t("sleep.confirmWakeBtn")}</Button>
           ) : (
             <div style={{ marginTop: 10 }}>
               <p style={{ fontSize: 11, color: "var(--muted2)", lineHeight: 1.6, marginBottom: 8 }}>{t("sleep.confirmWakeHint")}</p>
@@ -3924,8 +4070,8 @@ function SleepSection({ sleepLog, setSleepLog, days, range, showToast }) {
                 </div>
               </div>
               <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                <button onClick={confirmActualWake} style={{ ...S.saveBtn, marginTop: 0, flex: 1 }}>{t("common.buttons.save")}</button>
-                <button onClick={() => setShowWakeConfirm(false)} style={{ ...S.exportBtn, marginTop: 0, marginBottom: 0, width: "auto", padding: "0 16px" }}>{t("common.buttons.cancel")}</button>
+                <Button variant="primary" onClick={confirmActualWake} style={{ flex: 1 }}>{t("common.buttons.save")}</Button>
+                <Button variant="outline" onClick={() => setShowWakeConfirm(false)}>{t("common.buttons.cancel")}</Button>
               </div>
             </div>
           )}
@@ -3972,9 +4118,12 @@ function SleepSection({ sleepLog, setSleepLog, days, range, showToast }) {
           </div>
         </div>
       )}
-      <button onClick={submitEntry} style={{ ...S.saveBtn, marginTop: 12 }}>{selectedEntry ? t("sleep.updateLastNight") : t("sleep.logLastNight")}</button>
+      <Button variant="primary" fullWidth onClick={submitEntry} style={{ marginTop: 12 }}>{selectedEntry ? t("sleep.updateLastNight") : t("sleep.logLastNight")}</Button>
+    </Card>
 
-      <div style={{ ...S.kpiRow, marginTop: 16 }}>
+    <Card padding="md" style={{ marginBottom: "var(--space-4)" }}>
+      <div style={S.chartTitle}>{t("sleep.chartTitle")}</div>
+      <div style={{ ...S.kpiRow, marginTop: 10 }}>
         <div style={S.kpiCard}>
           <div style={S.kpiValue}>{avgHours === null ? "—" : isolateNumbers(`${avgHours.toFixed(1)} ${t("common.units.hours")}`)}</div>
           <div style={S.kpiLabel}>{t("sleep.averageSleep")}</div>
@@ -3996,10 +4145,11 @@ function SleepSection({ sleepLog, setSleepLog, days, range, showToast }) {
             <RC.XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: range === "week" ? 11 : 8, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} interval={range === "week" ? 0 : 3} />
             <RC.YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
             <RC.Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [`${v} ${t("common.units.hours")}`, ""]} />
-            <RC.Bar dataKey="hours" radius={[3, 3, 3, 3]} fill="#5FA8A0" maxBarSize={range === "week" ? 28 : 12} isAnimationActive={!reduceMotion} animationDuration={450} />
+            <RC.Bar dataKey="hours" radius={[3, 3, 3, 3]} fill="var(--success)" maxBarSize={range === "week" ? 28 : 12} isAnimationActive={!reduceMotion} animationDuration={450} />
           </RC.BarChart>
         </RC.ResponsiveContainer>
       )}
+    </Card>
     </div>
   );
 }
@@ -5286,41 +5436,34 @@ const GS = {
   heroIcon: { width: 46, height: 46, borderRadius: "50%", background: "radial-gradient(circle at 32% 28%, #E7C378, #C9A24B 65%, #A9822F)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 0 0 1px rgba(201,162,75,0.25), 0 4px 14px rgba(201,162,75,0.25)" },
   heroTitle: { fontFamily: "'Amiri', serif", fontSize: 22, fontWeight: 700 },
   heroSub: { fontSize: 12, color: "var(--muted2)", lineHeight: 1.5, marginTop: 2 },
-  addCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 12px" },
   periodRow: { display: "flex", gap: 8, marginTop: 10, marginBottom: 12 },
-  periodChip: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "transparent", border: "1px solid var(--border2)", borderRadius: 10, padding: "9px 0", fontSize: 12.5, color: "var(--muted2)", cursor: "pointer", fontFamily: "inherit", fontWeight: 600 },
-  periodChipActive: { background: "rgba(201,162,75,0.1)", borderColor: "rgba(201,162,75,0.4)", color: "#C9A24B" },
+  periodChip: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "transparent", border: "1px solid var(--border2)", borderRadius: "var(--m-radius-md)", padding: "9px 0", fontSize: 12.5, color: "var(--muted2)", cursor: "pointer", fontFamily: "inherit", fontWeight: 600 },
+  periodChipActive: { background: "var(--warning-soft)", borderColor: "var(--warning-border)", color: "var(--gold)" },
   goalsList: { display: "flex", flexDirection: "column", gap: 12 },
-  goalCard: { background: "var(--surface-sunken)", border: "1px solid var(--line)", borderRadius: 12, padding: 12, display: "flex", flexDirection: "column", gap: 10 },
   goalTop: { display: "flex", alignItems: "flex-start", gap: 8 },
   goalTitle: { fontSize: 14, fontWeight: 700, color: "var(--ink)", flex: 1 },
   goalMeta: { fontSize: 11, color: "var(--muted2)", marginTop: 3 },
   statusBadge: { fontSize: 10.5, fontWeight: 700, padding: "3px 8px", borderRadius: 20, height: "fit-content", flexShrink: 0 },
-  statusDone: { color: "#5FA8A0", background: "rgba(95,168,160,0.12)" },
-  statusFailed: { color: "#E05252", background: "rgba(224,82,82,0.1)" },
+  statusDone: { color: "var(--success)", background: "var(--success-soft)" },
+  statusFailed: { color: "var(--danger)", background: "var(--danger-soft)" },
   calendarRow: { display: "flex", flexWrap: "wrap", gap: 5 },
-  cell: { width: 22, height: 22, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9.5, fontWeight: 700, border: "1px solid var(--border2)", color: "#5A5650", flexShrink: 0 },
-  cellMonth: { width: "auto", minWidth: 40, height: 22, padding: "0 6px", borderRadius: 8, fontSize: 9 },
-  cellPast: { background: "rgba(201,162,75,0.16)", borderColor: "rgba(201,162,75,0.3)", color: "#C9A24B" },
-  cellToday: { background: "#C9A24B", borderColor: "#C9A24B", color: "var(--on-accent)", boxShadow: "0 0 0 2px rgba(201,162,75,0.3)" },
-  reviewCard: { background: "linear-gradient(160deg, rgba(201,162,75,0.12), rgba(201,162,75,0.03))", border: "1px solid rgba(201,162,75,0.35)", borderRadius: 14, padding: 14, display: "flex", flexDirection: "column", gap: 10 },
-  reviewTitle: { fontSize: 13.5, fontWeight: 700, color: "#C9A24B" },
+  cell: { width: 22, height: 22, borderRadius: "var(--m-radius-sm)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9.5, fontWeight: 700, border: "1px solid var(--border2)", color: "#5A5650", flexShrink: 0 },
+  cellMonth: { width: "auto", minWidth: 40, height: 22, padding: "0 6px", borderRadius: "var(--m-radius-sm)", fontSize: 9 },
+  cellPast: { background: "var(--warning-soft)", borderColor: "var(--warning-border)", color: "var(--gold)" },
+  cellToday: { background: "var(--gold)", borderColor: "var(--gold)", color: "var(--on-accent)", boxShadow: "0 0 0 2px var(--warning-border)" },
+  reviewCard: { background: "linear-gradient(160deg, var(--warning-soft), transparent)", border: "1px solid var(--warning-border)", borderRadius: "var(--m-radius-lg)", padding: 14, display: "flex", flexDirection: "column", gap: 10 },
+  reviewTitle: { fontSize: 13.5, fontWeight: 700, color: "var(--gold)" },
   reviewQuestion: { fontSize: 13, color: "var(--ink)", lineHeight: 1.6 },
   reviewBtnRow: { display: "flex", gap: 10 },
-  reviewYesBtn: { flex: 1, background: "rgba(95,168,160,0.14)", border: "1px solid rgba(95,168,160,0.4)", color: "#5FA8A0", borderRadius: 10, padding: "10px 0", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" },
-  reviewNoBtn: { flex: 1, background: "rgba(224,82,82,0.1)", border: "1px solid rgba(224,82,82,0.35)", color: "#E05252", borderRadius: 10, padding: "10px 0", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" },
   reasonBox: { display: "flex", flexDirection: "column", gap: 8 },
-  reasonInput: { width: "100%", background: "var(--surface-sunken)", border: "1px solid var(--border2)", borderRadius: 10, padding: "10px 12px", color: "var(--ink)", fontSize: 13, fontFamily: "inherit", minHeight: 70, resize: "vertical" },
-  reasonConfirmBtn: { background: "var(--gold)", color: "var(--bg)", border: "none", borderRadius: 10, padding: "10px 0", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" },
-  reasonConfirmBtnDisabled: { opacity: 0.5, cursor: "default" },
-  failuresCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 12px" },
+  reasonInput: { width: "100%", background: "var(--surface-sunken)", border: "1px solid var(--border2)", borderRadius: "var(--m-radius-md)", padding: "10px 12px", color: "var(--ink)", fontSize: 13, fontFamily: "inherit", minHeight: 70, resize: "vertical" },
   failuresList: { display: "flex", flexDirection: "column", gap: 8, marginTop: 10 },
-  failureItem: { background: "var(--surface-sunken)", border: "1px solid var(--line)", borderRadius: 10, padding: 10, display: "flex", flexDirection: "column", gap: 4 },
+  failureItem: { background: "var(--surface-sunken)", border: "1px solid var(--line)", borderRadius: "var(--m-radius-md)", padding: 10, display: "flex", flexDirection: "column", gap: 4 },
   failureTop: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 },
   failureTitle: { fontSize: 13, fontWeight: 700, color: "var(--ink)" },
   failureDate: { fontSize: 10.5, color: "var(--muted2)", whiteSpace: "nowrap" },
   failureReason: { fontSize: 12, color: "var(--muted2)", lineHeight: 1.6 },
-  pendingNote: { fontSize: 11.5, color: "#E05252", textAlign: "center" },
+  pendingNote: { fontSize: 11.5, color: "var(--danger)", textAlign: "center" },
 };
 
 function GoalCalendar({ goal, today }) {
@@ -5426,7 +5569,7 @@ function GoalsView({ goals, setGoals, addPoints, showToast, profile, setProfile,
           </div>
         </div>
 
-        <div style={GS.addCard}>
+        <Card padding="md">
           <label style={S.label}>{t("goals.newGoalLabel")}</label>
           <input value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addGoal()} placeholder={t("goals.newGoalPlaceholder")} style={{ ...S.input, marginTop: 6 }} />
           <div style={GS.periodRow}>
@@ -5435,10 +5578,16 @@ function GoalsView({ goals, setGoals, addPoints, showToast, profile, setProfile,
             ))}
           </div>
           {hasPendingReason && <div style={GS.pendingNote}>{t("goals.finishPendingFirst")}</div>}
-          <button onClick={addGoal} disabled={hasPendingReason} style={{ ...S.saveBtn, marginTop: hasPendingReason ? 8 : 0, ...(hasPendingReason ? { opacity: 0.5, cursor: "default" } : {}) }} data-tour="add-goal-btn">
-            <Plus size={16} style={{ display: "inline", verticalAlign: "-3px" }} /> {t("goals.addGoal")}
-          </button>
-        </div>
+          <Button
+            variant="primary"
+            fullWidth
+            icon={<Plus size={16} />}
+            onClick={addGoal}
+            disabled={hasPendingReason}
+            style={{ marginTop: hasPendingReason ? "var(--space-2)" : "var(--space-3)" }}
+            data-tour="add-goal-btn"
+          >{t("goals.addGoal")}</Button>
+        </Card>
 
         <div style={GS.goalsList} className="stagger-in responsive-card-list">
           {activeGoals.length === 0 && <div style={S.emptyHint}>{t("goals.emptyState")}</div>}
@@ -5446,7 +5595,7 @@ function GoalsView({ goals, setGoals, addPoints, showToast, profile, setProfile,
             const due = isReviewDue(goal, today);
             const draft = reviewDrafts[goal.id];
             return (
-              <div key={goal.id} style={GS.goalCard} data-tour={goalIdx === 0 ? "goal-card-first" : undefined}>
+              <Card key={goal.id} padding="md" data-tour={goalIdx === 0 ? "goal-card-first" : undefined}>
                 <div style={GS.goalTop}>
                   <div>
                     <div style={GS.goalTitle}>{goal.title}</div>
@@ -5461,8 +5610,8 @@ function GoalsView({ goals, setGoals, addPoints, showToast, profile, setProfile,
                     <div style={GS.reviewTitle}>{t("goals.reviewTime")}</div>
                     <div style={GS.reviewQuestion}>{t("goals.reviewQuestion", { title: goal.title })}</div>
                     <div style={GS.reviewBtnRow}>
-                      <button onClick={() => confirmSuccess(goal)} style={GS.reviewYesBtn}>{t("common.buttons.yes")}</button>
-                      <button onClick={() => setReviewDrafts((prev) => ({ ...prev, [goal.id]: { active: true, reason: "" } }))} style={GS.reviewNoBtn}>{t("common.buttons.no")}</button>
+                      <Button variant="success" style={{ flex: 1 }} onClick={() => confirmSuccess(goal)}>{t("common.buttons.yes")}</Button>
+                      <Button variant="danger" style={{ flex: 1 }} onClick={() => setReviewDrafts((prev) => ({ ...prev, [goal.id]: { active: true, reason: "" } }))}>{t("common.buttons.no")}</Button>
                     </div>
                   </div>
                 )}
@@ -5476,21 +5625,23 @@ function GoalsView({ goals, setGoals, addPoints, showToast, profile, setProfile,
                         placeholder={t("goals.reasonPlaceholder")}
                         style={GS.reasonInput}
                       />
-                      <button
+                      <Button
+                        variant="primary"
+                        fullWidth
                         onClick={() => confirmFailure(goal)}
                         disabled={!draft.reason.trim()}
-                        style={{ ...GS.reasonConfirmBtn, ...(!draft.reason.trim() ? GS.reasonConfirmBtnDisabled : {}) }}
-                      >{t("common.buttons.confirm")}</button>
+                        style={{ marginTop: "var(--space-2)" }}
+                      >{t("common.buttons.confirm")}</Button>
                     </div>
                   </div>
                 )}
-              </div>
+              </Card>
             );
           })}
         </div>
 
-        <div style={GS.failuresCard}>
-          <div style={S.catEditorHeader}><AlertTriangle size={15} color="#E05252" /><span>{t("goals.unmetGoals")}</span></div>
+        <Card padding="md">
+          <div style={S.catEditorHeader}><AlertTriangle size={15} color="var(--danger)" /><span>{t("goals.unmetGoals")}</span></div>
           <div style={GS.failuresList}>
             {allFailures.length === 0 && <div style={S.emptyHint}>{t("goals.noUnmetGoals")}</div>}
             {allFailures.map((f, i) => (
@@ -5503,7 +5654,7 @@ function GoalsView({ goals, setGoals, addPoints, showToast, profile, setProfile,
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       </div>
 
       {goalsTour.step === 1 && (
@@ -7226,7 +7377,7 @@ function YouView({ healthProfile, setHealthProfile, showToast, profile, setProfi
         </div>
       )}
 
-      <div style={YS.formCard} data-tour="you-quick-weight-card">
+      <Card padding="md" style={{ marginBottom: "var(--space-4)" }} data-tour="you-quick-weight-card">
         <label style={S.label}>{t("you.quickWeightLabel")}</label>
         <div style={{ ...S.dateRow, marginBottom: 10 }}>
           <button onClick={() => shiftQuickWeightDay(-1)} style={S.iconBtn} aria-label={t("nutrition.previousDay")}>
@@ -7247,9 +7398,9 @@ function YouView({ healthProfile, setHealthProfile, showToast, profile, setProfi
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <input type="number" inputMode="decimal" value={quickWeight} onChange={(e) => setQuickWeight(e.target.value)} placeholder={healthProfile.weightKg ? String(healthProfile.weightKg) : (language === "en" ? "e.g. 70" : "مثال: 70")} style={{ ...S.input, flex: 1 }} />
-          <button onClick={logQuickWeight} disabled={!quickWeight} style={{ ...S.saveBtn, width: "auto", padding: "0 20px" }}>{t("you.logWeightBtn")}</button>
+          <Button variant="primary" onClick={logQuickWeight} disabled={!quickWeight} style={{ width: "auto", padding: "0 20px" }}>{t("you.logWeightBtn")}</Button>
         </div>
-      </div>
+      </Card>
 
       <div style={YS.resultsGrid}>
         <div style={YS.resultCard}>

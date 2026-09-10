@@ -595,21 +595,25 @@ export default function MasarApp() {
   }, [theme]);
 
   const toggleTheme = useCallback(() => {
-    setTheme((t) => {
-      const next = t === "dark" ? "light" : "dark";
-      store.saveTheme(next);
-      return next;
+    const prev = theme;
+    const next = prev === "dark" ? "light" : "dark";
+    setTheme(next);
+    store.saveTheme(next).then((res) => {
+      if (!res.ok) { setTheme(prev); showToast(t("common.errors.saveFailed")); }
     });
-  }, []);
+  }, [theme, showToast, t]);
 
   // اختيار صريح من قائمة الأنماط الكاملة (Default/Pink/Blue/Dark/System) في
   // شاشة الإعدادات - منفصل عن toggleTheme السريع أعلاه (يبقى كما هو، زر
   // تبديل ثنائي سريع في الترويسة فقط).
   const setThemeChoice = useCallback((choice) => {
     if (!["dark", "light", "pink", "blue", "system"].includes(choice)) return;
+    const prev = theme;
     setTheme(choice);
-    store.saveTheme(choice);
-  }, []);
+    store.saveTheme(choice).then((res) => {
+      if (!res.ok) { setTheme(prev); showToast(t("common.errors.saveFailed")); }
+    });
+  }, [theme, showToast, t]);
 
   // مزامنة إعدادات إتاحة الوصول الثلاثة مع الحساب بعد اكتمال كل تحميل - نفس
   // فكرة مزامنة المظهر أعلاه تماماً (تغطي تسجيل الدخول من جهاز آخر كان قد

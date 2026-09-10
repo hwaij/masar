@@ -326,7 +326,7 @@ export const store = {
     if (error || !data) return local;
     const p = {
       name: data.name || "", about: data.about || "", hobbies: data.hobbies || "", field: data.field || "",
-      tourSeen: !!data.tour_seen, theme: data.theme === "light" ? "light" : "dark",
+      tourSeen: !!data.tour_seen, theme: ["dark", "light", "pink", "blue", "system"].includes(data.theme) ? data.theme : "dark",
       notificationsEnabled: !!data.notifications_enabled, notificationsAsked: !!data.notifications_asked,
       language: data.language === "en" ? "en" : "ar",
       fontSize: ["normal", "large", "xlarge"].includes(data.font_size) ? data.font_size : "normal",
@@ -381,8 +381,9 @@ export const store = {
     lsSet("masar_profile", { ...local, theme });
     if (useCloud()) {
       const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, theme, updated_at: new Date().toISOString() });
-      if (error) console.error("[saveTheme] Supabase error:", error.message);
+      if (error) { console.error("[saveTheme] Supabase error:", error.message); return { ok: false, error: error.message }; }
     }
+    return { ok: true };
   },
   async saveLanguage(language) {
     const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false, customColorsEnabled: false, sectionColors: {}, soundEnabled: false, accessibilityMode: false, tourProgress: {} });

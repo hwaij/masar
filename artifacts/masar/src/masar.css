@@ -26,16 +26,16 @@
      من الأزرار، أو تمييز حالة مقابل الحالة الذهبية الافتراضية). #6FA8DC
      نفسه مُستخدَم أصلاً في أماكن متفرّقة بالتطبيق (ألوان أقسام التغذية/
      الصحة النفسية) - هذا يُثبّته رسمياً كـtoken بدل قيمة متكررة يدوياً. */
-  --secondary: #6FA8DC;
-  --secondary-soft: rgba(111,168,220,0.12);
-  --secondary-border: rgba(111,168,220,0.35);
+  --m-secondary: #6FA8DC;
+  --m-secondary-soft: rgba(111,168,220,0.12);
+  --m-secondary-border: rgba(111,168,220,0.35);
 
   /* ظلال خفيفة جداً على الخلفيات الداكنة (الأسود لا يُظهر ظلالاً تقليدية
      بوضوح) - تُستخدَم فقط لفصل بصري خفيف جداً للبطاقات المرتفعة، لا
      "عمق" درامي. */
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.35);
-  --shadow-md: 0 4px 14px rgba(0,0,0,0.38);
-  --shadow-lg: 0 10px 28px rgba(0,0,0,0.42);
+  --m-shadow-sm: 0 1px 2px rgba(0,0,0,0.35);
+  --m-shadow-md: 0 4px 14px rgba(0,0,0,0.38);
+  --m-shadow-lg: 0 10px 28px rgba(0,0,0,0.42);
 }
 
 /* ============================================================
@@ -55,19 +55,19 @@
   --space-7: 32px;
   --space-8: 40px;
 
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 20px;
-  --radius-pill: 999px;
+  --m-radius-sm: 8px;
+  --m-radius-md: 12px;
+  --m-radius-lg: 16px;
+  --m-radius-xl: 20px;
+  --m-radius-pill: 999px;
 
-  --text-xs: 11px;
-  --text-sm: 12.5px;
-  --text-base: 14px;
-  --text-md: 15px;
-  --text-lg: 17px;
-  --text-xl: 20px;
-  --text-2xl: 26px;
+  --m-text-xs: 11px;
+  --m-text-sm: 12.5px;
+  --m-text-base: 14px;
+  --m-text-md: 15px;
+  --m-text-lg: 17px;
+  --m-text-xl: 20px;
+  --m-text-2xl: 26px;
   --leading-tight: 1.25;
   --leading-normal: 1.5;
   --leading-relaxed: 1.75;
@@ -115,12 +115,12 @@
   --header-bg: rgba(247,245,240,0.92);
   /* أزرق أعمق قليلاً من قيمة الوضع الداكن (#6FA8DC) لأنه فوق خلفية فاتحة
      يحتاج تبايناً أعلى ليقرأ بوضوح كنص/حد، بنفس منطق تعميق الذهبي أعلاه. */
-  --secondary: #3E7CB8;
-  --secondary-soft: rgba(62,124,184,0.1);
-  --secondary-border: rgba(62,124,184,0.3);
-  --shadow-sm: 0 1px 2px rgba(43,38,33,0.06);
-  --shadow-md: 0 4px 14px rgba(43,38,33,0.08);
-  --shadow-lg: 0 10px 28px rgba(43,38,33,0.1);
+  --m-secondary: #3E7CB8;
+  --m-secondary-soft: rgba(62,124,184,0.1);
+  --m-secondary-border: rgba(62,124,184,0.3);
+  --m-shadow-sm: 0 1px 2px rgba(43,38,33,0.06);
+  --m-shadow-md: 0 4px 14px rgba(43,38,33,0.08);
+  --m-shadow-lg: 0 10px 28px rgba(43,38,33,0.1);
 }
 
 /* ثيم "وردي" (Batch 2 - Item 4): نفس فلسفة الوضع الفاتح أعلاه (خلفية فاتحة
@@ -143,12 +143,12 @@
   --warm-tint: #FFF0F5;
   --warm-border: #F2CFE0;
   --header-bg: rgba(253,243,246,0.92);
-  --secondary: #3E7CB8;
-  --secondary-soft: rgba(62,124,184,0.1);
-  --secondary-border: rgba(62,124,184,0.3);
-  --shadow-sm: 0 1px 2px rgba(58,37,48,0.06);
-  --shadow-md: 0 4px 14px rgba(58,37,48,0.08);
-  --shadow-lg: 0 10px 28px rgba(58,37,48,0.1);
+  --m-secondary: #3E7CB8;
+  --m-secondary-soft: rgba(62,124,184,0.1);
+  --m-secondary-border: rgba(62,124,184,0.3);
+  --m-shadow-sm: 0 1px 2px rgba(58,37,48,0.06);
+  --m-shadow-md: 0 4px 14px rgba(58,37,48,0.08);
+  --m-shadow-lg: 0 10px 28px rgba(58,37,48,0.1);
 }
 
 /* ثيم "أزرق" (Batch 2 - Item 4): نفس المبدأ بدرجة زرقاء باردة. */
@@ -171,12 +171,12 @@
   /* هنا الأساسي نفسه أزرق، فالثانوي يأخذ لوناً دافئاً مكمّلاً (كهرماني)
      بدل تكرار نفس العائلة اللونية، حتى يبقى الفرق البصري بين "أساسي/ثانوي"
      مفيداً فعلياً بدل تدرّجين متشابهين. */
-  --secondary: #C9A24B;
-  --secondary-soft: rgba(201,162,75,0.1);
-  --secondary-border: rgba(201,162,75,0.3);
-  --shadow-sm: 0 1px 2px rgba(30,42,56,0.06);
-  --shadow-md: 0 4px 14px rgba(30,42,56,0.08);
-  --shadow-lg: 0 10px 28px rgba(30,42,56,0.1);
+  --m-secondary: #C9A24B;
+  --m-secondary-soft: rgba(201,162,75,0.1);
+  --m-secondary-border: rgba(201,162,75,0.3);
+  --m-shadow-sm: 0 1px 2px rgba(30,42,56,0.06);
+  --m-shadow-md: 0 4px 14px rgba(30,42,56,0.08);
+  --m-shadow-lg: 0 10px 28px rgba(30,42,56,0.1);
 }
 
 /* إتاحة الوصول: ثلاثة محاور مستقلة تُطبَّق عبر سمات على <html> (راجع
@@ -217,14 +217,14 @@ html[data-theme="dark"][data-contrast="high"] {
   --teal-border: #66E0D0;
   --header-bg: #000000;
   --on-accent: #000000;
-  --secondary: #66E0D0;
-  --secondary-soft: #000000;
-  --secondary-border: #66E0D0;
+  --m-secondary: #66E0D0;
+  --m-secondary-soft: #000000;
+  --m-secondary-border: #66E0D0;
   --success: #66E0D0;
   --danger: #FF8A65;
-  --shadow-sm: none;
-  --shadow-md: none;
-  --shadow-lg: none;
+  --m-shadow-sm: none;
+  --m-shadow-md: none;
+  --m-shadow-lg: none;
 }
 html[data-theme="light"][data-contrast="high"] {
   --bg: #FFFFFF;
@@ -244,14 +244,14 @@ html[data-theme="light"][data-contrast="high"] {
   --teal-border: #00695C;
   --header-bg: #FFFFFF;
   --on-accent: #FFFFFF;
-  --secondary: #00695C;
-  --secondary-soft: #FFFFFF;
-  --secondary-border: #00695C;
+  --m-secondary: #00695C;
+  --m-secondary-soft: #FFFFFF;
+  --m-secondary-border: #00695C;
   --success: #00695C;
   --danger: #B33A00;
-  --shadow-sm: none;
-  --shadow-md: none;
-  --shadow-lg: none;
+  --m-shadow-sm: none;
+  --m-shadow-md: none;
+  --m-shadow-lg: none;
 }
 
 /* ============================================================
@@ -261,28 +261,41 @@ html[data-theme="light"][data-contrast="high"] {
    النموذجية المتفَق عليها فقط، بانتظار التعميم بمرحلة لاحقة. */
 .ui-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
-  border-radius: var(--radius-md); font-family: inherit; font-weight: var(--font-bold);
+  border-radius: var(--m-radius-md); font-family: inherit; font-weight: var(--font-bold);
   cursor: pointer; border: 1px solid transparent; white-space: nowrap;
   transition: transform 0.12s ease, opacity 0.12s ease, filter 0.15s ease, box-shadow 0.15s ease;
 }
-.ui-btn-md { padding: 12px 20px; font-size: var(--text-base); }
-.ui-btn-sm { padding: 8px 14px; font-size: var(--text-sm); }
+.ui-btn-md { padding: 12px 20px; font-size: var(--m-text-base); }
+.ui-btn-sm { padding: 8px 14px; font-size: var(--m-text-sm); }
 .ui-btn-full { width: 100%; }
-.ui-btn-primary { background: var(--gold); color: var(--on-accent); box-shadow: var(--shadow-sm); }
-.ui-btn-primary:hover:not(:disabled) { filter: brightness(1.08); box-shadow: var(--shadow-md); }
-.ui-btn-secondary { background: var(--secondary-soft); color: var(--secondary); border-color: var(--secondary-border); }
-.ui-btn-secondary:hover:not(:disabled) { background: var(--secondary-border); }
+.ui-btn-primary { background: var(--gold); color: var(--on-accent); box-shadow: var(--m-shadow-sm); }
+.ui-btn-primary:hover:not(:disabled) { filter: brightness(1.08); box-shadow: var(--m-shadow-md); }
+.ui-btn-secondary { background: var(--m-secondary-soft); color: var(--m-secondary); border-color: var(--m-secondary-border); }
+.ui-btn-secondary:hover:not(:disabled) { background: var(--m-secondary-border); }
 .ui-btn-outline { background: transparent; color: var(--muted2); border-color: var(--border2); }
 .ui-btn-outline:hover:not(:disabled) { background: var(--surface-sunken); color: var(--ink); }
+/* توسيع بسيط على outline (مرحلة 2): حد متقطّع لأزرار "إعداد لأول مرة" -
+   نفس ألوان/توكنز outline بالضبط، فرق بصري واحد فقط (border-style) بدل
+   تلوين مختلف، حتى يبقى واضحاً أنه نفس عائلة الزر لا نمط منفصل. */
+.ui-btn-outline-dashed { background: transparent; color: var(--muted2); border-color: var(--border2); border-style: dashed; border-width: 1.5px; }
+.ui-btn-outline-dashed:hover:not(:disabled) { background: var(--surface-sunken); color: var(--ink); }
 .ui-btn-danger { background: var(--danger-soft); color: var(--danger); border-color: var(--danger-border); }
 .ui-btn-danger:hover:not(:disabled) { background: var(--danger-border); }
+.ui-btn-danger-solid { background: var(--danger); color: #fff; }
+.ui-btn-danger-solid:hover:not(:disabled) { filter: brightness(1.08); }
+/* توسيع بسيط (مرحلة 2): إجراء إيجابي/صحي بلون --success - يغطي حالات مثل
+   "أضف كوب ماء" التي لا يناسبها الذهبي (Primary) ولا الأزرق (Secondary)
+   لأنها مرتبطة دلالياً بحالة "نجاح/صحة" الموجودة أصلاً كتوكن من مرحلة 1. */
+.ui-btn-success { background: var(--success-soft); color: var(--success); border-color: var(--success-border); }
+.ui-btn-success:hover:not(:disabled) { background: var(--success-border); }
 
 .ui-card {
-  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm); transition: box-shadow 0.2s ease, transform 0.2s ease;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--m-radius-lg);
+  box-shadow: var(--m-shadow-sm); transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
 .ui-card-interactive { cursor: pointer; }
-.ui-card-interactive:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+.ui-card-interactive:hover { box-shadow: var(--m-shadow-md); transform: translateY(-1px); }
+.ui-card-pad-sm { padding: var(--space-3); }
 .ui-card-pad-md { padding: var(--space-4); }
 .ui-card-pad-lg { padding: var(--space-5); }
 
@@ -431,6 +444,15 @@ button:active:not(:disabled) {
 }
 @media (min-width: 1200px) {
   .responsive-card-list { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* 4ب) شبكة لوحة معلومات من بطاقات مختلفة (لا عناصر متكرّرة كأعلاه) - مثال:
+   بطاقة "خطواتي اليوم" وبطاقة "هدفي اليومي" جنباً لجنب على التابلت/الحاسوب
+   بدل تكديسهما عمودياً كالجوال. مُفعَّلة عبر className="dashboard-grid-2"
+   على الحاوية المباشرة لبطاقتين (أو أكثر) يُراد وضعهما بعمودين معاً. */
+@media (min-width: 768px) {
+  .dashboard-grid-2 { display: grid !important; grid-template-columns: 1fr 1fr; gap: var(--space-4); align-items: start; }
+  .dashboard-grid-2 > * { margin-bottom: 0 !important; }
 }
 
 /* 5) العناصر الدائرية الرئيسية (عجلة اليوم، دوائر الماكروز) لها عرض/ارتفاع

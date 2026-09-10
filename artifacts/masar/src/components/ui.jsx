@@ -6,7 +6,7 @@
 // بمراحل لاحقة بعد الموافقة على الاتجاه العام.
 //
 // Button variants: primary (الإجراء الرئيسي، خلفية ذهبية/أساسية مصمتة)،
-// secondary (إجراء ثانٍ بلون --secondary الجديد المستوحى من اللوقو)،
+// secondary (إجراء ثانٍ بلون --m-secondary الجديد المستوحى من اللوقو)،
 // outline (إجراء محايد منخفض التأكيد)، danger (حذف/إجراء مدمِّر).
 export function Button({
   variant = "primary",

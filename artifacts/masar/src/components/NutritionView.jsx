@@ -29,29 +29,29 @@ import { isolateNumbers } from "../lib/bidi";
 import { speak, isSpeechSupported } from "../lib/speech";
 import NumericValue from "./NumericValue";
 import { S } from "./styles";
+import { Button, Card } from "./ui";
 
 const NS = {
-  hero: { display: "flex", alignItems: "center", gap: 12, marginBottom: 16 },
-  heroIcon: { width: 44, height: 44, borderRadius: 14, background: "linear-gradient(140deg, #5FA8A0, #3E7E78)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
-  heroTitle: { fontFamily: "'Amiri', serif", fontSize: 22, fontWeight: 700 },
-  heroSub: { fontSize: 12, color: "var(--muted2)", marginTop: 2, lineHeight: 1.5 },
-  summaryCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "16px 14px", marginBottom: 14 },
-  summaryTop: { display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 },
-  summaryCalories: { fontFamily: "'Amiri', serif", fontSize: 26, fontWeight: 700, color: "var(--gold)" },
-  summaryTee: { fontSize: 12, color: "var(--muted2)" },
-  barTrack: { height: 8, borderRadius: 4, background: "var(--surface-sunken)", overflow: "hidden", marginBottom: 12 },
-  barFill: { height: "100%", borderRadius: 4, background: "linear-gradient(90deg, #5FA8A0, #C9A24B)", transition: "width 0.4s ease" },
-  macrosRow: { display: "flex", gap: 8 },
-  macroChip: { flex: 1, textAlign: "center", background: "var(--surface-sunken)", borderRadius: 10, padding: "8px 4px" },
-  macroValue: { fontSize: 14, fontWeight: 700, color: "var(--ink)" },
+  hero: { display: "flex", alignItems: "center", gap: "var(--space-3)", marginBottom: "var(--space-4)" },
+  heroIcon: { width: 44, height: 44, borderRadius: "var(--m-radius-lg)", background: "linear-gradient(140deg, var(--success), #3E7E78)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  heroTitle: { fontFamily: "'Amiri', serif", fontSize: "var(--m-text-xl)", fontWeight: "var(--font-bold)" },
+  heroSub: { fontSize: "var(--m-text-xs)", color: "var(--muted2)", marginTop: 2, lineHeight: "var(--leading-normal)" },
+  summaryCard: { marginBottom: "var(--space-4)" },
+  summaryTop: { display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "var(--space-2)" },
+  summaryCalories: { fontFamily: "'Amiri', serif", fontSize: "var(--m-text-2xl)", fontWeight: "var(--font-bold)", color: "var(--gold)" },
+  summaryTee: { fontSize: "var(--m-text-xs)", color: "var(--muted2)" },
+  barTrack: { height: 8, borderRadius: 4, background: "var(--surface-sunken)", overflow: "hidden", marginBottom: "var(--space-3)" },
+  barFill: { height: "100%", borderRadius: 4, background: "linear-gradient(90deg, var(--success), var(--gold))", transition: "width 0.4s ease" },
+  macrosRow: { display: "flex", gap: "var(--space-2)" },
+  macroChip: { flex: 1, textAlign: "center", background: "var(--surface-sunken)", borderRadius: "var(--m-radius-md)", padding: "8px 4px" },
+  macroValue: { fontSize: "var(--m-text-base)", fontWeight: "var(--font-bold)", color: "var(--ink)" },
   macroLabel: { fontSize: 10.5, color: "var(--muted2)", marginTop: 2 },
-  waterCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "14px 14px", marginBottom: 14 },
-  waterHead: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
-  waterTitle: { display: "flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 700, color: "var(--muted2)" },
-  waterCount: { fontSize: 13, color: "var(--ink)", fontWeight: 700 },
-  waterAddBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", background: "rgba(95,168,160,0.12)", border: "1px solid rgba(95,168,160,0.35)", color: "#5FA8A0", borderRadius: 12, padding: "10px 0", fontSize: 13.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
-  logHead: { fontSize: 13, fontWeight: 700, color: "var(--muted2)", marginBottom: 10 },
-  logItem: { display: "flex", alignItems: "center", gap: 10, background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, padding: "10px 12px", marginBottom: 8 },
+  waterCard: { marginBottom: "var(--space-4)" },
+  waterHead: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--space-3)" },
+  waterTitle: { display: "flex", alignItems: "center", gap: 7, fontSize: "var(--m-text-base)", fontWeight: "var(--font-bold)", color: "var(--muted2)" },
+  waterCount: { fontSize: "var(--m-text-base)", color: "var(--ink)", fontWeight: "var(--font-bold)" },
+  logHead: { fontSize: "var(--m-text-base)", fontWeight: "var(--font-bold)", color: "var(--muted2)", marginBottom: "var(--space-3)" },
+  logItem: { display: "flex", alignItems: "center", gap: "var(--space-3)", marginBottom: "var(--space-2)" },
   logItemName: { fontSize: 13.5, fontWeight: 700, color: "var(--ink)" },
   logItemMeta: { fontSize: 11, color: "var(--muted2)", marginTop: 2 },
   logItemCalories: { fontSize: 13, fontWeight: 700, color: "var(--gold)", whiteSpace: "nowrap" },
@@ -132,10 +132,9 @@ const NS = {
   addFoodItemBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", background: "transparent", border: "1.5px dashed var(--border2)", color: "var(--muted2)", borderRadius: 12, padding: "10px 0", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", marginBottom: 12 },
   editableGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 4 },
 
-  aiAnalysisCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "14px 14px", marginBottom: 14 },
-  aiAnalysisHead: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
-  aiAnalysisTitle: { display: "flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 700, color: "var(--muted2)" },
-  aiAnalysisBtn: { display: "flex", alignItems: "center", gap: 6, background: "rgba(201,162,75,0.12)", border: "1px solid rgba(201,162,75,0.35)", color: "var(--gold)", borderRadius: 20, padding: "7px 14px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", minHeight: 44 },
+  aiAnalysisCard: { marginBottom: "var(--space-4)" },
+  aiAnalysisHead: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--space-3)" },
+  aiAnalysisTitle: { display: "flex", alignItems: "center", gap: 7, fontSize: "var(--m-text-base)", fontWeight: "var(--font-bold)", color: "var(--muted2)" },
   aiAnalysisText: { fontSize: 13, color: "var(--ink-soft)", lineHeight: 1.8 },
 
   compactUpsell: { display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: 6, padding: "10px 6px" },
@@ -191,7 +190,7 @@ const NS = {
   aiEstimateBtn: { display: "flex", alignItems: "center", gap: 5, background: "rgba(124,111,224,0.12)", border: "1px solid rgba(124,111,224,0.35)", color: "#7C6FE0", borderRadius: 20, padding: "6px 12px", fontSize: 11.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", minHeight: 36, marginTop: 6 },
 
   // ===== Priority 5: بطاقة وجبة (Meal Card) =====
-  mealCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "14px 14px", marginBottom: 12 },
+  mealCard: { marginBottom: "var(--space-3)" },
   mealCardCurrent: { border: "1.5px solid var(--gold)" },
   mealCardHeaderTop: { display: "flex", justifyContent: "space-between", alignItems: "center" },
   mealCardTitle: { fontSize: 14, fontWeight: 700, color: "var(--ink)" },
@@ -207,12 +206,8 @@ const NS = {
   mealItemMain: { display: "flex", alignItems: "center", gap: 8, width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", color: "inherit", textAlign: "start" },
   mealItemDetail: { background: "var(--surface-sunken)", borderRadius: 10, padding: "10px 10px", marginTop: 8 },
   mealItemDetailGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, fontSize: 12, color: "var(--ink-soft)" },
-  mealItemActionsRow: { display: "flex", gap: 8, marginTop: 10 },
-  mealItemActionBtn: { display: "flex", alignItems: "center", gap: 5, flex: 1, justifyContent: "center", background: "var(--panel)", border: "1px solid var(--border2)", color: "var(--ink-soft)", borderRadius: 9, padding: "8px 0", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
-  mealItemConfirmRow: { display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 11.5, color: "var(--muted2)" },
-  mealItemConfirmDeleteBtn: { background: "#E05252", color: "#fff", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 11.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
-  mealItemConfirmCancelBtn: { background: "transparent", border: "1px solid var(--border2)", color: "var(--muted2)", borderRadius: 8, padding: "6px 12px", fontSize: 11.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
-  mealCardAddBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", background: "rgba(201,162,75,0.1)", border: "1px solid rgba(201,162,75,0.3)", color: "var(--gold)", borderRadius: 10, padding: "9px 0", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", marginTop: 10 },
+  mealItemActionsRow: { display: "flex", gap: "var(--space-2)", marginTop: "var(--space-3)" },
+  mealItemConfirmRow: { display: "flex", alignItems: "center", gap: "var(--space-2)", marginTop: "var(--space-2)", fontSize: 11.5, color: "var(--muted2)" },
   // "حد إرشادي" (كوليسترول/صوديوم) - تمييز بصري متعمَّد عن بطاقات الماكروز
   // الأساسية المحسوبة شخصياً (بروتين/كارب/دهون): لون رمادي محايد بدل الذهبي/
   // الألوان المميِّزة، وأيقونة تنبيه صغيرة، حتى لا يظن المستخدم أن هذا رقم
@@ -717,7 +712,7 @@ function MealCard({ mealType, items, dayTotalCalories, usualTimeLabel, isCurrent
   }
 
   return (
-    <div style={{ ...NS.mealCard, ...(isCurrent ? NS.mealCardCurrent : {}) }} data-tour={mealType === "breakfast" ? "meal-card-breakfast" : undefined}>
+    <Card padding="md" style={{ ...NS.mealCard, ...(isCurrent ? NS.mealCardCurrent : {}) }} data-tour={mealType === "breakfast" ? "meal-card-breakfast" : undefined}>
       <div style={NS.mealCardHeaderTop}>
         <span style={NS.mealCardTitle}>{MEAL_TYPE_EMOJI[mealType]} {t(`nutrition.mealTypes.${mealType}`)}</span>
         <span style={NS.mealCardCalories}><NumericValue value={groupCalories} unit={t("common.units.kcal")} /></span>
@@ -760,8 +755,8 @@ function MealCard({ mealType, items, dayTotalCalories, usualTimeLabel, isCurrent
                       <span>{t("common.units.cholesterol")}: <NumericValue value={item.cholesterol || 0} unit={t("common.units.mg")} /></span>
                     </div>
                     <div style={NS.mealItemActionsRow}>
-                      <button onClick={() => startEdit(item)} style={NS.mealItemActionBtn}><Edit3 size={13} /> {t("common.buttons.edit")}</button>
-                      <button onClick={() => setConfirmDeleteId(item.id)} style={{ ...NS.mealItemActionBtn, color: "#E05252" }}><Trash2 size={13} /> {t("common.buttons.delete")}</button>
+                      <Button variant="outline" size="sm" fullWidth icon={<Edit3 size={13} />} onClick={() => startEdit(item)}>{t("common.buttons.edit")}</Button>
+                      <Button variant="danger" size="sm" fullWidth icon={<Trash2 size={13} />} onClick={() => setConfirmDeleteId(item.id)}>{t("common.buttons.delete")}</Button>
                     </div>
                     {(!item.micronutrients || Object.keys(item.micronutrients).length === 0) && (
                       <button
@@ -776,8 +771,8 @@ function MealCard({ mealType, items, dayTotalCalories, usualTimeLabel, isCurrent
                     {confirmDeleteId === item.id && (
                       <div style={NS.mealItemConfirmRow}>
                         <span>{t("nutrition.confirmDeleteItem")}</span>
-                        <button onClick={() => { onDeleteItem(item.id); setConfirmDeleteId(null); setExpandedId(null); }} style={NS.mealItemConfirmDeleteBtn}>{t("common.buttons.delete")}</button>
-                        <button onClick={() => setConfirmDeleteId(null)} style={NS.mealItemConfirmCancelBtn}>{t("common.buttons.cancel")}</button>
+                        <Button variant="danger-solid" size="sm" onClick={() => { onDeleteItem(item.id); setConfirmDeleteId(null); setExpandedId(null); }}>{t("common.buttons.delete")}</Button>
+                        <Button variant="outline" size="sm" onClick={() => setConfirmDeleteId(null)}>{t("common.buttons.cancel")}</Button>
                       </div>
                     )}
                   </div>
@@ -852,10 +847,10 @@ function MealCard({ mealType, items, dayTotalCalories, usualTimeLabel, isCurrent
         </div>
       )}
 
-      <button onClick={() => onAddFood(mealType)} style={NS.mealCardAddBtn} data-tour={mealType === "breakfast" ? "add-breakfast" : undefined}>
-        <Plus size={14} /> {t("nutrition.addToMeal", { meal: t(`nutrition.mealTypes.${mealType}`) })}
-      </button>
-    </div>
+      <Button variant="primary" size="sm" fullWidth icon={<Plus size={14} />} onClick={() => onAddFood(mealType)} style={{ marginTop: "var(--space-3)" }} data-tour={mealType === "breakfast" ? "add-breakfast" : undefined}>
+        {t("nutrition.addToMeal", { meal: t(`nutrition.mealTypes.${mealType}`) })}
+      </Button>
+    </Card>
   );
 }
 
@@ -3269,7 +3264,7 @@ ${missingMealsLine}
         </div>
       )}
 
-      <div style={NS.summaryCard}>
+      <Card padding="md" style={NS.summaryCard}>
         <div style={NS.summaryTop}>
           <span style={NS.summaryCalories}><NumericValue value={Math.round(totals.calories)} /> <span style={{ fontSize: 13, color: "var(--muted2)" }}>{t("common.units.kcal")}</span></span>
           {tee ? <span style={NS.summaryTee}>{isolateNumbers(t("nutrition.dailyGoal", { tee }))}</span> : <span style={NS.summaryTee}>{t("nutrition.completeYourProfile")}</span>}
@@ -3351,25 +3346,24 @@ ${missingMealsLine}
             </div>
           ))}
         </div>
-      </div>
+      </Card>
 
-      <div style={NS.waterCard}>
+      <Card padding="md" style={NS.waterCard}>
         <div style={NS.waterHead}>
-          <span style={NS.waterTitle}><Droplet size={15} color="#5FA8A0" /> {t("nutrition.water")}</span>
+          <span style={NS.waterTitle}><Droplet size={15} color="var(--success)" /> {t("nutrition.water")}</span>
           <span style={NS.waterCount}>{cupsGoal ? t("nutrition.waterCups", { cups: todayCups, goal: cupsGoal }) : `${todayCups} ${t("nutrition.unitOptions.cup")}`}</span>
         </div>
-        {cupsGoal && <div style={{ ...NS.barTrack, marginBottom: 10 }}><div style={{ ...NS.barFill, width: `${waterPercent}%`, background: "linear-gradient(90deg, #3E7E78, #5FA8A0)" }} /></div>}
-        <button onClick={addWaterCup} style={NS.waterAddBtn} data-tour="water-add-btn"><Plus size={15} /> {t("nutrition.waterGlass")}</button>
-      </div>
+        {cupsGoal && <div style={{ ...NS.barTrack, marginBottom: 10 }}><div style={{ ...NS.barFill, width: `${waterPercent}%`, background: "linear-gradient(90deg, #3E7E78, var(--success))" }} /></div>}
+        <Button variant="success" fullWidth icon={<Plus size={15} />} onClick={addWaterCup} data-tour="water-add-btn">{t("nutrition.waterGlass")}</Button>
+      </Card>
 
-      <div style={NS.aiAnalysisCard}>
+      <Card padding="md" style={NS.aiAnalysisCard}>
         <div style={NS.aiAnalysisHead}>
           <span style={NS.aiAnalysisTitle}><Sparkles size={15} color="#C9A24B" /> {t("nutrition.dailyAnalysis")}</span>
           {isSub && (
-            <button onClick={generateDailyAnalysis} disabled={analysisLoading} style={NS.aiAnalysisBtn}>
-              {analysisLoading ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} />}
+            <Button variant="secondary" size="sm" icon={analysisLoading ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} />} onClick={generateDailyAnalysis} disabled={analysisLoading}>
               {analysisLoading ? "..." : t("nutrition.analyze")}
-            </button>
+            </Button>
           )}
         </div>
         {isSub ? (
@@ -3381,7 +3375,7 @@ ${missingMealsLine}
         ) : (
           <MiniUpsell title={t("nutrition.upsellAnalysisTitle")} message={t("nutrition.upsellAnalysisMessage")} />
         )}
-      </div>
+      </Card>
 
       <div style={NS.logHead}>{isViewingToday ? t("nutrition.todayLog") : t("nutrition.selectedDayLog")}</div>
       <div className="stagger-in responsive-card-list">
@@ -3408,14 +3402,14 @@ ${missingMealsLine}
             <span style={NS.mealGroupCalories}>{isolateNumbers(t("nutrition.calSuffix", { cal: Math.round(sumNutritionEntries(selectedLog.filter((e) => !e.mealType)).calories) }))}</span>
           </div>
           {selectedLog.filter((e) => !e.mealType).map((e) => (
-            <div key={e.id} style={NS.logItem}>
+            <Card key={e.id} padding="sm" style={NS.logItem}>
               <div style={{ flex: 1 }}>
                 <div style={NS.logItemName}>{e.foodName}</div>
                 <div style={NS.logItemMeta}>{isolateNumbers(t("nutrition.servingSummary", { servingInfo: e.servingInfo, p: e.protein, c: e.carbs, f: e.fat }))}</div>
               </div>
               <div style={NS.logItemCalories}>{isolateNumbers(t("nutrition.calSuffix", { cal: Math.round(e.calories) }))}</div>
               <button onClick={() => removeEntry(e.id)} aria-label={t("nutrition.deleteEntryAria")} style={NS.deleteBtn}><Trash2 size={15} aria-hidden="true" /></button>
-            </div>
+            </Card>
           ))}
         </div>
       )}

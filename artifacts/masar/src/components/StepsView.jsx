@@ -8,6 +8,7 @@ import { store } from "../lib/store";
 import { arabicDate } from "../lib/helpers";
 import { localDayKey } from "../lib/tips";
 import { S } from "./styles";
+import { Button, Card } from "./ui";
 
 // أزرار إضافة سريعة أثناء اليوم (المستخدم يحدّث خطواته عدة مرات، لا يُدخلها
 // دفعة واحدة فقط في نهاية اليوم) - تُضيف للقيمة الحالية في حقل الإدخال قبل
@@ -16,33 +17,27 @@ import { S } from "./styles";
 const QUICK_ADD_VALUES = [500, 1000, 2000];
 
 const SS = {
-  hero: { display: "flex", alignItems: "center", gap: 12, marginBottom: 16 },
-  heroIcon: { width: 44, height: 44, borderRadius: 14, background: "linear-gradient(140deg, #6FA8DC, #5FA8A0)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
-  heroTitle: { fontFamily: "'Amiri', serif", fontSize: 22, fontWeight: 700 },
-  heroSub: { fontSize: 12, color: "var(--muted2)", marginTop: 2, lineHeight: 1.5 },
+  hero: { display: "flex", alignItems: "center", gap: "var(--space-3)", marginBottom: "var(--space-4)" },
+  heroIcon: { width: 44, height: 44, borderRadius: "var(--m-radius-lg)", background: "linear-gradient(140deg, var(--m-secondary), var(--success))", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  heroTitle: { fontFamily: "'Amiri', serif", fontSize: "var(--m-text-xl)", fontWeight: "var(--font-bold)" },
+  heroSub: { fontSize: "var(--m-text-xs)", color: "var(--muted2)", marginTop: 2, lineHeight: "var(--leading-normal)" },
 
-  trackCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "18px 16px", marginBottom: 16, textAlign: "center" },
-  todayLabel: { fontSize: 12.5, fontWeight: 700, color: "var(--muted2)", marginBottom: 6 },
-  todayValue: { fontFamily: "'Amiri', serif", fontSize: 40, fontWeight: 700, color: "#6FA8DC", fontVariantNumeric: "tabular-nums" },
+  todayLabel: { fontSize: "var(--m-text-sm)", fontWeight: "var(--font-bold)", color: "var(--muted2)", marginBottom: "var(--space-1)" },
+  todayValue: { fontFamily: "'Amiri', serif", fontSize: 40, fontWeight: "var(--font-bold)", color: "var(--m-secondary)", fontVariantNumeric: "tabular-nums" },
 
-  inputRow: { display: "flex", gap: 8, marginTop: 16 },
-  input: { flex: 1, background: "var(--surface-sunken)", border: "1px solid var(--border2)", borderRadius: 12, padding: "12px 14px", color: "var(--ink)", fontSize: 16, fontFamily: "inherit", textAlign: "center", fontVariantNumeric: "tabular-nums" },
-  saveBtn: { background: "#6FA8DC", color: "#0E1613", border: "none", borderRadius: 12, padding: "0 20px", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
+  inputRow: { display: "flex", gap: "var(--space-2)", marginTop: "var(--space-4)" },
+  input: { flex: 1, background: "var(--surface-sunken)", border: "1px solid var(--border2)", borderRadius: "var(--m-radius-md)", padding: "12px 14px", color: "var(--ink)", fontSize: 16, fontFamily: "inherit", textAlign: "center", fontVariantNumeric: "tabular-nums" },
 
-  quickAddRow: { display: "flex", gap: 8, marginTop: 10, justifyContent: "center" },
-  quickAddBtn: { display: "flex", alignItems: "center", gap: 4, background: "rgba(111,168,220,0.12)", border: "1px solid rgba(111,168,220,0.35)", color: "#6FA8DC", borderRadius: 10, padding: "7px 12px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
+  quickAddRow: { display: "flex", gap: "var(--space-2)", marginTop: "var(--space-3)", justifyContent: "center" },
 
-  chartCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 12px", marginBottom: 16 },
-  chartTitle: { fontSize: 13, fontWeight: 700, color: "var(--muted2)", marginBottom: 8 },
+  chartTitle: { fontSize: "var(--m-text-base)", fontWeight: "var(--font-bold)", color: "var(--muted2)", marginBottom: "var(--space-2)" },
 
-  goalCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 16px", marginBottom: 16 },
-  goalRow: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
-  goalText: { fontSize: 13, fontWeight: 700, color: "var(--ink)" },
-  goalEditLink: { background: "none", border: "none", color: "#6FA8DC", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", padding: 0 },
-  progressTrack: { height: 10, borderRadius: 6, background: "var(--surface-sunken)", overflow: "hidden" },
-  progressFill: { height: "100%", borderRadius: 6, background: "#6FA8DC", transition: "width 0.3s ease" },
-  setGoalBtn: { display: "flex", alignItems: "center", justifyContent: "center", width: "100%", background: "transparent", border: "1.5px dashed var(--border2)", color: "var(--muted2)", borderRadius: 12, padding: "10px 0", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
-  goalInputRow: { display: "flex", gap: 8 },
+  goalRow: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--space-2)" },
+  goalText: { fontSize: "var(--m-text-base)", fontWeight: "var(--font-bold)", color: "var(--ink)" },
+  goalEditLink: { background: "none", border: "none", color: "var(--m-secondary)", fontSize: "var(--m-text-xs)", fontWeight: "var(--font-bold)", cursor: "pointer", fontFamily: "inherit", padding: 0 },
+  progressTrack: { height: 10, borderRadius: "var(--m-radius-sm)", background: "var(--surface-sunken)", overflow: "hidden" },
+  progressFill: { height: "100%", borderRadius: "var(--m-radius-sm)", background: "var(--m-secondary)", transition: "width 0.3s ease" },
+  goalInputRow: { display: "flex", gap: "var(--space-2)" },
 };
 
 export default function StepsView({ stepsLog, setStepsLog, showToast, healthProfile, setHealthProfile }) {
@@ -156,68 +151,70 @@ export default function StepsView({ stepsLog, setStepsLog, showToast, healthProf
         </button>
       </div>
 
-      <div style={SS.trackCard} data-tour="steps-today-card">
-        <div style={SS.todayLabel}>{isViewingToday ? t("steps.todayLabel") : ""}</div>
-        <div style={SS.todayValue}>{selectedSteps.toLocaleString(i18n.language === "en" ? "en-US" : "ar-EG")}</div>
+      <div className="dashboard-grid-2">
+        <Card padding="lg" style={{ textAlign: "center", marginBottom: "var(--space-4)" }} data-tour="steps-today-card">
+          <div style={SS.todayLabel}>{isViewingToday ? t("steps.todayLabel") : ""}</div>
+          <div style={SS.todayValue}>{selectedSteps.toLocaleString(i18n.language === "en" ? "en-US" : "ar-EG")}</div>
 
-        <div style={SS.inputRow}>
-          <input
-            type="number"
-            inputMode="numeric"
-            min="0"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            placeholder={t("steps.inputPlaceholder")}
-            style={SS.input}
-            aria-label={t("steps.inputPlaceholder")}
-          />
-          <button onClick={() => saveSteps(inputValue)} disabled={saving || inputValue === ""} style={SS.saveBtn}>
-            {t("steps.saveBtn")}
-          </button>
-        </div>
-
-        <div style={SS.quickAddRow}>
-          {QUICK_ADD_VALUES.map((v) => (
-            <button key={v} onClick={() => quickAdd(v)} style={SS.quickAddBtn} aria-label={t("steps.quickAddLabel", { count: v })}>
-              <Plus size={13} /> {v.toLocaleString(i18n.language === "en" ? "en-US" : "ar-EG")}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div style={SS.goalCard} data-tour="steps-goal-card">
-        {editingGoal ? (
-          <div style={SS.goalInputRow}>
+          <div style={SS.inputRow}>
             <input
-              type="number" inputMode="numeric" min="1"
-              value={goalInput}
-              onChange={(e) => setGoalInput(e.target.value)}
-              placeholder={t("steps.dailyGoalPlaceholder")}
-              style={{ ...SS.input, flex: 1 }}
-              aria-label={t("steps.dailyGoalLabel")}
+              type="number"
+              inputMode="numeric"
+              min="0"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              placeholder={t("steps.inputPlaceholder")}
+              style={SS.input}
+              aria-label={t("steps.inputPlaceholder")}
             />
-            <button onClick={saveGoal} disabled={savingGoal || !goalInput} style={SS.saveBtn}>{t("common.buttons.save")}</button>
+            <Button variant="secondary" onClick={() => saveSteps(inputValue)} disabled={saving || inputValue === ""}>
+              {t("steps.saveBtn")}
+            </Button>
           </div>
-        ) : dailyGoal ? (
-          <>
-            <div style={SS.goalRow}>
-              <span style={SS.goalText}>
-                {selectedSteps >= dailyGoal
-                  ? t("steps.goalReached")
-                  : t("steps.goalProgress", { steps: selectedSteps.toLocaleString(i18n.language === "en" ? "en-US" : "ar-EG"), goal: dailyGoal.toLocaleString(i18n.language === "en" ? "en-US" : "ar-EG") })}
-              </span>
-              <button onClick={() => { setGoalInput(String(dailyGoal)); setEditingGoal(true); }} style={SS.goalEditLink}>{t("steps.editGoalBtn")}</button>
+
+          <div style={SS.quickAddRow}>
+            {QUICK_ADD_VALUES.map((v) => (
+              <Button key={v} variant="secondary" size="sm" icon={<Plus size={13} />} onClick={() => quickAdd(v)} aria-label={t("steps.quickAddLabel", { count: v })}>
+                {v.toLocaleString(i18n.language === "en" ? "en-US" : "ar-EG")}
+              </Button>
+            ))}
+          </div>
+        </Card>
+
+        <Card padding="md" style={{ marginBottom: "var(--space-4)" }} data-tour="steps-goal-card">
+          {editingGoal ? (
+            <div style={SS.goalInputRow}>
+              <input
+                type="number" inputMode="numeric" min="1"
+                value={goalInput}
+                onChange={(e) => setGoalInput(e.target.value)}
+                placeholder={t("steps.dailyGoalPlaceholder")}
+                style={{ ...SS.input, flex: 1 }}
+                aria-label={t("steps.dailyGoalLabel")}
+              />
+              <Button variant="secondary" onClick={saveGoal} disabled={savingGoal || !goalInput}>{t("common.buttons.save")}</Button>
             </div>
-            <div style={SS.progressTrack}>
-              <div style={{ ...SS.progressFill, width: `${Math.min(100, Math.round((selectedSteps / dailyGoal) * 100))}%` }} />
-            </div>
-          </>
-        ) : (
-          <button onClick={() => { setGoalInput(""); setEditingGoal(true); }} style={SS.setGoalBtn}>{t("steps.setGoalBtn")}</button>
-        )}
+          ) : dailyGoal ? (
+            <>
+              <div style={SS.goalRow}>
+                <span style={SS.goalText}>
+                  {selectedSteps >= dailyGoal
+                    ? t("steps.goalReached")
+                    : t("steps.goalProgress", { steps: selectedSteps.toLocaleString(i18n.language === "en" ? "en-US" : "ar-EG"), goal: dailyGoal.toLocaleString(i18n.language === "en" ? "en-US" : "ar-EG") })}
+                </span>
+                <button onClick={() => { setGoalInput(String(dailyGoal)); setEditingGoal(true); }} style={SS.goalEditLink}>{t("steps.editGoalBtn")}</button>
+              </div>
+              <div style={SS.progressTrack}>
+                <div style={{ ...SS.progressFill, width: `${Math.min(100, Math.round((selectedSteps / dailyGoal) * 100))}%` }} />
+              </div>
+            </>
+          ) : (
+            <Button variant="outline-dashed" fullWidth onClick={() => { setGoalInput(""); setEditingGoal(true); }}>{t("steps.setGoalBtn")}</Button>
+          )}
+        </Card>
       </div>
 
-      <div style={SS.chartCard}>
+      <Card padding="md" style={{ marginBottom: "var(--space-4)" }}>
         <div style={SS.chartTitle}>{t("steps.historyTitle")}</div>
         {hasAnyHistory ? (
           <ResponsiveContainer width="100%" height={150}>
@@ -226,13 +223,13 @@ export default function StepsView({ stepsLog, setStepsLog, showToast, healthProf
               <XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: 11, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} />
               <YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
               <Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [v.toLocaleString(i18n.language === "en" ? "en-US" : "ar-EG"), t("steps.heroTitle")]} />
-              <Bar dataKey="steps" radius={[3, 3, 3, 3]} fill="#6FA8DC" maxBarSize={28} />
+              <Bar dataKey="steps" radius={[3, 3, 3, 3]} fill="var(--m-secondary)" maxBarSize={28} />
             </BarChart>
           </ResponsiveContainer>
         ) : (
           <div style={S.emptyHint}>{t("steps.noHistoryYet")}</div>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

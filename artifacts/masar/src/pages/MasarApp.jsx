@@ -2036,14 +2036,14 @@ function TodayView({ date, setDate, entries, setEntries, categories, setCategori
       {mandatoryVisible.length > 0 && (
         <Card padding="md" style={{ marginBottom: "var(--space-3)" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--space-2)" }}>
-            <span style={{ fontSize: "var(--text-sm)", fontWeight: "var(--font-bold)", color: "var(--gold)" }}>{t("todayView.dailyMandatoryTitle")}</span>
-            <span style={{ fontSize: "var(--text-xs)", color: mandatoryDoneCount === mandatoryVisible.length ? "var(--success)" : "var(--muted2)", direction: "ltr" }}>{mandatoryDoneCount}/{mandatoryVisible.length}</span>
+            <span style={{ fontSize: "var(--m-text-sm)", fontWeight: "var(--font-bold)", color: "var(--gold)" }}>{t("todayView.dailyMandatoryTitle")}</span>
+            <span style={{ fontSize: "var(--m-text-xs)", color: mandatoryDoneCount === mandatoryVisible.length ? "var(--success)" : "var(--muted2)", direction: "ltr" }}>{mandatoryDoneCount}/{mandatoryVisible.length}</span>
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}>
             {mandatoryVisible.map((task) => {
               const done = !!todayMandatory[task.key];
               return (
-                <button key={task.key} onClick={() => toggleMandatoryToday(task)} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", borderRadius: "var(--radius-pill)", border: done ? "1px solid var(--success-border)" : "1px solid var(--line)", background: done ? "var(--success-soft)" : "transparent", color: done ? "var(--success)" : "var(--muted2)", fontSize: "var(--text-sm)", cursor: "pointer", fontFamily: "inherit", textDecoration: done ? "line-through" : "none" }}>
+                <button key={task.key} onClick={() => toggleMandatoryToday(task)} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", borderRadius: "var(--m-radius-pill)", border: done ? "1px solid var(--success-border)" : "1px solid var(--line)", background: done ? "var(--success-soft)" : "transparent", color: done ? "var(--success)" : "var(--muted2)", fontSize: "var(--m-text-sm)", cursor: "pointer", fontFamily: "inherit", textDecoration: done ? "line-through" : "none" }}>
                   <span>{task.icon}</span><span>{mandatoryTaskLabel(task, t)}</span>
                 </button>
               );

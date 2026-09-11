@@ -133,19 +133,19 @@ export const DIET_SYSTEMS = [
 
   // ============================================================
   // الأنظمة أدناه (Priority 6): flexitarian, vegetarian, vegan, low_carb,
-  // high_protein اعتُمدت (completed: true) بعد مراجعة محتواها مقابل مصادرها
-  // المذكورة عند كل نظام. ketogenic وحده يبقى completed: false (لم يُعتمَد
-  // بعد) - draftContent: true هو العلم الوحيد المسؤول عن كشفه في وضع
-  // المعاينة الخاص (?draft=diet، انظر DietPlansView.jsx) قبل اعتماده لاحقاً
-  // بنفس طريقة الخمسة أعلاه.
+  // high_protein, ketogenic - جميعها اعتُمدت الآن (completed: true) بعد
+  // مراجعة محتواها مقابل مصادرها المذكورة عند كل نظام. لا أنظمة مسودة
+  // متبقية بهذا القسم حالياً.
   //
   // مصادر استُرشِد بها لصياغة هذا المحتوى (مبادئ عامة متفَق عليها، لا اقتباس
   // أرقام دراسات محددة): low_carb - Diabetes Food Hub، Mayo Clinic،
   // ObesityMedicine.org، NCBI Bookshelf (NBK499830)؛ high_protein -
   // Catholic Health، Mayo Clinic؛ flexitarian - Dietary Guidelines for
   // Americans، Academy of Nutrition and Dietetics، ونمط الأدلة العامة الوارد
-  // بمقالة PMC5216044؛ vegetarian - Harvard Health؛ vegan - onekind.org.
-  // الروابط الكاملة مرجعية داخلية فقط ولا تُعرض بالواجهة إطلاقاً.
+  // بمقالة PMC5216044؛ vegetarian - Harvard Health؛ vegan - onekind.org؛
+  // ketogenic - إرشادات عامة حذرة واسعة الانتشار بمجال التغذية (تاريخه
+  // الطبي بعلاج الصرع، ومحاذير الحماض الكيتوني لمرضى النوع الأول من
+  // السكري). الروابط الكاملة مرجعية داخلية فقط ولا تُعرض بالواجهة إطلاقاً.
   // ============================================================
   {
     id: "flexitarian",
@@ -302,12 +302,11 @@ export const DIET_SYSTEMS = [
 
   {
     id: "ketogenic",
-    completed: false,
-    draftContent: true,
+    completed: true,
     name: "الكيتوجيني (Ketogenic)",
     nameEn: "Ketogenic Diet",
-    overview: "نمط غذائي شديد التقييد للكربوهيدرات مع نسبة عالية جداً من الدهون وبروتين معتدل، يهدف لدفع الجسم نحو حالة استقلابية تُسمّى \"الكيتوزيه\" يعتمد فيها على الكيتونات بدل الجلوكوز كمصدر رئيسي للطاقة - أكثر تقييداً بكثير من النظام منخفض الكربوهيدرات أعلاه.",
-    overviewEn: "A very carbohydrate-restrictive eating pattern with a very high fat share and moderate protein, aiming to shift the body into a metabolic state called \"ketosis\" where it relies on ketones instead of glucose as its main energy source - substantially more restrictive than the low-carb pattern above.",
+    overview: "نمط غذائي شديد التقييد للكربوهيدرات مع نسبة عالية جداً من الدهون وبروتين معتدل، يهدف لدفع الجسم نحو حالة استقلابية تُسمّى \"الكيتوزيه\" يعتمد فيها على الكيتونات بدل الجلوكوز كمصدر رئيسي للطاقة - أكثر تقييداً بكثير من النظام منخفض الكربوهيدرات أعلاه. الشكل الموصوف هنا هو النمط الكيتوجيني القياسي (Standard Keto) - النسخة الأكثر شيوعاً ودراسة؛ توجد أيضاً نسخ أقل شيوعاً وأقل توثيقاً علمياً كالكيتو الدوري (Cyclical)، تُناقَش عادة لفئات رياضية محدَّدة ولا تُغطّى بهذا الملخص العام.",
+    overviewEn: "A very carbohydrate-restrictive eating pattern with a very high fat share and moderate protein, aiming to shift the body into a metabolic state called \"ketosis\" where it relies on ketones instead of glucose as its main energy source - substantially more restrictive than the low-carb pattern above. The form described here is the Standard Ketogenic Diet - the most common and studied version; less common, less-documented variants such as Cyclical Keto also exist, typically discussed for specific athletic populations and not covered by this general summary.",
     scientificReference: "طُوِّر هذا النمط أصلاً واستُخدم طبياً منذ عقود لعلاج الصرع المقاوم للأدوية تحت إشراف طبي صارم ومتابعة دقيقة. استخدامه لفقدان الوزن لدى عموم الأصحاء أقل درسة على المدى الطويل، ولم تتبنَّه الجهات الصحية الكبرى كتوصية عامة أولى بخلاف DASH أو المتوسطي.",
     scientificReferenceEn: "This pattern was originally developed and has been used medically for decades to treat drug-resistant epilepsy under strict medical supervision and close monitoring. Its use for weight loss in the general healthy population is less studied long-term, and it has not been adopted by major health bodies as a first-line general recommendation the way DASH or Mediterranean have been.",
     suitableFor: "يُناقَش عادة كخيار بإشراف طبي مباشر لحالات محدَّدة (مثل بروتوكولات علاج الصرع)، أو كخيار قصير المدى يختاره بعض الأشخاص لفقدان الوزن بمتابعة أخصائي - لا يُقدَّم هنا كتوصية عامة افتراضية لعموم المستخدمين.",

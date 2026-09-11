@@ -238,12 +238,15 @@ function ExerciseDetailView({ exercise, isEn, isRtl, gender, onBack, t }) {
 // بطاقة عرض بسيطة (بلا صندوق اختيار/حفظ جلسة) لتمرين تأهيلي واحد من
 // joint-exercises.js - اسم/وصف أداء/إرشاد تكرارات عام فقط، تُستخدَم لكل من
 // قائمة الركبة وقوائم القدم أدناه (بنية موحَّدة كما طُلب).
-function JointExerciseCard({ ex, isEn }) {
+function JointExerciseCard({ ex, isEn, gender, t }) {
   return (
     <div style={FS.exerciseRow}>
       <div style={FS.exerciseName}>{isEn ? ex.nameEn : ex.name}</div>
       <p style={{ ...FS.noteText, marginTop: 4, marginBottom: 4 }}>{isEn ? ex.descriptionEn : ex.description}</p>
       <div style={FS.exerciseMeta}>{isEn ? ex.repsGuidanceEn : ex.repsGuidance}</div>
+      <a href={youtubeSearchUrl(ex, gender)} target="_blank" rel="noopener noreferrer" style={FS.watchVideoBtn}>
+        <Youtube size={16} /> {t("fitness.watchVideoBtn")}
+      </a>
     </div>
   );
 }
@@ -310,7 +313,7 @@ function MusclePickerScreen({ gender, isEn, isRtl, t, pickedMuscle, onSelectMusc
                 <AlertTriangle size={16} color="#D17B5F" style={{ flexShrink: 0, marginTop: 1 }} />
                 <p style={FS.warningText}>{isEn ? PAIN_WARNING.en : PAIN_WARNING.ar}</p>
               </div>
-              {FOOT_EXERCISE_SETS[footCondition].map((ex) => <JointExerciseCard key={ex.id} ex={ex} isEn={isEn} />)}
+              {FOOT_EXERCISE_SETS[footCondition].map((ex) => <JointExerciseCard key={ex.id} ex={ex} isEn={isEn} gender={gender} t={t} />)}
             </>
           )}
           {isKnee && (
@@ -319,7 +322,7 @@ function MusclePickerScreen({ gender, isEn, isRtl, t, pickedMuscle, onSelectMusc
                 <AlertTriangle size={16} color="#D17B5F" style={{ flexShrink: 0, marginTop: 1 }} />
                 <p style={FS.warningText}>{isEn ? PAIN_WARNING.en : PAIN_WARNING.ar}</p>
               </div>
-              {KNEE_EXERCISES.map((ex) => <JointExerciseCard key={ex.id} ex={ex} isEn={isEn} />)}
+              {KNEE_EXERCISES.map((ex) => <JointExerciseCard key={ex.id} ex={ex} isEn={isEn} gender={gender} t={t} />)}
             </>
           )}
         </div>

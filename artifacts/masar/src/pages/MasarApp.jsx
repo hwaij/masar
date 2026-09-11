@@ -207,7 +207,7 @@ const PS = {
 const HS = {
   wrap: { display: "flex", flexDirection: "column", gap: 16 },
   hero: { display: "flex", alignItems: "center", gap: 12 },
-  heroIcon: { width: 44, height: 44, borderRadius: 14, background: "linear-gradient(140deg, #5FA8A0, #3E7E78)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  heroIcon: { width: 44, height: 44, background: "linear-gradient(140deg, #5FA8A0, #3E7E78)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
   heroTitle: { fontFamily: "'Amiri', serif", fontSize: 22, fontWeight: 700 },
   heroSub: { fontSize: 12, color: "var(--muted2)", marginTop: 2, lineHeight: 1.5 },
   chatCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "14px", display: "flex", flexDirection: "column" },
@@ -260,7 +260,7 @@ const SUB = {
 // أنماط قسم "أنت"
 const YS = {
   hero: { display: "flex", alignItems: "center", gap: 12, marginBottom: 16 },
-  heroIcon: { width: 44, height: 44, borderRadius: 14, background: "linear-gradient(140deg, #5FA8A0, #3E7E78)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  heroIcon: { width: 44, height: 44, background: "linear-gradient(140deg, #5FA8A0, #3E7E78)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
   heroTitle: { fontFamily: "'Amiri', serif", fontSize: 22, fontWeight: 700 },
   heroSub: { fontSize: 12, color: "var(--muted2)", marginTop: 2, lineHeight: 1.5 },
   formCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "16px 14px", marginBottom: 16 },
@@ -2038,7 +2038,7 @@ function TodayView({ date, setDate, entries, setEntries, categories, setCategori
       </div>
 
       {mandatoryVisible.length > 0 && (
-        <Card padding="md" style={{ marginBottom: "var(--space-3)" }}>
+        <Card padding="md" style={{ marginBottom: "var(--space-3)", borderRadius: "var(--m-radius-2xl)" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--space-2)" }}>
             <span style={{ fontSize: "var(--m-text-sm)", fontWeight: "var(--font-bold)", color: "var(--gold)" }}>{t("todayView.dailyMandatoryTitle")}</span>
             <span style={{ fontSize: "var(--m-text-xs)", color: mandatoryDoneCount === mandatoryVisible.length ? "var(--success)" : "var(--muted2)", direction: "ltr" }}>{mandatoryDoneCount}/{mandatoryVisible.length}</span>
@@ -3723,7 +3723,7 @@ function SleepView({ sleepLog, setSleepLog, showToast }) {
   return (
     <div style={S.view}>
       <div style={YS.hero}>
-        <div style={YS.heroIcon}><Bed size={22} color="var(--on-accent)" /></div>
+        <div className="ui-icon-badge" style={YS.heroIcon}><Bed size={22} color="var(--on-accent)" /></div>
         <div>
           <div style={YS.heroTitle}>{t("nav.sleep")}</div>
           <div style={YS.heroSub}>{language === "en" ? "Log your sleep and track your rest pattern over the week." : "سجّل نومك وتابع نمط راحتك خلال الأسبوع."}</div>
@@ -4022,7 +4022,7 @@ function SleepSection({ sleepLog, setSleepLog, days, range, showToast, standalon
 
   return (
     <div className="dashboard-grid-2">
-    <Card padding="md" style={{ marginBottom: "var(--space-4)" }}>
+    <Card padding="md" style={{ marginBottom: "var(--space-4)", borderRadius: "var(--m-radius-2xl)" }}>
       <div style={S.chartTitle}>{t("sleep.chartTitle")}</div>
       {/* الصدق التقني المطلوب صراحةً: هذا تسجيل يدوي بمساعدة تذكيرات وقتية
           فقط - مسار لا "يعرف" نوم المستخدم تلقائياً بأي شكل. */}
@@ -4394,7 +4394,7 @@ function AssistantView({ entries, tasks, categories, focus, prayerLog, religious
     <div style={S.view}>
       <div style={HS.wrap}>
         <div style={HS.hero}>
-          <div style={HS.heroIcon}><MessageCircle size={22} color="var(--on-accent)" /></div>
+          <div className="ui-icon-badge" style={HS.heroIcon}><MessageCircle size={22} color="var(--on-accent)" /></div>
           <div>
             <div style={HS.heroTitle}>{t("assistant.heroTitle")}</div>
             <div style={HS.heroSub}>{t("assistant.heroSub")}</div>
@@ -5581,7 +5581,7 @@ function GoalsView({ goals, setGoals, addPoints, showToast, profile, setProfile,
           </div>
         </div>
 
-        <Card padding="md">
+        <Card padding="md" style={{ borderRadius: "var(--m-radius-2xl)" }}>
           <label style={S.label}>{t("goals.newGoalLabel")}</label>
           <input value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addGoal()} placeholder={t("goals.newGoalPlaceholder")} style={{ ...S.input, marginTop: 6 }} />
           <div style={GS.periodRow}>
@@ -7171,7 +7171,7 @@ function YouView({ healthProfile, setHealthProfile, showToast, profile, setProfi
     return (
       <div style={S.view}>
         <div style={YS.hero}>
-          <div style={YS.heroIcon}><User size={22} color="var(--on-accent)" /></div>
+          <div className="ui-icon-badge" style={YS.heroIcon}><User size={22} color="var(--on-accent)" /></div>
           <div>
             <div style={YS.heroTitle}>{t("nav.you")}</div>
             {/* "missing locale key": you.heroSubEdit */}
@@ -7238,7 +7238,7 @@ function YouView({ healthProfile, setHealthProfile, showToast, profile, setProfi
   return (
     <div style={S.view}>
       <div style={YS.hero}>
-        <div style={YS.heroIcon}><User size={22} color="var(--on-accent)" /></div>
+        <div className="ui-icon-badge" style={YS.heroIcon}><User size={22} color="var(--on-accent)" /></div>
         <div>
           <div style={YS.heroTitle}>{t("nav.you")}</div>
           {/* "missing locale key": you.heroSubResults */}

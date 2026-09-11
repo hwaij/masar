@@ -5,10 +5,10 @@ import {
 } from "recharts";
 import { Footprints, Plus, ChevronLeft, ChevronRight } from "lucide-react";
 import { store } from "../lib/store";
-import { arabicDate } from "../lib/helpers";
+import { arabicDate, formatNumberLatin } from "../lib/helpers";
 import { localDayKey } from "../lib/tips";
 import { S } from "./styles";
-import { Button, Card } from "./ui";
+import { Button, Card, ProgressRing } from "./ui";
 
 // أزرار إضافة سريعة أثناء اليوم (المستخدم يحدّث خطواته عدة مرات، لا يُدخلها
 // دفعة واحدة فقط في نهاية اليوم) - تُضيف للقيمة الحالية في حقل الإدخال قبل
@@ -18,12 +18,13 @@ const QUICK_ADD_VALUES = [500, 1000, 2000];
 
 const SS = {
   hero: { display: "flex", alignItems: "center", gap: "var(--space-3)", marginBottom: "var(--space-4)" },
-  heroIcon: { width: 44, height: 44, borderRadius: "var(--m-radius-lg)", background: "linear-gradient(140deg, var(--m-secondary), var(--success))", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  heroIcon: { width: 44, height: 44, background: "linear-gradient(140deg, var(--m-secondary), var(--success))", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
   heroTitle: { fontFamily: "'Amiri', serif", fontSize: "var(--m-text-xl)", fontWeight: "var(--font-bold)" },
   heroSub: { fontSize: "var(--m-text-xs)", color: "var(--muted2)", marginTop: 2, lineHeight: "var(--leading-normal)" },
 
-  todayLabel: { fontSize: "var(--m-text-sm)", fontWeight: "var(--font-bold)", color: "var(--muted2)", marginBottom: "var(--space-1)" },
-  todayValue: { fontFamily: "'Amiri', serif", fontSize: 40, fontWeight: "var(--font-bold)", color: "var(--m-secondary)", fontVariantNumeric: "tabular-nums" },
+  todayLabel: { fontSize: "var(--m-text-sm)", fontWeight: "var(--font-bold)", color: "var(--muted2)", marginBottom: "var(--space-2)" },
+  todayValue: { fontFamily: "'Amiri', serif", fontSize: 32, fontWeight: "var(--font-bold)", color: "var(--m-secondary)", fontVariantNumeric: "tabular-nums" },
+  todayValueUnit: { fontSize: "var(--m-text-xs)", fontWeight: "var(--font-bold)", color: "var(--muted2)", marginTop: 2 },
 
   inputRow: { display: "flex", gap: "var(--space-2)", marginTop: "var(--space-4)" },
   input: { flex: 1, background: "var(--surface-sunken)", border: "1px solid var(--border2)", borderRadius: "var(--m-radius-md)", padding: "12px 14px", color: "var(--ink)", fontSize: 16, fontFamily: "inherit", textAlign: "center", fontVariantNumeric: "tabular-nums" },
@@ -126,7 +127,7 @@ export default function StepsView({ stepsLog, setStepsLog, showToast, healthProf
   return (
     <div style={S.view}>
       <div style={SS.hero}>
-        <div style={SS.heroIcon}><Footprints size={22} color="#0E1613" /></div>
+        <div className="ui-icon-badge" style={SS.heroIcon}><Footprints size={22} color="#0E1613" /></div>
         <div>
           <div style={SS.heroTitle}>{t("steps.heroTitle")}</div>
           <div style={SS.heroSub}>{t("steps.heroSub")}</div>
@@ -152,9 +153,19 @@ export default function StepsView({ stepsLog, setStepsLog, showToast, healthProf
       </div>
 
       <div className="dashboard-grid-2">
-        <Card padding="lg" style={{ textAlign: "center", marginBottom: "var(--space-4)" }} data-tour="steps-today-card">
+        <Card padding="lg" style={{ textAlign: "center", marginBottom: "var(--space-4)", borderRadius: "var(--m-radius-2xl)" }} data-tour="steps-today-card">
           <div style={SS.todayLabel}>{isViewingToday ? t("steps.todayLabel") : ""}</div>
-          <div style={SS.todayValue}>{selectedSteps.toLocaleString(i18n.language === "en" ? "en-US" : "ar-EG")}</div>
+          <ProgressRing
+            percent={dailyGoal ? Math.min(100, (selectedSteps / dailyGoal) * 100) : 0}
+            color="var(--m-secondary)"
+            size={152}
+            strokeWidth={11}
+          >
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+              <div style={SS.todayValue}>{formatNumberLatin(selectedSteps, i18n.language)}</div>
+              <div style={SS.todayValueUnit}>{t("steps.heroTitle")}</div>
+            </div>
+          </ProgressRing>
 
           <div style={SS.inputRow}>
             <input
@@ -175,7 +186,7 @@ export default function StepsView({ stepsLog, setStepsLog, showToast, healthProf
           <div style={SS.quickAddRow}>
             {QUICK_ADD_VALUES.map((v) => (
               <Button key={v} variant="secondary" size="sm" icon={<Plus size={13} />} onClick={() => quickAdd(v)} aria-label={t("steps.quickAddLabel", { count: v })}>
-                {v.toLocaleString(i18n.language === "en" ? "en-US" : "ar-EG")}
+                {formatNumberLatin(v, i18n.language)}
               </Button>
             ))}
           </div>
@@ -200,7 +211,7 @@ export default function StepsView({ stepsLog, setStepsLog, showToast, healthProf
                 <span style={SS.goalText}>
                   {selectedSteps >= dailyGoal
                     ? t("steps.goalReached")
-                    : t("steps.goalProgress", { steps: selectedSteps.toLocaleString(i18n.language === "en" ? "en-US" : "ar-EG"), goal: dailyGoal.toLocaleString(i18n.language === "en" ? "en-US" : "ar-EG") })}
+                    : t("steps.goalProgress", { steps: formatNumberLatin(selectedSteps, i18n.language), goal: formatNumberLatin(dailyGoal, i18n.language) })}
                 </span>
                 <button onClick={() => { setGoalInput(String(dailyGoal)); setEditingGoal(true); }} style={SS.goalEditLink}>{t("steps.editGoalBtn")}</button>
               </div>
@@ -222,7 +233,7 @@ export default function StepsView({ stepsLog, setStepsLog, showToast, healthProf
               <CartesianGrid strokeDasharray="2 4" stroke="var(--surface-raised)" vertical={false} />
               <XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: 11, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} />
               <YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [v.toLocaleString(i18n.language === "en" ? "en-US" : "ar-EG"), t("steps.heroTitle")]} />
+              <Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [formatNumberLatin(v, i18n.language), t("steps.heroTitle")]} />
               <Bar dataKey="steps" radius={[3, 3, 3, 3]} fill="var(--m-secondary)" maxBarSize={28} />
             </BarChart>
           </ResponsiveContainer>

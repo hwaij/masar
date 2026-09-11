@@ -192,7 +192,7 @@ export const S = {
   achieveStepNum: { width: 18, height: 18, borderRadius: "50%", background: "var(--surface-raised)", color: "var(--gold)", fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 },
   achieveLink: { display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, color: "#5FA8A0", textDecoration: "none", fontWeight: 600 },
 
-  profileCard: { background: "linear-gradient(160deg, var(--warm-tint), var(--panel))", border: "1px solid var(--warm-border)", borderRadius: 14, padding: sp("14px 12px"), marginBottom: sp(16) },
+  profileCard: { background: "linear-gradient(160deg, var(--warm-tint), var(--panel))", border: "1px solid var(--warm-border)", borderRadius: "var(--m-radius-2xl)", padding: sp("14px 12px"), marginBottom: sp(16) },
   profileHint: { fontSize: 12, color: "var(--muted2)", lineHeight: 1.6, margin: "0 0 8px" },
 
   timerCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 18, padding: sp("20px 16px"), marginBottom: sp(16) },

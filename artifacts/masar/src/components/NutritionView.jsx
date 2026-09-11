@@ -29,14 +29,14 @@ import { isolateNumbers } from "../lib/bidi";
 import { speak, isSpeechSupported } from "../lib/speech";
 import NumericValue from "./NumericValue";
 import { S } from "./styles";
-import { Button, Card } from "./ui";
+import { Button, Card, ProgressRing } from "./ui";
 
 const NS = {
   hero: { display: "flex", alignItems: "center", gap: "var(--space-3)", marginBottom: "var(--space-4)" },
-  heroIcon: { width: 44, height: 44, borderRadius: "var(--m-radius-lg)", background: "linear-gradient(140deg, var(--success), #3E7E78)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  heroIcon: { width: 44, height: 44, background: "linear-gradient(140deg, var(--success), #3E7E78)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
   heroTitle: { fontFamily: "'Amiri', serif", fontSize: "var(--m-text-xl)", fontWeight: "var(--font-bold)" },
   heroSub: { fontSize: "var(--m-text-xs)", color: "var(--muted2)", marginTop: 2, lineHeight: "var(--leading-normal)" },
-  summaryCard: { marginBottom: "var(--space-4)" },
+  summaryCard: { marginBottom: "var(--space-4)", borderRadius: "var(--m-radius-2xl)" },
   summaryTop: { display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "var(--space-2)" },
   summaryCalories: { fontFamily: "'Amiri', serif", fontSize: "var(--m-text-2xl)", fontWeight: "var(--font-bold)", color: "var(--gold)" },
   summaryTee: { fontSize: "var(--m-text-xs)", color: "var(--muted2)" },
@@ -171,11 +171,6 @@ const NS = {
   checkboxRow: { display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, fontWeight: 600, color: "var(--ink)", margin: "12px 0", cursor: "pointer" },
 
   ringsRow: { display: "flex", justifyContent: "space-between", gap: 6, marginTop: 16, marginBottom: 2 },
-  ringItem: { display: "flex", flexDirection: "column", alignItems: "center", gap: 3, flex: 1 },
-  ringSvgWrap: { position: "relative", width: 64, height: 64 },
-  ringPercent: { position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12.5, fontWeight: 700, color: "var(--ink)" },
-  ringLabel: { fontSize: 11, fontWeight: 700, color: "var(--ink-soft)" },
-  ringValueText: { fontSize: 9.5, color: "var(--muted2)" },
 
   mealTypeRow: { display: "flex", gap: 8, marginBottom: 12 },
   mealTypeBtn: { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, flex: 1, minHeight: 56, borderRadius: 12, border: "1px solid var(--border2)", background: "var(--surface-sunken)", color: "var(--ink-soft)", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
@@ -357,40 +352,6 @@ function ManualBarcodeEntry({ onSubmit }) {
   );
 }
 
-// دائرة تقدم واحدة (SVG). تبدأ الحيوية من صفر عند أول ظهور (useEffect +
-// setTimeout قصير) ثم تتحرك بانتقال CSS سلس نحو النسبة الفعلية - وبما أن
-// "percent" prop يتغيّر تلقائياً عند إضافة طعام جديد (يُعاد حساب المجاميع)،
-// نفس آلية الحركة تعمل تلقائياً لأي تحديث لاحق أيضاً، لا فقط عند التحميل.
-function ProgressRing({ percent, color, label, valueText, size = 64, strokeWidth = 7 }) {
-  const [animated, setAnimated] = useState(0);
-  useEffect(() => {
-    const t = setTimeout(() => setAnimated(percent), 50);
-    return () => clearTimeout(t);
-  }, [percent]);
-  const r = (size - strokeWidth) / 2;
-  const c = 2 * Math.PI * r;
-  const ringFraction = Math.max(0, Math.min(100, animated)) / 100;
-  const offset = c - ringFraction * c;
-  const displayPercent = Math.max(0, Math.round(animated));
-  return (
-    <div style={NS.ringItem}>
-      <div style={NS.ringSvgWrap}>
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-          <circle cx={size / 2} cy={size / 2} r={r} stroke="var(--surface-sunken)" strokeWidth={strokeWidth} fill="none" />
-          <circle
-            cx={size / 2} cy={size / 2} r={r} stroke={color} strokeWidth={strokeWidth} fill="none"
-            strokeDasharray={c} strokeDashoffset={offset} strokeLinecap="round"
-            transform={`rotate(-90 ${size / 2} ${size / 2})`}
-            style={{ transition: "stroke-dashoffset 0.9s cubic-bezier(.4,0,.2,1)" }}
-          />
-        </svg>
-        <div style={NS.ringPercent}><NumericValue value={displayPercent} unit="%" /></div>
-      </div>
-      <div style={NS.ringLabel}>{label}</div>
-      <div style={NS.ringValueText}>{isolateNumbers(valueText)}</div>
-    </div>
-  );
-}
 
 // أربع دوائر ملونة (بروتين/كارب/دهون/صوديوم) بجانب بطاقة الاحتياج
 // الخطية الموجودة أصلاً - عرض بصري إضافي مكمّل، لا بديل يحذف الأرقام
@@ -3258,7 +3219,7 @@ ${missingMealsLine}
   return (
     <div style={S.view}>
       <div style={NS.hero}>
-        <div style={NS.heroIcon}><Flame size={22} color="var(--on-accent)" aria-hidden="true" /></div>
+        <div className="ui-icon-badge" style={NS.heroIcon}><Flame size={22} color="var(--on-accent)" aria-hidden="true" /></div>
         <div>
           <h1 style={NS.heroTitle}>{t("nutrition.heroTitle")}</h1>
           <p style={NS.heroSub}>{t("nutrition.heroSub")}</p>

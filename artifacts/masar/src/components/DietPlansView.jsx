@@ -35,6 +35,9 @@ const DS = {
   bulletList: { margin: 0, paddingInlineStart: 18, fontSize: 13, color: "var(--ink)", lineHeight: 1.9 },
   sampleDayRow: { display: "flex", gap: 8, marginBottom: 6, fontSize: 12.5 },
   sampleDayLabel: { fontWeight: 700, color: "var(--muted2)", flexShrink: 0, minWidth: 70 },
+  levelRow: { display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 8 },
+  levelBadge: { flexShrink: 0, fontSize: 11, fontWeight: 700, color: "var(--on-accent)", background: "var(--gold)", borderRadius: 20, padding: "3px 10px", minWidth: 56, textAlign: "center" },
+  levelDesc: { fontSize: 13, color: "var(--ink)", lineHeight: 1.7 },
   planBox: { background: "var(--surface-sunken)", borderRadius: 12, padding: "14px 12px", fontSize: 13.5, lineHeight: 1.9, whiteSpace: "pre-wrap", color: "var(--ink)" },
   adherenceRow: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
   adherenceValue: { fontSize: 20, fontWeight: 700, color: "var(--gold)", direction: "ltr" },
@@ -280,6 +283,20 @@ export default function DietPlansView({ healthProfile, showToast, subscription, 
               <div style={DS.sectionTitle}>{t("dietPlans.limitFoods")}</div>
               <ul style={DS.bulletList}>{(isEn ? detailSystem.limitFoodsEn : detailSystem.limitFoods).map((b, i) => <li key={i}>{b}</li>)}</ul>
             </div>
+            {/* مستويات تطبيق تدريجية - حقل اختياري (levels) موجود حالياً فقط
+                بنظام "المرن (Flexitarian)"؛ يُخفى تلقائياً لأي نظام آخر لا
+                يملكه، بلا حاجة لأي شرط خاص بالمعرّف هنا. */}
+            {Array.isArray(detailSystem.levels) && detailSystem.levels.length > 0 && (
+              <div style={DS.sectionCard}>
+                <div style={DS.sectionTitle}>{t("dietPlans.applicationLevels")}</div>
+                {detailSystem.levels.map((lvl, i) => (
+                  <div key={i} style={DS.levelRow}>
+                    <span style={DS.levelBadge}>{isEn ? lvl.labelEn : lvl.label}</span>
+                    <span style={DS.levelDesc}>{isEn ? lvl.descriptionEn : lvl.description}</span>
+                  </div>
+                ))}
+              </div>
+            )}
             <div style={DS.sectionCard}>
               <div style={DS.sectionTitle}>{t("dietPlans.sampleDay")}</div>
               {["breakfast", "lunch", "dinner", "snacks"].map((k) => (

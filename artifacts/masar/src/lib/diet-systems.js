@@ -132,41 +132,41 @@ export const DIET_SYSTEMS = [
   },
 
   // ============================================================
-  // مسودات قيد المراجعة (Priority 6) - completed يبقى false عمداً لكل هذه
-  // الأنظمة حتى تُراجَع وتُعتمَد صراحة من أخصائي تغذية؛ لعموم المستخدمين لا
-  // فرق إطلاقاً عن الحالة السابقة (يرون "قيد الإعداد" فقط، بلا أي إشارة لوجود
-  // مسودة خلفها). draftContent: true هو العلم الوحيد المسؤول عن كشف هذا
-  // المحتوى في وضع المعاينة الخاص (?draft=diet، انظر DietPlansView.jsx) -
-  // تغييره لاحقاً إلى completed: true (بعد الاعتماد الفعلي) هو الخطوة الوحيدة
-  // المطلوبة لنشر أي نظام منها للجميع، بلا أي تعديل بنيوي آخر.
+  // الأنظمة أدناه (Priority 6): flexitarian, vegetarian, vegan, low_carb,
+  // high_protein اعتُمدت (completed: true) بعد مراجعة محتواها مقابل مصادرها
+  // المذكورة عند كل نظام. ketogenic وحده يبقى completed: false (لم يُعتمَد
+  // بعد) - draftContent: true هو العلم الوحيد المسؤول عن كشفه في وضع
+  // المعاينة الخاص (?draft=diet، انظر DietPlansView.jsx) قبل اعتماده لاحقاً
+  // بنفس طريقة الخمسة أعلاه.
   //
-  // مصادر عامة استُرشِد بها لصياغة هذه المسودات (لا اقتباس أرقام دراسات
-  // محددة، بل مبادئ عامة متفَق عليها): USDA Dietary Guidelines for
-  // Americans، مواقف الجمعية الأمريكية للتغذية وعلم التغذية (Academy of
-  // Nutrition and Dietetics) حول الأنظمة النباتية، وإرشادات عامة حذرة بخصوص
-  // الأنظمة منخفضة الكربوهيدرات/الكيتوجينية نظراً لحساسيتها الطبية.
+  // مصادر استُرشِد بها لصياغة هذا المحتوى (مبادئ عامة متفَق عليها، لا اقتباس
+  // أرقام دراسات محددة): low_carb - Diabetes Food Hub، Mayo Clinic،
+  // ObesityMedicine.org، NCBI Bookshelf (NBK499830)؛ high_protein -
+  // Catholic Health، Mayo Clinic؛ flexitarian - Dietary Guidelines for
+  // Americans، Academy of Nutrition and Dietetics، ونمط الأدلة العامة الوارد
+  // بمقالة PMC5216044؛ vegetarian - Harvard Health؛ vegan - onekind.org.
+  // الروابط الكاملة مرجعية داخلية فقط ولا تُعرض بالواجهة إطلاقاً.
   // ============================================================
   {
     id: "flexitarian",
-    completed: false,
-    draftContent: true,
+    completed: true,
     name: "النظام المرن (Flexitarian)",
     nameEn: "Flexitarian Diet",
     overview: "نمط غذائي أساسه نباتي غالباً، مع إدخال اللحوم ومنتجات حيوانية أخرى بين الحين والآخر دون منعها كلياً - مرونة عمدية بدل الالتزام الصارم بقواعد نباتية كاملة.",
     overviewEn: "A largely plant-based eating pattern that still allows meat and other animal products occasionally, without excluding them entirely - deliberate flexibility rather than strict vegetarian rules.",
-    scientificReference: "يتوافق مع توجّه الإرشادات الغذائية الأمريكية (Dietary Guidelines for Americans) نحو زيادة الاعتماد على الأطعمة النباتية ضمن نمط غذائي متوازن عموماً، دون اشتراط استبعاد كامل للحوم.",
-    scientificReferenceEn: "Aligns with the general direction of the U.S. Dietary Guidelines for Americans toward greater reliance on plant-based foods within an overall balanced pattern, without requiring complete exclusion of meat.",
+    scientificReference: "يتوافق مع توجّه الإرشادات الغذائية الأمريكية (Dietary Guidelines for Americans) نحو زيادة الاعتماد على الأطعمة النباتية ضمن نمط غذائي متوازن عموماً، دون اشتراط استبعاد كامل للحوم، ويتماشى أيضاً مع توصيات الجمعية الأمريكية للتغذية وعلم التغذية (Academy of Nutrition and Dietetics) الداعمة لصحة القلب والوقاية من الأمراض المزمنة.",
+    scientificReferenceEn: "Aligns with the general direction of the U.S. Dietary Guidelines for Americans toward greater reliance on plant-based foods within an overall balanced pattern, without requiring complete exclusion of meat, and also with Academy of Nutrition and Dietetics guidance supporting heart health and chronic-disease prevention.",
     suitableFor: "من يريد تقليل استهلاك اللحوم تدريجياً دون التزام صارم، أو من يبحث عن نمط غذائي مرن وسهل الاستمرار عليه على المدى الطويل.",
     suitableForEn: "Those wanting to gradually reduce meat consumption without a strict commitment, or anyone seeking a flexible, easy-to-sustain long-term eating pattern.",
-    notRecommendedFor: "لا محاذير صحية كبرى معروفة لعموم الأصحاء نظراً لمرونته العالية. من يقلّل اللحوم بشكل كبير دون تخطيط جيد قد يحتاج انتباهاً لكفاية الحديد والبروتين - لا داعي لاستشارة خاصة إلا لمن لديه حالة صحية قائمة تستدعي متابعة غذائية أصلاً.",
-    notRecommendedForEn: "No major known health concerns for generally healthy individuals, given its high flexibility. Those significantly reducing meat without good planning may need to pay attention to iron and protein adequacy - no special consultation needed except for those with an existing condition already requiring dietary follow-up.",
+    notRecommendedFor: "لا محاذير صحية كبرى لعموم الأصحاء نظراً لمرونته العالية. عند تقليل المنتجات الحيوانية بشكل كبير، يجب الانتباه لكفاية البروتين، الحديد، الفيتامينات الدقيقة، والأحماض الدهنية الأساسية (أوميغا-3). يُنصح بتركيز الاعتماد على الأغذية النباتية الكاملة وتجنّب الإفراط في البدائل النباتية المُصنَّعة. لا داعي للاستشارة الخاصة إلا لمن لديه حالة صحية خاصة تستدعي متابعة غذائية.",
+    notRecommendedForEn: "No major health concerns for generally healthy individuals, given its high flexibility. When animal products are reduced significantly, attention is needed for adequate protein, iron, micronutrients, and essential fatty acids (omega-3). It's advisable to focus on whole plant foods and avoid overreliance on processed plant-based substitutes. No special consultation is needed except for those with an existing condition already requiring dietary follow-up.",
     unsuitableConditions: [],
     benefits: ["يدعم صحة القلب مع زيادة الاعتماد على النباتات", "يساعد على إدارة الوزن لسهولة الاستمرار عليه", "مرن جداً ولا يتطلب استبعاداً كاملاً لأي مجموعة غذائية", "خطوة تدريجية سهلة نحو نمط أكثر اعتماداً على النبات"],
     benefitsEn: ["Supports heart health through greater reliance on plants", "Can help with weight management due to ease of adherence", "Very flexible - no food group is fully excluded", "An easy, gradual step toward a more plant-forward pattern"],
-    drawbacks: ["تعريفه المرن قد يجعل الالتزام غير واضح المعايير لبعض الأشخاص", "يحتاج انتباهاً للحديد وفيتامين ب12 والبروتين إن قُلِّلت اللحوم كثيراً بلا تخطيط", "لا يقدّم إرشادات صارمة قد يحتاجها من يفضّل قواعد واضحة"],
-    drawbacksEn: ["Its flexible definition can make adherence feel unclear to some", "Needs attention to iron, vitamin B12, and protein if meat is reduced a lot without planning", "Lacks the strict guidance some people prefer for structure"],
-    allowedFoods: ["خضار وفواكه", "حبوب كاملة", "بقوليات ومكسرات", "بروتينات نباتية (توفو، عدس)", "لحوم ودواجن وأسماك وألبان وبيض باعتدال وعدم انتظام"],
-    allowedFoodsEn: ["Vegetables and fruits", "Whole grains", "Legumes and nuts", "Plant proteins (tofu, lentils)", "Meat, poultry, fish, dairy, and eggs in moderation and irregularly"],
+    drawbacks: ["قد تجعل مرونة التعريف الالتزام غير واضح المعالم لبعض الأشخاص", "يتطلب تخطيطاً غذائياً جيداً لضمان كفاية الحديد، الزنك، فيتامين ب12، أوميغا-3 وفيتامين D عند تقليل اللحوم كثيراً", "لا يقدّم إرشادات صارمة، مما قد لا يناسب من يفضّلون القواعد التغذوية المحدَّدة"],
+    drawbacksEn: ["Its flexible definition can make adherence feel unclear to some", "Needs good dietary planning to ensure adequate iron, zinc, vitamin B12, omega-3, and vitamin D when meat is reduced significantly", "Doesn't offer strict guidance, which may not suit those who prefer defined nutritional rules"],
+    allowedFoods: ["خضار وفواكه", "حبوب كاملة", "بقوليات ومكسرات وبذور", "بروتينات نباتية متنوعة (توفو، عدس، حمص) لضمان التنوع الحمضي الأميني", "لحوم ودواجن وأسماك وألبان وبيض باعتدال وعلى فترات متباعدة"],
+    allowedFoodsEn: ["Vegetables and fruits", "Whole grains", "Legumes, nuts, and seeds", "Varied plant proteins (tofu, lentils, chickpeas) for amino-acid variety", "Meat, poultry, fish, dairy, and eggs in moderation and at spaced-out intervals"],
     limitFoods: ["اللحوم المصنّعة", "السكريات المكرَّرة", "الأطعمة شديدة المعالجة الصناعية"],
     limitFoodsEn: ["Processed meat", "Refined sugars", "Highly processed foods"],
     sampleDay: {
@@ -181,12 +181,20 @@ export const DIET_SYSTEMS = [
       dinner: "Grilled vegetables with tofu or a small piece of chicken (every other day)",
       snacks: "Fruit or yogurt",
     },
+    // مستويات تطبيق تدريجية (خاصة بهذا النظام تحديداً فقط - لا حقل عام
+    // لبقية الأنظمة) بحسب عدد أيام التخلي عن اللحوم أسبوعياً، تُعرَض فقط إن
+    // وُجد هذا الحقل (انظر DietPlansView.jsx: القسم يُخفى تلقائياً لأي نظام
+    // آخر لا يملك levels).
+    levels: [
+      { label: "مبتدئ", labelEn: "Beginner", description: "التخلي عن اللحوم 1-2 يوم بالأسبوع", descriptionEn: "Going meat-free 1-2 days a week" },
+      { label: "متوسط", labelEn: "Intermediate", description: "التخلي عن اللحوم 3-4 أيام بالأسبوع", descriptionEn: "Going meat-free 3-4 days a week" },
+      { label: "متقدم", labelEn: "Advanced", description: "التخلي عن اللحوم 5 أيام أو أكثر بالأسبوع", descriptionEn: "Going meat-free 5 or more days a week" },
+    ],
   },
 
   {
     id: "vegetarian",
-    completed: false,
-    draftContent: true,
+    completed: true,
     name: "النظام النباتي (يشمل الألبان/البيض)",
     nameEn: "Vegetarian Diet",
     overview: "نمط غذائي يستبعد اللحوم والدواجن والأسماك بالكامل، مع الإبقاء على الألبان والبيض (النوع الأكثر شيوعاً من النباتية، المعروف بـ lacto-ovo vegetarian).",
@@ -195,15 +203,15 @@ export const DIET_SYSTEMS = [
     scientificReferenceEn: "The Academy of Nutrition and Dietetics recognizes that well-planned vegetarian diets can be healthful and nutritionally adequate for most life stages, provided attention is paid to certain nutrients.",
     suitableFor: "من يتجنّب اللحوم لأسباب صحية أو أخلاقية أو دينية، وعموم من يريد نمطاً نباتياً غير صارم يبقي الألبان والبيض.",
     suitableForEn: "Those avoiding meat for health, ethical, or religious reasons, and anyone wanting a non-strict plant-based pattern that still includes dairy and eggs.",
-    notRecommendedFor: "يحتاج تخطيطاً لضمان كفاية الحديد والزنك وأوميغا-3 (غالباً من مصادر نباتية أقل امتصاصاً)، أما فيتامين ب12 فمتوفر جزئياً من الألبان/البيض. الاعتماد الكبير على البقوليات والخضار الورقية قد يحتاج حذراً لمرضى الكلى المتقدمين دون إشراف طبي، بنفس منطق DASH أعلاه (محتوى بوتاسيوم/فوسفور أعلى).",
-    notRecommendedForEn: "Needs planning to ensure adequate iron, zinc, and omega-3 (often from less-absorbable plant sources); vitamin B12 is partly covered by dairy/eggs. Heavy reliance on legumes and leafy greens may need caution for advanced kidney disease without medical supervision, by the same logic as DASH above (higher potassium/phosphorus content).",
+    notRecommendedFor: "يحتاج تخطيطاً لضمان كفاية الحديد والزنك وأحماض أوميغا-3 (ALA). ورغم توفر فيتامين ب12 بالألبان والبيض، قد يستدعي الأمر مراقبة مستوياته أو دعم النظام بالأغذية المدعَّمة. الاعتماد الكبير على البقوليات والخضار الورقية يتطلّب حذراً واستشارة طبيب لمرضى الكلى المتقدمين (بسبب البوتاسيوم والفوسفور)، بنفس منطق DASH أعلاه. لتعزيز امتصاص الحديد النباتي (غير الهيمي) يُفضَّل تناوله مع مصادر فيتامين C، وتجنّب مثبطات الامتصاص كالشاي والقهوة مع الوجبة.",
+    notRecommendedForEn: "Needs planning to ensure adequate iron, zinc, and omega-3 fatty acids (ALA). Although vitamin B12 is available from dairy and eggs, its levels may still need monitoring or support from fortified foods. Heavy reliance on legumes and leafy greens requires caution and a doctor's input for advanced kidney disease (due to potassium and phosphorus), by the same logic as DASH above. To enhance absorption of plant (non-heme) iron, pair it with vitamin C sources and avoid absorption inhibitors like tea and coffee with the meal.",
     unsuitableConditions: ["kidney"],
     benefits: ["يدعم صحة القلب ومستويات الكوليسترول", "غني بالألياف ومضادات الأكسدة", "أثر بيئي أقل مقارنة بالأنظمة كثيرة اللحوم", "مرن نسبياً لوجود الألبان والبيض كمصدر بروتين وفيتامين ب12"],
     benefitsEn: ["Supports heart health and cholesterol levels", "Rich in fiber and antioxidants", "Lower environmental footprint compared to meat-heavy patterns", "Relatively flexible since dairy and eggs provide protein and B12"],
     drawbacks: ["يحتاج انتباهاً للحديد والزنك وأوميغا-3", "الاعتماد الزائد على الجبن/الألبان الدسمة قد يرفع الدهون المشبعة", "يحتاج تخطيطاً لضمان تنوّع مصادر البروتين"],
     drawbacksEn: ["Needs attention to iron, zinc, and omega-3", "Overreliance on cheese/full-fat dairy can raise saturated fat intake", "Requires planning to ensure varied protein sources"],
-    allowedFoods: ["خضار وفواكه", "حبوب كاملة", "بقوليات ومكسرات وبذور", "ألبان وبيض", "بدائل بروتين نباتية (توفو، تمبيه)"],
-    allowedFoodsEn: ["Vegetables and fruits", "Whole grains", "Legumes, nuts, and seeds", "Dairy and eggs", "Plant protein substitutes (tofu, tempeh)"],
+    allowedFoods: ["خضار وفواكه", "حبوب كاملة", "بقوليات ومكسرات وبذور", "ألبان بأشكالها وبيض", "بدائل بروتين نباتية (توفو، تيمبي، إيدامامي)"],
+    allowedFoodsEn: ["Vegetables and fruits", "Whole grains", "Legumes, nuts, and seeds", "Dairy in its various forms and eggs", "Plant protein substitutes (tofu, tempeh, edamame)"],
     limitFoods: ["اللحوم والدواجن والأسماك (مُستبعَدة)", "الألبان عالية الدسم بإفراط", "السكريات والأطعمة المصنّعة"],
     limitFoodsEn: ["Meat, poultry, and fish (excluded)", "Excessive full-fat dairy", "Sugary and processed foods"],
     sampleDay: {
@@ -222,8 +230,7 @@ export const DIET_SYSTEMS = [
 
   {
     id: "vegan",
-    completed: false,
-    draftContent: true,
+    completed: true,
     name: "النظام النباتي الصرف (Vegan)",
     nameEn: "Vegan Diet",
     overview: "نمط غذائي يستبعد كل المنتجات الحيوانية بالكامل - اللحوم والدواجن والأسماك والألبان والبيض والعسل غالباً - معتمداً كلياً على مصادر نباتية.",
@@ -232,15 +239,15 @@ export const DIET_SYSTEMS = [
     scientificReferenceEn: "The Academy of Nutrition and Dietetics recognizes that well-planned vegan diets can be nutritionally adequate, but explicitly stresses the need to obtain vitamin B12 from fortified foods or supplements - it is not practically available from natural plant sources.",
     suitableFor: "من يريد الالتزام الكامل بنمط نباتي لأسباب أخلاقية أو بيئية أو صحية، ولديه استعداد للتخطيط الجيد ومتابعة بعض العناصر الغذائية.",
     suitableForEn: "Those wanting full commitment to a plant-based pattern for ethical, environmental, or health reasons, who are ready for careful planning and monitoring of certain nutrients.",
-    notRecommendedFor: "يتطلّب حتماً مصدراً لفيتامين ب12 (أطعمة مُدعَّمة أو مكمّل) - غيابه يؤدي لنقص حقيقي مع الوقت. يحتاج أيضاً انتباهاً للحديد والكالسيوم وفيتامين د وأوميغا-3 (EPA/DHA) واليود والزنك. الحمل والرضاعة وسنوات الطفولة المبكرة تحتاج إشرافاً من أخصائي تغذية لضمان التخطيط السليم. نفس حذر البوتاسيوم/الفوسفور لمرضى الكلى المتقدمين الوارد في الأنظمة النباتية الأخرى أعلاه.",
-    notRecommendedForEn: "Necessarily requires a vitamin B12 source (fortified foods or a supplement) - its absence leads to real deficiency over time. Also needs attention to iron, calcium, vitamin D, omega-3 (EPA/DHA), iodine, and zinc. Pregnancy, breastfeeding, and early childhood need supervision from a nutrition specialist to ensure sound planning. Same potassium/phosphorus caution for advanced kidney disease noted in the other plant-based patterns above.",
+    notRecommendedFor: "يتطلّب حتماً مصدراً لفيتامين ب12 (أطعمة مُدعَّمة أو مكمّل) - غيابه يؤدي لنقص حقيقي. يتطلّب أيضاً انتباهاً دقيقاً للحديد والكالسيوم وفيتامين د واليود والزنك. أحماض أوميغا-3 النباتية (ALA) تحتاج تركيزاً على البذور والجوز، أو الاستعانة بمكمّلات زيت الطحالب للحصول على (EPA/DHA) التي لا تتوفر عملياً من مصادر نباتية طبيعية. الحمل والرضاعة وسنوات الطفولة المبكرة تحتاج إشرافاً من أخصائي تغذية لضمان التخطيط السليم. نفس حذر البوتاسيوم/الفوسفور لمرضى الكلى المتقدمين الوارد في الأنظمة النباتية الأخرى أعلاه.",
+    notRecommendedForEn: "Necessarily requires a vitamin B12 source (fortified foods or a supplement) - its absence leads to real deficiency. Also requires precise attention to iron, calcium, vitamin D, iodine, and zinc. Plant-based omega-3 (ALA) needs a focus on seeds and walnuts, or an algae-oil supplement to obtain EPA/DHA, which are not practically available from natural plant sources. Pregnancy, breastfeeding, and early childhood need supervision from a nutrition specialist to ensure sound planning. Same potassium/phosphorus caution for advanced kidney disease noted in the other plant-based patterns above.",
     unsuitableConditions: ["kidney"],
     benefits: ["يدعم صحة القلب وخفض الكوليسترول والدهون المشبعة", "غني جداً بالألياف ومضادات الأكسدة", "أقل أثراً بيئياً بين الأنظمة الموصوفة هنا", "قد يدعم إدارة الوزن لغناه بالأطعمة الكاملة قليلة الكثافة السعرية"],
     benefitsEn: ["Supports heart health and lowers cholesterol and saturated fat", "Very rich in fiber and antioxidants", "Among the lowest environmental impact of the patterns described here", "May support weight management due to abundance of low-calorie-density whole foods"],
     drawbacks: ["خطر حقيقي لنقص فيتامين ب12 دون أطعمة مُدعَّمة أو مكمّل - هذه ليست نقطة اختيارية", "يحتاج تخطيطاً دقيقاً للحديد والكالسيوم وأوميغا-3 واليود والزنك", "تحديات اجتماعية وعملية عند تناول الطعام خارج المنزل", "يتطلّب وقتاً أطول للتعلّم والتخطيط في البداية"],
     drawbacksEn: ["Real risk of vitamin B12 deficiency without fortified foods or a supplement - this is not optional", "Requires careful planning for iron, calcium, omega-3, iodine, and zinc", "Social and practical challenges when eating outside the home", "Requires more time to learn and plan initially"],
-    allowedFoods: ["خضار وفواكه", "حبوب كاملة", "بقوليات ومكسرات وبذور", "بدائل ألبان نباتية مُدعَّمة", "توفو وتمبيه وسيتان", "أطعمة مُدعَّمة بفيتامين ب12"],
-    allowedFoodsEn: ["Vegetables and fruits", "Whole grains", "Legumes, nuts, and seeds", "Fortified plant-based milk alternatives", "Tofu, tempeh, and seitan", "Foods fortified with vitamin B12"],
+    allowedFoods: ["خضار وفواكه", "حبوب كاملة", "بقوليات ومكسرات وبذور (كتان، شيا، جوز)", "بدائل ألبان نباتية مُدعَّمة (بالكالسيوم وفيتامين د وب12)", "توفو وتيمبي وسيتان", "أطعمة مُدعَّمة بفيتامين ب12 ومكمّلات زيت الطحالب (Algae oil)"],
+    allowedFoodsEn: ["Vegetables and fruits", "Whole grains", "Legumes, nuts, and seeds (flaxseed, chia, walnut)", "Fortified plant-based milk alternatives (with calcium, vitamin D, and B12)", "Tofu, tempeh, and seitan", "Foods fortified with vitamin B12, and algae-oil supplements"],
     limitFoods: ["كل المنتجات الحيوانية (مُستبعَدة بالكامل: لحوم، دواجن، أسماك، ألبان، بيض، وغالباً العسل)", "الأطعمة النباتية شديدة المعالجة (لحوم نباتية مصنَّعة بكثرة)"],
     limitFoodsEn: ["All animal products (fully excluded: meat, poultry, fish, dairy, eggs, and usually honey)", "Highly processed plant-based foods (heavily processed meat substitutes)"],
     sampleDay: {
@@ -259,8 +266,7 @@ export const DIET_SYSTEMS = [
 
   {
     id: "low_carb",
-    completed: false,
-    draftContent: true,
+    completed: true,
     name: "منخفض الكربوهيدرات (Low-Carb)",
     nameEn: "Low-Carb Diet",
     overview: "نمط غذائي يقلّل الكربوهيدرات دون سقف صارم موحَّد (تتفاوت درجة التقليل بين الأنظمة المختلفة)، مع زيادة نسبية في البروتين والدهون - أقل تطرّفاً وتقييداً من الكيتوجيني الموصوف أدناه.",
@@ -333,8 +339,7 @@ export const DIET_SYSTEMS = [
 
   {
     id: "high_protein",
-    completed: false,
-    draftContent: true,
+    completed: true,
     name: "عالي البروتين (High-Protein)",
     nameEn: "High-Protein Diet",
     overview: "نمط غذائي يرفع نسبة البروتين عن المعتاد (من لحوم، دواجن، أسماك، ألبان، بقوليات) دعماً لبناء العضلات أو الشبع أو إدارة الوزن، دون اشتراط تقييد كربوهيدرات كما في الأنظمة السابقة - يمكن دمجه مع أي توزيع ماكروز آخر.",

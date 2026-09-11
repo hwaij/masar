@@ -1085,7 +1085,7 @@ export default function MasarApp() {
   }, []);
 
   if (showLanguagePicker) return <LanguagePicker onPick={handlePickLanguage} />;
-  if (showSplash) return <SplashScreen onDone={dismissSplash} />;
+  if (showSplash) return <SplashScreen onDone={dismissSplash} loaded={loaded} />;
   if (!loaded) return <div style={{ ...S.app, ...S.loaderWrap }}><Loader2 size={28} color="#C9A24B" className="spin" /></div>;
   if (hasAuth && !user && sessionCheckAmbiguous) return <ConnectionIssueScreen />;
   if (hasAuth && !user) return <LandingPage onSignIn={handleSignIn} onEmailSignIn={handleEmailSignIn} onEmailSignUp={handleEmailSignUp} />;
@@ -1583,25 +1583,39 @@ const SPLASH_FEATURE_ICONS = [
 
 // شاشة البداية: الطريق المتعرّج يُرسم أولاً (SVG path حقيقي عبر pathLength
 // - يترجمها framer-motion داخلياً لـstroke-dashoffset، لا صورة PNG ثابتة)،
-// ثم الأوراق وشارات الميزات الأربع تظهر منفصلة بفارق زمني بسيط بينها، ثم
-// النجمة تلمع بريقاً واحداً ناعماً، ثم اسم "مسارك" ثم الشعار التسويقي -
-// إجمالي الظهور (قبل التلاشي النهائي) لا يتجاوز 2.5 ثانية. نغمة قصيرة
-// اختيارية (playSplashChime، مُعطَّلة افتراضياً عبر نفس مفتاح كتم الصوت
-// المستخدم بكل أصوات التطبيق الأخرى) تُطلَق مرة واحدة فقط عند اكتمال ظهور
-// الاسم - راجع sound.js.
-function SplashScreen({ onDone }) {
+// ثم الشخصية (ذراع+رأس، امتداد لون الطريق نفسه) تظهر عند نهايته مباشرة، مع
+// الأوراق وشارات الميزات الأربع بفارق زمني بسيط بينها كلها، ثم النجمة تلمع
+// بريقاً واحداً ناعماً فوق يد الشخصية المرفوعة، ثم اسم "مسارك" ثم الشعار
+// التسويقي. مدة دخول العناصر ~2.1 ثانية، لكن الشاشة لا تُخفى فعلياً إلا
+// بعد اكتمال هذا الدخول الحركي بالكامل *و* اكتمال تحميل بيانات التطبيق
+// الحقيقي معاً (أيهما أبطأ) - فإن انتهى التحميل أسرع من الحركة، تُكمل
+// الحركة دورتها كاملة أولاً؛ وإن استغرق التحميل أطول، تبقى الشاشة معروضة
+// بنبض خفيف متكرر للنجمة بدل التجمّد، حتى سقف زمني عملي غير محدود هنا (بل
+// محكوم بمهلات loadAll() الحالية في مكان آخر بالملف). نغمة قصيرة اختيارية
+// (playSplashChime، تحترم نفس مفتاح كتم الصوت العام) تُطلَق مرة واحدة عند
+// اكتمال ظهور الاسم، ومرة أخرى كبديل عند أول لمسة/ضغطة من المستخدم إن كانت
+// المتصفحات منعت التشغيل التلقائي بلا إيماءة سابقة (قيد منصّة قياسي).
+function SplashScreen({ onDone, loaded }) {
   const { t, i18n } = useTranslation();
   const [hiding, setHiding] = useState(false);
+  const [sequenceDone, setSequenceDone] = useState(false);
   // من يفعّل "تقليل الحركة" في جهازه يرى كل عنصر بحالته النهائية فوراً (بلا
-  // أي حركة/تأخير)، مع الإبقاء على نفس المدة الإجمالية للشاشة - فقط الحركة
+  // أي حركة/تأخير)، مع الإبقاء على نفس توقيت اكتمال الدخول - فقط الحركة
   // نفسها تُزال، لا الشاشة كاملة.
   const reduceMotion = useReducedMotion();
   const chimePlayed = useRef(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => setHiding(true), 2000);
+    const timer = setTimeout(() => setSequenceDone(true), 2100);
     return () => clearTimeout(timer);
   }, []);
+
+  // لا تُخفى الشاشة إلا بعد اكتمال الدخول الحركي *و* التحميل الحقيقي معاً.
+  useEffect(() => {
+    if (sequenceDone && loaded) setHiding(true);
+  }, [sequenceDone, loaded]);
+
+  const waiting = sequenceDone && !loaded;
 
   function fireChimeOnce() {
     if (chimePlayed.current) return;
@@ -1609,24 +1623,52 @@ function SplashScreen({ onDone }) {
     playSplashChime();
   }
 
+  // بديل عن التشغيل التلقائي: أول إيماءة مستخدم حقيقية بأي مكان بالصفحة
+  // (لمسة/نقرة/زر) تُطلق النغمة فوراً إن لم تكن قد نجحت أصلاً - المتصفحات
+  // (خصوصاً Chrome/Safari) تمنع AudioContext من الإصدار الفعلي بلا إيماءة
+  // سابقة، وهذا يضمن سماعها فعلياً في أول تفاعل حتى لو فات توقيتها الأصلي
+  // عند ظهور الاسم.
+  useEffect(() => {
+    function onGesture() { fireChimeOnce(); }
+    window.addEventListener("pointerdown", onGesture, { once: true });
+    window.addEventListener("keydown", onGesture, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", onGesture);
+      window.removeEventListener("keydown", onGesture);
+    };
+  }, []);
+
   const road = reduceMotion
     ? { initial: { pathLength: 1 }, animate: { pathLength: 1 }, transition: { duration: 0 } }
     : { initial: { pathLength: 0 }, animate: { pathLength: 1 }, transition: { duration: 0.65, ease: "easeInOut" } };
+  const personArm = reduceMotion
+    ? { initial: { pathLength: 1 }, animate: { pathLength: 1 }, transition: { duration: 0 } }
+    : { initial: { pathLength: 0 }, animate: { pathLength: 1 }, transition: { delay: 0.6, duration: 0.28, ease: "easeOut" } };
+  const personHead = reduceMotion
+    ? { initial: { opacity: 1, scale: 1 }, animate: { opacity: 1, scale: 1 }, transition: { duration: 0 } }
+    : { initial: { opacity: 0, scale: 0.4 }, animate: { opacity: 1, scale: 1 }, transition: { delay: 0.85, duration: 0.22, ease: "easeOut" } };
   const leaves = reduceMotion
     ? { initial: { opacity: 1, y: 0 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0 } }
     : { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 }, transition: { delay: 0.58, duration: 0.26, ease: "easeOut" } };
   const iconAnim = (i) => reduceMotion
     ? { initial: { opacity: 1, y: 0 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0 } }
     : { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 }, transition: { delay: 0.68 + i * 0.1, duration: 0.26, ease: "easeOut" } };
-  const star = reduceMotion
-    ? { initial: { opacity: 1, scale: 1 }, animate: { opacity: 1, scale: 1 }, transition: { duration: 0 } }
-    : { initial: { opacity: 0, scale: 0.3 }, animate: { opacity: [0, 1, 0.85], scale: [0.3, 1.25, 1] }, transition: { delay: 1.05, duration: 0.4, ease: "easeOut" } };
+  // النجمة: لمعة واحدة ناعمة عند الدخول، ثم إن اضطُررنا للانتظار لتحميل
+  // حقيقي أبطأ من الحركة، تتحوّل تلقائياً لنبض لطيف متكرر بدل التجمّد على
+  // شاشة ساكنة بلا أي إشارة حياة.
+  const starInitial = reduceMotion ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.3 };
+  const starAnimate = waiting
+    ? { opacity: [0.7, 1, 0.7], scale: [1, 1.1, 1] }
+    : reduceMotion ? { opacity: 1, scale: 1 } : { opacity: [0, 1, 0.85], scale: [0.3, 1.25, 1] };
+  const starTransition = waiting
+    ? { duration: 1.2, repeat: Infinity, ease: "easeInOut" }
+    : reduceMotion ? { duration: 0 } : { delay: 1.1, duration: 0.4, ease: "easeOut" };
   const wordmarkAnim = reduceMotion
     ? { initial: { opacity: 1, y: 0, clipPath: "inset(0 0 0 0%)" }, animate: { opacity: 1, y: 0, clipPath: "inset(0 0 0 0%)" }, transition: { duration: 0 }, onAnimationComplete: fireChimeOnce }
-    : { initial: { opacity: 0, y: 8, clipPath: "inset(0 0 0 100%)" }, animate: { opacity: 1, y: 0, clipPath: "inset(0 0 0 0%)" }, transition: { delay: 1.3, duration: 0.3, ease: [0.65, 0, 0.35, 1] }, onAnimationComplete: fireChimeOnce };
+    : { initial: { opacity: 0, y: 8, clipPath: "inset(0 0 0 100%)" }, animate: { opacity: 1, y: 0, clipPath: "inset(0 0 0 0%)" }, transition: { delay: 1.35, duration: 0.3, ease: [0.65, 0, 0.35, 1] }, onAnimationComplete: fireChimeOnce };
   const taglineAnim = reduceMotion
     ? { initial: { opacity: 1, y: 0 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0 } }
-    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 }, transition: { delay: 1.55, duration: 0.3, ease: "easeOut" } };
+    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 }, transition: { delay: 1.6, duration: 0.3, ease: "easeOut" } };
 
   return (
     <motion.div
@@ -1637,8 +1679,8 @@ function SplashScreen({ onDone }) {
         minHeight: "100vh",
         // خلفية فاتحة هادئة ثابتة (نفس روح خلفية اللوقو) - عمداً مستقلة عن
         // var(--bg) الحالي (الذي يتبع النمط المختار ويكون داكناً بالوضع
-        // الليلي)، لأن الرسم الجديد (طريق/أوراق/نجمة) مصمَّم للتباين فوق
-        // خلفية فاتحة تحديداً كما بملف اللوقو الأصلي.
+        // الليلي)، لأن الرسم الجديد (طريق/شخصية/أوراق/نجمة) مصمَّم للتباين
+        // فوق خلفية فاتحة تحديداً كما بملف اللوقو الأصلي.
         background: "linear-gradient(160deg, #FFFDF9, #FAF3E6)",
         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
         overflow: "hidden", direction: i18n.language === "en" ? "ltr" : "rtl",
@@ -1665,11 +1707,23 @@ function SplashScreen({ onDone }) {
             fill="none" stroke="url(#splashRoadGrad)" strokeWidth="13" strokeLinecap="round"
             {...road}
           />
+          {/* الشخصية - ذراع مرفوعة (استمرار مباشر للطريق بنفس لونه الذهبي
+              عند نهايته) ورأس دائري بسيط، تظهر فور اكتمال رسم الطريق. */}
+          <motion.path
+            d="M 96 18 C 104 12, 112 9, 122 8"
+            fill="none" stroke="#D9A24B" strokeWidth="9" strokeLinecap="round"
+            {...personArm}
+          />
+          <motion.circle cx="128" cy="6" r="6.5" fill="#D9A24B" {...personHead} />
           <motion.path d="M 55 118 C 24 108, 10 78, 30 48 C 55 66, 62 96, 55 118 Z" fill="url(#splashLeafGrad)" {...leaves} />
           <motion.path d="M 45 92 C 18 88, 4 62, 20 34 C 44 48, 54 74, 45 92 Z" fill="url(#splashLeafGrad)" opacity={0.88} {...leaves} />
-          {/* النجمة/البريق - شكل نجمة رباعية الأطراف بلمعة واحدة (تكبير+
-              ظهور ثم استقرار)، لا وميض متكرر. */}
-          <motion.path d="M 176 30 L 181 20 L 186 30 L 196 35 L 186 40 L 181 50 L 176 40 L 166 35 Z" fill="#E0B868" {...star} />
+          {/* النجمة/البريق - شكل نجمة رباعية الأطراف فوق يد الشخصية المرفوعة
+              مباشرة، بلمعة واحدة عند الدخول (لا وميض متكرر إلا أثناء
+              انتظار تحميل حقيقي أطول من الحركة - راجع starAnimate أعلاه). */}
+          <motion.path
+            d="M 143 17 L 148 7 L 153 17 L 163 22 L 153 27 L 148 37 L 143 27 L 133 22 Z"
+            fill="#E0B868" initial={starInitial} animate={starAnimate} transition={starTransition}
+          />
         </svg>
         {SPLASH_FEATURE_ICONS.map(({ Icon, color, top, left }, i) => (
           <motion.div

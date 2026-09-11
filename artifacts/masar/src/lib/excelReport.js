@@ -1,6 +1,7 @@
 // تصدير Excel موحَّد حقيقي (.xlsx) للتقرير اليومي الشامل - يحل محل تصديري
 // CSV/Excel المنفصلين السابقين بملف واحد فقط، بشيتين:
-// 1) "Charts": 4 صور (سعرات+ماكروز/نوم/نشاط رياضي/خطوات) مبنية من نفس صفوف
+// 1) "Charts": 9 صور (سعرات/بروتين/كارب/دهون/صوديوم/كوليسترول - كل واحد
+//    برسم مستقل بمقياسه الخاص - + نوم/نشاط رياضي/خطوات) مبنية من نفس صفوف
 //    التقرير عبر chartImages.js (Canvas 2D - exceljs لا يدعم رسوماً بيانية
 //    تفاعلية أصلية، راجع تعليق ذلك الملف)، تُمرَّر جاهزة من المستدعي
 //    (MasarApp.jsx) بعد بنائها بالمتصفح.
@@ -185,8 +186,9 @@ function addChartImage(workbook, sheet, chart, startRow) {
   return startRow + Math.ceil(displayHeight / 15) + 2;
 }
 
-// charts: كائن {nutrition, sleep, activity, steps} - كل قيمة إما null (لا
-// بيانات لهذا المقياس بالفترة) أو {base64, width, height} من chartImages.js
+// charts: كائن {calories, protein, carbs, fat, sodium, cholesterol, sleep,
+// activity, steps} - كل قيمة إما null (لا بيانات لهذا المقياس بالفترة) أو
+// {base64, width, height} من chartImages.js
 // (يُبنى بالمتصفح عبر Canvas قبل استدعاء هذه الدالة - راجع تعليق أعلى
 // الملف لسبب عدم بنائها هنا).
 // rows: نفس مخرجات buildComprehensiveReport بالضبط (بلا حاجة لأي تحويل).
@@ -200,9 +202,14 @@ export async function buildUnifiedReportExcelBuffer(rows, { healthProfile, owner
   // شيت الرسوم البيانية أولاً (يظهر عند فتح الملف مباشرة) - رسم واحد فقط
   // يُدرَج فعلياً إن توفّرت بياناته (لا رسم فارغ مُضلِّل)؛ إن لم تتوفر بيانات
   // لأي مقياس إطلاقاً بهذه الفترة تبقى ورقة الرسوم موجودة بملاحظة توضيحية
-  // بدل الاختفاء الصامت.
+  // بدل الاختفاء الصامت. 8 رسوم إجمالاً: 6 غذائية مستقلة (كل مقياس بمقياسه
+  // الخاص - إصلاح مشكلة اختلاف المقياس بين السعرات والماكروز) + النوم +
+  // النشاط الرياضي/الخطوات كما كانا.
   const chartsSheet = workbook.addWorksheet("Charts", { views: [{ rightToLeft: false }] });
-  const allCharts = [charts?.nutrition, charts?.sleep, charts?.activity, charts?.steps];
+  const allCharts = [
+    charts?.calories, charts?.protein, charts?.carbs, charts?.fat, charts?.sodium, charts?.cholesterol,
+    charts?.sleep, charts?.activity, charts?.steps,
+  ];
   if (allCharts.every((c) => !c)) {
     chartsSheet.getCell("A1").value = "No data available yet for any chart in this period.";
   } else {

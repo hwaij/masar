@@ -2826,10 +2826,12 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
   const [exportingExcel, setExportingExcel] = useState(false);
 
   // تصدير موحَّد واحد يحل محل تصديري CSV وExcel المنفصلين السابقين تماماً:
-  // شيت رسوم بيانية (سعرات+ماكروز/نوم/نشاط رياضي/خطوات - مبنية عبر Canvas في
-  // chartImages.js من نفس dailyReportRows بالضبط، بلا استعلام بيانات موازٍ)
-  // + شيت البيانات الخام الكامل بتلوين الاحتياج التلقائي (كان موجوداً أصلاً
-  // في تصدير Excel الملوَّن - راجع src/lib/excelReport.js لتفاصيل الحدود).
+  // شيت رسوم بيانية (٦ رسوم غذائية مستقلة - كل مقياس بمقياسه الخاص، إصلاح
+  // خلل اختلاف المقياس بين السعرات والماكروز - + نوم/نشاط رياضي/خطوات،
+  // مبنية عبر Canvas في chartImages.js من نفس dailyReportRows بالضبط، بلا
+  // استعلام بيانات موازٍ) + شيت البيانات الخام الكامل بتلوين الاحتياج
+  // التلقائي (كان موجوداً أصلاً في تصدير Excel الملوَّن - راجع
+  // src/lib/excelReport.js لتفاصيل الحدود).
   // التقرير بالكامل بالإنجليزي دائماً بطلب صريح (بغض النظر عن لغة الواجهة
   // language) - الاستثناء الوحيدان: اسم الطعام واسم المستخدم، يبقيان كما
   // أُدخلا. لا معامل isEn يُمرَّر بعد الآن لأي من excelReport.js/chartImages.js.
@@ -2838,20 +2840,25 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
     const exportName = profile?.name?.trim() || t("reportsView.daily.unnamedUser");
     setExportingExcel(true);
     try {
-      const [{ buildUnifiedReportExcelBuffer }, { buildNutritionChart, buildSleepChart, buildActivityChart, buildStepsChart }] = await Promise.all([
+      const [{ buildUnifiedReportExcelBuffer }, {
+        buildCaloriesChart, buildProteinChart, buildCarbsChart, buildFatChart, buildSodiumChart, buildCholesterolChart,
+        buildSleepChart, buildActivityChart, buildStepsChart,
+      }] = await Promise.all([
         import("../lib/excelReport"), import("../lib/chartImages"),
       ]);
-      // أهداف السعرات/الماكروز (لخط الهدف المستهدف بالرسم البياني الأول) -
+      // أهداف السعرات/الماكروز (لخط الهدف المستهدف بكل رسم غذائي على حدة) -
       // نفس getDailyNutritionSummary المستخدمة داخل buildUnifiedReportExcelBuffer
       // لكل صف بالضبط؛ totals فارغة عمداً هنا (لا تؤثر على قيم *Goal نفسها،
       // فقط على consumed/remaining غير المستخدَمين هنا) - راجع تعليق الاحتياج
       // اليومي في excelReport.js لسبب ثبات هذه القيم عبر كل الأيام.
       const goals = getDailyNutritionSummary({ totals: {}, healthProfile, nutritionPlan: null });
       const charts = {
-        nutrition: buildNutritionChart(dailyReportRows, {
-          calorieGoal: goals.calorieGoal ?? null, proteinGoal: goals.proteinGoal ?? null,
-          carbsGoal: goals.carbsGoal ?? null, fatGoal: goals.fatGoal ?? null,
-        }),
+        calories: buildCaloriesChart(dailyReportRows, goals.calorieGoal ?? null),
+        protein: buildProteinChart(dailyReportRows, goals.proteinGoal ?? null),
+        carbs: buildCarbsChart(dailyReportRows, goals.carbsGoal ?? null),
+        fat: buildFatChart(dailyReportRows, goals.fatGoal ?? null),
+        sodium: buildSodiumChart(dailyReportRows),
+        cholesterol: buildCholesterolChart(dailyReportRows),
         sleep: buildSleepChart(dailyReportRows),
         activity: buildActivityChart(dailyReportRows),
         steps: buildStepsChart(dailyReportRows, healthProfile?.dailyStepsGoal ?? null),

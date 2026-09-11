@@ -35,7 +35,7 @@ import { FITNESS_GOALS } from "../lib/exercises-db";
 import { sumNutritionEntries, waterGoalCups, MEAL_TYPES, analyzeMealPatterns, MICRONUTRIENT_META, computeMoodNutritionCorrelation } from "../lib/nutrition";
 import { buildComprehensiveReport } from "../lib/comprehensiveReport";
 import { getDailyNutritionSummary } from "../lib/nutrition-plan";
-import { playSaveSound, playAchievementSound } from "../lib/sound";
+import { playSaveSound, playAchievementSound, playSplashChime } from "../lib/sound";
 import { getSession, getCachedSessionUser, onAuthChange, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut, userFromSession, hasAuth } from "../lib/auth";
 import {
   todayKey, fmtHM, uid, diffMinutes, arabicDate, computeStreak, longestStreak, escapeHtml,
@@ -1569,65 +1569,137 @@ function LanguagePicker({ onPick }) {
   );
 }
 
+// شارات الميزات الأربع (تغذية/نشاط/نوم/صحة) بشعار شاشة البداية - نفس روح
+// ألوان اللوقو الأصلي (logo-mark.png) تقريباً، مستقلة عمداً عن توكنز
+// الأنماط الحالية (--m-tint-*) لأنها تمثّل هوية العلامة التجارية الثابتة
+// نفسها (بخلفية فاتحة ثابتة بهذي الشاشة تحديداً) لا سياق قسم تفاعلي
+// بالتطبيق يتغيّر مع النمط المختار.
+const SPLASH_FEATURE_ICONS = [
+  { Icon: Utensils, color: "#5FA8A0", top: "40%", left: "83%" },
+  { Icon: Dumbbell, color: "#5B8DBE", top: "55%", left: "87%" },
+  { Icon: Moon, color: "#8A7BD1", top: "70%", left: "84%" },
+  { Icon: Heart, color: "#D66B93", top: "85%", left: "79%" },
+];
+
+// شاشة البداية: الطريق المتعرّج يُرسم أولاً (SVG path حقيقي عبر pathLength
+// - يترجمها framer-motion داخلياً لـstroke-dashoffset، لا صورة PNG ثابتة)،
+// ثم الأوراق وشارات الميزات الأربع تظهر منفصلة بفارق زمني بسيط بينها، ثم
+// النجمة تلمع بريقاً واحداً ناعماً، ثم اسم "مسارك" ثم الشعار التسويقي -
+// إجمالي الظهور (قبل التلاشي النهائي) لا يتجاوز 2.5 ثانية. نغمة قصيرة
+// اختيارية (playSplashChime، مُعطَّلة افتراضياً عبر نفس مفتاح كتم الصوت
+// المستخدم بكل أصوات التطبيق الأخرى) تُطلَق مرة واحدة فقط عند اكتمال ظهور
+// الاسم - راجع sound.js.
 function SplashScreen({ onDone }) {
   const { t, i18n } = useTranslation();
-  const splashMessages = t("splash.messages", { returnObjects: true });
   const [hiding, setHiding] = useState(false);
-  const [message] = useState(() => splashMessages[Math.floor(Math.random() * splashMessages.length)]);
-  // من يفعّل "تقليل الحركة" في جهازه يرى المحتوى النهائي مباشرة بلا أي
-  // حركة (initial === animate بكل عنصر)، مع الإبقاء على نفس مدة الظهور
-  // الإجمالية - فقط الحركة نفسها تُزال، لا الشاشة كاملة.
+  // من يفعّل "تقليل الحركة" في جهازه يرى كل عنصر بحالته النهائية فوراً (بلا
+  // أي حركة/تأخير)، مع الإبقاء على نفس المدة الإجمالية للشاشة - فقط الحركة
+  // نفسها تُزال، لا الشاشة كاملة.
   const reduceMotion = useReducedMotion();
+  const chimePlayed = useRef(false);
 
   useEffect(() => {
-    const t = setTimeout(() => setHiding(true), 1850);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setHiding(true), 2000);
+    return () => clearTimeout(timer);
   }, []);
 
-  const logoAnim = reduceMotion
-    ? { initial: { scale: 1, opacity: 1 }, animate: { scale: 1, opacity: 1 }, transition: { duration: 0 } }
-    : { initial: { scale: 0.5, opacity: 0 }, animate: { scale: 1, opacity: 1 }, transition: { duration: 0.6, ease: [0.34, 1.56, 0.64, 1] } };
+  function fireChimeOnce() {
+    if (chimePlayed.current) return;
+    chimePlayed.current = true;
+    playSplashChime();
+  }
+
+  const road = reduceMotion
+    ? { initial: { pathLength: 1 }, animate: { pathLength: 1 }, transition: { duration: 0 } }
+    : { initial: { pathLength: 0 }, animate: { pathLength: 1 }, transition: { duration: 0.65, ease: "easeInOut" } };
+  const leaves = reduceMotion
+    ? { initial: { opacity: 1, y: 0 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0 } }
+    : { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 }, transition: { delay: 0.58, duration: 0.26, ease: "easeOut" } };
+  const iconAnim = (i) => reduceMotion
+    ? { initial: { opacity: 1, y: 0 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0 } }
+    : { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 }, transition: { delay: 0.68 + i * 0.1, duration: 0.26, ease: "easeOut" } };
+  const star = reduceMotion
+    ? { initial: { opacity: 1, scale: 1 }, animate: { opacity: 1, scale: 1 }, transition: { duration: 0 } }
+    : { initial: { opacity: 0, scale: 0.3 }, animate: { opacity: [0, 1, 0.85], scale: [0.3, 1.25, 1] }, transition: { delay: 1.05, duration: 0.4, ease: "easeOut" } };
   const wordmarkAnim = reduceMotion
-    ? { initial: { clipPath: "inset(0 0 0 0%)" }, animate: { clipPath: "inset(0 0 0 0%)" }, transition: { duration: 0 } }
-    : { initial: { clipPath: "inset(0 0 0 100%)" }, animate: { clipPath: "inset(0 0 0 0%)" }, transition: { delay: 0.35, duration: 0.5, ease: [0.65, 0, 0.35, 1] } };
-  const messageAnim = reduceMotion
-    ? { initial: { opacity: 1 }, animate: { opacity: 1 }, transition: { duration: 0 } }
-    : { initial: { opacity: 0 }, animate: { opacity: 1 }, transition: { delay: 0.85, duration: 0.4 } };
-  const lineAnim = reduceMotion
-    ? { initial: { scaleX: 1, opacity: 1 }, animate: { scaleX: 1, opacity: 1 }, transition: { duration: 0 } }
-    : { initial: { scaleX: 0, opacity: 0 }, animate: { scaleX: 1, opacity: 1 }, transition: { delay: 1.15, duration: 0.5, ease: "easeInOut" } };
+    ? { initial: { opacity: 1, y: 0, clipPath: "inset(0 0 0 0%)" }, animate: { opacity: 1, y: 0, clipPath: "inset(0 0 0 0%)" }, transition: { duration: 0 }, onAnimationComplete: fireChimeOnce }
+    : { initial: { opacity: 0, y: 8, clipPath: "inset(0 0 0 100%)" }, animate: { opacity: 1, y: 0, clipPath: "inset(0 0 0 0%)" }, transition: { delay: 1.3, duration: 0.3, ease: [0.65, 0, 0.35, 1] }, onAnimationComplete: fireChimeOnce };
+  const taglineAnim = reduceMotion
+    ? { initial: { opacity: 1, y: 0 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0 } }
+    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 }, transition: { delay: 1.55, duration: 0.3, ease: "easeOut" } };
 
   return (
     <motion.div
       animate={{ opacity: hiding ? 0 : 1 }}
-      transition={{ duration: reduceMotion ? 0.15 : 0.45, ease: "easeInOut" }}
+      transition={{ duration: reduceMotion ? 0.15 : 0.35, ease: "easeInOut" }}
       onAnimationComplete={() => { if (hiding) onDone?.(); }}
-      style={{ minHeight: "100vh", background: "var(--bg)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 0, overflow: "hidden", direction: i18n.language === "en" ? "ltr" : "rtl" }}
+      style={{
+        minHeight: "100vh",
+        // خلفية فاتحة هادئة ثابتة (نفس روح خلفية اللوقو) - عمداً مستقلة عن
+        // var(--bg) الحالي (الذي يتبع النمط المختار ويكون داكناً بالوضع
+        // الليلي)، لأن الرسم الجديد (طريق/أوراق/نجمة) مصمَّم للتباين فوق
+        // خلفية فاتحة تحديداً كما بملف اللوقو الأصلي.
+        background: "linear-gradient(160deg, #FFFDF9, #FAF3E6)",
+        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+        overflow: "hidden", direction: i18n.language === "en" ? "ltr" : "rtl",
+      }}
     >
-      <motion.img
-        src="/logo-mark.png"
-        alt=""
-        {...logoAnim}
-        style={{ width: 110, height: 110, marginBottom: 20, filter: "drop-shadow(0 0 28px rgba(201,162,75,0.4))" }}
-      />
+      <div style={{ position: "relative", width: 200, height: 200 }}>
+        <svg viewBox="0 0 220 220" width="200" height="200" style={{ position: "absolute", inset: 0, overflow: "visible" }}>
+          <defs>
+            <linearGradient id="splashRoadGrad" x1="0" y1="1" x2="0" y2="0">
+              <stop offset="0%" stopColor="#2E4A66" />
+              <stop offset="55%" stopColor="#4F8F86" />
+              <stop offset="100%" stopColor="#D9A24B" />
+            </linearGradient>
+            <linearGradient id="splashLeafGrad" x1="0" y1="1" x2="1" y2="0">
+              <stop offset="0%" stopColor="#4F8F86" />
+              <stop offset="100%" stopColor="#7FB88A" />
+            </linearGradient>
+          </defs>
+          {/* الطريق المتعرّج - مسار SVG حقيقي واحد يُرسَم تدريجياً عبر
+              pathLength (framer-motion يترجمها لـstroke-dashoffset فعلياً)،
+              لا صورة ثابتة. */}
+          <motion.path
+            d="M 78 200 C 42 178, 40 138, 78 118 C 116 98, 118 68, 88 50 C 74 41, 76 28, 96 18"
+            fill="none" stroke="url(#splashRoadGrad)" strokeWidth="13" strokeLinecap="round"
+            {...road}
+          />
+          <motion.path d="M 55 118 C 24 108, 10 78, 30 48 C 55 66, 62 96, 55 118 Z" fill="url(#splashLeafGrad)" {...leaves} />
+          <motion.path d="M 45 92 C 18 88, 4 62, 20 34 C 44 48, 54 74, 45 92 Z" fill="url(#splashLeafGrad)" opacity={0.88} {...leaves} />
+          {/* النجمة/البريق - شكل نجمة رباعية الأطراف بلمعة واحدة (تكبير+
+              ظهور ثم استقرار)، لا وميض متكرر. */}
+          <motion.path d="M 176 30 L 181 20 L 186 30 L 196 35 L 186 40 L 181 50 L 176 40 L 166 35 Z" fill="#E0B868" {...star} />
+        </svg>
+        {SPLASH_FEATURE_ICONS.map(({ Icon, color, top, left }, i) => (
+          <motion.div
+            key={i}
+            {...iconAnim(i)}
+            style={{
+              position: "absolute", top, left, transform: "translate(-50%, -50%)",
+              width: 32, height: 32, borderRadius: 10, background: color,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
+            }}
+          >
+            <Icon size={16} color="#fff" />
+          </motion.div>
+        ))}
+      </div>
       {/* الحروف العربية متصلة الشكل (تتغيّر هيئتها حسب موضعها بالكلمة)،
           فتقسيم "مسار" لحروف منفصلة يكسر شكلها - بدلاً من ذلك، نص واحد
           يُكشَف تدريجياً بقناع (clipPath) يتحرّك من اليمين لليسار (اتجاه
           القراءة العربي)، فيبدو وكأنه "يُكتب" دون كسر اتصال الحروف. */}
-      <div style={{ overflow: "hidden" }}>
+      <div style={{ overflow: "hidden", marginTop: 4 }}>
         <motion.div
           {...wordmarkAnim}
-          style={{ fontFamily: "'Amiri', serif", fontSize: 42, fontWeight: 700, color: "var(--ink)", letterSpacing: 2 }}
+          style={{ fontFamily: "'Amiri', serif", fontSize: 40, fontWeight: 700, color: "#2B2A27", letterSpacing: 2 }}
         >{t("splash.wordmark")}</motion.div>
       </div>
       <motion.div
-        {...messageAnim}
-        style={{ fontSize: 14, color: "var(--muted)", marginTop: 10, letterSpacing: 0.3, textAlign: "center", maxWidth: 260, lineHeight: 1.7 }}
-      >{message}</motion.div>
-      <motion.div
-        {...lineAnim}
-        style={{ marginTop: 28, width: 100, height: 2, background: "linear-gradient(90deg, transparent, #C9A24B, transparent)", borderRadius: 2, transformOrigin: "center" }}
-      />
+        {...taglineAnim}
+        style={{ fontSize: 14, color: "#8A8474", marginTop: 6, letterSpacing: 0.3, textAlign: "center" }}
+      >{t("splash.tagline")}</motion.div>
     </motion.div>
   );
 }

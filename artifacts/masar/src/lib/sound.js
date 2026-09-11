@@ -55,6 +55,23 @@ export function playAchievementSound() {
   } catch (e) { console.error("[sound] playAchievementSound failed:", e); }
 }
 
+// شاشة البداية (Splash): نغمتان ناعمتان صاعدتان قصيرتان جداً (~0.3 ثانية
+// إجمالاً) تُطلَقان مرة واحدة فقط عند ظهور اسم "مسارك". لا إيماءة مستخدم
+// مباشرة تسبقها (الشاشة تظهر عند التحميل الأول) - المتصفحات (خصوصاً
+// Safari/iOS) قد تمنع AudioContext من الإصدار الفعلي بلا إيماءة سابقة؛
+// هذا متوقَّع وغير خطير هنا (catch صامت أدناه) - الأنيميشن البصري يعمل
+// بأي حال، والصوت تحسين اختياري بحت فوقه.
+export function playSplashChime() {
+  if (!store.getLocalSoundEnabled()) return;
+  const ctx = getCtx();
+  if (!ctx) return;
+  try {
+    const t = ctx.currentTime;
+    tone(ctx, 740, t, 0.16, 0.09);
+    tone(ctx, 988, t + 0.1, 0.22, 0.1);
+  } catch (e) { console.error("[sound] playSplashChime failed:", e); }
+}
+
 // انتهاء مؤقّت الراحة بين المجموعات (وضع التركيز في الرياضة): نغمتان
 // متكرّرتان لافتتان قصيرتان. تُستدعى من مؤقّت (setInterval) لا من ضغطة
 // مباشرة - انظر primeAudioContext أدناه لضمان جهوزية AudioContext رغم ذلك.

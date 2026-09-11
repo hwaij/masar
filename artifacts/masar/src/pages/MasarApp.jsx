@@ -35,7 +35,7 @@ import { FITNESS_GOALS } from "../lib/exercises-db";
 import { sumNutritionEntries, waterGoalCups, MEAL_TYPES, analyzeMealPatterns, MICRONUTRIENT_META, computeMoodNutritionCorrelation } from "../lib/nutrition";
 import { buildComprehensiveReport } from "../lib/comprehensiveReport";
 import { getDailyNutritionSummary } from "../lib/nutrition-plan";
-import { playSaveSound, playAchievementSound, playSplashChime } from "../lib/sound";
+import { playSaveSound, playAchievementSound } from "../lib/sound";
 import { getSession, getCachedSessionUser, onAuthChange, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut, userFromSession, hasAuth } from "../lib/auth";
 import {
   todayKey, fmtHM, uid, diffMinutes, arabicDate, computeStreak, longestStreak, escapeHtml,
@@ -1581,20 +1581,22 @@ const SPLASH_FEATURE_ICONS = [
   { Icon: Heart, color: "#D66B93", top: "85%", left: "79%" },
 ];
 
-// شاشة البداية: الطريق المتعرّج يُرسم أولاً (SVG path حقيقي عبر pathLength
-// - يترجمها framer-motion داخلياً لـstroke-dashoffset، لا صورة PNG ثابتة)،
-// ثم الشخصية (ذراع+رأس، امتداد لون الطريق نفسه) تظهر عند نهايته مباشرة، مع
-// الأوراق وشارات الميزات الأربع بفارق زمني بسيط بينها كلها، ثم النجمة تلمع
-// بريقاً واحداً ناعماً فوق يد الشخصية المرفوعة، ثم اسم "مسارك" ثم الشعار
-// التسويقي. مدة دخول العناصر ~2.1 ثانية، لكن الشاشة لا تُخفى فعلياً إلا
-// بعد اكتمال هذا الدخول الحركي بالكامل *و* اكتمال تحميل بيانات التطبيق
-// الحقيقي معاً (أيهما أبطأ) - فإن انتهى التحميل أسرع من الحركة، تُكمل
-// الحركة دورتها كاملة أولاً؛ وإن استغرق التحميل أطول، تبقى الشاشة معروضة
-// بنبض خفيف متكرر للنجمة بدل التجمّد، حتى سقف زمني عملي غير محدود هنا (بل
-// محكوم بمهلات loadAll() الحالية في مكان آخر بالملف). نغمة قصيرة اختيارية
-// (playSplashChime، تحترم نفس مفتاح كتم الصوت العام) تُطلَق مرة واحدة عند
-// اكتمال ظهور الاسم، ومرة أخرى كبديل عند أول لمسة/ضغطة من المستخدم إن كانت
-// المتصفحات منعت التشغيل التلقائي بلا إيماءة سابقة (قيد منصّة قياسي).
+// شاشة البداية: تسلسل يرسم/يُظهر كل عنصر موجود فعلياً باللوقو الأصلي
+// (logo-mark.png) - راجع التعليق أعلى الملف بالـcommit المرتبط لقائمة
+// المطابقة الكاملة. الطريق المتعرّج يُرسم أولاً (SVG path حقيقي عبر
+// pathLength - يترجمها framer-motion داخلياً لـstroke-dashoffset، لا صورة
+// PNG ثابتة)، ثم الشمس/الرأس (دائرة بارزة بنفس موضع/حجم اللوقو الأصلي
+// تقريباً) والذراع المرفوعة (امتداد لون الطريق) تظهران عند نهايته مباشرة،
+// مع الأوراق الثلاث (لا اثنتين فقط - اللوقو الأصلي فيه ثلاث) وشارات
+// الميزات الأربع بفارق زمني بسيط بينها كلها، ثم النجمة تلمع بريقاً واحداً
+// ناعماً فوق يد الشخصية المرفوعة (بنفس موضع/حجم اللوقو الأصلي)، ثم اسم
+// "مسارك" ثم الشعار التسويقي. مدة دخول العناصر ~2.1 ثانية، لكن الشاشة لا
+// تُخفى فعلياً إلا بعد اكتمال هذا الدخول الحركي بالكامل *و* اكتمال تحميل
+// بيانات التطبيق الحقيقي معاً (أيهما أبطأ) - فإن انتهى التحميل أسرع من
+// الحركة، تُكمل الحركة دورتها كاملة أولاً؛ وإن استغرق التحميل أطول، تبقى
+// الشاشة معروضة بنبض خفيف متكرر للنجمة بدل التجمّد، حتى سقف زمني عملي (بل
+// محكوم بمهلات loadAll() الحالية في مكان آخر بالملف). لا صوت إطلاقاً بهذي
+// الشاشة (أُزيل بالكامل بناءً على تأكيد صريح لاحق).
 function SplashScreen({ onDone, loaded }) {
   const { t, i18n } = useTranslation();
   const [hiding, setHiding] = useState(false);
@@ -1603,7 +1605,6 @@ function SplashScreen({ onDone, loaded }) {
   // أي حركة/تأخير)، مع الإبقاء على نفس توقيت اكتمال الدخول - فقط الحركة
   // نفسها تُزال، لا الشاشة كاملة.
   const reduceMotion = useReducedMotion();
-  const chimePlayed = useRef(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setSequenceDone(true), 2100);
@@ -1617,36 +1618,15 @@ function SplashScreen({ onDone, loaded }) {
 
   const waiting = sequenceDone && !loaded;
 
-  function fireChimeOnce() {
-    if (chimePlayed.current) return;
-    chimePlayed.current = true;
-    playSplashChime();
-  }
-
-  // بديل عن التشغيل التلقائي: أول إيماءة مستخدم حقيقية بأي مكان بالصفحة
-  // (لمسة/نقرة/زر) تُطلق النغمة فوراً إن لم تكن قد نجحت أصلاً - المتصفحات
-  // (خصوصاً Chrome/Safari) تمنع AudioContext من الإصدار الفعلي بلا إيماءة
-  // سابقة، وهذا يضمن سماعها فعلياً في أول تفاعل حتى لو فات توقيتها الأصلي
-  // عند ظهور الاسم.
-  useEffect(() => {
-    function onGesture() { fireChimeOnce(); }
-    window.addEventListener("pointerdown", onGesture, { once: true });
-    window.addEventListener("keydown", onGesture, { once: true });
-    return () => {
-      window.removeEventListener("pointerdown", onGesture);
-      window.removeEventListener("keydown", onGesture);
-    };
-  }, []);
-
   const road = reduceMotion
     ? { initial: { pathLength: 1 }, animate: { pathLength: 1 }, transition: { duration: 0 } }
     : { initial: { pathLength: 0 }, animate: { pathLength: 1 }, transition: { duration: 0.65, ease: "easeInOut" } };
   const personArm = reduceMotion
     ? { initial: { pathLength: 1 }, animate: { pathLength: 1 }, transition: { duration: 0 } }
-    : { initial: { pathLength: 0 }, animate: { pathLength: 1 }, transition: { delay: 0.6, duration: 0.28, ease: "easeOut" } };
-  const personHead = reduceMotion
+    : { initial: { pathLength: 0 }, animate: { pathLength: 1 }, transition: { delay: 0.62, duration: 0.3, ease: "easeOut" } };
+  const sun = reduceMotion
     ? { initial: { opacity: 1, scale: 1 }, animate: { opacity: 1, scale: 1 }, transition: { duration: 0 } }
-    : { initial: { opacity: 0, scale: 0.4 }, animate: { opacity: 1, scale: 1 }, transition: { delay: 0.85, duration: 0.22, ease: "easeOut" } };
+    : { initial: { opacity: 0, scale: 0.5 }, animate: { opacity: 1, scale: 1 }, transition: { delay: 0.55, duration: 0.28, ease: "easeOut" } };
   const leaves = reduceMotion
     ? { initial: { opacity: 1, y: 0 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0 } }
     : { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 }, transition: { delay: 0.58, duration: 0.26, ease: "easeOut" } };
@@ -1664,8 +1644,8 @@ function SplashScreen({ onDone, loaded }) {
     ? { duration: 1.2, repeat: Infinity, ease: "easeInOut" }
     : reduceMotion ? { duration: 0 } : { delay: 1.1, duration: 0.4, ease: "easeOut" };
   const wordmarkAnim = reduceMotion
-    ? { initial: { opacity: 1, y: 0, clipPath: "inset(0 0 0 0%)" }, animate: { opacity: 1, y: 0, clipPath: "inset(0 0 0 0%)" }, transition: { duration: 0 }, onAnimationComplete: fireChimeOnce }
-    : { initial: { opacity: 0, y: 8, clipPath: "inset(0 0 0 100%)" }, animate: { opacity: 1, y: 0, clipPath: "inset(0 0 0 0%)" }, transition: { delay: 1.35, duration: 0.3, ease: [0.65, 0, 0.35, 1] }, onAnimationComplete: fireChimeOnce };
+    ? { initial: { opacity: 1, y: 0, clipPath: "inset(0 0 0 0%)" }, animate: { opacity: 1, y: 0, clipPath: "inset(0 0 0 0%)" }, transition: { duration: 0 } }
+    : { initial: { opacity: 0, y: 8, clipPath: "inset(0 0 0 100%)" }, animate: { opacity: 1, y: 0, clipPath: "inset(0 0 0 0%)" }, transition: { delay: 1.35, duration: 0.3, ease: [0.65, 0, 0.35, 1] } };
   const taglineAnim = reduceMotion
     ? { initial: { opacity: 1, y: 0 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0 } }
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 }, transition: { delay: 1.6, duration: 0.3, ease: "easeOut" } };
@@ -1703,25 +1683,31 @@ function SplashScreen({ onDone, loaded }) {
               pathLength (framer-motion يترجمها لـstroke-dashoffset فعلياً)،
               لا صورة ثابتة. */}
           <motion.path
-            d="M 78 200 C 42 178, 40 138, 78 118 C 116 98, 118 68, 88 50 C 74 41, 76 28, 96 18"
+            d="M 78 200 C 42 178, 40 138, 78 118 C 116 98, 118 68, 88 50 C 90 55, 95 60, 100 62"
             fill="none" stroke="url(#splashRoadGrad)" strokeWidth="13" strokeLinecap="round"
             {...road}
           />
-          {/* الشخصية - ذراع مرفوعة (استمرار مباشر للطريق بنفس لونه الذهبي
-              عند نهايته) ورأس دائري بسيط، تظهر فور اكتمال رسم الطريق. */}
+          {/* الشمس/الرأس - دائرة بارزة بنفس موضع وحجم اللوقو الأصلي تقريباً
+              (وليست نقطة صغيرة)، تظهر فور اكتمال رسم الطريق. */}
+          <motion.circle cx="125" cy="50" r="19" fill="#E0B868" {...sun} />
+          {/* الذراع المرفوعة - استمرار مباشر للطريق بنفس لونه الذهبي، تمتد
+              من كتف الشخصية (نهاية الطريق) حتى قرب النجمة. */}
           <motion.path
-            d="M 96 18 C 104 12, 112 9, 122 8"
+            d="M 100 62 C 112 48, 128 38, 145 32 C 158 28, 168 24, 178 22"
             fill="none" stroke="#D9A24B" strokeWidth="9" strokeLinecap="round"
             {...personArm}
           />
-          <motion.circle cx="128" cy="6" r="6.5" fill="#D9A24B" {...personHead} />
-          <motion.path d="M 55 118 C 24 108, 10 78, 30 48 C 55 66, 62 96, 55 118 Z" fill="url(#splashLeafGrad)" {...leaves} />
-          <motion.path d="M 45 92 C 18 88, 4 62, 20 34 C 44 48, 54 74, 45 92 Z" fill="url(#splashLeafGrad)" opacity={0.88} {...leaves} />
+          {/* الأوراق الثلاث (لا اثنتين) - نفس عدد أوراق اللوقو الأصلي تماماً:
+              ورقة طويلة مركزية، وورقتان أقصر تفترقان يميناً ويساراً منها. */}
+          <motion.path d="M 65 110 C 58 80, 62 45, 78 20 C 90 48, 88 85, 65 110 Z" fill="url(#splashLeafGrad)" {...leaves} />
+          <motion.path d="M 55 118 C 24 108, 10 78, 30 48 C 55 66, 62 96, 55 118 Z" fill="url(#splashLeafGrad)" opacity={0.92} {...leaves} />
+          <motion.path d="M 45 92 C 18 88, 4 62, 20 34 C 44 48, 54 74, 45 92 Z" fill="url(#splashLeafGrad)" opacity={0.82} {...leaves} />
           {/* النجمة/البريق - شكل نجمة رباعية الأطراف فوق يد الشخصية المرفوعة
-              مباشرة، بلمعة واحدة عند الدخول (لا وميض متكرر إلا أثناء
-              انتظار تحميل حقيقي أطول من الحركة - راجع starAnimate أعلاه). */}
+              مباشرة (نفس موضع/حجم اللوقو الأصلي تقريباً)، بلمعة واحدة عند
+              الدخول (لا وميض متكرر إلا أثناء انتظار تحميل حقيقي أطول من
+              الحركة - راجع starAnimate أعلاه). */}
           <motion.path
-            d="M 143 17 L 148 7 L 153 17 L 163 22 L 153 27 L 148 37 L 143 27 L 133 22 Z"
+            d="M 183 8 L 188 21 L 201 26 L 188 31 L 183 44 L 178 31 L 165 26 L 178 21 Z"
             fill="#E0B868" initial={starInitial} animate={starAnimate} transition={starTransition}
           />
         </svg>

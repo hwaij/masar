@@ -2830,23 +2830,34 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
   // chartImages.js من نفس dailyReportRows بالضبط، بلا استعلام بيانات موازٍ)
   // + شيت البيانات الخام الكامل بتلوين الاحتياج التلقائي (كان موجوداً أصلاً
   // في تصدير Excel الملوَّن - راجع src/lib/excelReport.js لتفاصيل الحدود).
+  // التقرير بالكامل بالإنجليزي دائماً بطلب صريح (بغض النظر عن لغة الواجهة
+  // language) - الاستثناء الوحيدان: اسم الطعام واسم المستخدم، يبقيان كما
+  // أُدخلا. لا معامل isEn يُمرَّر بعد الآن لأي من excelReport.js/chartImages.js.
   async function exportUnifiedReport() {
     if (exportingExcel) return;
     const exportName = profile?.name?.trim() || t("reportsView.daily.unnamedUser");
     setExportingExcel(true);
     try {
-      const isEn = language === "en";
       const [{ buildUnifiedReportExcelBuffer }, { buildNutritionChart, buildSleepChart, buildActivityChart, buildStepsChart }] = await Promise.all([
         import("../lib/excelReport"), import("../lib/chartImages"),
       ]);
+      // أهداف السعرات/الماكروز (لخط الهدف المستهدف بالرسم البياني الأول) -
+      // نفس getDailyNutritionSummary المستخدمة داخل buildUnifiedReportExcelBuffer
+      // لكل صف بالضبط؛ totals فارغة عمداً هنا (لا تؤثر على قيم *Goal نفسها،
+      // فقط على consumed/remaining غير المستخدَمين هنا) - راجع تعليق الاحتياج
+      // اليومي في excelReport.js لسبب ثبات هذه القيم عبر كل الأيام.
+      const goals = getDailyNutritionSummary({ totals: {}, healthProfile, nutritionPlan: null });
       const charts = {
-        nutrition: buildNutritionChart(dailyReportRows, isEn),
-        sleep: buildSleepChart(dailyReportRows, isEn),
-        activity: buildActivityChart(dailyReportRows, isEn),
-        steps: buildStepsChart(dailyReportRows, isEn),
+        nutrition: buildNutritionChart(dailyReportRows, {
+          calorieGoal: goals.calorieGoal ?? null, proteinGoal: goals.proteinGoal ?? null,
+          carbsGoal: goals.carbsGoal ?? null, fatGoal: goals.fatGoal ?? null,
+        }),
+        sleep: buildSleepChart(dailyReportRows),
+        activity: buildActivityChart(dailyReportRows),
+        steps: buildStepsChart(dailyReportRows, healthProfile?.dailyStepsGoal ?? null),
       };
       const buffer = await buildUnifiedReportExcelBuffer(dailyReportRows, {
-        healthProfile, owner: exportName, isEn, charts,
+        healthProfile, owner: exportName, charts,
       });
       const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const url = URL.createObjectURL(blob);

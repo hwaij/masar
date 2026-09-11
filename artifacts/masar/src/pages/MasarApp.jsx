@@ -60,6 +60,11 @@ const GroupsView = lazy(() => import("../components/GroupsView"));
 const VaultView = lazy(() => import("../components/VaultView"));
 const DietPlansView = lazy(() => import("../components/DietPlansView"));
 const NutritionPlanView = lazy(() => import("../components/NutritionPlanView"));
+// معاينتان تجريبيتان لشاشة "اليوم" (مقارنة بصرية فقط، غير مرتبطتين بالتنقل
+// الرئيسي - راجع VALID_SHORTCUT_VIEWS ومفتاحي previewTodayA/previewTodayB
+// أدناه). محمَّلتان كسولاً لأنهما لا تُستخدَمان إلا برابط مباشر صريح.
+const TodayPreviewA = lazy(() => import("../components/TodayPreviewA"));
+const TodayPreviewB = lazy(() => import("../components/TodayPreviewB"));
 
 // recharts (~114kB gzip) كانت تُستورَد ثابتاً هنا رغم أن استخدامها الوحيد في
 // هذا الملف محصور بثلاث دوال (التقارير/النوم/تقرير التركيز) - ما يعني
@@ -297,7 +302,12 @@ export default function MasarApp() {
   // التطبيق برابط "/?view=X" - لا علاقة له بأي منطق بيانات، مجرد قراءة
   // لمرة واحدة عند التحميل الأول لتحديد الشاشة الافتتاحية، مع قائمة بيضاء
   // صريحة حتى لا يقود رابط خارجي المستخدم لشاشة غير موجودة.
-  const VALID_SHORTCUT_VIEWS = ["today", "prayer", "adhkar", "tips", "you", "nutrition", "nutritionPlan", "dietPlans", "fitness", "focus", "tasks", "goals", "vault", "reports", "groups", "assistant", "achieve", "settings", "sleep", "steps"];
+  // previewTodayA/previewTodayB: صفحتا معاينة تجريبيتان لشاشة "اليوم" (مقارنة
+  // بصرية بحتة، راجع TodayPreviewA/TodayPreviewB) - أُضيفتا هنا فقط ليكون
+  // الوصول إليهما ممكناً برابط مباشر "?view=previewTodayA" (نفس آلية اختصارات
+  // الشاشة الرئيسية القائمة أصلاً)، دون ظهورهما بأي قائمة تنقّل فعلية
+  // (Header/Sidebar/SideMenu) - لا صلة لهما بالتنقل الطبيعي للتطبيق.
+  const VALID_SHORTCUT_VIEWS = ["today", "prayer", "adhkar", "tips", "you", "nutrition", "nutritionPlan", "dietPlans", "fitness", "focus", "tasks", "goals", "vault", "reports", "groups", "assistant", "achieve", "settings", "sleep", "steps", "previewTodayA", "previewTodayB"];
   const [view, setView] = useState(() => {
     try {
       const requested = new URLSearchParams(window.location.search).get("view");
@@ -1112,6 +1122,16 @@ export default function MasarApp() {
             addPoints={addPoints} showToast={showToast}
             subscription={subscription}
           />
+        )}
+        {(view === "previewTodayA" || view === "previewTodayB") && (
+          <Suspense fallback={<div style={{ ...S.view, display: "flex", justifyContent: "center", padding: 40 }}><Loader2 size={24} color="#C9A24B" className="spin" /></div>}>
+            {view === "previewTodayA" && (
+              <TodayPreviewA entries={entries} categories={categories} tasks={tasks} mandatoryLog={mandatoryLog} focus={focus} setView={setView} />
+            )}
+            {view === "previewTodayB" && (
+              <TodayPreviewB entries={entries} categories={categories} tasks={tasks} mandatoryLog={mandatoryLog} setView={setView} />
+            )}
+          </Suspense>
         )}
         {view === "prayer" && (
           <PrayerView

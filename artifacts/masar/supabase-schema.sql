@@ -350,6 +350,16 @@ alter table nutrition_log add column if not exists micro_ai_estimated boolean no
 alter table nutrition_log add column if not exists mood smallint check (mood between 0 and 5);
 alter table nutrition_log add column if not exists stress smallint check (stress between 0 and 5);
 
+-- وقت تناول الوجبة الفعلي (نص "HH:MM"، لا timestamptz) - يُملأ مرة واحدة
+-- فقط لكل الأصناف بنفس جلسة الوجبة (mealSessionIds) عند ضغط "إنهاء الوجبة"
+-- في NutritionView.jsx، بنفس آلية mood/stress أعلاه بالضبط (تحديث لاحق عبر
+-- updateNutritionEntry، لا وقت الإضافة الأولى لكل صنف). عمود منفصل تماماً
+-- عن created_at (ذاك وقت كتابة الصف في القاعدة لكل صنف على حدة، يختلف بين
+-- أصناف نفس الوجبة إن أُضيفت على دفعات) - هذا هو "متى أكل المستخدم هذه
+-- الوجبة" كما أدخله هو، لا وقت تسجيل تقني. nullable: صف لم تُنهَ وجبته بعد
+-- (أو مسجَّل قبل هذا التحديث) يبقى بلا قيمة، بلا أي كسر لأي حساب/عرض قائم.
+alter table nutrition_log add column if not exists meal_time text;
+
 -- مفتاحها (owner, barcode) — لو أدخل المستخدم منتجاً يدوياً لباركود غير
 -- موجود في Open Food Facts، يُستخدم هذا الصف تلقائياً في المرة القادمة
 -- لنفس الباركود قبل حتى محاولة الاتصال بالـ API.

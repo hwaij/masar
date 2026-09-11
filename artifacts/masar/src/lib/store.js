@@ -939,6 +939,10 @@ export const store = {
         // مزاج/توتر لحظة تسجيل هذا الطعام تحديداً (nullable - تُملآن فقط بعد
         // إجابة المستخدم على شاشة "كيف تشعر الآن؟" التالية للتسجيل الناجح).
         mood: r.mood ?? null, stress: r.stress ?? null,
+        // وقت تناول الوجبة الفعلي "HH:MM" كما ضغط المستخدم "إنهاء الوجبة"
+        // (nullable - يُملأ بنفس آلية mood/stress أعلاه، راجع تعليق العمود
+        // في supabase-schema.sql).
+        mealTime: r.meal_time ?? null,
       }));
       lsSet("masar_nutrition_log", items);
       markCloudFetched("masar_nutrition_log");
@@ -960,6 +964,7 @@ export const store = {
       quantity: entry.quantity ?? null, product_basis: entry.productBasis || null,
       micro_ai_estimated: !!entry.microAiEstimated,
       mood: entry.mood ?? null, stress: entry.stress ?? null,
+      meal_time: entry.mealTime ?? null,
     };
     try {
       const { error } = await supabase.from("nutrition_log").insert(payload);
@@ -1000,6 +1005,7 @@ export const store = {
       quantity: entry.quantity ?? null, product_basis: entry.productBasis || null,
       micronutrients: entry.micronutrients || {}, micro_ai_estimated: !!entry.microAiEstimated,
       mood: entry.mood ?? null, stress: entry.stress ?? null,
+      meal_time: entry.mealTime ?? null,
     };
     try {
       const { error } = await supabase.from("nutrition_log").update(payload).eq("id", entry.id).eq("owner", CURRENT_OWNER);

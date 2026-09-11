@@ -1,14 +1,20 @@
-// تصدير Excel حقيقي (.xlsx) للتقرير اليومي الشامل - يضيف فوق نفس بيانات
-// rowsToCsv (comprehensiveReport.js) طبقتين جديدتين فقط لكل يوم:
-// 1) عمودا "احتياج" لكل عنصر غذائي أساسي (سعرات/بروتين/كارب/دهون)، محسوبان
-//    فعلياً عبر getDailyNutritionSummary (nutrition-plan.js) - نفس الدالة
-//    المستخدمة أصلاً في NutritionView.jsx/AssistantView لعرض هدف اليوم، لا
-//    حساب موازٍ جديد. nutritionPlan تُمرَّر دائماً null هنا عمداً - مطابقةً
-//    للسلوك القائم في كلا الموضعين أعلاه (خطة غذائية نشطة مختارة لا تُستخدَم
-//    كمصدر الهدف خارج شاشتها المخصّصة؛ المصدر دائماً هو TEE) - قرار موجود
-//    مسبقاً في الكود، لا قرار جديد اتُّخذ هنا.
-// 2) عمود "حالة" نصي واحد لكل عنصر (نسبة % + تصنيف نصي معاً في خلية واحدة)،
-//    وتلوين تلقائي لخلية الاستهلاك الفعلي (الإجمالي اليومي) لنفس العنصر.
+// تصدير Excel موحَّد حقيقي (.xlsx) للتقرير اليومي الشامل - يحل محل تصديري
+// CSV/Excel المنفصلين السابقين بملف واحد فقط، بشيتين:
+// 1) "الرسوم البيانية": 4 صور (سعرات+ماكروز/نوم/نشاط رياضي/خطوات) مبنية من
+//    نفس صفوف التقرير عبر chartImages.js (Canvas 2D - exceljs لا يدعم رسوماً
+//    بيانية تفاعلية أصلية، راجع تعليق ذلك الملف)، تُمرَّر جاهزة من المستدعي
+//    (MasarApp.jsx) بعد بنائها بالمتصفح.
+// 2) "التقرير اليومي": نفس جدول البيانات الخام الكامل كما كان، مع طبقتين
+//    إضافيتين لكل يوم:
+//    - عمودا "احتياج" لكل عنصر غذائي أساسي (سعرات/بروتين/كارب/دهون)، محسوبان
+//      فعلياً عبر getDailyNutritionSummary (nutrition-plan.js) - نفس الدالة
+//      المستخدمة أصلاً في NutritionView.jsx/AssistantView لعرض هدف اليوم، لا
+//      حساب موازٍ جديد. nutritionPlan تُمرَّر دائماً null هنا عمداً - مطابقةً
+//      للسلوك القائم في كلا الموضعين أعلاه (خطة غذائية نشطة مختارة لا تُستخدَم
+//      كمصدر الهدف خارج شاشتها المخصّصة؛ المصدر دائماً هو TEE) - قرار موجود
+//      مسبقاً في الكود، لا قرار جديد اتُّخذ هنا.
+//    - عمود "حالة" نصي واحد لكل عنصر (نسبة % + تصنيف نصي معاً في خلية واحدة)،
+//      وتلوين تلقائي لخلية الاستهلاك الفعلي (الإجمالي اليومي) لنفس العنصر.
 //
 // الاحتياج اليومي يعتمد فقط على healthProfile.tee الحالي (لا يوجد تخزين
 // تاريخي لسجل صحي لكل يوم في هذا التطبيق) - لذا قيمته متقاربة/متطابقة عبر
@@ -84,6 +90,7 @@ const BASE_COLUMNS = [
   ["sleepWakeTime", "وقت الاستيقاظ الفعلي", "Sleep Wake Time"],
   ["sleepHours", "ساعات النوم الفعلية", "Sleep Hours"],
   ["breakfastFoods", "أصناف الفطور", "Breakfast Foods"],
+  ["breakfastTime", "وقت الفطور", "Breakfast Time"],
   ["breakfastCalories", "سعرات الفطور", "Breakfast Calories"],
   ["breakfastProteinG", "بروتين الفطور (غم)", "Breakfast Protein (g)"],
   ["breakfastCarbsG", "كارب الفطور (غم)", "Breakfast Carbs (g)"],
@@ -91,6 +98,7 @@ const BASE_COLUMNS = [
   ["breakfastMood", "مزاج الفطور (١-٥)", "Breakfast Mood (1-5)"],
   ["breakfastStress", "توتر الفطور (١-٥)", "Breakfast Stress (1-5)"],
   ["lunchFoods", "أصناف الغداء", "Lunch Foods"],
+  ["lunchTime", "وقت الغداء", "Lunch Time"],
   ["lunchCalories", "سعرات الغداء", "Lunch Calories"],
   ["lunchProteinG", "بروتين الغداء (غم)", "Lunch Protein (g)"],
   ["lunchCarbsG", "كارب الغداء (غم)", "Lunch Carbs (g)"],
@@ -98,6 +106,7 @@ const BASE_COLUMNS = [
   ["lunchMood", "مزاج الغداء (١-٥)", "Lunch Mood (1-5)"],
   ["lunchStress", "توتر الغداء (١-٥)", "Lunch Stress (1-5)"],
   ["dinnerFoods", "أصناف العشاء", "Dinner Foods"],
+  ["dinnerTime", "وقت العشاء", "Dinner Time"],
   ["dinnerCalories", "سعرات العشاء", "Dinner Calories"],
   ["dinnerProteinG", "بروتين العشاء (غم)", "Dinner Protein (g)"],
   ["dinnerCarbsG", "كارب العشاء (غم)", "Dinner Carbs (g)"],
@@ -105,6 +114,7 @@ const BASE_COLUMNS = [
   ["dinnerMood", "مزاج العشاء (١-٥)", "Dinner Mood (1-5)"],
   ["dinnerStress", "توتر العشاء (١-٥)", "Dinner Stress (1-5)"],
   ["snackFoods", "أصناف السناك", "Snack Foods"],
+  ["snackTime", "وقت السناك", "Snack Time"],
   ["snackCalories", "سعرات السناك", "Snack Calories"],
   ["snackProteinG", "بروتين السناك (غم)", "Snack Protein (g)"],
   ["snackCarbsG", "كارب السناك (غم)", "Snack Carbs (g)"],
@@ -112,6 +122,7 @@ const BASE_COLUMNS = [
   ["snackMood", "مزاج السناك (١-٥)", "Snack Mood (1-5)"],
   ["snackStress", "توتر السناك (١-٥)", "Snack Stress (1-5)"],
   ["unclassifiedFoods", "أصناف غير مصنَّفة", "Unclassified Foods"],
+  ["unclassifiedTime", "وقت غير مصنَّف", "Unclassified Time"],
   ["unclassifiedCalories", "سعرات غير مصنَّفة", "Unclassified Calories"],
   ["unclassifiedProteinG", "بروتين غير مصنَّف (غم)", "Unclassified Protein (g)"],
   ["unclassifiedCarbsG", "كارب غير مصنَّف (غم)", "Unclassified Carbs (g)"],
@@ -150,12 +161,49 @@ const NEED_METRICS = [
 ];
 const GOAL_FIELD = { calorieGoal: "calorieGoal", proteinGoal: "proteinGoal", carbGoal: "carbsGoal", fatGoal: "fatGoal" };
 
-// rows: نفس مخرجات buildComprehensiveReport بالضبط (bilaحاجة لأي تحويل).
+// إدراج صورة رسم بياني واحدة (إن وُجدت - قد تكون null إن لم تتوفر بيانات
+// فعلية لهذا المقياس خلال الفترة، راجع تعليق chartImages.js) في شيت الرسوم،
+// بعرض ثابت وارتفاع محسوب من نسبة العرض/الارتفاع الأصلية للصورة. يُرجع رقم
+// الصف التالي المتاح لإدراج الرسم الذي يليه (تكديس رأسي بلا تداخل).
+function addChartImage(workbook, sheet, chart, startRow) {
+  if (!chart) return startRow;
+  const displayWidth = 680;
+  const displayHeight = Math.round(displayWidth * (chart.height / chart.width));
+  const imageId = workbook.addImage({ base64: chart.base64, extension: "png" });
+  sheet.addImage(imageId, { tl: { col: 0.3, row: startRow }, ext: { width: displayWidth, height: displayHeight } });
+  // تقدير تقريبي لعدد الصفوف التي يشغلها الرسم (ارتفاع الصف الافتراضي ~15px)
+  // + هامش صغير قبل الرسم التالي.
+  return startRow + Math.ceil(displayHeight / 15) + 2;
+}
+
+// charts: كائن {nutrition, sleep, activity, steps} - كل قيمة إما null (لا
+// بيانات لهذا المقياس بالفترة) أو {base64, width, height} من chartImages.js
+// (يُبنى بالمتصفح عبر Canvas قبل استدعاء هذه الدالة - راجع تعليق أعلى
+// الملف لسبب عدم بنائها هنا).
+// rows: نفس مخرجات buildComprehensiveReport بالضبط (بلا حاجة لأي تحويل).
 // healthProfile: نفس الكائن الممرَّر أصلاً لـReportsView (يحمل tee إن حُسِب).
-// owner: اسم المستخدم كما في exportDailyCsv. isEn: لغة الواجهة وقت التصدير.
+// owner: اسم المستخدم كما أدخله في ملفه الشخصي. isEn: لغة الواجهة وقت التصدير.
 // يُرجع ArrayBuffer جاهزاً لتغليفه في Blob من طرف المستدعي.
-export async function buildDailyReportExcelBuffer(rows, { healthProfile, owner, isEn }) {
+export async function buildUnifiedReportExcelBuffer(rows, { healthProfile, owner, isEn, charts }) {
   const workbook = new ExcelJS.Workbook();
+
+  // شيت الرسوم البيانية أولاً (يظهر عند فتح الملف مباشرة) - رسم واحد فقط
+  // يُدرَج فعلياً إن توفّرت بياناته (لا رسم فارغ مُضلِّل)؛ إن لم تتوفر بيانات
+  // لأي مقياس إطلاقاً بهذه الفترة تبقى ورقة الرسوم موجودة بملاحظة توضيحية
+  // بدل الاختفاء الصامت.
+  const chartsSheet = workbook.addWorksheet(isEn ? "Charts" : "الرسوم البيانية", {
+    views: [{ rightToLeft: !isEn }],
+  });
+  const allCharts = [charts?.nutrition, charts?.sleep, charts?.activity, charts?.steps];
+  if (allCharts.every((c) => !c)) {
+    chartsSheet.getCell("A1").value = isEn
+      ? "No data available yet for any chart in this period."
+      : "لا بيانات كافية بعد لأي رسم بياني لهذه الفترة.";
+  } else {
+    let row = 0;
+    for (const chart of allCharts) row = addChartImage(workbook, chartsSheet, chart, row);
+  }
+
   const sheet = workbook.addWorksheet(isEn ? "Daily Report" : "التقرير اليومي", {
     views: [{ rightToLeft: !isEn }],
   });

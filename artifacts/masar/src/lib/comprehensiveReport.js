@@ -2,8 +2,8 @@
 // الجداول اليومية الموجودة فعلياً (nutrition_log، sleep_log، steps_log،
 // workout_log، fitness_log، focus_sessions، weight_log، وentries المُصفّاة
 // مسبقاً لفئة "الدراسة" فقط - Priority 4) بمفتاح التاريخ المشترك إلى صف
-// واحد مسطَّح لكل يوم - جاهز مباشرة للعرض ولتصدير CSV نحو
-// أدوات تحليل إحصائي (Excel/SPSS/R). هذا الملف لا يعرض أي واجهة، ولا يُنتج
+// واحد مسطَّح لكل يوم - جاهز مباشرة للعرض ولتصدير التقرير الموحَّد
+// (excelReport.js) نحو أدوات تحليل إحصائي (Excel/SPSS/R). هذا الملف لا يعرض أي واجهة، ولا يُنتج
 // أي استنتاج أو "علاقة" بين المتغيرات - فقط بيانات منظَّمة جنباً إلى جنب،
 // كما طُلب صراحةً: "لا نريد تقريراً صحفياً... نريد بيانات منظمة وقابلة
 // للتحليل" و"لا نريد من النظام أن يقول إن هناك علاقة سببية".
@@ -48,7 +48,7 @@ function summarizeFoods(entries) {
 
 function mealAggregate(entries) {
   if (!entries.length) {
-    return { foods: null, calories: null, proteinG: null, carbsG: null, fatG: null, mood: null, stress: null };
+    return { foods: null, calories: null, proteinG: null, carbsG: null, fatG: null, mood: null, stress: null, time: null };
   }
   return {
     foods: summarizeFoods(entries),
@@ -58,6 +58,10 @@ function mealAggregate(entries) {
     fatG: sumOrNull(entries.map((e) => e.fat)),
     mood: avgOrNull(entries.map((e) => e.mood)),
     stress: avgOrNull(entries.map((e) => e.stress)),
+    // وقت إنهاء الوجبة "HH:MM" كما ضغط المستخدم فعلياً - كل أصناف نفس جلسة
+    // الوجبة تحمل نفس القيمة (راجع تعليق meal_time في supabase-schema.sql)،
+    // فأول قيمة غير فارغة تكفي (لا متوسط - هذا وقت واحد لا رقم قابل للجمع).
+    time: entries.find((e) => e.mealTime)?.mealTime ?? null,
   };
 }
 
@@ -142,19 +146,19 @@ function buildDayRow(date, prevDate, { nutritionLog, sleepLog, stepsLog, workout
     sleepHours: sleepEntry?.hours ?? null,
     breakfastFoods: mealRows.breakfast.foods, breakfastCalories: mealRows.breakfast.calories,
     breakfastProteinG: mealRows.breakfast.proteinG, breakfastCarbsG: mealRows.breakfast.carbsG, breakfastFatG: mealRows.breakfast.fatG,
-    breakfastMood: mealRows.breakfast.mood, breakfastStress: mealRows.breakfast.stress,
+    breakfastMood: mealRows.breakfast.mood, breakfastStress: mealRows.breakfast.stress, breakfastTime: mealRows.breakfast.time,
     lunchFoods: mealRows.lunch.foods, lunchCalories: mealRows.lunch.calories,
     lunchProteinG: mealRows.lunch.proteinG, lunchCarbsG: mealRows.lunch.carbsG, lunchFatG: mealRows.lunch.fatG,
-    lunchMood: mealRows.lunch.mood, lunchStress: mealRows.lunch.stress,
+    lunchMood: mealRows.lunch.mood, lunchStress: mealRows.lunch.stress, lunchTime: mealRows.lunch.time,
     dinnerFoods: mealRows.dinner.foods, dinnerCalories: mealRows.dinner.calories,
     dinnerProteinG: mealRows.dinner.proteinG, dinnerCarbsG: mealRows.dinner.carbsG, dinnerFatG: mealRows.dinner.fatG,
-    dinnerMood: mealRows.dinner.mood, dinnerStress: mealRows.dinner.stress,
+    dinnerMood: mealRows.dinner.mood, dinnerStress: mealRows.dinner.stress, dinnerTime: mealRows.dinner.time,
     snackFoods: mealRows.snack.foods, snackCalories: mealRows.snack.calories,
     snackProteinG: mealRows.snack.proteinG, snackCarbsG: mealRows.snack.carbsG, snackFatG: mealRows.snack.fatG,
-    snackMood: mealRows.snack.mood, snackStress: mealRows.snack.stress,
+    snackMood: mealRows.snack.mood, snackStress: mealRows.snack.stress, snackTime: mealRows.snack.time,
     unclassifiedFoods: unclassified.foods, unclassifiedCalories: unclassified.calories,
     unclassifiedProteinG: unclassified.proteinG, unclassifiedCarbsG: unclassified.carbsG, unclassifiedFatG: unclassified.fatG,
-    unclassifiedMood: unclassified.mood, unclassifiedStress: unclassified.stress,
+    unclassifiedMood: unclassified.mood, unclassifiedStress: unclassified.stress, unclassifiedTime: unclassified.time,
     totalCalories, totalProteinG, totalCarbsG, totalFatG, totalFiberG, totalSugarG, totalSodiumMg, totalCholesterolMg,
     dailyMoodAvg, dailyStressAvg,
     steps: stepsEntry ? stepsEntry.steps : null,
@@ -172,45 +176,3 @@ export function buildComprehensiveReport(days, logs) {
   return days.map((date, i) => buildDayRow(date, i > 0 ? days[i - 1] : null, logs));
 }
 
-// أعمدة CSV بترتيب ثابت + عناوين إنجليزية واضحة (لتوافق أدوات التحليل
-// الإحصائي القياسية التي تتوقع عناوين ASCII) - كل عمود يقابل حقلاً واحداً في
-// صف buildDayRow بلا أي تحويل إضافي، والقيم الفارغة تُكتَب كخلية فارغة تماماً
-// (لا "0" ولا "N/A") لتبقى قابلة للتفسير الصحيح في Excel/SPSS/R كـ"قيمة
-// مفقودة" حقيقية بدل صفر أو نص عشوائي.
-export const CSV_COLUMNS = [
-  ["date", "Date"],
-  ["plannedBedtime", "Planned Bedtime"], ["plannedWakeTime", "Planned Wake Time"], ["plannedHours", "Planned Sleep Hours"],
-  ["sleepBedtime", "Sleep Bedtime"], ["sleepWakeTime", "Sleep Wake Time"], ["sleepHours", "Sleep Hours"],
-  ["breakfastFoods", "Breakfast Foods"], ["breakfastCalories", "Breakfast Calories"], ["breakfastProteinG", "Breakfast Protein (g)"], ["breakfastCarbsG", "Breakfast Carbs (g)"], ["breakfastFatG", "Breakfast Fat (g)"], ["breakfastMood", "Breakfast Mood (1-5)"], ["breakfastStress", "Breakfast Stress (1-5)"],
-  ["lunchFoods", "Lunch Foods"], ["lunchCalories", "Lunch Calories"], ["lunchProteinG", "Lunch Protein (g)"], ["lunchCarbsG", "Lunch Carbs (g)"], ["lunchFatG", "Lunch Fat (g)"], ["lunchMood", "Lunch Mood (1-5)"], ["lunchStress", "Lunch Stress (1-5)"],
-  ["dinnerFoods", "Dinner Foods"], ["dinnerCalories", "Dinner Calories"], ["dinnerProteinG", "Dinner Protein (g)"], ["dinnerCarbsG", "Dinner Carbs (g)"], ["dinnerFatG", "Dinner Fat (g)"], ["dinnerMood", "Dinner Mood (1-5)"], ["dinnerStress", "Dinner Stress (1-5)"],
-  ["snackFoods", "Snack Foods"], ["snackCalories", "Snack Calories"], ["snackProteinG", "Snack Protein (g)"], ["snackCarbsG", "Snack Carbs (g)"], ["snackFatG", "Snack Fat (g)"], ["snackMood", "Snack Mood (1-5)"], ["snackStress", "Snack Stress (1-5)"],
-  ["unclassifiedFoods", "Unclassified Foods"], ["unclassifiedCalories", "Unclassified Calories"], ["unclassifiedProteinG", "Unclassified Protein (g)"], ["unclassifiedCarbsG", "Unclassified Carbs (g)"], ["unclassifiedFatG", "Unclassified Fat (g)"], ["unclassifiedMood", "Unclassified Mood (1-5)"], ["unclassifiedStress", "Unclassified Stress (1-5)"],
-  ["totalCalories", "Total Calories"], ["totalProteinG", "Total Protein (g)"], ["totalCarbsG", "Total Carbs (g)"], ["totalFatG", "Total Fat (g)"], ["totalFiberG", "Total Fiber (g)"], ["totalSugarG", "Total Sugar (g)"], ["totalSodiumMg", "Total Sodium (mg)"], ["totalCholesterolMg", "Total Cholesterol (mg)"],
-  ["dailyMoodAvg", "Daily Mood Avg (1-5)"], ["dailyStressAvg", "Daily Stress Avg (1-5)"],
-  ["steps", "Steps"],
-  ["workoutCompleted", "Workout Completed"], ["exercisesTrainedCount", "Exercises Trained"], ["setsCompleted", "Sets Completed"],
-  ["focusMinutesTotal", "Focus Minutes"], ["studyMinutes", "Study Minutes"], ["focusSessionsCount", "Focus/Study Sessions"],
-  ["weightKg", "Weight (kg)"], ["weightChangeKg", "Weight Change (kg)"],
-];
-
-function csvEscape(value) {
-  if (value === null || value === undefined) return "";
-  const s = String(value);
-  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-  return s;
-}
-
-// owner: مُعرِّف يُكتَب في عمود "Owner" فقط - حالياً اسم المستخدم كما أدخله
-// بنفسه في الملف الشخصي (profile.name، أو بديل واضح "User"/"مستخدم" إن لم
-// يُدخِله بعد)، لأن هذا تصدير شخصي يُصدِّره المستخدم لنفسه (MasarApp.jsx:
-// exportDailyCsv). ملاحظة توثيقية لأي عمل مستقبلي على تصدير بحثي جماعي (بعد
-// موافقات أكاديمية/أخلاقية): في ذلك السياق تحديداً يجب استبدال هذا بمعرّف
-// بحثي مجهَّل (Participant ID) لا الاسم الحقيقي - لا تُستخدَم هذه الدالة كما
-// هي لتصدير عدة مشاركين دفعة واحدة بلا تعديل أولاً. لا تنفيذ فعلي لهذا الآن،
-// توثيق فقط.
-export function rowsToCsv(rows, owner) {
-  const header = ["Owner", ...CSV_COLUMNS.map(([, label]) => label)].join(",");
-  const lines = rows.map((row) => [csvEscape(owner), ...CSV_COLUMNS.map(([key]) => csvEscape(row[key]))].join(","));
-  return [header, ...lines].join("\n");
-}

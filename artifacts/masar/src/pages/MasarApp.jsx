@@ -33,7 +33,7 @@ import { ACTIVITY_LEVELS, HEALTH_CONDITIONS, NO_CONDITION, computeHealthMetrics 
 import { createGoal, isReviewDue, GOAL_PERIODS, GOAL_POINTS_SUCCESS, GOAL_POINTS_FAILURE } from "../lib/goals";
 import { FITNESS_GOALS } from "../lib/exercises-db";
 import { sumNutritionEntries, waterGoalCups, MEAL_TYPES, analyzeMealPatterns, MICRONUTRIENT_META, computeMoodNutritionCorrelation } from "../lib/nutrition";
-import { buildComprehensiveReport, rowsToCsv } from "../lib/comprehensiveReport";
+import { buildComprehensiveReport } from "../lib/comprehensiveReport";
 import { getDailyNutritionSummary } from "../lib/nutrition-plan";
 import { playSaveSound, playAchievementSound } from "../lib/sound";
 import { getSession, getCachedSessionUser, onAuthChange, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut, userFromSession, hasAuth } from "../lib/auth";
@@ -2819,41 +2819,34 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
     [days, nutritionLog, sleepLog, stepsLog, workoutLog, fitnessLog, focus, weightLog, studyEntries]
   );
   const [expandedDay, setExpandedDay] = useState(null);
-  // مؤشّر تحميل زر تصدير Excel فقط (منفصل تماماً عن exporting الخاص بـPDF
-  // أعلاه) - مكتبة exceljs ثقيلة نسبياً فتُحمَّل ديناميكياً هنا فقط عند
-  // الحاجة الفعلية (لا في الحزمة الرئيسية)، فقد يستغرق أول ضغطة لحظة.
+  // مؤشّر تحميل زر التصدير الموحَّد (منفصل تماماً عن exporting الخاص بـPDF
+  // أعلاه) - مكتبتا exceljs وبناء الرسوم البيانية ثقيلتان نسبياً فتُحمَّلان
+  // ديناميكياً هنا فقط عند الحاجة الفعلية (لا في الحزمة الرئيسية)، فقد
+  // يستغرق أول ضغطة لحظة أطول قليلاً من السابق (رسوم + شيت بيانات معاً).
   const [exportingExcel, setExportingExcel] = useState(false);
 
-  function exportDailyCsv() {
-    // اسم شخصي كما أدخله المستخدم بنفسه (profile.name) بدل المعرّف التقني -
-    // هذا تصدير شخصي (المستخدم يُصدِّر بياناته هو لنفسه)، لا تصدير بحثي جماعي؛
-    // راجع التعليق في rowsToCsv (comprehensiveReport.js) لمبدأ الخصوصية
-    // المطلوب مستقبلاً لو استُخدم النظام يوماً لتصدير بيانات عدة مشاركين.
-    const exportName = profile?.name?.trim() || t("reportsView.daily.csvUnnamedUser");
-    const csv = rowsToCsv(dailyReportRows, exportName);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `masar-daily-report-${days[0]}-to-${days[days.length - 1]}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showToast(t("reportsView.daily.csvExported"));
-  }
-
-  // نفس بيانات exportDailyCsv بالضبط + أعمدة احتياج/حالة محسوبة فعلياً عبر
-  // getDailyNutritionSummary (لا حساب مكرَّر) وتلوين تلقائي - راجع
-  // src/lib/excelReport.js لتفاصيل الحدود والألوان.
-  async function exportDailyExcel() {
+  // تصدير موحَّد واحد يحل محل تصديري CSV وExcel المنفصلين السابقين تماماً:
+  // شيت رسوم بيانية (سعرات+ماكروز/نوم/نشاط رياضي/خطوات - مبنية عبر Canvas في
+  // chartImages.js من نفس dailyReportRows بالضبط، بلا استعلام بيانات موازٍ)
+  // + شيت البيانات الخام الكامل بتلوين الاحتياج التلقائي (كان موجوداً أصلاً
+  // في تصدير Excel الملوَّن - راجع src/lib/excelReport.js لتفاصيل الحدود).
+  async function exportUnifiedReport() {
     if (exportingExcel) return;
-    const exportName = profile?.name?.trim() || t("reportsView.daily.csvUnnamedUser");
+    const exportName = profile?.name?.trim() || t("reportsView.daily.unnamedUser");
     setExportingExcel(true);
     try {
-      const { buildDailyReportExcelBuffer } = await import("../lib/excelReport");
-      const buffer = await buildDailyReportExcelBuffer(dailyReportRows, {
-        healthProfile, owner: exportName, isEn: language === "en",
+      const isEn = language === "en";
+      const [{ buildUnifiedReportExcelBuffer }, { buildNutritionChart, buildSleepChart, buildActivityChart, buildStepsChart }] = await Promise.all([
+        import("../lib/excelReport"), import("../lib/chartImages"),
+      ]);
+      const charts = {
+        nutrition: buildNutritionChart(dailyReportRows, isEn),
+        sleep: buildSleepChart(dailyReportRows, isEn),
+        activity: buildActivityChart(dailyReportRows, isEn),
+        steps: buildStepsChart(dailyReportRows, isEn),
+      };
+      const buffer = await buildUnifiedReportExcelBuffer(dailyReportRows, {
+        healthProfile, owner: exportName, isEn, charts,
       });
       const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const url = URL.createObjectURL(blob);
@@ -2866,7 +2859,7 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
       URL.revokeObjectURL(url);
       showToast(t("reportsView.daily.excelExported"));
     } catch (e) {
-      console.error("[exportDailyExcel] failed:", e);
+      console.error("[exportUnifiedReport] failed:", e);
       showToast(t("reportsView.daily.excelExportFailed"));
     } finally {
       setExportingExcel(false);
@@ -3580,13 +3573,10 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
         ) : (
           <>
             <p style={RS.dailyIntro}>{t("reportsView.daily.intro")}</p>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={exportDailyCsv} style={{ ...S.exportBtn, flex: 1 }} title={t("reportsView.daily.exportCsvNote")}><Download size={14} /> {t("reportsView.daily.exportCsv")}</button>
-              <button onClick={exportDailyExcel} disabled={exportingExcel} style={{ ...S.exportBtn, flex: 1 }} title={t("reportsView.daily.exportExcelNote")}>
-                {exportingExcel ? <Loader2 size={14} className="spin" /> : <Download size={14} />} {t("reportsView.daily.exportExcel")}
-              </button>
-            </div>
-            <p style={{ fontSize: 10.5, color: "var(--muted2)", lineHeight: 1.6, margin: "-8px 0 12px" }}>{t("reportsView.daily.exportCsvNote")}</p>
+            <button onClick={exportUnifiedReport} disabled={exportingExcel} style={{ ...S.exportBtn, width: "100%" }} title={t("reportsView.daily.exportReportNote")}>
+              {exportingExcel ? <Loader2 size={14} className="spin" /> : <Download size={14} />} {t("reportsView.daily.exportReport")}
+            </button>
+            <p style={{ fontSize: 10.5, color: "var(--muted2)", lineHeight: 1.6, margin: "8px 0 12px" }}>{t("reportsView.daily.exportReportNote")}</p>
             <div className="stagger-in">
               {[...dailyReportRows].reverse().map((row) => {
                 const isOpen = expandedDay === row.date;

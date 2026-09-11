@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { store } from "../lib/store";
 import SpotlightTour from "./SpotlightTour";
-import { uid, analyze, parseJsonLoose, arabicDate } from "../lib/helpers";
+import { uid, analyze, parseJsonLoose, arabicDate, nowHHMM } from "../lib/helpers";
 import { localDayKey } from "../lib/tips";
 import { isActiveSubscriber } from "../lib/subscription";
 import {
@@ -2597,6 +2597,10 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
   // مرة واحدة فقط ويُطبَّق على الجلسة كاملة.
   const [mealSessionIds, setMealSessionIds] = useState([]);
   const [mealSessionType, setMealSessionType] = useState(null);
+  // وقت ضغط "إنهاء الوجبة" فعلياً بصيغة "HH:MM" (لا وقت إضافة كل صنف على
+  // حدة) - يُلتقَط لحظة الضغط على الزر (قبل ظهور سؤال المزاج، لا بعد إجابته)
+  // ويُطبَّق على كل أصناف الجلسة معاً عند saveMoodStress بالأسفل.
+  const [mealFinishTime, setMealFinishTime] = useState(null);
   // وجبة مُعيَّنة مسبقاً عند الضغط على "+ إضافة لـ[اسم الوجبة]" من بطاقة
   // وجبة معيّنة (Priority 5) - null يعني الاعتماد على تخمين الوقت الحالي
   // (guessMealType) كالسابق تماماً في كل نماذج الإضافة الأربعة.
@@ -2934,10 +2938,12 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
   // توست نجاح صريح عمداً (إغلاق الشاشة نفسه هو التأكيد المرئي، حتى تبقى
   // التجربة "ثانيتين كحد أقصى" كما طُلب، بلا رسالة إضافية تُبطئ الإحساس
   // بالسرعة)؛ فشل الحفظ الفعلي يبقى مُعلَناً بوضوح (نفس نمط {ok,error}).
-  async function saveMoodStress(id, mood, stress) {
+  // mealTime اختياري - يُمرَّر فقط من مسار "إنهاء الوجبة" (وقت الضغط الفعلي
+  // على الزر)، لا من أي استدعاء آخر لهذه الدالة مستقبلاً.
+  async function saveMoodStress(id, mood, stress, mealTime) {
     const target = nutritionLog.find((e) => e.id === id);
     if (!target) return;
-    const updated = { ...target, mood, stress };
+    const updated = { ...target, mood, stress, ...(mealTime ? { mealTime } : {}) };
     const prev = nutritionLog;
     setNutritionLog((list) => list.map((e) => (e.id === id ? updated : e)));
     const result = await store.updateNutritionEntry(updated);
@@ -3433,7 +3439,7 @@ ${missingMealsLine}
           onEditSave={updateEntry}
           onEstimateAI={estimateItemVitaminsAI}
           showFinishButton={mealSessionType === mt && mealSessionIds.length > 0}
-          onFinishMeal={() => setSheet("moodCheck")}
+          onFinishMeal={() => { setMealFinishTime(nowHHMM()); setSheet("moodCheck"); }}
         />
       ))}
       {selectedLog.some((e) => !e.mealType) && (
@@ -3649,9 +3655,10 @@ ${missingMealsLine}
             {sheet === "moodCheck" && mealSessionIds.length > 0 && (
               <MoodCheckPanel
                 onDone={(mood, stress) => {
-                  mealSessionIds.forEach((id) => saveMoodStress(id, mood, stress));
+                  mealSessionIds.forEach((id) => saveMoodStress(id, mood, stress, mealFinishTime));
                   setMealSessionIds([]);
                   setMealSessionType(null);
+                  setMealFinishTime(null);
                   closeSheet();
                 }}
                 t={t}

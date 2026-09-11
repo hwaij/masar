@@ -1493,7 +1493,6 @@
       "searchByName": "Search by Name",
       "previousFoods": "Previous Foods",
       "moodCheck": "How do you feel right now?",
-      "addMore": "Item added",
       "photographMeal": "Photograph Meal",
       "photographLabel": "Photograph Nutrition Label",
       "addNewProduct": "Add New Product",
@@ -1505,12 +1504,7 @@
     "enterBarcodeManually": "Enter Barcode Manually",
     "previousFoodsOption": "Previous Foods",
     "noPreviousFoods": "No previously logged foods yet. Anything you add will show up here later.",
-    "addMore": {
-      "confirmedTitle": "Added ✅",
-      "question": "Want to add another item to the same meal, or are you done?",
-      "addAnotherBtn": "Add another item",
-      "doneBtn": "Done"
-    },
+    "finishMealBtn": "Finish meal",
     "moodCheck": {
       "intro": "Your food is saved. One quick thing before you go:",
       "moodLabel": "Your mood right now?",

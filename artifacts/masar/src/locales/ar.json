@@ -1493,7 +1493,6 @@
       "searchByName": "بحث بالاسم",
       "previousFoods": "أطعمة سابقة",
       "moodCheck": "كيف تشعر الآن؟",
-      "addMore": "أضيف الصنف",
       "photographMeal": "تصوير الوجبة",
       "photographLabel": "تصوير الملصق الغذائي",
       "addNewProduct": "إضافة منتج جديد",
@@ -1506,12 +1505,7 @@
     "searchByNameOption": "البحث بالاسم",
     "previousFoodsOption": "أطعمة سابقة",
     "noPreviousFoods": "لا توجد أطعمة مسجَّلة سابقاً بعد. أي صنف تضيفه سيظهر هنا لاحقاً.",
-    "addMore": {
-      "confirmedTitle": "تمت الإضافة ✅",
-      "question": "تبي تضيف صنفاً ثانياً لنفس الوجبة، أم انتهيت؟",
-      "addAnotherBtn": "إضافة صنف آخر",
-      "doneBtn": "انتهيت"
-    },
+    "finishMealBtn": "إتمام الوجبة",
     "moodCheck": {
       "intro": "طعامك محفوظ. لحظة سريعة قبل ما تكمل:",
       "moodLabel": "مزاجك الآن؟",

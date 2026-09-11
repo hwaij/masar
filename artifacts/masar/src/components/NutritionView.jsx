@@ -544,9 +544,10 @@ const MEAL_TYPE_EMOJI = { breakfast: "🌅", lunch: "☀️", dinner: "🌙", sn
 const MOOD_EMOJI = ["😞", "😕", "😐", "🙂", "😊", "😁"];
 const STRESS_EMOJI = ["🧘", "😌", "😐", "😬", "😰", "🤯"];
 
-// شاشة "كيف تشعر الآن؟" - تظهر مرة واحدة فقط بعد أن يضغط المستخدم "انتهيت"
-// بشاشة "addMore" (لا بعد كل صنف طعام منفرد كما كانت سابقاً؛ الآن قد
-// تُغطّي عدة أصناف أُضيفت لنفس الوجبة معاً، انظر mealSessionIds وaddEntry).
+// شاشة "كيف تشعر الآن؟" - تظهر مرة واحدة فقط بعد أن يضغط المستخدم زر
+// "إتمام الوجبة" الثابت (لا بعد كل صنف طعام منفرد كما كانت سابقاً؛ إضافة
+// الأصناف تبقى متواصلة بلا أي توقف، وقد تُغطّي هذه الشاشة عدة أصناف أُضيفت
+// لنفس الوجبة معاً، انظر mealSessionIds وaddEntry).
 // صفّان فقط (مزاج ثم توتر)، ضغطة واحدة على كل إيموجي تُبرزها، وبمجرد
 // اختيار الاثنين معاً يُستدعى onDone تلقائياً (بلا زر "حفظ"/"التالي"
 // إضافي) - أقصى تفاعل ممكن: ضغطتان، لا أكثر.
@@ -2571,13 +2572,15 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
   const [loaded, setLoaded] = useState(false);
   const [nutritionLog, setNutritionLog] = useState([]);
   const [waterLog, setWaterLog] = useState({});
-  const [sheet, setSheet] = useState(null); // null | "choose" | "scan" | "search" | "manual" | "confirm" | "addMore" | "moodCheck"
+  const [sheet, setSheet] = useState(null); // null | "choose" | "scan" | "search" | "manual" | "confirm" | "moodCheck"
   const [pendingProduct, setPendingProduct] = useState(null); // { product, source }
   // معرّفات كل الأصناف المحفوظة بنجاح ضمن جلسة إضافة واحدة متواصلة لنفس
   // الوجبة (قد تكون صنفاً واحداً أو عدة أصناف) - تبدأ فارغة عند كل انطلاقة
-  // جديدة من openAddFoodFor، وتتراكم مع كل صنف يُضاف عبر addEntry دون
-  // إغلاق الشاشة، حتى يضغط المستخدم "انتهيت" فيظهر سؤال المزاج مرة واحدة
-  // فقط ويُطبَّق على الجلسة كاملة (انظر addEntry وشاشة "addMore" أدناه).
+  // جديدة من openAddFoodFor، وتتراكم مع كل صنف يُضاف عبر addEntry بلا أي
+  // توقف (يرجع مباشرة لشاشة "choose" لإضافة التالي). طالما فيها صنف واحد
+  // على الأقل يظهر زر "إتمام الوجبة" الثابت بأسفل الشاشة الحالية أياً كانت؛
+  // بالضغط عليه يظهر سؤال المزاج مرة واحدة فقط ويُطبَّق على الجلسة كاملة
+  // (انظر addEntry وزر "إتمام الوجبة" أدناه).
   const [mealSessionIds, setMealSessionIds] = useState([]);
   // وجبة مُعيَّنة مسبقاً عند الضغط على "+ إضافة لـ[اسم الوجبة]" من بطاقة
   // وجبة معيّنة (Priority 5) - null يعني الاعتماد على تخمين الوقت الحالي
@@ -2801,10 +2804,9 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
   // بدل تخمين الوقت الحالي، بلا أي خطوة إضافية من المستخدم لتحديدها يدوياً.
   function openAddFoodFor(mt) {
     setPreselectedMealType(mt);
-    // انطلاقة جديدة تماماً (لا استمرار لجلسة "أضف صنف آخر" سابقة) - تصفير
-    // صريح هنا فقط، لا في مسار "إضافة صنف آخر" داخل شاشة addMore (ذلك
-    // المسار يستدعي setSheet("choose") مباشرة بلا المرور من هنا، فيحافظ على
-    // نفس mealSessionIds المتراكمة عمداً).
+    // انطلاقة جديدة تماماً (لا استمرار لجلسة سابقة) - تصفير صريح هنا فقط، لا
+    // في addEntry عند الرجوع لـsheet("choose") بعد كل صنف ناجح (ذلك المسار
+    // يحافظ على نفس mealSessionIds المتراكمة عمداً ليستمر تجميعها).
     setMealSessionIds([]);
     setSheet("choose");
   }
@@ -2829,15 +2831,17 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
       showToast(t("nutrition.addedToLog"));
       // ربط المزاج/التوتر بتسجيل الطعام: نقطة دمج واحدة تغطّي كل مسارات
       // الإضافة الأربعة (كلها تصل هنا عبر addEntry) بلا لمس أي من مكوّنات
-      // نماذج الإضافة نفسها. لا يظهر سؤال المزاج فوراً بعد كل صنف (كان
-      // مزعجاً لوجبة بعدة أصناف - كل صنف يُظهره مرة) - بدلاً من ذلك تُضاف
-      // هذا الصنف لجلسة الوجبة الحالية وتظهر شاشة "أضف صنف آخر أم انتهيت؟"،
-      // وسؤال المزاج (MoodCheckPanel) يظهر مرة واحدة فقط بعد "انتهيت"،
-      // ويُطبَّق على كل أصناف الجلسة معاً (انظر onDone عند sheet==="moodCheck"
-      // أدناه). الطعام محفوظ بالفعل في هذه اللحظة، فإغلاق الشاشة لاحقاً بلا
-      // إجابة لا يفقد أي بيانات.
+      // نماذج الإضافة نفسها. لا شاشة وسيطة ولا سؤال بعد كل صنف - يرجع مباشرة
+      // لشاشة اختيار الطريقة (sheet="choose") فيضيف صنفاً آخر لنفس الوجبة
+      // بتدفّق متواصل بلا أي توقف، تماماً كسلوك التطبيق قبل ربط المزاج.
+      // الصنف يُضاف لجلسة الوجبة الحالية (mealSessionIds) فقط لتغذية زر
+      // "إتمام الوجبة" الثابت الذي يظهر بشاشة الاختيار طالما الجلسة تحوي
+      // صنفاً واحداً على الأقل - سؤال المزاج (MoodCheckPanel) يظهر مرة واحدة
+      // فقط عند الضغط عليه، ويُطبَّق على كل أصناف الجلسة معاً (انظر onDone
+      // عند sheet==="moodCheck" أدناه). الطعام محفوظ بالفعل في هذه اللحظة،
+      // فإغلاق الشاشة لاحقاً بلا إتمام لا يفقد أي بيانات.
       setMealSessionIds((prev) => [...prev, full.id]);
-      setSheet("addMore");
+      setSheet("choose");
       setPendingVoiceDraft(null);
     } else {
       setNutritionLog((prev) => prev.filter((e) => e.id !== full.id));
@@ -3444,7 +3448,6 @@ ${missingMealsLine}
                   {sheet === "manual" && t("nutrition.sheetTitles.manualEntry")}
                   {sheet === "confirm" && t("nutrition.sheetTitles.confirmQuantity")}
                   {sheet === "voiceChoice" && t("speech.voice.chooseFoodTitle")}
-                  {sheet === "addMore" && t("nutrition.sheetTitles.addMore")}
                   {sheet === "moodCheck" && t("nutrition.sheetTitles.moodCheck")}
                   {sheet === "lookup" && t("nutrition.sheetTitles.searching")}
                 </span>
@@ -3619,20 +3622,21 @@ ${missingMealsLine}
               </>
             )}
 
-            {sheet === "addMore" && mealSessionIds.length > 0 && (
-              <>
-                <p style={NS.moodCheckIntro}>{t("nutrition.addMore.confirmedTitle")}</p>
-                <p style={{ ...NS.moodCheckLabel, marginBottom: 16 }}>{t("nutrition.addMore.question")}</p>
-                <button onClick={() => setSheet("choose")} style={{ ...S.saveBtn, marginBottom: 8 }}>{t("nutrition.addMore.addAnotherBtn")}</button>
-                <button onClick={() => setSheet("moodCheck")} style={{ ...S.exportBtn, marginBottom: 0 }}>{t("nutrition.addMore.doneBtn")}</button>
-              </>
-            )}
-
             {sheet === "moodCheck" && mealSessionIds.length > 0 && (
               <MoodCheckPanel
                 onDone={(mood, stress) => { mealSessionIds.forEach((id) => saveMoodStress(id, mood, stress)); closeSheet(); }}
                 t={t}
               />
+            )}
+
+            {/* زر ثابت يظهر بأسفل أي شاشة ضمن تدفّق الإضافة (طالما صنف واحد
+                على الأقل أُضيف لهذه الجلسة) - لا يقاطع تدفّق إضافة الأصناف
+                المتتالي بأي توقف/سؤال، فقط يبقى متاحاً لإنهاء الوجبة والانتقال
+                لسؤال المزاج مرة واحدة عندما يقرر المستخدم ذلك بنفسه. */}
+            {sheet !== "moodCheck" && mealSessionIds.length > 0 && (
+              <button onClick={() => setSheet("moodCheck")} style={{ ...S.saveBtn, marginTop: 12, marginBottom: 0 }}>
+                {t("nutrition.finishMealBtn")}
+              </button>
             )}
           </div>
         </div>

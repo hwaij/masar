@@ -16,7 +16,7 @@ import {
   Wallet, ArrowDownCircle, ArrowUpCircle, Crown,
   Utensils, Dumbbell, Menu, Users,
   Accessibility, ALargeSmall, Contrast, StretchHorizontal, Volume2, VolumeX,
-  Smartphone, Copy, Mic, MicOff, CalendarDays, Bed, Monitor,
+  Smartphone, Mic, MicOff, CalendarDays, Bed, Monitor,
 } from "lucide-react";
 import { fivePrayers, nextPrayer, to12h } from "../lib/prayer";
 import { ADHKAR_CATEGORIES, ADHKAR } from "../lib/adhkar";
@@ -6731,39 +6731,6 @@ function NotificationStatusCard({ profile, onEnable, onDisable }) {
   );
 }
 
-// TEMP: للاختبار اليدوي فقط - إزالة لاحقاً. تعرض معرّف حساب المستخدم
-// الحالي (نفس user.id في Supabase، وهو owner المخزَّن فعلياً عبر
-// getOwner()) لإضافته يدوياً إلى PRAYER_TEST_ALLOWLIST في Netlify - أُضيفت
-// خصيصاً لأن المستخدم يعمل من الموبايل بلا وصول سهل لأدوات المطوّر
-// (Developer Console) على حاسوب لقراءة القيمة من localStorage مباشرة.
-function AccountIdDebugModal({ onClose, showToast, isEn }) {
-  const ownerId = getOwner();
-  async function copyId() {
-    try {
-      await navigator.clipboard.writeText(ownerId);
-      showToast(isEn ? "Copied" : "تم النسخ");
-    } catch {
-      showToast(isEn ? "Couldn't copy - select and copy manually" : "تعذّر النسخ - حدّد النص وانسخه يدوياً");
-    }
-  }
-  return (
-    <div style={S.modalOverlay} onClick={onClose}>
-      <div style={S.modal} onClick={(e) => e.stopPropagation()}>
-        <div style={S.modalHeader}>
-          <span>{isEn ? "My account ID" : "معرّف حسابي"}</span>
-          <button onClick={onClose} aria-label={isEn ? "Close" : "إغلاق"} style={S.iconBtn}><X size={18} aria-hidden="true" /></button>
-        </div>
-        <div style={S.modalBody}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", wordBreak: "break-all", background: "var(--surface-raised)", border: "1px solid var(--border2)", borderRadius: 10, padding: "12px 14px", direction: "ltr", textAlign: "center" }}>
-            {ownerId}
-          </div>
-          <button onClick={copyId} style={{ ...S.saveBtn, marginTop: 12 }}><Copy size={14} /> {isEn ? "Copy" : "نسخ"}</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // خمسة أنماط ثابتة (Batch 2 - Item 4): "افتراضي" هو الوضع الفاتح الحالي
 // بعينه (لا نمط جديد سادس)، والألوان هنا فقط لمعاينة الدائرة الصغيرة في
 // زر الاختيار - لون التمييز (--gold) الفعلي لكل نمط مُعرَّف في masar.css.
@@ -6782,11 +6749,6 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
   const isEn = i18n.language === "en";
   const isSub = isActiveSubscriber(subscription);
   const [showModuleReplays, setShowModuleReplays] = useState(false);
-  // TEMP: للاختبار اليدوي فقط - إزالة لاحقاً (انظر AccountIdDebugModal أعلاه).
-  const [showAccountIdDebug, setShowAccountIdDebug] = useState(false);
-  // TEMP: للاختبار اليدوي فقط - إزالة لاحقاً (استدعاء prayer-reminder-test.js، Phase 2).
-  const [prayerTestLoading, setPrayerTestLoading] = useState(false);
-  const [prayerTestResult, setPrayerTestResult] = useState(null);
 
   // إعادة تشغيل جولة سياقية واحدة (Onboarding - Phase E): يصفّر علم اكتمال
   // تلك الوحدة فقط في tour_progress.modules، بلا مساس بـtourSeen أو بقية
@@ -6813,50 +6775,6 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
     setProfile((p) => ({ ...p, notificationsEnabled: false, notificationsAsked: true }));
     await store.saveNotificationsPreference(false, true);
     showToast(t("settings.notifDisabled"));
-  }
-  // TEMP: للاختبار اليدوي فقط - إزالة لاحقاً. يستدعي دالة
-  // prayer-reminder-test.js (Phase 2، وُسِّعت لاحقاً لتشمل وجبات/ماء بنفس
-  // الآلية) بتوكن الجلسة الحالية الحقيقي تلقائياً - بلا أي إدخال يدوي
-  // (allowlist محصورة خادمياً بـPRAYER_TEST_ALLOWLIST، لن يصل شيء فعلياً إن
-  // لم يكن معرّف الحساب الحالي مُدرَجاً هناك). category/extra اختياريان -
-  // بلا تمريرهما يبقى السلوك مطابقاً تماماً للزر الأصلي (صلاة الظهر).
-  async function handlePrayerReminderTest(category, extra) {
-    setPrayerTestLoading(true);
-    setPrayerTestResult(null);
-    try {
-      const { data } = await supabase.auth.getSession();
-      const accessToken = data?.session?.access_token;
-      if (!accessToken) {
-        setPrayerTestResult({ ok: false, message: isEn ? "You're not signed in." : "لست مسجَّل الدخول." });
-        return;
-      }
-      const res = await fetch("/.netlify/functions/prayer-reminder-test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ lang: isEn ? "en" : "ar", prayerId: "dhuhr", category, ...extra }),
-      });
-      let body = {};
-      try { body = await res.json(); } catch { /* رد غير JSON - يُعامَل كفشل أدناه */ }
-      if (res.ok && body.sent) {
-        const label = body.prayer?.id || body.meal?.type || (category === "water" ? "water" : "dhuhr");
-        setPrayerTestResult({ ok: true, message: isEn ? `Sent successfully (${label}).` : `أُرسل بنجاح (${label}).` });
-      } else {
-        // TEMP: تشخيص مؤقت - إزالة لاحقاً مع بقية هذا الزر (انظر debug في
-        // prayer-reminder-test.js). يُعرَض فقط إن أرسله الخادم فعلاً (لن
-        // يظهر لأي خطأ آخر لا يحمله).
-        const debugLine = body.debug
-          ? (isEn
-              ? ` [debug: env set=${body.debug.allowlistEnvVarPresent}, empty=${body.debug.allowlistEnvVarEmpty}, count=${body.debug.allowlistParsedCount}, your id=${body.debug.yourUserId}]`
-              : ` [تشخيص: env مضبوط=${body.debug.allowlistEnvVarPresent}, فارغ=${body.debug.allowlistEnvVarEmpty}, العدد=${body.debug.allowlistParsedCount}, معرّفك=${body.debug.yourUserId}]`)
-          : "";
-        setPrayerTestResult({ ok: false, message: (body.error || (isEn ? `Failed (HTTP ${res.status}).` : `فشل (HTTP ${res.status}).`)) + debugLine });
-      }
-    } catch (e) {
-      console.error("[prayer-reminder-test] request failed:", e);
-      setPrayerTestResult({ ok: false, message: isEn ? "Network error." : "خطأ في الشبكة." });
-    } finally {
-      setPrayerTestLoading(false);
-    }
   }
   async function toggleCustomColors() {
     const prev = profile.customColorsEnabled;
@@ -7032,35 +6950,6 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
         </div>
       )}
       <RoadmapCard />
-      {/* TEMP: للاختبار اليدوي فقط - إزالة لاحقاً (هذه البطاقة كاملة + AccountIdDebugModal أعلاه). */}
-      {hasCloud && (
-        <div style={S.catEditorCard}>
-          <div style={S.catEditorHeader}><span style={{ fontSize: 14 }}>🔧</span><span>{isEn ? "Technical info (temporary)" : "معلومات تقنية (مؤقت)"}</span></div>
-          <button onClick={() => setShowAccountIdDebug(true)} style={{ ...S.exportBtn, marginBottom: 0 }}>{isEn ? "Show my account ID" : "عرض معرّف حسابي"}</button>
-          <button onClick={() => handlePrayerReminderTest()} disabled={prayerTestLoading} style={{ ...S.exportBtn, marginTop: 8, marginBottom: 0, opacity: prayerTestLoading ? 0.6 : 1 }}>
-            {prayerTestLoading ? <Loader2 size={14} className="spin" /> : null} {isEn ? "Send test prayer reminder" : "إرسال تذكير صلاة تجريبي"}
-          </button>
-          {/* TEMP: نفس أداة الاختبار أعلاه، مُوسَّعة لتغطية الوجبات/الماء (نفس آلية Push الحقيقية) - إزالة لاحقاً معاً. */}
-          <button onClick={() => handlePrayerReminderTest("meals", { mealType: "breakfast" })} disabled={prayerTestLoading} style={{ ...S.exportBtn, marginTop: 8, marginBottom: 0, opacity: prayerTestLoading ? 0.6 : 1 }}>
-            {isEn ? "Send test breakfast reminder" : "إرسال تذكير فطور تجريبي"}
-          </button>
-          <button onClick={() => handlePrayerReminderTest("meals", { mealType: "lunch" })} disabled={prayerTestLoading} style={{ ...S.exportBtn, marginTop: 8, marginBottom: 0, opacity: prayerTestLoading ? 0.6 : 1 }}>
-            {isEn ? "Send test lunch reminder" : "إرسال تذكير غداء تجريبي"}
-          </button>
-          <button onClick={() => handlePrayerReminderTest("meals", { mealType: "dinner" })} disabled={prayerTestLoading} style={{ ...S.exportBtn, marginTop: 8, marginBottom: 0, opacity: prayerTestLoading ? 0.6 : 1 }}>
-            {isEn ? "Send test dinner reminder" : "إرسال تذكير عشاء تجريبي"}
-          </button>
-          <button onClick={() => handlePrayerReminderTest("water", {})} disabled={prayerTestLoading} style={{ ...S.exportBtn, marginTop: 8, marginBottom: 0, opacity: prayerTestLoading ? 0.6 : 1 }}>
-            {isEn ? "Send test water reminder" : "إرسال تذكير ماء تجريبي"}
-          </button>
-          {prayerTestResult && (
-            <div style={{ marginTop: 10, padding: "10px 12px", borderRadius: 10, fontSize: 12.5, lineHeight: 1.6, background: "var(--surface-raised)", border: `1px solid ${prayerTestResult.ok ? "#5FA8A0" : "#E05252"}`, color: prayerTestResult.ok ? "#5FA8A0" : "#E05252" }}>
-              {prayerTestResult.ok ? "✅ " : "❌ "}{prayerTestResult.message}
-            </div>
-          )}
-        </div>
-      )}
-      {showAccountIdDebug && <AccountIdDebugModal onClose={() => setShowAccountIdDebug(false)} showToast={showToast} isEn={isEn} />}
     </div>
   );
 }

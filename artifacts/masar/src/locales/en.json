@@ -1613,8 +1613,12 @@
       "grip": "Grip strength",
       "full_body": "Full body",
       "cardio": "Cardio",
-      "mobility": "Mobility"
+      "mobility": "Mobility",
+      "knee": "Knee",
+      "foot": "Foot"
     },
+    "footConditionQuestion": "Do you have a foot problem?",
+    "changeFootConditionBtn": "Change",
     "experienceLabel": "Experience level",
     "sessionMinutesLabel": "Session duration",
     "minutesShort": "{{n}} min",

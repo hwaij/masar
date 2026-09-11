@@ -1613,8 +1613,12 @@
       "grip": "قوة القبضة",
       "full_body": "كامل الجسم",
       "cardio": "كارديو",
-      "mobility": "مرونة"
+      "mobility": "مرونة",
+      "knee": "الركبة",
+      "foot": "القدم"
     },
+    "footConditionQuestion": "هل تعاني من مشكلة بالقدم؟",
+    "changeFootConditionBtn": "تغيير",
     "experienceLabel": "مستوى الخبرة",
     "sessionMinutesLabel": "مدة الحصة",
     "minutesShort": "{{n}} دقيقة",

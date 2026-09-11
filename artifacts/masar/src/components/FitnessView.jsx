@@ -24,6 +24,7 @@ import {
   aggregateLogsByDate, setVolume, restSecondsForGoalAndType, exercisesForMuscle, youtubeSearchUrl, formatRestLabel,
 } from "../lib/fitness-engine";
 import { NO_CONDITION } from "../lib/health";
+import { KNEE_EXERCISES, FOOT_EXERCISE_SETS, FOOT_CONDITIONS, PAIN_WARNING } from "../lib/joint-exercises";
 import { playRestEndSound, primeAudioContext } from "../lib/sound";
 import { shareAchievementCard } from "../lib/achievementShare";
 import MuscleDiagram from "./MuscleDiagram";
@@ -234,8 +235,24 @@ function ExerciseDetailView({ exercise, isEn, isRtl, gender, onBack, t }) {
 // المعروضة أسفل المخطط هي فعلياً exercisesForMuscle() (نفس فلترة معدات/
 // إصابات/خبرة المستخدَمة في محرِّك بناء البرنامج التلقائي، بلا أي تكرار
 // لتلك الفلترة هنا).
-function MusclePickerScreen({ gender, isEn, isRtl, t, pickedMuscle, onSelectMuscle, candidates, pickedIds, onToggleId, onSave, onBack }) {
+// بطاقة عرض بسيطة (بلا صندوق اختيار/حفظ جلسة) لتمرين تأهيلي واحد من
+// joint-exercises.js - اسم/وصف أداء/إرشاد تكرارات عام فقط، تُستخدَم لكل من
+// قائمة الركبة وقوائم القدم أدناه (بنية موحَّدة كما طُلب).
+function JointExerciseCard({ ex, isEn }) {
+  return (
+    <div style={FS.exerciseRow}>
+      <div style={FS.exerciseName}>{isEn ? ex.nameEn : ex.name}</div>
+      <p style={{ ...FS.noteText, marginTop: 4, marginBottom: 4 }}>{isEn ? ex.descriptionEn : ex.description}</p>
+      <div style={FS.exerciseMeta}>{isEn ? ex.repsGuidanceEn : ex.repsGuidance}</div>
+    </div>
+  );
+}
+
+function MusclePickerScreen({ gender, isEn, isRtl, t, pickedMuscle, onSelectMuscle, candidates, pickedIds, onToggleId, onSave, footCondition, onChooseFootCondition, onBack }) {
   const BackChevron = isRtl ? ChevronRight : ChevronLeft;
+  const isKnee = pickedMuscle === "knee";
+  const isFoot = pickedMuscle === "foot";
+  const isJoint = isKnee || isFoot;
   return (
     <div style={S.view}>
       <button onClick={onBack} style={FS.backRow}><BackChevron size={16} /> {t("fitness.backToProgram")}</button>
@@ -257,7 +274,56 @@ function MusclePickerScreen({ gender, isEn, isRtl, t, pickedMuscle, onSelectMusc
           width={230}
         />
       </div>
-      {pickedMuscle && (
+
+      {/* الركبة والقدم: محتوى تأهيلي ثابت من joint-exercises.js، لا علاقة له
+          بمحرك بناء البرنامج (exercisesForMuscle) - لا صندوق اختيار ولا حفظ
+          جلسة، فقط قائمة عرض بسيطة + تنويه الألم المشترك مرة واحدة أعلى
+          القائمة. */}
+      {isJoint ? (
+        <div style={FS.formCard}>
+          <div style={{ ...FS.summaryLabel, marginBottom: 8 }}>{t(`fitness.muscleGroups.${pickedMuscle}`)}</div>
+          {isFoot && !footCondition && (
+            <>
+              <p style={FS.noteText}>{t("fitness.footConditionQuestion")}</p>
+              {FOOT_CONDITIONS.map((c) => (
+                <button
+                  key={c.key}
+                  onClick={() => onChooseFootCondition(c.key)}
+                  style={{ ...S.exportBtn, marginTop: 8, marginBottom: 0 }}
+                >
+                  {isEn ? c.labelEn : c.label}
+                </button>
+              ))}
+            </>
+          )}
+          {isFoot && footCondition && (
+            <>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                <span style={FS.exerciseMeta}>
+                  {isEn ? FOOT_CONDITIONS.find((c) => c.key === footCondition)?.labelEn : FOOT_CONDITIONS.find((c) => c.key === footCondition)?.label}
+                </span>
+                <button onClick={() => onChooseFootCondition(null)} style={{ ...FS.backRow, marginBottom: 0, fontSize: 12 }}>
+                  {t("fitness.changeFootConditionBtn")}
+                </button>
+              </div>
+              <div style={FS.warningCard}>
+                <AlertTriangle size={16} color="#D17B5F" style={{ flexShrink: 0, marginTop: 1 }} />
+                <p style={FS.warningText}>{isEn ? PAIN_WARNING.en : PAIN_WARNING.ar}</p>
+              </div>
+              {FOOT_EXERCISE_SETS[footCondition].map((ex) => <JointExerciseCard key={ex.id} ex={ex} isEn={isEn} />)}
+            </>
+          )}
+          {isKnee && (
+            <>
+              <div style={FS.warningCard}>
+                <AlertTriangle size={16} color="#D17B5F" style={{ flexShrink: 0, marginTop: 1 }} />
+                <p style={FS.warningText}>{isEn ? PAIN_WARNING.en : PAIN_WARNING.ar}</p>
+              </div>
+              {KNEE_EXERCISES.map((ex) => <JointExerciseCard key={ex.id} ex={ex} isEn={isEn} />)}
+            </>
+          )}
+        </div>
+      ) : pickedMuscle && (
         <div style={FS.formCard}>
           <div style={{ ...FS.summaryLabel, marginBottom: 8 }}>{t(`fitness.muscleGroups.${pickedMuscle}`)}</div>
           {candidates.length === 0 ? (
@@ -632,6 +698,15 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
   const [showMusclePicker, setShowMusclePicker] = useState(false);
   const [pickedMuscle, setPickedMuscle] = useState(null);
   const [pickedExerciseIds, setPickedExerciseIds] = useState(() => new Set());
+  // حالة القدم المختارة (لا شيء/فلات فوت/التهاب اللفافة الأخمصية/أخرى) عند
+  // الضغط على "القدم" بالمخطط - تُقرأ مرة واحدة محلياً (لا شبكة، انظر
+  // getFootCondition في store.js) فتُسأل مرة واحدة فقط لا في كل دخول للقسم؛
+  // null يعني لم يُختَر شيء بعد فتظهر شاشة السؤال بدل التمارين مباشرة.
+  const [footCondition, setFootConditionState] = useState(() => store.getFootCondition());
+  function chooseFootCondition(condition) {
+    setFootConditionState(condition);
+    store.saveFootCondition(condition);
+  }
   // بناء برنامج أسبوعي يدوي كامل (بديل حقيقي للتوليد التلقائي، لا استبدال
   // دائم له - المحرّك التلقائي يبقى خياراً متاحاً بجانبه دائماً). يستبدل
   // البرنامج الحالي بالكامل عند الحفظ، لذا يمر أولاً بتأكيد صريح إن وُجد
@@ -1347,6 +1422,8 @@ export default function FitnessView({ healthProfile, showToast, profile, setProf
         pickedIds={pickedExerciseIds}
         onToggleId={toggleExercisePick}
         onSave={saveCustomSession}
+        footCondition={footCondition}
+        onChooseFootCondition={chooseFootCondition}
         onBack={() => { setShowMusclePicker(false); setPickedMuscle(null); setPickedExerciseIds(new Set()); }}
       />
     );

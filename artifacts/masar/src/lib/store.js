@@ -588,6 +588,20 @@ export const store = {
     return { ok: true };
   },
 
+  // حالة القدم المختارة (لا شيء/فلات فوت/التهاب اللفافة الأخمصية/أخرى) عند
+  // الضغط على "القدم" بمخطط الجسم التفاعلي - محلية بالكامل عمداً (لا عمود
+  // مخصَّص لها بجدول fitness_profile الحالي على القاعدة الحية، وإضافته
+  // تتطلب تعديل مخطط الجدول الفعلي، غير متاح بهذي الجلسة). تُخزَّن فقط في
+  // localStorage بنفس نمط lsGet/lsSet - تبقى محفوظة على نفس الجهاز/المتصفح
+  // بلا مزامنة عبر الأجهزة حتى تتوفر إضافة عمود حقيقي لاحقاً.
+  getFootCondition() {
+    return lsGet("masar_foot_condition", null);
+  },
+  saveFootCondition(condition) {
+    lsSet("masar_foot_condition", condition);
+    return { ok: true };
+  },
+
   // ===== البرنامج المولَّد الحالي (workout_program) =====
   async loadWorkoutProgram() {
     const local = lsGet("masar_workout_program", null);

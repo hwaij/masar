@@ -45,8 +45,56 @@ import {
 // كود أو مسار خاص بها إطلاقاً. ولأنها تظهر تشريحياً من الأمام والخلف معاً
 // (خلافاً للباي/الترايسبس التي تظهر من جهة واحدة فقط)، فهي موجودة في كل
 // من FRONT_REGIONS و BACK_REGIONS فعلياً، فتصبح قابلة للضغط في المشهدين.
-const FRONT_MUSCLES = ["chest", "shoulders", "biceps", "quads", "abs", "neck", "forearms", "grip"];
-const BACK_MUSCLES = ["back", "triceps", "hamstrings", "glutes", "calves", "neck", "forearms", "grip"];
+const FRONT_MUSCLES = ["chest", "shoulders", "biceps", "quads", "abs", "neck", "forearms", "grip", "knee", "foot"];
+const BACK_MUSCLES = ["back", "triceps", "hamstrings", "glutes", "calves", "neck", "forearms", "grip", "foot"];
+
+// "الركبة" و"القدم" (تمارين تأهيلية - انظر joint-exercises.js) ليستا
+// مجموعتين عضليتين حقيقيتين في مصدر MuscleMap (لا FRONT_REGIONS/BACK_REGIONS
+// أعلاه تحويان مفتاحاً لهما)، لكن المصدر نفسه يرسم فعلاً أشكال ركبة/كاحل/
+// قدم تشريحية حقيقية كأجزاء "محايدة" (FRONT_NEUTRAL/BACK_NEUTRAL - جزء من
+// تكوين الجسم الكامل حول العضلات الملوَّنة، لا مجرد خط تخطيطي عام). بدل
+// اختراع دائرة/شكل جديد غير موثّق، نلتقط هنا فهرس كل قطعة مسار تخص الركبة/
+// القدم فعلياً من نفس مصفوفات NEUTRAL (بلا أي تعديل هندسي على المسار نفسه)
+// ونرفعها لمستوى region قابل للضغط والتلوين - تماماً بنفس مبدأ ترقية
+// الرقبة/الساعد/القبضة أعلاه من حل مؤقت (دوائر) لمسار تشريحي حقيقي، فرقٌ
+// وحيد أن المصدر هنا سمّى هذي القطع "محايدة" أصلاً بدل تصنيفها group مستقل،
+// فنقوم نحن بهذا التصنيف بأنفسنا محلياً هنا فقط (بلا لمس muscleAnatomyPaths.js
+// نفسه - يبقى بلا تغيير حتى لا يتأثر أي استخدام آخر مشترك مثل MuscleDiagram.jsx
+// المستخدَم كأيقونة صغيرة بعشرات الأماكن). الفهارس ثابتة يدوياً بعد قياس فعلي
+// لصندوق كل قطعة مسار (getBBox) على المصدر الحقيقي - راجع الشكل المرئي للتأكد
+// عند أي تحديث مستقبلي لمصدر MuscleMap.
+//
+// الركبة: قطعتا "غمازة" الركبة لكل رِجل (شكل صغير مباشرة أسفل نهاية الفخذ
+// الأمامي quads) - موجودة في FRONT_NEUTRAL فقط (لا BACK_NEUTRAL - منطقة
+// الركبة خلفياً تتداخل فعلياً مع نهاية hamstrings وبداية calves الملوَّنتين
+// أصلاً، فلا فجوة محايدة متاحة هناك لإضافة ركبة منفصلة، ويبقى الضغط هناك
+// يختار العضلة الحقيقية كما هو).
+// القدم: قطع الكاحل/أصابع القدم لكل رِجل - موجودة في كلا NEUTRAL (أمامي
+// وخلفي)، فالقدم قابلة للضغط من المشهدين معاً.
+const KNEE_FOOT_NEUTRAL_INDICES = {
+  front: {
+    male: { knee: [0, 1, 2, 3], foot: [6, 7, 8, 9, 10, 11, 12, 13] },
+    female: { knee: [0, 1, 2, 3, 4, 5], foot: [8, 9, 10, 11, 12, 13, 14, 15] },
+  },
+  back: {
+    male: { foot: [0, 1, 2, 3] },
+    female: { foot: [0, 1] },
+  },
+};
+
+// يفصل مصفوفة NEUTRAL إلى (1) القطع المطلوبة مجمَّعة حسب مفتاحها الجديد
+// (لدمجها في regions القابلة للضغط) و(2) الباقي (يبقى محايداً كما هو -
+// مثال: الساق نفسها بين الركبة والقدم، والرأس).
+function splitNeutral(neutralPaths, indexMap) {
+  const claimed = new Set();
+  const extracted = {};
+  for (const [key, indices] of Object.entries(indexMap)) {
+    extracted[key] = indices.map((i) => neutralPaths[i]);
+    indices.forEach((i) => claimed.add(i));
+  }
+  const remaining = neutralPaths.filter((_, i) => !claimed.has(i));
+  return { extracted, remaining };
+}
 
 const SELECTED_FILL = "#E05252";
 const UNSELECTED_FILL = "var(--surface-sunken)";
@@ -144,12 +192,15 @@ export default function InteractiveMuscleDiagram({ selected, onSelect, gender = 
   const viewBox = view === "front"
     ? (isFemale ? FRONT_VIEWBOX_FEMALE : FRONT_VIEWBOX)
     : (isFemale ? BACK_VIEWBOX_FEMALE : BACK_VIEWBOX);
-  const regions = view === "front"
+  const baseRegions = view === "front"
     ? (isFemale ? FRONT_REGIONS_FEMALE : FRONT_REGIONS)
     : (isFemale ? BACK_REGIONS_FEMALE : BACK_REGIONS);
-  const neutralPaths = view === "front"
+  const baseNeutral = view === "front"
     ? (isFemale ? FRONT_NEUTRAL_FEMALE : FRONT_NEUTRAL)
     : (isFemale ? BACK_NEUTRAL_FEMALE : BACK_NEUTRAL);
+  const genderKey = isFemale ? "female" : "male";
+  const { extracted: jointRegions, remaining: neutralPaths } = splitNeutral(baseNeutral, KNEE_FOOT_NEUTRAL_INDICES[view][genderKey]);
+  const regions = { ...baseRegions, ...jointRegions };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>

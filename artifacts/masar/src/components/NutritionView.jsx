@@ -33,7 +33,7 @@ import { Button, Card, ProgressRing } from "./ui";
 
 const NS = {
   hero: { display: "flex", alignItems: "center", gap: "var(--space-3)", marginBottom: "var(--space-4)" },
-  heroIcon: { width: 44, height: 44, background: "linear-gradient(140deg, var(--success), #3E7E78)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  heroIcon: { width: 44, height: 44, background: "linear-gradient(140deg, var(--m-tint-nutrition), var(--m-tint-nutrition-deep))", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
   heroTitle: { fontFamily: "'Amiri', serif", fontSize: "var(--m-text-xl)", fontWeight: "var(--font-bold)" },
   heroSub: { fontSize: "var(--m-text-xs)", color: "var(--muted2)", marginTop: 2, lineHeight: "var(--leading-normal)" },
   summaryCard: { marginBottom: "var(--space-4)", borderRadius: "var(--m-radius-2xl)" },

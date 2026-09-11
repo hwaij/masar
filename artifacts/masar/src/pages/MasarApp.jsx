@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import i18n from "../i18n";
 import {
   Sparkles, Clock, TrendingUp, TrendingDown, Minus, ListChecks, Settings, ChevronLeft, ChevronRight,
-  Loader2, Plus, X, Trash2, Check, Flame, Star, Edit3,
+  Loader2, Plus, X, Trash2, Check, Flame, Star, Edit3, Scale, Ruler,
   Sun, Target, Palette, Cloud, CloudOff,
   Rocket, BookOpen, User, Trophy, ChevronDown, ExternalLink,
   Timer, Play, Pause, RotateCcw, Zap, Download, Save,
@@ -260,7 +260,7 @@ const SUB = {
 // أنماط قسم "أنت"
 const YS = {
   hero: { display: "flex", alignItems: "center", gap: 12, marginBottom: 16 },
-  heroIcon: { width: 44, height: 44, background: "linear-gradient(140deg, #5FA8A0, #3E7E78)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  heroIcon: { width: 44, height: 44, background: "linear-gradient(140deg, var(--m-tint-health), var(--m-tint-health-deep))", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
   heroTitle: { fontFamily: "'Amiri', serif", fontSize: 22, fontWeight: 700 },
   heroSub: { fontSize: 12, color: "var(--muted2)", marginTop: 2, lineHeight: 1.5 },
   formCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "16px 14px", marginBottom: 16 },
@@ -272,7 +272,8 @@ const YS = {
   warningCard: { display: "flex", gap: 10, alignItems: "flex-start", background: "rgba(209,123,95,0.1)", border: "1.5px solid rgba(209,123,95,0.4)", borderRadius: 14, padding: "14px 12px", marginBottom: 16 },
   warningText: { fontSize: 13, color: "var(--ink)", lineHeight: 1.8, fontWeight: 600, margin: 0 },
   resultsGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 },
-  resultCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 12px" },
+  resultCard: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: "var(--m-radius-lg)", padding: "14px 12px", boxShadow: "var(--m-shadow-sm)" },
+  resultIcon: { width: 32, height: 32, background: "linear-gradient(140deg, var(--m-tint-health), var(--m-tint-health-deep))", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginBottom: 8 },
   resultLabel: { fontSize: 12, fontWeight: 700, color: "var(--muted2)" },
   resultValue: { fontFamily: "'Amiri', serif", fontSize: 24, fontWeight: 700, color: "var(--gold)", marginTop: 6 },
   resultUnit: { fontSize: 11, color: "var(--muted2)", marginInlineStart: 4 },
@@ -3723,7 +3724,7 @@ function SleepView({ sleepLog, setSleepLog, showToast }) {
   return (
     <div style={S.view}>
       <div style={YS.hero}>
-        <div className="ui-icon-badge" style={YS.heroIcon}><Bed size={22} color="var(--on-accent)" /></div>
+        <div className="ui-icon-badge" style={{ ...YS.heroIcon, background: "linear-gradient(140deg, var(--m-tint-sleep), var(--m-tint-sleep-deep))" }}><Bed size={22} color="var(--on-accent)" /></div>
         <div>
           <div style={YS.heroTitle}>{t("nav.sleep")}</div>
           <div style={YS.heroSub}>{language === "en" ? "Log your sleep and track your rest pattern over the week." : "سجّل نومك وتابع نمط راحتك خلال الأسبوع."}</div>
@@ -7050,11 +7051,57 @@ const BMI_CATEGORY_KEY_MAP = {
   "نقص وزن": "underweight", "وزن طبيعي": "normal", "زيادة وزن": "overweight", "سمنة": "obese",
 };
 
+// رسم خطي مصغّر (Sparkline) بسيط لاتجاه الوزن عبر الزمن - بيانات حقيقية من
+// weight_log فقط (لا تجميع/تفسير)، بلا أي عنصر تفاعلي (لا tooltip ولا hover
+// - راجع الطلب الصريح "لا تعقيد تفاعلي"). آخر 30 قياساً مسجَّلاً فعلياً كحدّ
+// أقصى للعرض (لا تعبئة أيام فارغة بينها بقيمة وهمية - الخط يصل فقط بين
+// النقاط الحقيقية الموجودة، حتى لو متباعدة بعدة أيام). أقل من نقطتين = لا
+// معنى لخط اتجاه، فتُخفى الميزة بالكامل بدل رسم مضلِّل أو فارغ.
+function WeightSparkline({ weightLog, isEn }) {
+  const points = Object.entries(weightLog || {})
+    .filter(([, w]) => typeof w === "number")
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(-30);
+  if (points.length < 2) return null;
+
+  const weights = points.map(([, w]) => w);
+  const min = Math.min(...weights), max = Math.max(...weights);
+  const range = max - min || 1;
+  const W = 100, H = 32, PAD = 3;
+  const xFor = (i) => PAD + (i / (points.length - 1)) * (W - PAD * 2);
+  const yFor = (w) => PAD + (1 - (w - min) / range) * (H - PAD * 2);
+  const pathD = points.map(([, w], i) => `${i === 0 ? "M" : "L"} ${xFor(i).toFixed(1)} ${yFor(w).toFixed(1)}`).join(" ");
+  const last = points[points.length - 1][1];
+
+  return (
+    <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--line)" }}>
+      <div style={{ fontSize: 11, color: "var(--muted2)", fontWeight: 700, marginBottom: 6 }}>
+        {isEn ? `Weight trend (last ${points.length} logs)` : `اتجاه الوزن (آخر ${points.length} تسجيلاً)`}
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="40" preserveAspectRatio="none">
+        <path d={pathD} fill="none" stroke="var(--m-tint-health)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx={xFor(points.length - 1)} cy={yFor(last)} r="2" fill="var(--m-tint-health)" />
+      </svg>
+    </div>
+  );
+}
+
 function YouView({ healthProfile, setHealthProfile, showToast, profile, setProfile }) {
   const { t, i18n } = useTranslation();
   const language = i18n.language;
   const hasData = !!(healthProfile.heightCm && healthProfile.weightKg && healthProfile.age && healthProfile.gender && healthProfile.activityLevel);
   const [editing, setEditing] = useState(!hasData);
+  // سجل الوزن التاريخي (weight_log) - يُحمَّل محلياً هنا فقط لعرض Sparkline
+  // بصري بسيط أسفل بطاقة "سجّل وزن اليوم" (لا تأثير على أي مكان آخر يستخدم
+  // weightLog، مثل ReportsView التي تُحمِّله بشكل مستقل تماماً بحالتها
+  // الخاصة - نفس البيانات المصدر (store.loadWeightLog) لكن نسخة عرض معزولة
+  // بلا أي مشاركة حالة، حتى لا يُغيَّر أي سلوك/منطق قائم في تلك الشاشة).
+  const [weightLog, setWeightLog] = useState({});
+  useEffect(() => {
+    let active = true;
+    store.loadWeightLog().then((log) => { if (active) setWeightLog(log); });
+    return () => { active = false; };
+  }, []);
   const [draft, setDraft] = useState(() => ({
     heightCm: healthProfile.heightCm ?? "",
     weightKg: healthProfile.weightKg ?? "",
@@ -7278,7 +7325,11 @@ function YouView({ healthProfile, setHealthProfile, showToast, profile, setProfi
         </div>
       )}
 
-      <Card padding="md" style={{ marginBottom: "var(--space-4)" }} data-tour="you-quick-weight-card">
+      <Card
+        padding="md"
+        style={{ marginBottom: "var(--space-4)", borderRadius: "var(--m-radius-2xl)", background: "linear-gradient(160deg, rgba(94,150,196,0.08), var(--panel))" }}
+        data-tour="you-quick-weight-card"
+      >
         <label style={S.label}>{t("you.quickWeightLabel")}</label>
         <div style={{ ...S.dateRow, marginBottom: 10 }}>
           <button onClick={() => shiftQuickWeightDay(-1)} style={S.iconBtn} aria-label={t("nutrition.previousDay")}>
@@ -7301,26 +7352,31 @@ function YouView({ healthProfile, setHealthProfile, showToast, profile, setProfi
           <input type="number" inputMode="decimal" value={quickWeight} onChange={(e) => setQuickWeight(e.target.value)} placeholder={healthProfile.weightKg ? String(healthProfile.weightKg) : (language === "en" ? "e.g. 70" : "مثال: 70")} style={{ ...S.input, flex: 1 }} />
           <Button variant="primary" onClick={logQuickWeight} disabled={!quickWeight} style={{ width: "auto", padding: "0 20px" }}>{t("you.logWeightBtn")}</Button>
         </div>
+        <WeightSparkline weightLog={weightLog} isEn={language === "en"} />
       </Card>
 
       <div style={YS.resultsGrid}>
         <div style={YS.resultCard}>
+          <div className="ui-icon-badge" style={YS.resultIcon}><Scale size={15} color="var(--on-accent)" /></div>
           <div style={YS.resultLabel}>{language === "en" ? "BMI · Body Mass Index" : "BMI · مؤشر كتلة الجسم"}</div>
           <div style={YS.resultValue}>{healthProfile.bmi ?? "—"}</div>
           {bmiCategoryLabel && <div style={YS.resultCategory}>{bmiCategoryLabel}</div>}
           <div style={YS.resultHint}>{language === "en" ? "Your weight-to-height ratio — a general indicator that doesn't distinguish fat from muscle." : "نسبة وزنك إلى طولك — مؤشر عام لا يفرّق بين الدهون والعضلات."}</div>
         </div>
         <div style={YS.resultCard}>
+          <div className="ui-icon-badge" style={YS.resultIcon}><Ruler size={15} color="var(--on-accent)" /></div>
           <div style={YS.resultLabel}>{language === "en" ? "IBW · Ideal Body Weight" : "IBW · الوزن المثالي"}</div>
           <div style={YS.resultValue}>{healthProfile.ibw ?? "—"}<span style={YS.resultUnit}>{language === "en" ? "kg" : "كغم"}</span></div>
           <div style={YS.resultHint}>{language === "en" ? "An estimated reference weight based on your height and gender." : "وزن تقديري مرجعي بحسب طولك وجنسك."}</div>
         </div>
         <div style={YS.resultCard}>
+          <div className="ui-icon-badge" style={YS.resultIcon}><Flame size={15} color="var(--on-accent)" /></div>
           <div style={YS.resultLabel}>{language === "en" ? "REE · Basal Metabolic Rate" : "REE · الأيض الأساسي"}</div>
           <div style={YS.resultValue}>{healthProfile.ree ?? "—"}<span style={YS.resultUnit}>{t("common.units.kcal")}</span></div>
           <div style={YS.resultHint}>{language === "en" ? "The energy your body burns at complete rest during the day." : "الطاقة التي يحرقها جسمك وأنت في راحة تامة خلال اليوم."}</div>
         </div>
         <div style={YS.resultCard}>
+          <div className="ui-icon-badge" style={YS.resultIcon}><Zap size={15} color="var(--on-accent)" /></div>
           <div style={YS.resultLabel}>{language === "en" ? "TEE · Total Daily Energy" : "TEE · إجمالي الطاقة اليومي"}</div>
           <div style={YS.resultValue}>{healthProfile.tee ?? "—"}<span style={YS.resultUnit}>{t("common.units.kcal")}</span></div>
           <div style={YS.resultHint}>{language === "en" ? "An estimate of your daily calories burned at your current activity level." : "تقدير سعراتك المستهلكة يومياً مع مستوى نشاطك الحالي."}</div>

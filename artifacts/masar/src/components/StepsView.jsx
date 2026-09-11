@@ -18,7 +18,7 @@ const QUICK_ADD_VALUES = [500, 1000, 2000];
 
 const SS = {
   hero: { display: "flex", alignItems: "center", gap: "var(--space-3)", marginBottom: "var(--space-4)" },
-  heroIcon: { width: 44, height: 44, background: "linear-gradient(140deg, var(--m-secondary), var(--success))", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  heroIcon: { width: 44, height: 44, background: "linear-gradient(140deg, var(--m-tint-activity), var(--m-tint-activity-deep))", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
   heroTitle: { fontFamily: "'Amiri', serif", fontSize: "var(--m-text-xl)", fontWeight: "var(--font-bold)" },
   heroSub: { fontSize: "var(--m-text-xs)", color: "var(--muted2)", marginTop: 2, lineHeight: "var(--leading-normal)" },
 

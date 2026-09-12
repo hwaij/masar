@@ -2687,17 +2687,25 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
   // ملاحظات أنماط حقيقية مبنية فقط على ما سُجِّل فعلاً (meal_type) - null إن
   // كانت البيانات غير كافية لأي استنتاج موثوق (انظر عتبات analyzeMealPatterns).
   const mealPatterns = useMemo(() => analyzeMealPatterns(nutritionInRange, days), [nutritionInRange, days]);
-  // ربط المزاج/التوتر بالاستهلاك الغذائي - أسبوعي فقط (range==="week")،
-  // حسابياً بحتاً عبر computeMoodNutritionCorrelation (بلا أي استدعاء
-  // ذكاء اصطناعي)؛ Gemini يُستخدَم فقط لاحقاً لصياغة تعليق على هذه الأرقام
-  // المحسوبة، لا لاختراعها.
+  // ربط المزاج/التوتر بالاستهلاك الغذائي عبر الفترة الحالية (أسبوع أو شهر)
+  // - حسابياً بحتاً عبر computeMoodNutritionCorrelation (بلا أي استدعاء ذكاء
+  // اصطناعي)؛ Gemini يُستخدَم فقط لاحقاً لصياغة تعليق على هذه الأرقام
+  // المحسوبة، لا لاختراعها. كانت مقصورة على range==="week" فقط رغم أن
+  // الدالة نفسها عامة تماماً (تقبل أي مصفوفة days بأي طول) - وسّعتها لتعمل
+  // بنفس الحساب بلا أي تعديل بالشهر أيضاً، ليقدر المستخدم يشوف اتجاه مزاجه/
+  // توتره "عبر الزمن" فعلاً لا لأسبوع واحد فقط.
   const moodCorrelation = useMemo(
-    () => (range === "week" ? computeMoodNutritionCorrelation(nutritionInRange, days) : null),
-    [range, nutritionInRange, days],
+    () => computeMoodNutritionCorrelation(nutritionInRange, days),
+    [nutritionInRange, days],
   );
   const moodChartData = moodCorrelation?.dailySeries.map((d) => ({
     day: d.day,
-    label: arabicDate(d.day, { weekday: "short" }, language === "en" ? "en-US" : undefined),
+    // نفس منطق تسمية محاور بقية رسوم هذه الشاشة بالضبط (day-of-week مختصر
+    // للأسبوع، رقم اليوم فقط للشهر) - يوم الأسبوع وحده يتكرر 4-5 مرات خلال
+    // شهر كامل فيصبح غامضاً على المحور.
+    label: range === "week"
+      ? arabicDate(d.day, { weekday: "short" }, language === "en" ? "en-US" : undefined)
+      : arabicDate(d.day, { day: "numeric" }, language === "en" ? "en-US" : undefined),
     mood: d.avgMood,
     stress: d.avgStress,
   })) || [];
@@ -2977,9 +2985,14 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
     setMoodInsightLoading(true);
     setMoodInsightError(false);
     try {
+      // كانت هذه الجملة تفترض "الأسبوع" حرفياً حتى بعد توسيع الرسم أعلاه
+      // ليعمل بالشهر أيضاً - rangeWord (نفس المتغيّر المستخدَم فعلاً بـ
+      // generateInsight أعلاه) يجعل نص الطلب المُرسَل لـGemini يطابق الفترة
+      // المعروضة فعلياً دائماً.
+      const rangeWord = range === "week" ? (isEnLang ? "week" : "الأسبوع") : (isEnLang ? "month" : "الشهر");
       const lines = [
-        `${isEnLang ? "Average mood this week (0-5)" : "متوسط المزاج هذا الأسبوع (0-5)"}: ${moodCorrelation.avgMoodWeek.toFixed(1)}`,
-        `${isEnLang ? "Average stress this week (0-5)" : "متوسط التوتر هذا الأسبوع (0-5)"}: ${moodCorrelation.avgStressWeek.toFixed(1)}`,
+        `${isEnLang ? `Average mood this ${rangeWord} (0-5)` : `متوسط المزاج هذا ${rangeWord} (0-5)`}: ${moodCorrelation.avgMoodWeek.toFixed(1)}`,
+        `${isEnLang ? `Average stress this ${rangeWord} (0-5)` : `متوسط التوتر هذا ${rangeWord} (0-5)`}: ${moodCorrelation.avgStressWeek.toFixed(1)}`,
         ...moodCorrelation.correlations.map((c) =>
           isEnLang
             ? `On higher-stress days, ${METRIC_LABEL[c.metric]} intake was ${c.pct}% ${c.direction === "higher" ? "higher" : "lower"} than other days`
@@ -2988,8 +3001,8 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
       ].join("\n");
 
       const prompt = isEnLang
-        ? `You are a gentle, non-judgmental wellness assistant. Using ONLY the real numbers below about this user's mood, stress, and eating this week, write a short (2-3 sentences), warm, human comment. Do NOT invent any number or pattern not stated below. If no correlation is listed below, just comment kindly on the mood/stress averages alone.\n\n${lines}`
-        : `أنت مساعد رفاهية لطيف وغير حكمي. باستخدام الأرقام الحقيقية أدناه فقط عن مزاج وتوتر وأكل هذا المستخدم هذا الأسبوع، اكتب تعليقاً قصيراً (2-3 جمل) دافئاً وإنسانياً. لا تخترع أي رقم أو نمط غير مذكور أدناه. إن لم يُذكر أي ربط أدناه، علِّق بلطف على متوسطات المزاج/التوتر فقط.\n\n${lines}`;
+        ? `You are a gentle, non-judgmental wellness assistant. Using ONLY the real numbers below about this user's mood, stress, and eating this ${rangeWord}, write a short (2-3 sentences), warm, human comment. Do NOT invent any number or pattern not stated below. If no correlation is listed below, just comment kindly on the mood/stress averages alone.\n\n${lines}`
+        : `أنت مساعد رفاهية لطيف وغير حكمي. باستخدام الأرقام الحقيقية أدناه فقط عن مزاج وتوتر وأكل هذا المستخدم هذا ${rangeWord}، اكتب تعليقاً قصيراً (2-3 جمل) دافئاً وإنسانياً. لا تخترع أي رقم أو نمط غير مذكور أدناه. إن لم يُذكر أي ربط أدناه، علِّق بلطف على متوسطات المزاج/التوتر فقط.\n\n${lines}`;
 
       const text = (await analyze(prompt, 220)).trim();
       setMoodInsightText(text);
@@ -3452,21 +3465,52 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
             <div style={S.chartCard}>
               <div style={S.chartTitle}>{range === "week" ? t("reportsView.dailyCalories") : t("reportsView.caloriesThisMonth")}</div>
               {!RC ? <ChartLoading /> : nutritionActiveDays === 0 ? <div style={S.emptyHint}>{t("reportsView.noNutritionDataYet")}</div> : (
-                <RC.ResponsiveContainer width="100%" height={190}>
-                  <RC.BarChart data={nutritionByDay} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="repNutritionBar" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#E0B868" />
-                        <stop offset="100%" stopColor="#9A7529" />
-                      </linearGradient>
-                    </defs>
-                    <RC.CartesianGrid strokeDasharray="2 4" stroke="var(--surface-raised)" vertical={false} />
-                    <RC.XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: range === "week" ? 11 : 8, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} interval={range === "week" ? 0 : 3} />
-                    <RC.YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
-                    <RC.Tooltip cursor={{ fill: "rgba(201,162,75,0.08)" }} contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} formatter={(v) => [`${v} ${t("common.units.kcal")}`, ""]} />
-                    <RC.Bar dataKey="calories" radius={[3, 3, 3, 3]} fill="url(#repNutritionBar)" maxBarSize={range === "week" ? 28 : 12} isAnimationActive={!reduceMotion} animationDuration={450} />
-                  </RC.BarChart>
-                </RC.ResponsiveContainer>
+                <>
+                  <RC.ResponsiveContainer width="100%" height={190}>
+                    <RC.BarChart data={nutritionByDay} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="repNutritionBar" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#E0B868" />
+                          <stop offset="100%" stopColor="#9A7529" />
+                        </linearGradient>
+                        {/* تدرّج تحذيري منفصل للأعمدة اللي تجاوزت الهدف اليومي
+                            (TEE) - يميّزها بصرياً عن بقية الأعمدة العادية،
+                            راجع RC.Cell أدناه لمنطق الاختيار بينهما لكل عمود. */}
+                        <linearGradient id="repNutritionBarOver" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#E0917A" />
+                          <stop offset="100%" stopColor="#B5533B" />
+                        </linearGradient>
+                      </defs>
+                      <RC.CartesianGrid strokeDasharray="2 4" stroke="var(--surface-raised)" vertical={false} />
+                      <RC.XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: range === "week" ? 11 : 8, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} interval={range === "week" ? 0 : 3} />
+                      <RC.YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
+                      {healthProfile?.tee ? (
+                        <RC.ReferenceLine y={healthProfile.tee} stroke="var(--muted2)" strokeDasharray="4 3" strokeWidth={1} />
+                      ) : null}
+                      <RC.Tooltip
+                        cursor={{ fill: "rgba(201,162,75,0.08)" }}
+                        contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }}
+                        formatter={(v) => [`${v} ${t("common.units.kcal")}`, ""]}
+                      />
+                      {/* نقطة تفاعلية حقيقية (Priority: تقرير قابل للنقر) - الضغط
+                          على أي عمود يفتح تفصيل ذلك اليوم مباشرة (تبويب "يوماً
+                          بيوم" بنفس هذي الشاشة، لا ملف مُصدَّر ثابت) بدل رسم
+                          عام بلا تفاصيل. الأعمدة اللي تجاوزت الهدف اليومي (TEE)
+                          تُلوَّن بتدرّج تحذيري منفصل لتمييزها بصرياً فوراً. */}
+                      <RC.Bar
+                        dataKey="calories" radius={[3, 3, 3, 3]} maxBarSize={range === "week" ? 28 : 12}
+                        isAnimationActive={!reduceMotion} animationDuration={450}
+                        onClick={(d) => { if (d?.day) { setExpandedDay(d.day); setSubTab("daily"); } }}
+                        style={{ cursor: "pointer" }}
+                      >
+                        {nutritionByDay.map((d, i) => (
+                          <RC.Cell key={i} fill={healthProfile?.tee && d.calories > healthProfile.tee ? "url(#repNutritionBarOver)" : "url(#repNutritionBar)"} />
+                        ))}
+                      </RC.Bar>
+                    </RC.BarChart>
+                  </RC.ResponsiveContainer>
+                  <div style={S.emptyHint}>{t("reportsView.tapDayForDetail")}</div>
+                </>
               )}
             </div>
             <div style={S.chartCard}>
@@ -3534,14 +3578,14 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
               <div style={S.chartCard}>
                 <div style={S.chartTitle}>{t("reportsView.moodNutrition.title")}</div>
                 {!moodCorrelation.enoughData ? (
-                  <div style={S.emptyHint}>{t("reportsView.moodNutrition.notEnoughData")}</div>
+                  <div style={S.emptyHint}>{t("reportsView.moodNutrition.notEnoughData", { period: t(range === "week" ? "reportsView.periodWeek" : "reportsView.periodMonth") })}</div>
                 ) : (
                   <>
                     {!RC ? <ChartLoading /> : (
                       <RC.ResponsiveContainer width="100%" height={170}>
                         <RC.LineChart data={moodChartData} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
                           <RC.CartesianGrid strokeDasharray="2 4" stroke="var(--surface-raised)" vertical={false} />
-                          <RC.XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: 11, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} />
+                          <RC.XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: range === "week" ? 11 : 8, fontFamily: "Tajawal" }} axisLine={{ stroke: "var(--border2)" }} tickLine={false} interval={range === "week" ? 0 : 3} />
                           <RC.YAxis domain={[0, 5]} tick={{ fill: "var(--muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
                           <RC.Tooltip contentStyle={{ background: "var(--line)", border: "1px solid var(--border2)", borderRadius: 8, fontFamily: "Tajawal", fontSize: 12 }} />
                           <RC.Line type="monotone" dataKey="mood" stroke="#5FA8A0" strokeWidth={2} dot={{ r: 3 }} connectNulls isAnimationActive={!reduceMotion} animationDuration={450} />
@@ -3558,12 +3602,12 @@ function ReportsView({ entries, categories, focus, profile, setProfile, healthPr
                       <div style={{ ...S.tipBox, marginTop: 10, flexDirection: "column", gap: 6, alignItems: "stretch" }}>
                         {moodCorrelation.correlations.map((c) => (
                           <span key={c.metric}>
-                            {isolateNumbers(t(`reportsView.moodNutrition.correlation.${c.direction}`, { metric: t(`reportsView.moodNutrition.metrics.${c.metric}`), pct: c.pct }))}
+                            {isolateNumbers(t(`reportsView.moodNutrition.correlation.${c.direction}`, { metric: t(`reportsView.moodNutrition.metrics.${c.metric}`), pct: c.pct, period: t(range === "week" ? "reportsView.periodWeek" : "reportsView.periodMonth") }))}
                           </span>
                         ))}
                       </div>
                     ) : (
-                      <p style={S.emptyHint}>{t("reportsView.moodNutrition.noPattern")}</p>
+                      <p style={S.emptyHint}>{t("reportsView.moodNutrition.noPattern", { period: t(range === "week" ? "reportsView.periodWeek" : "reportsView.periodMonth") })}</p>
                     )}
 
                     {moodInsightLoading ? (

@@ -2011,7 +2011,7 @@ function SearchPanel({ onPick, onManual, isSub }) {
 // نفسها)، عدة مطابقات قريبة تُعرض كـ"هل تقصد" يختار منها المستخدم، ولا
 // مطابقة تعني ببساطة تعديل الاسم والمحاولة مرة أخرى - لا اختراع رقم لصنف
 // غير موجود بالقاعدة مطلقاً.
-function AIPhotoPanel({ onSave, onManual, preselectedMealType, isSub }) {
+function AIPhotoPanel({ onSave, onAllSaved, onManual, preselectedMealType, isSub }) {
   const { t, i18n } = useTranslation();
   const isEn = i18n.language === "en";
   const [preview, setPreview] = useState(null);
@@ -2105,14 +2105,25 @@ function AIPhotoPanel({ onSave, onManual, preselectedMealType, isSub }) {
   // كسجل مستقل بالتتابع عبر onSave (=addEntry) - أي صنف لم يُطابَق بعد
   // (بانتظار اختيار من "هل تقصد" أو بحث آخر) يُستبعد بصمت من الحفظ، لا
   // يُحفظ بقيمة مختلَقة أبداً.
+  // خلل حقيقي وُجد وأُصلح (تحقيق AI Food Photo): كانت هذه الحلقة تستدعي
+  // onSave (=addEntry) الذي يُغلق شاشة التأكيد بالكامل (closeSheet) بعد أول
+  // صنف فقط - فتختفي الشاشة فجأة قبل أن تكمل الحلقة حفظ بقية الأصناف
+  // (تستمر تُحفَظ صامتة بالخلفية بلا أي مؤشر للمستخدم)، وأي صنف تالٍ كانت
+  // سعراته المطابَقة ظاهرة فعلياً يختفي معها - هذا ما كان يبدو للمستخدم
+  // كـ"الصنف يختفي بصمت بلا حفظ". الإصلاح: onSave يُستدعى بعلم keepOpen
+  // الآن (لا يُغلق شيئاً)، والشاشة تبقى ظاهرة (مع مؤشر saving) طوال الحلقة،
+  // ولا تُغلَق إلا مرة واحدة بعد اكتمالها بالكامل عبر onAllSaved. أي صنف
+  // يفشل حفظه فعلياً (onSave يُرجع false) يبقى بقائمة items ليراه المستخدم
+  // ويعيد المحاولة، بدل اختفائه بصمت مع البقية.
   async function handleConfirm() {
     if (matchedItems.length === 0) return;
     setSaving(true);
+    const failedIds = [];
     for (const it of matchedItems) {
       const grams = Number(it.grams) || (it.product.servingGrams ? Math.round(it.product.servingGrams) : 100);
       const preview = scaleNutrients(it.product, grams);
       const isMl = it.product.per100Basis === "ml";
-      await onSave({
+      const ok = await onSave({
         id: uid(), foodName: it.product.name, ...preview,
         unit: isMl ? "ml" : "g",
         servingInfo: `${grams} ${isMl ? t("nutrition.unitOptions.ml") : t("common.units.g")}`,
@@ -2129,9 +2140,17 @@ function AIPhotoPanel({ onSave, onManual, preselectedMealType, isSub }) {
           per100Basis: isMl ? "ml" : "g",
           servingGrams: it.product.servingGrams || null,
         },
-      });
+      }, { keepOpen: true });
+      if (!ok) failedIds.push(it.localId);
     }
     setSaving(false);
+    if (failedIds.length > 0) {
+      // أصناف فشل حفظها فعلياً تبقى ظاهرة (addEntry نفسه أظهر رسالة الخطأ
+      // التفصيلية بالفعل) - الأصناف المحفوظة بنجاح فقط تُزال من القائمة.
+      setItems((list) => list.filter((it) => failedIds.includes(it.localId)));
+    } else {
+      onAllSaved?.();
+    }
   }
 
   return (
@@ -2805,7 +2824,17 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
   // للحالة، ثم يختفي بصمت عند أول تحديث للصفحة لأن التحميل التالي يقرأ من
   // القاعدة التي لم تستلم الصف أصلاً. الآن تتحقق من نتيجة الحفظ الحقيقية،
   // وتتراجع عن التحديث المتفائل + تُظهر خطأً حقيقياً للمستخدم عند أي فشل.
-  async function addEntry(entry) {
+  // خلل حقيقي ثانٍ وُجد وأُصلح هنا (تحقيق AI Food Photo): commit 1d1b6b0
+  // (نقل زر "إنهاء الوجبة") غيّر addEntry لتُغلق شاشة الإضافة بالكامل
+  // (closeSheet) بعد كل صنف - صحيح لمسارات الإضافة الفردية (بحث/باركود/
+  // يدوي/ملصق)، لكنه يكسر AIPhotoPanel: تلك الشاشة تحفظ عدة أصناف مكتَشفة
+  // من صورة واحدة بحلقة for متتالية عبر onSave (=addEntry) لكل صنف - إغلاق
+  // الشاشة بعد أول صنف فقط يُخفي شاشة التأكيد فجأة بينما بقية الأصناف لا
+  // تزال تُحفَظ صامتة بالخلفية، فيبدو للمستخدم أنها اختفت/لم تُحفَظ (بلا أي
+  // رسالة خطأ) - وأي صنف تالٍ كانت سعراته المطابَقة ظاهرة فعلاً باللحظة
+  // يختفي معها. الإصلاح: معامل keepOpen اختياري - AIPhotoPanel يمرره true
+  // لكل صنف، ويُغلق الشاشة بنفسه (onAllSaved) بعد اكتمال الحلقة كلها فقط.
+  async function addEntry(entry, { keepOpen = false } = {}) {
     setSaveError(null);
     // يُسجَّل بتاريخ اليوم المعروض حالياً في التنقّل (قد يكون يوماً سابقاً) -
     // نفس مبدأ TodayView القائم أصلاً (EntryModal يسجّل بتاريخ اليوم المختار
@@ -2818,10 +2847,12 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
       showToast(t("nutrition.addedToLog"));
       // ربط المزاج/التوتر بتسجيل الطعام: نقطة دمج واحدة تغطّي كل مسارات
       // الإضافة الأربعة (كلها تصل هنا عبر addEntry) بلا لمس أي من مكوّنات
-      // نماذج الإضافة نفسها. يُغلَق كامل شاشة الإضافة فوراً بعد كل صنف
-      // (رجوع تام للشاشة الرئيسية، لا شاشة وسيطة ولا سؤال) - يضيف المستخدم
-      // صنفاً آخر لنفس الوجبة بالضغط على زر تلك الوجبة مرة ثانية، تماماً
-      // كسلوك التطبيق قبل ربط المزاج. الصنف يُضاف لجلسة الوجبة الحالية
+      // نماذج الإضافة نفسها. يُغلَق كامل شاشة الإضافة فوراً بعد كل صنف (رجوع
+      // تام للشاشة الرئيسية، لا شاشة وسيطة ولا سؤال) لمسارات الإضافة الفردية
+      // - يضيف المستخدم صنفاً آخر لنفس الوجبة بالضغط على زر تلك الوجبة مرة
+      // ثانية، تماماً كسلوك التطبيق قبل ربط المزاج. أما keepOpen (مسار
+      // AIPhotoPanel متعدد الأصناف) فلا يُغلق شيئاً هنا - الشاشة تبقى مفتوحة
+      // حتى تنتهي كل الحلقة. الصنف يُضاف لجلسة الوجبة الحالية
       // (mealSessionIds/mealSessionType) فقط لتغذية زر "إنهاء الوجبة" الذي
       // يظهر بالشاشة الرئيسية تحت زر تلك الوجبة تحديداً طالما الجلسة تحوي
       // صنفاً واحداً على الأقل - سؤال المزاج (MoodCheckPanel) يظهر مرة واحدة
@@ -2829,7 +2860,7 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
       // عند sheet==="moodCheck" أدناه). الطعام محفوظ بالفعل في هذه اللحظة،
       // فإغلاق الشاشة لا يفقد أي بيانات بغض النظر عن إنهاء الوجبة لاحقاً.
       setMealSessionIds((prev) => [...prev, full.id]);
-      closeSheet();
+      if (!keepOpen) closeSheet();
     } else {
       setNutritionLog((prev) => prev.filter((e) => e.id !== full.id));
       // التفاصيل الكاملة (message/code/details/hint) إلى console المطوّر
@@ -2839,6 +2870,7 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
       setSaveError(friendly);
       showToast(t("nutrition.entrySaveFailedDetail", { detail: friendly }));
     }
+    return result.ok;
   }
 
   // اختيار صنف من "أطعمة سابقة" (تحسينات التغذية #3). إن حُفظت productBasis
@@ -3518,7 +3550,8 @@ ${missingMealsLine}
 
             {sheet === "aiPhoto" && (
               <AIPhotoPanel
-                onSave={(entry) => addEntry(entry)}
+                onSave={(entry, opts) => addEntry(entry, opts)}
+                onAllSaved={closeSheet}
                 onManual={() => setSheet("manual")}
                 preselectedMealType={preselectedMealType}
                 isSub={isSub}

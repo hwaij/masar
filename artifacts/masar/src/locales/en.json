@@ -502,6 +502,8 @@
     "title": "Your Reports",
     "rangeWeek": "Week",
     "rangeMonth": "Month",
+    "periodWeek": "week",
+    "periodMonth": "month",
     "preparingReport": "Preparing report...",
     "exportPdf": "Export PDF report",
     "popupBlocked": "Allow pop-ups to export",
@@ -523,6 +525,7 @@
     "dailyCalories": "Daily calories",
     "caloriesThisMonth": "Calories this month",
     "noNutritionDataYet": "Not enough data yet — log your meals in the Nutrition section",
+    "tapDayForDetail": "Tap any bar to see that day's detail (\"Day by Day\" tab) - red bars exceeded your daily goal",
     "macroBreakdown": "Macro breakdown",
     "protein": "Protein",
     "carbs": "Carbs",
@@ -538,13 +541,13 @@
     "lowProteinMealPattern": "{{meal}} is noticeably lower in protein than your other meals on average this period.",
     "moodNutrition": {
       "title": "Mood & Stress vs. Eating",
-      "notEnoughData": "Not enough data to spot a clear pattern this week yet. Log your mood/stress after a few more meals to see an analysis here.",
+      "notEnoughData": "Not enough data to spot a clear pattern this {{period}} yet. Log your mood/stress after a few more meals to see an analysis here.",
       "moodLegend": "Mood",
       "stressLegend": "Stress",
-      "noPattern": "Your mood and stress are logged this week, but no clear link with your eating has shown up yet.",
+      "noPattern": "Your mood and stress are logged this {{period}}, but no clear link with your eating has shown up yet.",
       "correlation": {
-        "higher": "On higher-stress days, your {{metric}} intake was {{pct}}% higher compared to the rest of the week.",
-        "lower": "On higher-stress days, your {{metric}} intake was {{pct}}% lower compared to the rest of the week."
+        "higher": "On higher-stress days, your {{metric}} intake was {{pct}}% higher compared to the rest of the {{period}}.",
+        "lower": "On higher-stress days, your {{metric}} intake was {{pct}}% lower compared to the rest of the {{period}}."
       },
       "metrics": {
         "calories": "calories",

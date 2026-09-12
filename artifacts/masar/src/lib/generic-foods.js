@@ -178,9 +178,27 @@ export const GENERIC_FOODS = [
 
 export const CATEGORY_ORDER = ["egg", "poultry", "meat", "fish", "grain", "vegetable", "fruit", "legume", "dairy", "nut", "beverage", "oil", "other"];
 
-// ترتيب أهمية المطابقة: تطابق كامل > بادئة > احتواء - نفس المبدأ الذي
+// ترتيب أهمية المطابقة: تطابق كامل > بادئة > احتواء (الاستعلام داخل اسم
+// القاعدة) > احتواء عكسي (اسم القاعدة داخل الاستعلام) - نفس المبدأ الذي
 // تعتمده أغلب محركات البحث البسيطة، حتى تظهر أدق نتيجة أولاً (بحث "بيض"
 // يُظهر "بيض مسلوق" قبل أي نتيجة أخرى تحتوي كلمة "بيض" في مكان أعمق).
+//
+// خلل حقيقي وُجد ومُصلَح هنا (تحقيق AI Food Photo - أطعمة شائعة كالبروكلي
+// والبطاطس لا تُطابَق): الاتجاهان الثلاثة أعلاه (تطابق/بادئة/احتواء) كلها
+// تفحص فقط "هل مصطلح القاعدة يحوي الاستعلام" - إن كان الاستعلام أطول من
+// مصطلح القاعدة (بالضبط حالة AI: "بروكلي مطبوخ" أطول من "بروكلي" المخزَّن)
+// فلا يمكن لمصطلح أقصر أن "يحوي" استعلاماً أطول رياضياً، فتفشل كل الشروط
+// الثلاثة رغم وضوح التطابق البصري/المنطقي - Gemini يُعطى تعليمات صريحة
+// بوصف "أدق ما يمكن" (راجع recognizeMealFromImage) فيضيف صفات وصفية
+// (مطبوخ/مقلية/مشوي...) شبه دائماً غير موجودة كمصطلح منفصل بقاعدة محلية
+// مختصرة عمداً - فيسقط أي طعام شائع كهذا بلا مطابقة رغم وجوده فعلاً
+// بالقاعدة. الإصلاح: احتواء عكسي أيضاً (الاستعلام يحوي مصطلح القاعدة)
+// بأولوية أدنى من الاتجاه المباشر - نفس مبدأ findFuzzyMatches في fuzzy.js
+// الذي يستثني هذا الاتجاه عمداً افتراضاً أن "الطبقة السريعة تتكفّل به فعلاً"؛
+// كان ذلك الافتراض خاطئاً قبل هذا الإصلاح (لا أحد يتكفّل به)، وصحيحاً بعده.
+// حد أدنى لطول مصطلح القاعدة (3 أحرف) يمنع مصطلحات قصيرة جداً من مطابقة
+// أي استعلام طويل بالصدفة (نفس حد الأمان المُستخدَم أصلاً في findFuzzyMatches
+// لطول الاستعلام نفسه).
 export function searchGenericFoods(normalizedQuery) {
   if (!normalizedQuery) return [];
   const scored = [];
@@ -188,9 +206,12 @@ export function searchGenericFoods(normalizedQuery) {
     const terms = [food.name, food.nameEn, ...food.searchTerms].map(normalizeSearchTerm);
     let score = -1;
     for (const term of terms) {
-      if (term === normalizedQuery) score = Math.max(score, 3);
-      else if (term.startsWith(normalizedQuery)) score = Math.max(score, 2);
-      else if (term.includes(normalizedQuery)) score = Math.max(score, 1);
+      if (!term) continue;
+      if (term === normalizedQuery) score = Math.max(score, 4);
+      else if (term.startsWith(normalizedQuery)) score = Math.max(score, 3);
+      else if (term.includes(normalizedQuery)) score = Math.max(score, 2);
+      else if (term.length >= 3 && normalizedQuery.startsWith(term)) score = Math.max(score, 1);
+      else if (term.length >= 3 && normalizedQuery.includes(term)) score = Math.max(score, 0);
     }
     if (score >= 0) scored.push({ food, score });
   }

@@ -1569,45 +1569,32 @@ function LanguagePicker({ onPick }) {
   );
 }
 
-// شارات الميزات الأربع (تغذية/نشاط/نوم/صحة) بشعار شاشة البداية - نفس روح
-// ألوان اللوقو الأصلي (logo-mark.png) تقريباً، مستقلة عمداً عن توكنز
-// الأنماط الحالية (--m-tint-*) لأنها تمثّل هوية العلامة التجارية الثابتة
-// نفسها (بخلفية فاتحة ثابتة بهذي الشاشة تحديداً) لا سياق قسم تفاعلي
-// بالتطبيق يتغيّر مع النمط المختار.
-const SPLASH_FEATURE_ICONS = [
-  { Icon: Utensils, color: "#5FA8A0", top: "40%", left: "83%" },
-  { Icon: Dumbbell, color: "#5B8DBE", top: "55%", left: "87%" },
-  { Icon: Moon, color: "#8A7BD1", top: "70%", left: "84%" },
-  { Icon: Heart, color: "#D66B93", top: "85%", left: "79%" },
-];
-
-// شاشة البداية: تسلسل يرسم/يُظهر كل عنصر موجود فعلياً باللوقو الأصلي
-// (logo-mark.png) - راجع التعليق أعلى الملف بالـcommit المرتبط لقائمة
-// المطابقة الكاملة. الطريق المتعرّج يُرسم أولاً (SVG path حقيقي عبر
-// pathLength - يترجمها framer-motion داخلياً لـstroke-dashoffset، لا صورة
-// PNG ثابتة)، ثم الشمس/الرأس (دائرة بارزة بنفس موضع/حجم اللوقو الأصلي
-// تقريباً) والذراع المرفوعة (امتداد لون الطريق) تظهران عند نهايته مباشرة،
-// مع الأوراق الثلاث (لا اثنتين فقط - اللوقو الأصلي فيه ثلاث) وشارات
-// الميزات الأربع بفارق زمني بسيط بينها كلها، ثم النجمة تلمع بريقاً واحداً
-// ناعماً فوق يد الشخصية المرفوعة (بنفس موضع/حجم اللوقو الأصلي)، ثم اسم
-// "مسارك" ثم الشعار التسويقي. مدة دخول العناصر ~2.1 ثانية، لكن الشاشة لا
-// تُخفى فعلياً إلا بعد اكتمال هذا الدخول الحركي بالكامل *و* اكتمال تحميل
-// بيانات التطبيق الحقيقي معاً (أيهما أبطأ) - فإن انتهى التحميل أسرع من
-// الحركة، تُكمل الحركة دورتها كاملة أولاً؛ وإن استغرق التحميل أطول، تبقى
-// الشاشة معروضة بنبض خفيف متكرر للنجمة بدل التجمّد، حتى سقف زمني عملي (بل
-// محكوم بمهلات loadAll() الحالية في مكان آخر بالملف). لا صوت إطلاقاً بهذي
-// الشاشة (أُزيل بالكامل بناءً على تأكيد صريح لاحق).
+// شاشة البداية: تراجُع مقصود عن تفكيك اللوقو لعناصر SVG منفصلة (طريق/
+// أوراق/شخصية/نجمة) - تلك المحاولات أنتجت نتيجة مكسورة بصرياً بعد عدة
+// تصحيحات متراكمة. البديل هنا مضمون البساطة: صورة اللوقو الحقيقية كاملة
+// (logo-mark.png) كوحدة واحدة غير مقسَّمة - فلا يوجد أي احتمال لعنصر
+// ناقص أو بموضع خاطئ، لأنها نفس ملف PNG الأصلي دون أي تعديل.
+// التسلسل: الصورة تكبر وتظهر بحركة spring احترافية ناعمة (لا bounce قوي)،
+// ثم توهج/نبضة خفيفة واحدة غير متكررة حول الصورة (drop-shadow ذهبي يحترم
+// شكل الشعار الفعلي الشفاف، لا مربّعاً)، ثم اسم "مسارك" fade-in للأعلى، ثم
+// الشعار التسويقي بنفس الأسلوب. مدة الدخول بالكامل ~1.4 ثانية، لكن الشاشة
+// لا تُخفى فعلياً إلا بعد اكتمال هذا الدخول الحركي *و* اكتمال تحميل بيانات
+// التطبيق الحقيقي معاً (أيهما أبطأ) - فإن انتهى التحميل أسرع من الحركة،
+// تُكمل الحركة دورتها كاملة أولاً؛ وإن استغرق التحميل أطول، تتحوّل نبضة
+// الصورة تلقائياً لنبض متكرر لطيف بدل التجمّد على شاشة ساكنة، حتى سقف زمني
+// عملي (~3 ثوانٍ عند الحاجة، بل محكوم أصلاً بمهلات loadAll() بمكان آخر
+// بالملف). لا صوت إطلاقاً بهذي الشاشة.
 function SplashScreen({ onDone, loaded }) {
   const { t, i18n } = useTranslation();
   const [hiding, setHiding] = useState(false);
   const [sequenceDone, setSequenceDone] = useState(false);
-  // من يفعّل "تقليل الحركة" في جهازه يرى كل عنصر بحالته النهائية فوراً (بلا
-  // أي حركة/تأخير)، مع الإبقاء على نفس توقيت اكتمال الدخول - فقط الحركة
-  // نفسها تُزال، لا الشاشة كاملة.
+  // من يفعّل "تقليل الحركة" في جهازه يرى الصورة والنصوص بحالتها النهائية
+  // فوراً (بلا أي حركة/توهج)، مع الإبقاء على نفس توقيت اكتمال الدخول - فقط
+  // الحركة نفسها تُزال، لا الشاشة كاملة.
   const reduceMotion = useReducedMotion();
 
   useEffect(() => {
-    const timer = setTimeout(() => setSequenceDone(true), 2100);
+    const timer = setTimeout(() => setSequenceDone(true), 1450);
     return () => clearTimeout(timer);
   }, []);
 
@@ -1618,37 +1605,33 @@ function SplashScreen({ onDone, loaded }) {
 
   const waiting = sequenceDone && !loaded;
 
-  const road = reduceMotion
-    ? { initial: { pathLength: 1 }, animate: { pathLength: 1 }, transition: { duration: 0 } }
-    : { initial: { pathLength: 0 }, animate: { pathLength: 1 }, transition: { duration: 0.65, ease: "easeInOut" } };
-  const personArm = reduceMotion
-    ? { initial: { pathLength: 1 }, animate: { pathLength: 1 }, transition: { duration: 0 } }
-    : { initial: { pathLength: 0 }, animate: { pathLength: 1 }, transition: { delay: 0.62, duration: 0.3, ease: "easeOut" } };
-  const sun = reduceMotion
-    ? { initial: { opacity: 1, scale: 1 }, animate: { opacity: 1, scale: 1 }, transition: { duration: 0 } }
-    : { initial: { opacity: 0, scale: 0.5 }, animate: { opacity: 1, scale: 1 }, transition: { delay: 0.55, duration: 0.28, ease: "easeOut" } };
-  const leaves = reduceMotion
-    ? { initial: { opacity: 1, y: 0 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0 } }
-    : { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 }, transition: { delay: 0.58, duration: 0.26, ease: "easeOut" } };
-  const iconAnim = (i) => reduceMotion
-    ? { initial: { opacity: 1, y: 0 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0 } }
-    : { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 }, transition: { delay: 0.68 + i * 0.1, duration: 0.26, ease: "easeOut" } };
-  // النجمة: لمعة واحدة ناعمة عند الدخول، ثم إن اضطُررنا للانتظار لتحميل
-  // حقيقي أبطأ من الحركة، تتحوّل تلقائياً لنبض لطيف متكرر بدل التجمّد على
-  // شاشة ساكنة بلا أي إشارة حياة.
-  const starInitial = reduceMotion ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.3 };
-  const starAnimate = waiting
-    ? { opacity: [0.7, 1, 0.7], scale: [1, 1.1, 1] }
-    : reduceMotion ? { opacity: 1, scale: 1 } : { opacity: [0, 1, 0.85], scale: [0.3, 1.25, 1] };
-  const starTransition = waiting
-    ? { duration: 1.2, repeat: Infinity, ease: "easeInOut" }
-    : reduceMotion ? { duration: 0 } : { delay: 1.1, duration: 0.4, ease: "easeOut" };
+  // تسلسل الصورة بالكامل مُعرَّف كخط زمني واحد ثابت (قيم/توقيت محدَّدان
+  // مسبقاً عبر مصفوفات keyframes + times)، لا آلة حالة تعتمد على
+  // onAnimationComplete - فتفادينا خللاً حقيقياً وُجد أثناء الاختبار: مزج
+  // نوع "spring" (فيزيائي) مع خاصية "filter" غير الرقمية يجعل framer-motion
+  // يُطلق onAnimationComplete مبكراً جداً قبل اكتمال الظهور فعلياً، فيقفز
+  // الكود لمرحلة النبض قبل أوانها ويُجمِّد الشفافية عند قيمة منخفضة غير
+  // مكتملة (تختفي الصورة فعلياً رغم بقاء النص). الحل: تسلسل tween واحد
+  // بسيط (دخول ثم نبضة توهج واحدة) داخل نفس الاستدعاء، بلا أي تبديل حالة.
+  const NO_GLOW = "drop-shadow(0 0 0px rgba(224,184,104,0))";
+  const GLOW = "drop-shadow(0 0 26px rgba(224,184,104,0.5))";
+  const GLOW_SOFT = "drop-shadow(0 0 16px rgba(224,184,104,0.35))";
+  const logoAnimate = reduceMotion
+    ? { opacity: 1, scale: 1, filter: NO_GLOW }
+    : waiting
+      ? { opacity: 1, scale: [1, 1.025, 1], filter: [NO_GLOW, GLOW_SOFT, NO_GLOW] }
+      : { opacity: [0, 1, 1, 1], scale: [0.85, 1, 1.02, 1], filter: [NO_GLOW, NO_GLOW, GLOW, NO_GLOW] };
+  const logoTransition = reduceMotion
+    ? { duration: 0 }
+    : waiting
+      ? { duration: 1.6, repeat: Infinity, ease: "easeInOut" }
+      : { duration: 1.0, times: [0, 0.5, 0.8, 1], ease: "easeOut" };
   const wordmarkAnim = reduceMotion
-    ? { initial: { opacity: 1, y: 0, clipPath: "inset(0 0 0 0%)" }, animate: { opacity: 1, y: 0, clipPath: "inset(0 0 0 0%)" }, transition: { duration: 0 } }
-    : { initial: { opacity: 0, y: 8, clipPath: "inset(0 0 0 100%)" }, animate: { opacity: 1, y: 0, clipPath: "inset(0 0 0 0%)" }, transition: { delay: 1.35, duration: 0.3, ease: [0.65, 0, 0.35, 1] } };
+    ? { initial: { opacity: 1, y: 0 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0 } }
+    : { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 }, transition: { delay: 0.55, duration: 0.35, ease: "easeOut" } };
   const taglineAnim = reduceMotion
     ? { initial: { opacity: 1, y: 0 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0 } }
-    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 }, transition: { delay: 1.6, duration: 0.3, ease: "easeOut" } };
+    : { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 }, transition: { delay: 0.85, duration: 0.35, ease: "easeOut" } };
 
   return (
     <motion.div
@@ -1659,83 +1642,24 @@ function SplashScreen({ onDone, loaded }) {
         minHeight: "100vh",
         // خلفية فاتحة هادئة ثابتة (نفس روح خلفية اللوقو) - عمداً مستقلة عن
         // var(--bg) الحالي (الذي يتبع النمط المختار ويكون داكناً بالوضع
-        // الليلي)، لأن الرسم الجديد (طريق/شخصية/أوراق/نجمة) مصمَّم للتباين
-        // فوق خلفية فاتحة تحديداً كما بملف اللوقو الأصلي.
+        // الليلي).
         background: "linear-gradient(160deg, #FFFDF9, #FAF3E6)",
         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
         overflow: "hidden", direction: i18n.language === "en" ? "ltr" : "rtl",
       }}
     >
-      <div style={{ position: "relative", width: 200, height: 200 }}>
-        <svg viewBox="0 0 220 220" width="200" height="200" style={{ position: "absolute", inset: 0, overflow: "visible" }}>
-          <defs>
-            <linearGradient id="splashRoadGrad" x1="0" y1="1" x2="0" y2="0">
-              <stop offset="0%" stopColor="#2E4A66" />
-              <stop offset="55%" stopColor="#4F8F86" />
-              <stop offset="100%" stopColor="#D9A24B" />
-            </linearGradient>
-            <linearGradient id="splashLeafGrad" x1="0" y1="1" x2="1" y2="0">
-              <stop offset="0%" stopColor="#4F8F86" />
-              <stop offset="100%" stopColor="#7FB88A" />
-            </linearGradient>
-          </defs>
-          {/* الطريق المتعرّج - مسار SVG حقيقي واحد يُرسَم تدريجياً عبر
-              pathLength (framer-motion يترجمها لـstroke-dashoffset فعلياً)،
-              لا صورة ثابتة. */}
-          <motion.path
-            d="M 78 200 C 42 178, 40 138, 78 118 C 116 98, 118 68, 88 50 C 90 55, 95 60, 100 62"
-            fill="none" stroke="url(#splashRoadGrad)" strokeWidth="13" strokeLinecap="round"
-            {...road}
-          />
-          {/* الشمس/الرأس - دائرة بارزة بنفس موضع وحجم اللوقو الأصلي تقريباً
-              (وليست نقطة صغيرة)، تظهر فور اكتمال رسم الطريق. */}
-          <motion.circle cx="125" cy="50" r="19" fill="#E0B868" {...sun} />
-          {/* الذراع المرفوعة - استمرار مباشر للطريق بنفس لونه الذهبي، تمتد
-              من كتف الشخصية (نهاية الطريق) حتى قرب النجمة. */}
-          <motion.path
-            d="M 100 62 C 112 48, 128 38, 145 32 C 158 28, 168 24, 178 22"
-            fill="none" stroke="#D9A24B" strokeWidth="9" strokeLinecap="round"
-            {...personArm}
-          />
-          {/* الأوراق الثلاث (لا اثنتين) - نفس عدد أوراق اللوقو الأصلي تماماً:
-              ورقة طويلة مركزية، وورقتان أقصر تفترقان يميناً ويساراً منها. */}
-          <motion.path d="M 65 110 C 58 80, 62 45, 78 20 C 90 48, 88 85, 65 110 Z" fill="url(#splashLeafGrad)" {...leaves} />
-          <motion.path d="M 55 118 C 24 108, 10 78, 30 48 C 55 66, 62 96, 55 118 Z" fill="url(#splashLeafGrad)" opacity={0.92} {...leaves} />
-          <motion.path d="M 45 92 C 18 88, 4 62, 20 34 C 44 48, 54 74, 45 92 Z" fill="url(#splashLeafGrad)" opacity={0.82} {...leaves} />
-          {/* النجمة/البريق - شكل نجمة رباعية الأطراف فوق يد الشخصية المرفوعة
-              مباشرة (نفس موضع/حجم اللوقو الأصلي تقريباً)، بلمعة واحدة عند
-              الدخول (لا وميض متكرر إلا أثناء انتظار تحميل حقيقي أطول من
-              الحركة - راجع starAnimate أعلاه). */}
-          <motion.path
-            d="M 183 8 L 188 21 L 201 26 L 188 31 L 183 44 L 178 31 L 165 26 L 178 21 Z"
-            fill="#E0B868" initial={starInitial} animate={starAnimate} transition={starTransition}
-          />
-        </svg>
-        {SPLASH_FEATURE_ICONS.map(({ Icon, color, top, left }, i) => (
-          <motion.div
-            key={i}
-            {...iconAnim(i)}
-            style={{
-              position: "absolute", top, left, transform: "translate(-50%, -50%)",
-              width: 32, height: 32, borderRadius: 10, background: color,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
-            }}
-          >
-            <Icon size={16} color="#fff" />
-          </motion.div>
-        ))}
-      </div>
-      {/* الحروف العربية متصلة الشكل (تتغيّر هيئتها حسب موضعها بالكلمة)،
-          فتقسيم "مسار" لحروف منفصلة يكسر شكلها - بدلاً من ذلك، نص واحد
-          يُكشَف تدريجياً بقناع (clipPath) يتحرّك من اليمين لليسار (اتجاه
-          القراءة العربي)، فيبدو وكأنه "يُكتب" دون كسر اتصال الحروف. */}
-      <div style={{ overflow: "hidden", marginTop: 4 }}>
-        <motion.div
-          {...wordmarkAnim}
-          style={{ fontFamily: "'Amiri', serif", fontSize: 40, fontWeight: 700, color: "#2B2A27", letterSpacing: 2 }}
-        >{t("splash.wordmark")}</motion.div>
-      </div>
+      <motion.img
+        src="/logo-mark.png"
+        alt=""
+        initial={reduceMotion ? { opacity: 1, scale: 1, filter: NO_GLOW } : { opacity: 0, scale: 0.85, filter: NO_GLOW }}
+        animate={logoAnimate}
+        transition={logoTransition}
+        style={{ width: 168, height: 168, marginBottom: 8 }}
+      />
+      <motion.div
+        {...wordmarkAnim}
+        style={{ fontFamily: "'Amiri', serif", fontSize: 40, fontWeight: 700, color: "#2B2A27", letterSpacing: 2 }}
+      >{t("splash.wordmark")}</motion.div>
       <motion.div
         {...taglineAnim}
         style={{ fontSize: 14, color: "#8A8474", marginTop: 6, letterSpacing: 0.3, textAlign: "center" }}

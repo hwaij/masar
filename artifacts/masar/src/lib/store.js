@@ -1481,13 +1481,46 @@ export const store = {
     lsSet(LS.gamify, g);
     return g;
   },
-  async saveGamify(g) {
-    lsSet(LS.gamify, g);
-    if (useCloud()) {
-      const { error } = await supabase.from("gamify").upsert({ owner: CURRENT_OWNER, points: g.points, badges: g.badges, updated_at: new Date().toISOString() });
-      if (error) { console.error("[saveGamify] Supabase error:", error.message); return { ok: false, error: error.message }; }
-    }
+  // خلل حقيقي وُجد وأُصلح: كانت كل زيادة/نقصان نقاط تُحسَب بالكامل بالعميل
+  // (القيمة الحالية بذاكرة React + n) ثم تُكتَب كقيمة مطلقة فوق العمود
+  // بقاعدة البيانات (upsert)، بلا أي زيادة ذرية أو إعادة مزامنة دورية بعد
+  // التحميل الأول. أي تبويب/جهاز ثانٍ لنفس الحساب بحالة قديمة بالذاكرة
+  // (تبويب تُرك مفتوحاً طويلاً، أو جهاز لم يُحدَّث بعد) كان يكتب فوق الرصيد
+  // الحقيقي بـ"قيمته القديمة + n" الخاصة به، فيمحو كل تقدّم حصل بمكان آخر
+  // منذ ذلك الحين - يظهر هذا للمستخدم كأن "المستوى رجع فجأة لمستوى منخفض"
+  // رغم أن حساب المستوى نفسه (getLevel بـhelpers.js) سليم تماماً وبلا حد
+  // أعلى أو إعادة تعيين. الإصلاح: زيادة/نقصان النقاط تمرّ الآن عبر دالة
+  // ذرية بقاعدة البيانات (increment_gamify_points، انظر supabase-schema.sql)
+  // تُنفَّذ بجملة SQL واحدة (points = points + delta) بدل قراءة-ثم-كتابة من
+  // العميل، وتُرجع الرصيد الحقيقي بعد التحديث ليُطابَق به state المحلي، بدل
+  // الوثوق بحساب العميل الافتراضي. saveGamify نفسها أصبحت مخصَّصة للشارات
+  // فقط (badges) - لا تُرسِل عمود points إطلاقاً، فلا يمكنها أبداً الكتابة
+  // فوقه بقيمة قديمة حتى لو كانت gamify state بالذاكرة متأخرة عن الحقيقة.
+  async saveGamifyBadges(badges) {
+    const local = lsGet(LS.gamify, { points: 0, badges: [] });
+    lsSet(LS.gamify, { ...local, badges });
+    if (!useCloud()) return { ok: true };
+    const { error } = await supabase.from("gamify").upsert({ owner: CURRENT_OWNER, badges, updated_at: new Date().toISOString() });
+    if (error) { console.error("[saveGamifyBadges] Supabase error:", error.message); return { ok: false, error: error.message }; }
     return { ok: true };
+  },
+  async incrementGamifyPoints(delta) {
+    const local = lsGet(LS.gamify, { points: 0, badges: [] });
+    const localNext = { ...local, points: Math.max(0, local.points + delta) };
+    lsSet(LS.gamify, localNext);
+    if (!useCloud()) return { ok: true, points: localNext.points };
+    try {
+      const { data, error } = await supabase.rpc("increment_gamify_points", { p_delta: delta });
+      if (error) { console.error("[incrementGamifyPoints] Supabase error:", error.message); return { ok: false, error: error.message, points: null }; }
+      // طابِق التخزين المحلي بالرصيد الحقيقي المُرجَع من القاعدة (قد يختلف
+      // عن localNext.points إن كان هناك انحراف سابق - هذا بالضبط ما يصحّحه
+      // هذا الإصلاح تلقائياً عند أول عملية ناجحة).
+      lsSet(LS.gamify, { ...localNext, points: data });
+      return { ok: true, points: data };
+    } catch (e) {
+      console.error("[incrementGamifyPoints] write failed:", e);
+      return { ok: false, error: String(e), points: null };
+    }
   },
 
   async loadChatMessages() {

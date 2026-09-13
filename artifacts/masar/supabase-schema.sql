@@ -1315,6 +1315,41 @@ drop policy if exists gamify_anon_solo on gamify;
 drop policy if exists gamify_user_own on gamify;
 create policy gamify_user_own on gamify for all to authenticated using (owner = auth.uid()::text) with check (owner = auth.uid()::text);
 
+-- إصلاح خلل حقيقي (تقرير: "المستوى رجع فجأة لمستوى منخفض بدل الاستمرار
+-- بالتصاعد"): كانت كل زيادة/نقصان نقاط تُحسَب بالكامل بجانب العميل (القيمة
+-- الحالية بذاكرة React + n) ثم تُكتَب كقيمة مطلقة فوق عمود points (upsert)،
+-- بلا أي زيادة ذرية ولا إعادة مزامنة دورية بعد التحميل الأول. أي تبويب/جهاز
+-- ثانٍ لنفس الحساب بحالة قديمة بالذاكرة (تبويب تُرك مفتوحاً طويلاً، أو جهاز
+-- لم يُحدَّث بعد) كان يكتب فوق الرصيد الحقيقي بـ"قيمته القديمة + n" الخاصة
+-- به، فيمحو كل تقدّم حصل بمكان آخر منذ ذلك الحين - وحساب المستوى نفسه
+-- (getLevel بـhelpers.js) سليم تماماً وبلا حد أعلى أو إعادة تعيين، المشكلة
+-- كانت في مصدر رقم النقاط نفسه لا في طريقة حساب المستوى منه. هذه الدالة
+-- تُنفِّذ الزيادة/النقصان بجملة SQL ذرية واحدة (points = points + delta)
+-- مباشرة بالقاعدة بدل قراءة-ثم-كتابة من العميل، وتُرجع الرصيد الحقيقي بعد
+-- التحديث - يُستدعى عبر supabase.rpc("increment_gamify_points", ...) من
+-- store.js (incrementGamifyPoints)، بديلاً عن upsert المطلق القديم.
+create or replace function increment_gamify_points(p_delta integer)
+returns integer
+language plpgsql security definer set search_path = public
+as $$
+declare
+  new_points integer;
+  p_owner text := auth.uid()::text;
+begin
+  if p_owner is null then
+    raise exception 'NOT_AUTHENTICATED' using errcode = 'P0001';
+  end if;
+  insert into gamify (owner, points)
+  values (p_owner, greatest(p_delta, 0))
+  on conflict (owner) do update
+    set points = greatest(gamify.points + p_delta, 0),
+        updated_at = now()
+  returning points into new_points;
+  return new_points;
+end;
+$$;
+grant execute on function increment_gamify_points(integer) to authenticated;
+
 alter table mandatory_log enable row level security;
 drop policy if exists mandatory_log_anon_solo on mandatory_log;
 drop policy if exists mandatory_log_user_own on mandatory_log;

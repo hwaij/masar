@@ -450,10 +450,10 @@ export default function MasarApp() {
         if (missedPrayers > 0) { deduction += missedPrayers * 5; reasons.push(i18n.language === "en" ? `${missedPrayers} missed prayers` : `${missedPrayers} صلوات فائتة`); }
         if (deduction > 0) {
           const prevGamify = g;
-          const next = { ...g, points: Math.max(0, g.points - deduction) };
-          setGamify(next);
-          const gRes = await store.saveGamify(next);
+          setGamify({ ...g, points: Math.max(0, g.points - deduction) });
+          const gRes = await store.incrementGamifyPoints(-deduction);
           if (!gRes.ok) { setGamify(prevGamify); showToast(t("common.errors.saveFailed")); }
+          else if (gRes.points != null) setGamify((cur) => ({ ...cur, points: gRes.points }));
           // "missing locale key" لهذا السطر: prayer.missedTasksLogReason
           // ("Missed items ({{date}}): {{list}}" / "خصم فائتات ({{date}}): {{list}}") - بديل حرفي مؤقتاً.
           const logEntry = { id: uid(), date: today, amount: -deduction, reason: i18n.language === "en" ? `Missed items (${yesterday}): ${[...new Set(reasons)].join(", ")}` : `خصم فائتات (${yesterday}): ${[...new Set(reasons)].join("، ")}` };
@@ -1006,9 +1006,12 @@ export default function MasarApp() {
     const newOnes = earned.filter((id) => !(gamify?.badges || []).includes(id));
     if (newOnes.length) {
       const prevGamify = gamify;
-      const next = { points: gamify?.points || 0, badges: [...(gamify?.badges || []), ...newOnes] };
-      setGamify(next);
-      store.saveGamify(next).then((res) => {
+      const newBadges = [...(gamify?.badges || []), ...newOnes];
+      setGamify((cur) => ({ ...(cur || { points: 0, badges: [] }), badges: newBadges }));
+      // saveGamifyBadges لا تُرسِل عمود points إطلاقاً (انظر تعليقها بـstore.js)
+      // - لا خطر من الكتابة فوق رصيد نقاط حقيقي بقيمة قديمة هنا حتى لو كانت
+      // gamify state بالذاكرة متأخرة عن الحقيقة لأي سبب.
+      store.saveGamifyBadges(newBadges).then((res) => {
         if (!res.ok) { setGamify(prevGamify); showToast(t("common.errors.saveFailed")); }
       });
       const earnedBadge = BADGES.find((b) => b.id === newOnes[0]);
@@ -1041,8 +1044,16 @@ export default function MasarApp() {
       // متزامن؛ حارس مطابق هنا يمنع نفس الخطأ في هذا المسار غير المتزامن أيضاً
       // بصرف النظر عن السبب الدقيق (تشخيص أعمق يتجاوز نطاق هذه المهمة الحالية).
       const basePrevGamify = prevGamify || { points: 0, badges: [] };
-      const gRes = await store.saveGamify({ ...basePrevGamify, points: Math.max(0, basePrevGamify.points + n) });
+      // incrementGamifyPoints ذرية بقاعدة البيانات (points = points + n بجملة
+      // SQL واحدة، انظر تعليق store.js) بدل upsert لقيمة مطلقة محسوبة بالعميل
+      // - تمنع أي تبويب/جهاز آخر بحالة قديمة من محو تقدّم حقيقي حصل بمكان
+      // آخر (هذا كان السبب الجذري لتقرير "المستوى رجع فجأة لمستوى منخفض").
+      // النتيجة المُرجَعة هي الرصيد الحقيقي بعد التحديث من القاعدة نفسها -
+      // تُطابَق بها state المحلي بدل الوثوق بحساب "prevGamify + n" الافتراضي،
+      // فيصحَّح تلقائياً أي انحراف سابق بين الاثنين عند أول عملية ناجحة لاحقة.
+      const gRes = await store.incrementGamifyPoints(n);
       if (!gRes.ok) { setGamify(basePrevGamify); showToast(t("common.errors.saveFailed")); }
+      else if (gRes.points != null) setGamify((cur) => ({ ...cur, points: gRes.points }));
       const pRes = await store.addPointsLog(logEntry);
       if (!pRes.ok) setPointsLog((prev) => prev.filter((p) => p.id !== logEntry.id));
     })();

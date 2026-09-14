@@ -498,33 +498,11 @@ export default function MasarApp() {
     })();
     const unsub = onAuthChange(async (session) => {
       const u = userFromSession(session);
-      const newId = u?.id || null;
-      // خلل حقيقي وُجد وأُصلح: نفس فئة "القفل العالق" الموثّقة أعلاه بالضبط
-      // (auth.js: getSession قد يعلَق أو يُصحِّح حالته خطأً بعد إعادة تنشيط
-      // تبويب/PWA كان بالخلفية طويلاً على الجوال) - لكن onAuthStateChange
-      // نفسه (لا فقط getSession) قد يُطلق حدثاً بجلسة فارغة (null) بشكل زائف
-      // في نفس هذا السيناريو تحديداً، رغم أن الجلسة الحقيقية المخزَّنة سليمة
-      // تماماً. الكود السابق كان يُصدِّق أي انتقال لـnull فوراً كتسجيل خروج
-      // حقيقي: CURRENT_OWNER يرجع لـ"solo"، فيُعيد loadAll() تحميل كل شيء
-      // محلياً فقط (بلا سحابة) - ومنها المظهر (theme)، فيرجع للافتراضي
-      // ويبقى كذلك في الذاكرة حتى يُعاد اختياره يدوياً (هذا بالضبط تقرير
-      // "الـTheme يرجع للأساسي عند العودة من الخلفية"، لا علاقة له بخلل
-      // تحويل loadProfile() القديم نفسه - ذاك سليم تماماً الآن، المشكلة هنا
-      // في مصدر الحدث لا في قراءة الملف الشخصي). الإصلاح: أي انتقال من
-      // "مستخدم معروف" إلى "لا جلسة" يُتحقَّق منه بنداء getSession() صريح
-      // (بنفس مهلة/منطق auth.js) قبل تصديقه، بدل الاعتماد على قيمة session
-      // المُرسَلة لهذا الحدث وحدها - إن كانت الجلسة الحقيقية ما زالت قائمة
-      // فعلاً (أو حتى غامضة/عالقة)، يُتجاهَل الحدث الزائف تماماً بلا أي إعادة
-      // تحميل أو تغيير حالة.
-      if (!newId && userIdRef.current) {
-        const { session: verifySession, timedOut } = await getSession();
-        const verifiedId = userFromSession(verifySession)?.id || null;
-        if (verifiedId || timedOut) return;
-      }
       // أي استدعاء فعلي هنا (بخلاف نداء getSession أعلاه) يعني أن supabase-js
       // حصل على إجابة حقيقية أخيراً (القفل تحرَّر) - الحالة لم تعد غامضة بغض
       // النظر عن كون الإجابة "مسجَّل دخول" أو "لا جلسة فعلاً" هذه المرة.
       setSessionCheckAmbiguous(false);
+      const newId = u?.id || null;
       if (newId === userIdRef.current) return;
       userIdRef.current = newId;
       setOwner(u?.id);

@@ -508,41 +508,51 @@ export default function MasarApp() {
       setUser(u);
       if (active) await loadAll();
     })();
-    const unsub = onAuthChange(async (session) => {
-      const u = userFromSession(session);
-      const newId = u?.id || null;
-      // خلل حقيقي وُجد وأُصلح: نفس فئة "القفل العالق" الموثّقة أعلاه بالضبط
-      // (auth.js: getSession قد يعلَق أو يُصحِّح حالته خطأً بعد إعادة تنشيط
-      // تبويب/PWA كان بالخلفية طويلاً على الجوال) - لكن onAuthStateChange
-      // نفسه (لا فقط getSession) قد يُطلق حدثاً بجلسة فارغة (null) بشكل زائف
-      // في نفس هذا السيناريو تحديداً، رغم أن الجلسة الحقيقية المخزَّنة سليمة
-      // تماماً. الكود السابق كان يُصدِّق أي انتقال لـnull فوراً كتسجيل خروج
-      // حقيقي: CURRENT_OWNER يرجع لـ"solo"، فيُعيد loadAll() تحميل كل شيء
-      // محلياً فقط (بلا سحابة) - ومنها المظهر (theme)، فيرجع للافتراضي
-      // ويبقى كذلك في الذاكرة حتى يُعاد اختياره يدوياً (هذا بالضبط تقرير
-      // "الـTheme يرجع للأساسي عند العودة من الخلفية"، لا علاقة له بخلل
-      // تحويل loadProfile() القديم نفسه - ذاك سليم تماماً الآن، المشكلة هنا
-      // في مصدر الحدث لا في قراءة الملف الشخصي). الإصلاح: أي انتقال من
-      // "مستخدم معروف" إلى "لا جلسة" يُتحقَّق منه بنداء getSession() صريح
-      // (بنفس مهلة/منطق auth.js) قبل تصديقه، بدل الاعتماد على قيمة session
-      // المُرسَلة لهذا الحدث وحدها - إن كانت الجلسة الحقيقية ما زالت قائمة
-      // فعلاً (أو حتى غامضة/عالقة)، يُتجاهَل الحدث الزائف تماماً بلا أي إعادة
-      // تحميل أو تغيير حالة.
-      if (!newId && userIdRef.current) {
-        const { session: verifySession, timedOut } = await getSession();
-        const verifiedId = userFromSession(verifySession)?.id || null;
-        if (verifiedId || timedOut) return;
-      }
-      // أي استدعاء فعلي هنا (بخلاف نداء getSession أعلاه) يعني أن supabase-js
-      // حصل على إجابة حقيقية أخيراً (القفل تحرَّر) - الحالة لم تعد غامضة بغض
-      // النظر عن كون الإجابة "مسجَّل دخول" أو "لا جلسة فعلاً" هذه المرة.
-      setSessionCheckAmbiguous(false);
-      if (newId === userIdRef.current) return;
-      userIdRef.current = newId;
-      setOwner(u?.id);
-      setUser(u);
-      setLoaded(false);
-      await loadAll();
+    // خلل حقيقي وُجد وأُصلح (تراجع عن جزء من 333cd50 - كان هو نفسه سبب تدهور
+    // إضافي أسوأ، لا مجرد إصلاح جزئي): الإصدار السابق من هذا المستمع كان
+    // يستدعي getSession() مباشرة (بـawait) من داخل جسم onAuthStateChange
+    // نفسه للتحقق من صحة حدث "لا جلسة". هذا نمط خطير موثَّق رسمياً من
+    // Supabase نفسها: استدعاء أي دالة أخرى من supabase.auth.* (ومنها
+    // getSession) من داخل onAuthStateChange قد يتعارض مع قفل المزامنة
+    // الداخلي (navigator.locks) الذي تُدار به هذه الدالة نفسها أثناء تنفيذ
+    // الحدث - نفس فئة "القفل العالق" الموثّقة بـauth.js بالضبط، لكن هذه
+    // المرة نحن من تسبَّب بتفعيلها/تفاقمها مباشرة بدل مجرد الدفاع ضدها.
+    // النتيجة الفعلية المُلاحَظة: تكرار/تضارب أحداث auth بسرعة، فتتوالى
+    // نداءات loadAll() متراكبة بعضها فوق بعض - كل واحدة تنتهي بقيمة مختلفة
+    // حسب توقيتها (يفسّر اهتزاز الـTheme بين الأسود والطبيعي بلا أي تدخل)،
+    // وبعضها يتعطّل فعلياً بسبب حالة عميل Supabase المتأزّمة (يفسّر ظهور
+    // "تعذّر الحفظ" عند كسب نقاط، وحتى رجوع النقاط/المستوى لصفر حقيقي: عند
+    // تعليق استعلام loadGamify السحابي بسبب هذا التزاحم لأكثر من مهلة الـ8
+    // ثوانٍ، يُستبدَل بالقيمة الافتراضية الصفرية المُمرَّرة لـwithTimeout
+    // مباشرة، لا بالنسخة المحلية المخزَّنة).
+    //
+    // الإصلاح الصحيح (بدل التراجع الكامل عن حماية "الحدث الزائف"، أو تكرار
+    // نفس الخطأ بمكان آخر): يبقى التحقق نفسه، لكن يُؤجَّل بالكامل خارج سياق
+    // onAuthStateChange المتزامن عبر setTimeout(...,0) - هذا هو الحل الموصى
+    // به رسمياً من توثيق Supabase لأي عمل إضافي يعتمد على استدعاءات auth
+    // أخرى داخل هذا المستمع تحديداً، ويزيل خطر القفل تماماً دون التخلي عن
+    // الحماية من الحدث الزائف نفسها.
+    const unsub = onAuthChange((session) => {
+      setTimeout(async () => {
+        const u = userFromSession(session);
+        const newId = u?.id || null;
+        if (!newId && userIdRef.current) {
+          const { session: verifySession, timedOut } = await getSession();
+          const verifiedId = userFromSession(verifySession)?.id || null;
+          if (verifiedId || timedOut) return;
+        }
+        // أي استدعاء فعلي هنا (بخلاف نداء getSession أعلاه) يعني أن
+        // supabase-js حصل على إجابة حقيقية أخيراً (القفل تحرَّر) - الحالة لم
+        // تعد غامضة بغض النظر عن كون الإجابة "مسجَّل دخول" أو "لا جلسة
+        // فعلاً" هذه المرة.
+        setSessionCheckAmbiguous(false);
+        if (newId === userIdRef.current) return;
+        userIdRef.current = newId;
+        setOwner(u?.id);
+        setUser(u);
+        setLoaded(false);
+        await loadAll();
+      }, 0);
     });
     return () => { active = false; unsub(); };
   }, [loadAll]);

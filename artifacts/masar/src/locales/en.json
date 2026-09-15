@@ -1363,6 +1363,8 @@
     "orEditQuantityUnit": "Or edit the quantity in {{unit}} directly",
     "approxConversionNote": "Approximate conversion to grams to calculate nutrition values (non-weight unit).",
     "approxDensityNote": "Approximate conversion between weight and volume using an estimated density for this item — the actual number may vary slightly by product.",
+    "negativeValueError": "Nutrition values can't be negative. Fix the value before continuing.",
+    "negativeQuantityError": "Enter a valid quantity greater than zero — quantity can't be negative or zero.",
     "editQuantityLabel": "Edit quantity",
     "editServingsLabel": "Or edit by number of servings (each serving is {{g}}g)",
     "decreaseQty": "Decrease quantity",

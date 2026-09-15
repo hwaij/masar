@@ -1363,6 +1363,17 @@ function AddProductWizard({ initialBarcode, onSave, onManual, showToast }) {
   }
   function changeBasis(field, val) { setBasisValues((b) => ({ ...b, [field]: Number(val) || 0 })); }
   function changeMicro(key, val) { setMicroValues((m) => ({ ...m, [key]: val === "" ? undefined : Number(val) })); }
+  // خلل حقيقي وُجد وأُصلح (Well-D Priority 2 - "manual entry safety"): كانت
+  // هذه الحقول تقبل قيماً سالبة بلا أي فحص (Number("-50") صحيح رياضياً، فلا
+  // يُصفَّر عبر "|| 0" لأن -50 قيمة صادقة/truthy) - يمكن حفظ "-50 سعرة" أو
+  // "-10غ بروتين" فعلياً في custom_foods المشتركة. لا تغيير على طريقة حساب
+  // القيم الغذائية نفسها (scaleNutrients لم تُمَس) - فقط منع دخول قيمة غير
+  // منطقية أصلاً قبل الوصول لأي حساب. NaN لا يمكن أن يصل هنا أصلاً (كلا
+  // المعالجين أعلاه يُرجعان 0 لأي نص غير رقمي عبر "|| 0"/فحص "===‎ '')"،
+  // فيبقى الفحص هنا مقتصراً على السالب فعلاً - هو الثغرة الحقيقية الوحيدة.
+  const hasNegativeBasis = !!basisValues && Object.values(basisValues).some((v) => typeof v === "number" && v < 0);
+  const hasNegativeMicro = Object.values(microValues).some((v) => typeof v === "number" && v < 0);
+  const hasNegativeValues = hasNegativeBasis || hasNegativeMicro;
 
   // الخطوة 2: الباركود والاسم
   const [barcode, setBarcode] = useState(initialBarcode || "");
@@ -1417,8 +1428,13 @@ function AddProductWizard({ initialBarcode, onSave, onManual, showToast }) {
   const gramsEquivalent = wizardConversion.value;
   const qtyPreview = per100 ? scaleNutrients(per100, gramsEquivalent || 0) : null;
 
-  const step1Valid = !!basisValues;
+  const step1Valid = !!basisValues && !hasNegativeValues;
   const step2Valid = barcode.trim() && name.trim();
+  // نفس مبدأ منع القيم غير المنطقية أعلاه، لكمية التسجيل بالخطوة 3 - كمية
+  // سالبة أو صفرية لا معنى لها (لا يمكن تناول كمية سالبة من طعام).
+  // Number.isNaN فحص دفاعي إضافي (النصوص غير الرقمية تُرَدّ بالفعل لـ0 عبر
+  // "|| 0" بعد الإصلاح أدناه، فلا NaN يصل هنا عملياً، لكن لا ضرر من التحقق).
+  const invalidQty = logToday && (Number.isNaN(gramsEquivalent) || gramsEquivalent <= 0 || (qtyUnit === "g" ? qtyGrams < 0 : qtyUnitQty < 0));
 
   async function finalSave() {
     setSaving(true);
@@ -1534,6 +1550,7 @@ function AddProductWizard({ initialBarcode, onSave, onManual, showToast }) {
                   </div>
                 ))}
               </div>
+              {hasNegativeValues && <div style={NS.errorText}>{t("nutrition.negativeValueError")}</div>}
             </>
           )}
           <div style={NS.wizardNavRow}>
@@ -1624,7 +1641,7 @@ function AddProductWizard({ initialBarcode, onSave, onManual, showToast }) {
               {qtyUnit === "g" ? (
                 <>
                   <label style={S.label}>{t("nutrition.quantityG")}</label>
-                  <input type="number" inputMode="decimal" value={qtyGrams} onChange={(e) => setQtyGrams(Number(e.target.value))} style={S.input} />
+                  <input type="number" inputMode="decimal" value={qtyGrams} onChange={(e) => setQtyGrams(Number(e.target.value) || 0)} style={S.input} />
                 </>
               ) : (
                 <>
@@ -1639,6 +1656,7 @@ function AddProductWizard({ initialBarcode, onSave, onManual, showToast }) {
                 </>
               )}
               {wizardConversion.approxDensity && <p style={NS.unitApproxNote}>{t("nutrition.approxDensityNote")}</p>}
+              {invalidQty && <div style={NS.errorText}>{t("nutrition.negativeQuantityError")}</div>}
               {qtyPreview && (
                 <div style={NS.previewGrid}>
                   <div style={NS.previewChip}><div style={NS.macroValue}><NumericValue value={qtyPreview.calories} /></div><div style={NS.macroLabel}>{t("common.units.kcal")}</div></div>
@@ -1654,7 +1672,7 @@ function AddProductWizard({ initialBarcode, onSave, onManual, showToast }) {
             <button onClick={() => setStep(2)} style={NS.wizardBackBtn}>{i18n.language === "en" ? <ChevronLeft size={16} /> : <ChevronRight size={16} />} {t("common.buttons.back")}</button>
             <button
               onClick={finalSave}
-              disabled={saving || (logToday && (!gramsEquivalent || gramsEquivalent <= 0))}
+              disabled={saving || invalidQty}
               style={NS.wizardNextBtn}
             >
               {saving ? <Loader2 size={16} className="spin" /> : t("common.buttons.save")}

@@ -874,28 +874,22 @@ function isChunkLoadError(e) {
 const CHUNK_LOAD_ERROR_MESSAGE = "التطبيق تحديث نسخته الآن، يرجى تحديث الصفحة (Refresh) والمحاولة مرة أخرى.";
 const CHUNK_LOAD_ERROR_MESSAGE_EN = "The app just updated to a new version — please refresh the page and try again.";
 
-// نقطة التكامل الوحيدة مع "التعرّف على الطعام بالذكاء الاصطناعي". اليوم
-// تستدعي Gemini داخلياً، لكنها معزولة عمداً هنا بواجهة ثابتة (صورة تدخل،
-// تقدير غذائي منظّم يخرج) - استبدال Gemini مستقبلاً بخدمة تعرّف متخصصة
-// على الطعام يعني تعديل جسم هذه الدالة فقط، دون أي تغيير في NutritionView
-// أو أي مكان آخر يستدعيها.
+// نقطة التكامل الوحيدة مع "تقدير الطعام بالذكاء الاصطناعي". اليوم تستدعي
+// Gemini داخلياً، لكنها معزولة عمداً هنا بواجهة ثابتة - استبدال Gemini
+// مستقبلاً بخدمة أخرى يعني تعديل جسم هذه الدالة فقط.
 //
 // lang معامل اختياري (افتراضياً 'ar') يتحكم فقط بلغة تعليمة الـprompt
-// المُرسلة لـGemini (وبالتالي لغة أسماء الأطعمة المُرجعة) — لا علاقة له
-// بحقول الخطأ (error/errorEn) أدناه التي تُرجَع دائماً بكلتا اللغتين بغض
-// النظر عن lang، بنفس نمط errorEn الإضافي في بقية هذا الملف.
-// المستدعي في NutritionView.jsx يمرر i18n.language: recognizeMealFromImage(file, i18n.language).
+// المُرسلة لـGemini — لا علاقة له بحقول الخطأ (error/errorEn) أدناه التي
+// تُرجَع دائماً بكلتا اللغتين بغض النظر عن lang.
 //
-// تصحيح جوهري: هذه الدالة كانت تطلب من Gemini تخمين سعرات/ماكروز/فيتامينات
-// الوجبة مباشرة من مظهرها البصري - أي رقم غذائي في التطبيق يجب أن يأتي إما
-// من قاعدة بيانات حقيقية (generic-foods/USDA/custom_foods/OFF) أو من ملصق
-// غذائي حقيقي بيد المستخدم (معالج "إضافة منتج جديد" المرتبط بباركود)، لا
-// من تخمين بصري لذكاء اصطناعي مهما بدا معقولاً. الآن Gemini يُحدِّد فقط
-// "هوية" كل صنف طعام ظاهر (الاسم + وصف حجم الحصة الظاهر) بلا أي رقم غذائي
-// إطلاقاً - المستدعي (AIPhotoPanel) يُطابِق كل اسم بعدها مع قاعدة البيانات
-// الحقيقية (نفس searchFoodCandidatesOnce المستخدمة في البحث اليدوي والأمر
-// الصوتي) ليحصل على القيم الفعلية، تماماً بنفس مبدأ "تعرّف على الهوية فقط"
-// المطبَّق أصلاً في translateFoodTermForUsda للنص العربي.
+// قرار مقصود (يعاكس عمداً "تصحيح جوهري" سابق - راجع تاريخ git لهذه الدالة):
+// كانت هذه الدالة تُحدِّد فقط "هوية" كل صنف (بلا أي رقم غذائي)، والمستدعي
+// يطابق الاسم مع قاعدة بيانات حقيقية بعدها. بطلب صريح من المستخدم (يفهم
+// المفاضلة تماماً): الآن Gemini يُعطي تقديره الغذائي المباشر (سعرات/بروتين/
+// كارب/دهون) من مظهر الصورة نفسه - أسرع وأنسب لبعض المستخدمين، بشرط شفافية
+// كاملة أن هذه تقديرات AI تقريبية لا قيم موثَّقة من قاعدة بيانات. لا علاقة
+// لهذا بمسار الباركود/الملصق الحقيقي/البحث اليدوي - تلك تبقى كما هي تماماً،
+// قيمها الحقيقية لا تأتي أبداً من تخمين AI.
 // مفتاح تحكم واحد لإيقاف "بيضة الفصح" الفكاهية الخفيفة أدناه بسهولة إن
 // سبّبت إزعاجاً - false يعيد الرد لرسالة الخطأ الجافة القديمة فقط، بلا أي
 // تعديل آخر في المنطق.
@@ -913,47 +907,54 @@ const NON_FOOD_RESPONSES = {
   },
 };
 
-export async function recognizeMealFromImage(imageFile, lang = "ar") {
+export async function estimateMealFromImageAI(imageFile, lang = "ar") {
   try {
     const { base64, mimeType } = await compressImageToBase64(imageFile);
     const prompt = lang === "en"
-      ? `Analyze this photo. Identify each distinct food item visible SEPARATELY - don't combine different foods into one combined entry (e.g. rice and grilled chicken on the same plate must be two separate items, not one "rice with chicken" item).
+      ? `Analyze this food photo. Identify each distinct food item visible SEPARATELY - don't combine different foods into one entry (e.g. rice and grilled chicken on the same plate must be two separate items). For each item, give YOUR OWN direct nutrition estimate based on what you see - don't try to match a specific database, just estimate directly from the food type and apparent portion size.
 
 Return only valid JSON with no extra text or markdown, in exactly this shape:
-{"foods":[{"name":"string","servingEstimate":"string"}],"nonFoodSubject":"none"|"person"|"other"}
+{"foods":[{"name":"string","gramsEstimate":number,"calories":number,"protein":number,"carbs":number,"fat":number}],"nonFoodSubject":"none"|"person"|"other"}
 
 For each food item:
-- "name": the food's identity only (e.g. "grilled chicken breast", "white rice", "chicken shawarma") - as specific as you can tell from the photo, in English. Do NOT include any calorie or nutrition number in this field.
-- "servingEstimate": a short description of the apparent portion size (e.g. "1 cup", "150g", "2 pieces", "1 slice"). If you cannot confidently judge the portion size from the photo, use exactly the phrase "1 serving" instead of guessing a specific-sounding number you aren't confident about.
+- "name": the food's identity (e.g. "grilled chicken breast", "white rice"), in English.
+- "gramsEstimate": your best-guess weight in grams for the visible portion - a specific number, not a range or vague phrase.
+- "calories"/"protein"/"carbs"/"fat": your own estimate for THIS portion specifically (not per 100g) - protein/carbs/fat in grams, calories in kcal.
 
-"nonFoodSubject": ONLY set this when the "foods" array is empty (no food visible at all). Use "person" if the photo's main subject is a person or a person's face, "other" if it shows anything else non-food (an object, a place, an animal, a screen, etc.), or "none" if food items were found above.
+"nonFoodSubject": ONLY set this when "foods" is empty. "person" if a person/face is the main subject, "other" for anything else non-food, "none" if food items were found.
 
-Do not include calories, protein, carbs, fat, or any other nutrition value anywhere in your answer - identification only, no nutrition estimates. Never comment on a person's body, weight, or appearance - "nonFoodSubject" is only a category label, not a description.`
-      : `حلّل هذه الصورة. حدّد كل صنف طعام مميَّز ظاهر في الصورة بشكل منفصل - لا تدمج أطعمة مختلفة في صنف واحد (مثال: أرز ودجاج مشوي في نفس الطبق يجب أن يكونا صنفين منفصلين، لا صنفاً واحداً "أرز مع دجاج").
+Never comment on a person's body, weight, or appearance - "nonFoodSubject" is only a category label.`
+      : `حلّل صورة الطعام هذه. حدّد كل صنف طعام مميَّز ظاهر بشكل منفصل - لا تدمج أطعمة مختلفة في صنف واحد (مثال: أرز ودجاج مشوي بنفس الطبق يجب أن يكونا صنفين منفصلين). لكل صنف، أعطِ تقديرك الغذائي المباشر الخاص بناءً على ما تراه - لا تحاول مطابقة قاعدة بيانات محددة، فقط قدّر مباشرة من نوع الطعام وحجم الحصة الظاهر.
 
 أرجع فقط JSON صالحاً بدون أي نص أو markdown إضافي، بهذا الشكل بالضبط:
-{"foods":[{"name":"نص","servingEstimate":"نص"}],"nonFoodSubject":"none"|"person"|"other"}
+{"foods":[{"name":"نص","gramsEstimate":رقم,"calories":رقم,"protein":رقم,"carbs":رقم,"fat":رقم}],"nonFoodSubject":"none"|"person"|"other"}
 
 لكل صنف طعام:
-- "name": هوية الطعام فقط (مثال: "صدر دجاج مشوي"، "أرز أبيض"، "شاورما دجاج") - بأدق وصف ممكن من الصورة، بالعربية. لا تضع أي رقم سعرات أو غذائي في هذا الحقل إطلاقاً.
-- "servingEstimate": وصف قصير لحجم الحصة الظاهر (مثال: "كوب واحد"، "150غم"، "قطعتان"، "شريحة واحدة"). إن لم تستطع تقدير حجم الحصة بثقة معقولة من الصورة، استخدم بالضبط عبارة "حصة واحدة" بدل تخمين رقم دقيق المظهر لست واثقاً منه.
+- "name": هوية الطعام (مثال: "صدر دجاج مشوي"، "أرز أبيض")، بالعربية.
+- "gramsEstimate": وزنك التقديري بالغرام للحصة الظاهرة - رقم محدد، لا نطاق ولا وصف غامض.
+- "calories"/"protein"/"carbs"/"fat": تقديرك الخاص لهذه الحصة تحديداً (لا لكل 100غم) - البروتين/الكارب/الدهون بالغرام، السعرات بالكيلوكالوري.
 
-"nonFoodSubject": ضعه فقط عندما تكون قائمة "foods" فارغة (لا يوجد طعام إطلاقاً). استخدم "person" إن كان محور الصورة شخصاً أو وجه شخص، أو "other" لأي شيء آخر غير طعام (غرض، مكان، حيوان، شاشة...)، أو "none" إن وُجد طعام أعلاه.
+"nonFoodSubject": ضعه فقط عندما تكون "foods" فارغة. "person" لشخص/وجه، "other" لأي شيء آخر غير طعام، "none" إن وُجد طعام.
 
-لا تضع أي سعرات أو بروتين أو كارب أو دهون أو أي قيمة غذائية أخرى في إجابتك إطلاقاً - تعرّف على الهوية فقط، بلا أي تقدير غذائي. ممنوع نهائياً أي تعليق عن وزن أو شكل أو مظهر الشخص - "nonFoodSubject" مجرد تصنيف، لا وصف.`;
+ممنوع نهائياً أي تعليق عن وزن أو شكل أو مظهر شخص - "nonFoodSubject" مجرد تصنيف.`;
     const { geminiAnalyzeImage } = await import("./gemini.js");
-    const text = await geminiAnalyzeImage(prompt, base64, mimeType, 500);
+    const text = await geminiAnalyzeImage(prompt, base64, mimeType, 700);
     const parsed = parseJsonLoose(text);
     const rawFoods = Array.isArray(parsed.foods) ? parsed.foods : [];
+    // فحص صريح لكل حقل رقمي مطلوب (calories/gramsEstimate) قبل قبول أي
+    // صنف - عنصر بلا هذين الرقمين غير قابل للاستخدام إطلاقاً هنا (لا صنف
+    // "بلا وزن" يمكن حساب ماكروزه تناسبياً لاحقاً)، فيُستبعَد بدل تمرير
+    // NaN/undefined صامتاً لبقية المسار.
     const foods = rawFoods
-      .filter((f) => f && typeof f.name === "string" && f.name.trim().length > 0)
+      .filter((f) => f && typeof f.name === "string" && f.name.trim().length > 0
+        && typeof f.gramsEstimate === "number" && f.gramsEstimate > 0 && typeof f.calories === "number")
       .map((f) => ({
         name: f.name.trim(),
-        // نص حر دائماً (لا رقم مُلزَم) - "حصة واحدة"/"1 serving" هي بالضبط
-        // ما تُعلَّم Gemini إرجاعه أعلاه عند عدم الثقة، بدل رقم مختلَق.
-        servingEstimate: typeof f.servingEstimate === "string" && f.servingEstimate.trim()
-          ? f.servingEstimate.trim()
-          : (lang === "en" ? "1 serving" : "حصة واحدة"),
+        gramsEstimate: Math.round(f.gramsEstimate),
+        calories: Math.max(0, Number(f.calories) || 0),
+        protein: Math.max(0, Number(f.protein) || 0),
+        carbs: Math.max(0, Number(f.carbs) || 0),
+        fat: Math.max(0, Number(f.fat) || 0),
       }));
     let easterEgg = null;
     if (AI_PHOTO_EASTER_EGG_ENABLED && foods.length === 0) {
@@ -965,12 +966,92 @@ Do not include calories, protein, carbs, fat, or any other nutrition value anywh
     }
     return { ok: true, foods, easterEgg };
   } catch (e) {
-    console.error("[nutrition] recognizeMealFromImage failed:", e);
+    console.error("[nutrition] estimateMealFromImageAI failed:", e);
     const chunkError = isChunkLoadError(e);
     const error = chunkError ? CHUNK_LOAD_ERROR_MESSAGE : "تعذّر تحليل صورة الوجبة الآن. جرّب مرة أخرى أو أضف الطعام يدوياً.";
     const errorEn = chunkError ? CHUNK_LOAD_ERROR_MESSAGE_EN : "Couldn't analyze the meal photo right now. Try again or add the food manually.";
     return { ok: false, error, errorEn };
   }
+}
+
+// تقدير غذائي مباشر لصنف واحد من اسمه النصي فقط (بلا صورة) - نفس مبدأ
+// estimateMealFromImageAI أعلاه بالضبط لكن من نص لا صورة، ونفس دالة إعادة
+// التخمين المُستخدَمة لزر "خمّن مرة ثانية" (AIPhotoPanel) لأي صنف بغض النظر
+// عن مصدره الأصلي (صورة أو نص) - استدعاء AI حقيقي جديد في كل مرة، لا حساب
+// تناسبي (ذاك يبقى محلياً بالكامل عبر scaleNutrients عند تعديل الوزن فقط).
+export async function estimateFoodFromTextAI(name, lang = "ar") {
+  const cleaned = (name || "").trim();
+  if (!cleaned) {
+    return { ok: false, error: "اكتب اسم الطعام أولاً.", errorEn: "Type the food's name first." };
+  }
+  try {
+    const prompt = lang === "en"
+      ? `Give your own direct nutrition estimate for a typical single serving of this food, based on general knowledge - don't try to match a specific database, just give your best independent estimate. Food: "${cleaned}"
+
+Return only valid JSON with no extra text or markdown, in exactly this shape:
+{"name":"string","gramsEstimate":number,"calories":number,"protein":number,"carbs":number,"fat":number}
+
+"name": a clean version of the food's name. "gramsEstimate": your best-guess weight in grams for a typical single serving - a specific number. calories/protein/carbs/fat: your estimate for that serving specifically (not per 100g) - protein/carbs/fat in grams, calories in kcal.`
+      : `أعطِ تقديرك الغذائي المباشر الخاص لحصة واحدة نموذجية من هذا الطعام، بناءً على معرفتك العامة - لا تحاول مطابقة قاعدة بيانات محددة، فقط أعطِ أفضل تقدير مستقل لديك. الطعام: "${cleaned}"
+
+أرجع فقط JSON صالحاً بدون أي نص أو markdown إضافي، بهذا الشكل بالضبط:
+{"name":"نص","gramsEstimate":رقم,"calories":رقم,"protein":رقم,"carbs":رقم,"fat":رقم}
+
+"name": نسخة واضحة من اسم الطعام. "gramsEstimate": وزنك التقديري بالغرام لحصة واحدة نموذجية - رقم محدد. calories/protein/carbs/fat: تقديرك لهذه الحصة تحديداً (لا لكل 100غم) - البروتين/الكارب/الدهون بالغرام، السعرات بالكيلوكالوري.`;
+    const { geminiAnalyze } = await import("./gemini.js");
+    const text = await geminiAnalyze(prompt, 300);
+    const parsed = parseJsonLoose(text);
+    if (typeof parsed.calories !== "number" || typeof parsed.gramsEstimate !== "number" || parsed.gramsEstimate <= 0) {
+      return {
+        ok: false,
+        error: "تعذّر تقدير هذا الطعام. جرّب اسماً أوضح أو أضفه يدوياً من قاعدة البيانات.",
+        errorEn: "Couldn't estimate this food. Try a clearer name or add it manually from the database.",
+      };
+    }
+    return {
+      ok: true,
+      name: (typeof parsed.name === "string" && parsed.name.trim()) ? parsed.name.trim() : cleaned,
+      gramsEstimate: Math.round(parsed.gramsEstimate),
+      calories: Math.max(0, Number(parsed.calories) || 0),
+      protein: Math.max(0, Number(parsed.protein) || 0),
+      carbs: Math.max(0, Number(parsed.carbs) || 0),
+      fat: Math.max(0, Number(parsed.fat) || 0),
+    };
+  } catch (e) {
+    console.error("[nutrition] estimateFoodFromTextAI failed:", e);
+    const chunkError = isChunkLoadError(e);
+    return {
+      ok: false,
+      error: chunkError ? CHUNK_LOAD_ERROR_MESSAGE : "تعذّر تقدير هذا الطعام الآن. جرّب مرة أخرى أو أضفه يدوياً.",
+      errorEn: chunkError ? CHUNK_LOAD_ERROR_MESSAGE_EN : "Couldn't estimate this food right now. Try again or add it manually.",
+    };
+  }
+}
+
+// يحوّل تقدير AI مباشر (رقم مطلق لوزن مُقدَّر واحد) إلى شكل "product" لكل
+// 100غم الموحَّد الذي تتوقعه scaleNutrients/scaleMicronutrients - فيُعاد
+// استخدام كامل آلية تعديل الوزن/الوحدات القائمة بلا أي منطق حساب جديد (نفس
+// مبدأ genericFoodToProduct/labelToPer100Product بالضبط). origin: "ai_estimate"
+// هي العلامة الوحيدة التي تُستخدَم لاحقاً (AIPhotoPanel) لعرض شارة "تقدير
+// تقريبي" ولتحديد قيمة عمود source عند الحفظ - لا فيتامينات/ألياف/سكر/
+// صوديوم هنا (لم يُطلَب من AI تقديرها في هذا المسار المبسَّط عمداً)، تبقى
+// صفراً كافتراض القاعدة الحقيقي نفسه (nutrition_log: not null default 0)
+// لا كرقم مختلَق - نفس مبدأ "لا تخترع قيمة غائبة" مطبَّقاً على نطاق هذا
+// المسار المصغَّر عمداً (سعرات وماكروز فقط، بطلب صريح).
+export function aiEstimateToPer100Product(estimate) {
+  const factor = 100 / estimate.gramsEstimate;
+  return {
+    name: estimate.name,
+    caloriesPer100g: estimate.calories * factor,
+    proteinPer100g: estimate.protein * factor,
+    carbsPer100g: estimate.carbs * factor,
+    fatPer100g: estimate.fat * factor,
+    fiberPer100g: 0, sugarPer100g: 0, sodiumPer100gMg: 0, cholesterolPer100gMg: 0,
+    servingGrams: estimate.gramsEstimate,
+    micronutrientsPer100g: {},
+    origin: "ai_estimate",
+    per100Basis: "g",
+  };
 }
 
 // الاستثناء الوحيد المسموح لاستخدام AI في مسار الباركود غير الموجود: عندما

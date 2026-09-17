@@ -4,7 +4,7 @@ import {
   Plus, X, Trash2, Camera, Search, Loader2, Droplet, Flame, Check, Bell, Info,
   Hash, Sparkles, ImagePlus, ClipboardList, Edit3, ChevronLeft, ChevronRight, SkipForward,
   Egg, Drumstick, Beef, Fish, Wheat, Carrot, Apple, Bean, Milk, Nut, Coffee, Cookie, Salad,
-  History, Volume2,
+  History, Volume2, RefreshCw,
 } from "lucide-react";
 import { store } from "../lib/store";
 import SpotlightTour from "./SpotlightTour";
@@ -15,7 +15,8 @@ import {
   fetchProductByBarcode, searchProductsByName, searchUSDAFoods, scaleNutrients,
   sumNutritionEntries, waterGoalCups, servingPresets, quantityInProductBasis,
   isSecureContextForCamera, describeCameraError,
-  normalizeSearchTerm, recognizeMealFromImage, readNutritionLabel, identifyProductNameFromPhoto,
+  normalizeSearchTerm, estimateMealFromImageAI, estimateFoodFromTextAI, aiEstimateToPer100Product,
+  readNutritionLabel, identifyProductNameFromPhoto,
   labelToPer100Product, DAILY_GUIDELINES,
   UNIT_OPTIONS, unitById, unitToGrams, unitServingSize,
   scaleMicronutrients, MICRONUTRIENT_META, personalizedRDI, compressImageToBlob,
@@ -217,7 +218,7 @@ const NS = {
   guidelineContributorChip: { fontSize: 11, fontWeight: 600, color: "var(--ink-soft)", background: "var(--panel)", border: "1px solid var(--border2)", borderRadius: 20, padding: "3px 9px" },
 };
 
-const SOURCE_ICONS = { barcode: Hash, search: Search, manual: Edit3, ai_photo: Sparkles, label: Camera, common: ClipboardList };
+const SOURCE_ICONS = { barcode: Hash, search: Search, manual: Edit3, ai_photo: Sparkles, ai_estimate: Sparkles, label: Camera, common: ClipboardList };
 
 const SUBSCRIBE_URL = "https://www.instagram.com/hjmasar";
 
@@ -2028,29 +2029,33 @@ function SearchPanel({ onPick, onManual, isSub }) {
   );
 }
 
-// تصوير الوجبة بالذكاء الاصطناعي - يستدعي recognizeMealFromImage المعزولة
+// تصوير الوجبة بالذكاء الاصطناعي - يستدعي estimateMealFromImageAI المعزولة
 // (lib/nutrition.js) فقط، ولا يعرف شيئاً عن كون المزوّد الفعلي Gemini من
 // عدمه. كل قيمة في النتيجة قابلة للتعديل يدوياً قبل الحفظ، والتنبيه أسفل
 // الحقول ثابت لا يمكن إغلاقه.
-// خلل حقيقي وُجد وأُصلح: كانت هذه الشاشة تعرض تقديراً واحداً مجمَّعاً لكل
-// الوجبة (سعرات/ماكروز واحدة)، فيُحفَظ صنف واحد فقط بالضبط بغض النظر عن
-// عدد الأصناف الفعلية في الصورة - لا يمكن حذف صنف واحد لم يُؤكَل فعلاً، أو
-// تعديل كمية صنف واحد بمعزل عن الباقي. الآن recognizeMealFromImage تُرجع
-// صنفاً مستقلاً لكل عنصر طعام مميَّز في الصورة (foods[])، وهذه الشاشة تعرض
-// قائمة قابلة للتعديل الكامل: تعديل الاسم/الحصة/الماكروز لكل صنف، حذف صنف،
-// إضافة صنف يدوياً - ولا يُحفظ أي شيء في nutrition_log إلا بعد ضغط التأكيد
-// النهائي، الذي يحفظ كل صنف مؤكَّد كسجل مستقل (نفس مسار addEntry بالضبط،
-// كأن المستخدم بحث عن كل صنف يدوياً وأضافه على حدة).
-// تصحيح جوهري: كانت هذه الشاشة تعرض سعرات/ماكروز خمّنها Gemini بصرياً
-// مباشرة من الصورة، قابلة للتعديل كأرقام حرة - أي رقم غذائي في التطبيق
-// يجب أن يأتي من قاعدة بيانات حقيقية فقط. الآن recognizeMealFromImage
-// تُعرِّف هوية كل صنف فقط (بلا أي رقم)، وهذا المكوّن يطابق كل اسم مع قاعدة
-// البيانات الحقيقية بنفس آلية البحث اليدوي/الأمر الصوتي بالضبط
-// (searchFoodCandidatesOnce + classifyFoodMatches): مطابقة واحدة واضحة
-// تُعرض بقيمها الحقيقية فوراً (قابلة للتعديل بالكمية/الوزن فقط، لا بالسعرات
-// نفسها)، عدة مطابقات قريبة تُعرض كـ"هل تقصد" يختار منها المستخدم، ولا
-// مطابقة تعني ببساطة تعديل الاسم والمحاولة مرة أخرى - لا اختراع رقم لصنف
-// غير موجود بالقاعدة مطلقاً.
+// خلل حقيقي وُجد وأُصلح (تاريخياً): كانت هذه الشاشة تعرض تقديراً واحداً
+// مجمَّعاً لكل الوجبة، فيُحفَظ صنف واحد فقط بغض النظر عن عدد الأصناف
+// الفعلية. الآن كل صنف طعام مميَّز في الصورة (foods[]) عنصر مستقل تماماً:
+// تعديل الاسم/الوزن/حذف/إضافة صنف بمعزل عن الباقي، ولا يُحفظ شيء في
+// nutrition_log إلا بعد ضغط التأكيد النهائي (كل صنف مؤكَّد = سجل مستقل).
+//
+// قرار مقصود وحديث (يعاكس عمداً "تصحيح جوهري" أقدم موثَّق بتاريخ git لهذا
+// المكوّن - راجعه إن أردت فهم القرار المعاكس بالكامل): كانت هذه الشاشة
+// تتطلّب مطابقة كل صنف مع قاعدة بيانات حقيقية (searchFoodCandidatesOnce +
+// classifyFoodMatches) قبل عرض أي رقم غذائي - بهدف منع اختراع أرقام غير
+// موثّقة. بطلب صريح من المستخدم (يفهم المفاضلة تماماً ويفضّل السرعة هنا):
+// الآن AI يُعطي تقديره الغذائي المباشر (سعرات/بروتين/كارب/دهون) من الصورة
+// أو من اسم نصي مباشرة - أسرع، بلا حاجة لوجود الطبق أصلاً بقاعدة بيانات
+// (مفيد جداً لأطباق محلية/مركّبة لا مقابل دقيق لها هناك). الشفافية الكاملة
+// معوَّضة بشارة "تقدير تقريبي من الذكاء الاصطناعي" ثابتة على كل صنف من هذا
+// النوع (aiEstimateBadge)، لا تُخفى ولا يمكن إغلاقها. البحث اليدوي بقاعدة
+// حقيقية (searchFoodCandidatesOnce) يبقى متاحاً كخيار إضافي صريح ("+ أضف
+// صنفاً من القاعدة") لمن يفضّله لصنف بعينه - نفس آلية matchItem/classifyFoodMatches
+// القديمة، بلا أي تغيير، فقط لم تعد المسار الإجباري الوحيد.
+// تعديل الوزن لصنف مُقدَّر بـAI = حساب تناسبي محلي بحت (scaleNutrients على
+// "منتج" لكل 100غم مُشتَق من تقدير AI عبر aiEstimateToPer100Product) - لا
+// استدعاء AI جديد إطلاقاً. زر "خمّن مرة ثانية" فقط (regenerateEstimate) هو
+// ما يستدعي AI من جديد فعلياً لصنف بعينه.
 function AIPhotoPanel({ onSave, onAllSaved, onManual, preselectedMealType, isSub }) {
   const { t, i18n } = useTranslation();
   const isEn = i18n.language === "en";
@@ -2060,15 +2065,60 @@ function AIPhotoPanel({ onSave, onAllSaved, onManual, preselectedMealType, isSub
   // رد "بيضة الفصح" الودّي عند تصوير غير-طعام (وجه/غرض) - منفصل عن error
   // عمداً ليأخذ نغمة لطيفة (NS.noticeText) لا نغمة تحذير.
   const [notice, setNotice] = useState(null);
-  // items: [{ localId, query, servingEstimate, status, product, candidates, grams }] أو null قبل أي تحليل.
-  // status: 'searching' | 'matched' | 'multiple' | 'unmatched'.
+  // items: [{ localId, query, servingEstimate, status, product, candidates, grams, isAiEstimate, reestimating }] أو null قبل أي تحليل.
+  // status: 'searching' | 'matched' | 'multiple' | 'unmatched'. isAiEstimate: true لصنف مصدره
+  // تقدير AI مباشر (صورة أو نص) - يُعرض بشارة "تقريبي" وزر "خمّن مرة ثانية"،
+  // مقابل صنف من "+ أضف من القاعدة" (isAiEstimate غير موجود/false) الذي يمرّ
+  // بمسار matchItem/classifyFoodMatches الدقيق كما كان دائماً.
   const [items, setItems] = useState(null);
   const [mealType, setMealType] = useState(() => preselectedMealType || guessMealType());
   const [saving, setSaving] = useState(false);
   const cameraInputRef = useRef(null);
   const galleryInputRef = useRef(null);
+  // مسار "اكتب اسم الطعام" - بديل عن التصوير (Well-D: تقدير AI من نص مباشرة
+  // بلا صورة)، ويبقى متاحاً أيضاً لإضافة صنف إضافي بعد وجود عناصر أصلاً.
+  const [textName, setTextName] = useState("");
+  const [textEstimating, setTextEstimating] = useState(false);
 
   const defaultServingLabel = isEn ? "1 serving" : "حصة واحدة";
+
+  // يضيف صنفاً واحداً مُقدَّراً مباشرة من AI بالاسم النصي (بلا صورة) - يُستخدم
+  // كمسار إدخال أول بديل عن التصوير، وأيضاً لإضافة صنف إضافي لاحقاً بنفس
+  // الطريقة. استدعاء AI حقيقي واحد فقط، لا مطابقة قاعدة بيانات إطلاقاً.
+  async function addAiEstimateItem(text) {
+    const q = text.trim();
+    if (!q) return;
+    setError(null);
+    setTextEstimating(true);
+    const res = await estimateFoodFromTextAI(q, i18n.language);
+    setTextEstimating(false);
+    if (!res.ok) { setError(isEn ? (res.errorEn || res.error) : res.error); return; }
+    const product = aiEstimateToPer100Product(res);
+    const newItem = {
+      localId: uid(), query: product.name, servingEstimate: "", status: "matched",
+      product, candidates: [], grams: product.servingGrams, isAiEstimate: true, reestimating: false,
+    };
+    setItems((list) => [...(list || []), newItem]);
+    setTextName("");
+  }
+
+  // زر "خمّن مرة ثانية" - استدعاء AI جديد فعلياً (لا حساب تناسبي) لنفس اسم
+  // الصنف الحالي (بعد أي تعديل يدوي عليه)، بغض النظر عن مصدره الأصلي (صورة
+  // أو نص) - يُعيد تقديراً مستقلاً قد يختلف قليلاً عن الأول (تباين طبيعي في
+  // إجابات AI)، مفيد إن شكّ المستخدم بدقة التقدير الأول.
+  async function regenerateEstimate(localId) {
+    const it = (items || []).find((x) => x.localId === localId);
+    if (!it || !it.query.trim()) return;
+    setItem(localId, { reestimating: true });
+    const res = await estimateFoodFromTextAI(it.query, i18n.language);
+    if (!res.ok) {
+      setItem(localId, { reestimating: false });
+      setError(isEn ? (res.errorEn || res.error) : res.error);
+      return;
+    }
+    const product = aiEstimateToPer100Product(res);
+    setItem(localId, { reestimating: false, product, query: product.name, grams: product.servingGrams, isAiEstimate: true });
+  }
 
   function setItem(localId, patch) {
     setItems((list) => list.map((it) => (it.localId === localId ? { ...it, ...patch } : it)));
@@ -2103,7 +2153,7 @@ function AIPhotoPanel({ onSave, onAllSaved, onManual, preselectedMealType, isSub
     setNotice(null);
     setItems(null);
     setAnalyzing(true);
-    const res = await recognizeMealFromImage(file, i18n.language);
+    const res = await estimateMealFromImageAI(file, i18n.language);
     setAnalyzing(false);
     if (!res.ok) { setError(isEn ? (res.errorEn || res.error) : res.error); return; }
     if (res.foods.length === 0) {
@@ -2114,17 +2164,25 @@ function AIPhotoPanel({ onSave, onAllSaved, onManual, preselectedMealType, isSub
       }
       return;
     }
-    const newItems = res.foods.map((f) => ({
-      localId: uid(), query: f.name, servingEstimate: f.servingEstimate,
-      status: "searching", product: null, candidates: [], grams: 100,
-    }));
+    // كل صنف يصل مُقدَّراً بالكامل مباشرة من AI (calories/gramsEstimate...) -
+    // لا مطابقة قاعدة بيانات هنا إطلاقاً، فلا حاجة لحالة "searching" وسيطة
+    // ولا لاستدعاء matchItem (تلك محجوزة لآلية "+ أضف من القاعدة" وحدها).
+    const newItems = res.foods.map((f) => {
+      const product = aiEstimateToPer100Product(f);
+      return {
+        localId: uid(), query: product.name, servingEstimate: "", status: "matched",
+        product, candidates: [], grams: product.servingGrams, isAiEstimate: true, reestimating: false,
+      };
+    });
     setItems(newItems);
-    newItems.forEach((it) => matchItem(it.localId, it.query));
   }
 
   function removeItem(localId) {
     setItems((list) => list.filter((it) => it.localId !== localId));
   }
+  // يضيف صنفاً فارغاً يمرّ بمسار matchItem/classifyFoodMatches الدقيق (بحث
+  // قاعدة بيانات حقيقية) - خيار صريح منفصل تماماً عن addAiEstimateItem أعلاه
+  // (isAiEstimate يبقى false/غير موجود هنا) لمن يفضّل الدقة على السرعة لصنف بعينه.
   function addManualItem() {
     setItems((list) => [
       ...(list || []),
@@ -2167,7 +2225,11 @@ function AIPhotoPanel({ onSave, onAllSaved, onManual, preselectedMealType, isSub
         id: uid(), foodName: it.product.name, ...preview,
         unit: isMl ? "ml" : "g",
         servingInfo: `${grams} ${isMl ? t("nutrition.unitOptions.ml") : t("common.units.g")}`,
-        source: "ai_photo", mealType,
+        // "ai_estimate" لصنف مصدره تقدير AI مباشر (صورة أو نص) مقابل
+        // "ai_photo" لصنف أُضيف عبر "+ أضف من القاعدة" (مطابقة حقيقية) - راجع
+        // تمييزهما بـ nutrition_log_source_check في supabase-schema.sql
+        // ومقياس isAiEstimate أعلاه؛ يفيد لاحقاً لتحليل دقة كل مصدر بمعزل عن الآخر.
+        source: it.isAiEstimate ? "ai_estimate" : "ai_photo", mealType,
         microApprox: it.product.origin === "generic",
         micronutrients: scaleMicronutrients(it.product.micronutrientsPer100g, grams),
         quantity: grams,
@@ -2201,17 +2263,32 @@ function AIPhotoPanel({ onSave, onAllSaved, onManual, preselectedMealType, isSub
           منتقي الملفات/المعرض فعلياً. */}
       <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFile} style={{ display: "none" }} />
       <input ref={galleryInputRef} type="file" accept="image/*" onChange={handleFile} style={{ display: "none" }} />
-      {!preview && (
-        <div style={NS.chooserGrid}>
-          <button onClick={() => cameraInputRef.current?.click()} style={NS.chooserBtn}>
-            <span style={NS.chooserIcon}><Camera size={19} /></span>
-            {t("nutrition.takePhoto")}
-          </button>
-          <button onClick={() => galleryInputRef.current?.click()} style={NS.chooserBtn}>
-            <span style={NS.chooserIcon}><ImagePlus size={19} /></span>
-            {t("nutrition.chooseFromGallery")}
-          </button>
-        </div>
+      {!preview && !items && (
+        <>
+          <div style={NS.chooserGrid}>
+            <button onClick={() => cameraInputRef.current?.click()} style={NS.chooserBtn}>
+              <span style={NS.chooserIcon}><Camera size={19} /></span>
+              {t("nutrition.takePhoto")}
+            </button>
+            <button onClick={() => galleryInputRef.current?.click()} style={NS.chooserBtn}>
+              <span style={NS.chooserIcon}><ImagePlus size={19} /></span>
+              {t("nutrition.chooseFromGallery")}
+            </button>
+          </div>
+          <p style={{ ...S.label, marginTop: 14, marginBottom: 4, textAlign: "center" }}>{t("nutrition.orTypeNameForAi")}</p>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input
+              value={textName}
+              onChange={(e) => setTextName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") addAiEstimateItem(textName); }}
+              placeholder={t("nutrition.aiTextEstimatePlaceholder")}
+              style={{ ...S.input, flex: 1 }}
+            />
+            <button onClick={() => addAiEstimateItem(textName)} disabled={textEstimating || !textName.trim()} style={{ ...S.saveBtn, marginTop: 0, width: "auto", padding: "0 18px", opacity: textEstimating || !textName.trim() ? 0.6 : 1 }}>
+              {textEstimating ? <Loader2 size={16} className="spin" /> : t("nutrition.aiTextEstimateBtn")}
+            </button>
+          </div>
+        </>
       )}
       {preview && <img src={preview} alt="" style={NS.photoPreview} />}
 
@@ -2238,20 +2315,22 @@ function AIPhotoPanel({ onSave, onAllSaved, onManual, preselectedMealType, isSub
 
       {items && (
         <>
-          <div style={NS.disclaimerBox}>
-            <Sparkles size={15} color="#C9A24B" style={{ flexShrink: 0, marginTop: 1 }} />
-            <span>{t("nutrition.aiEstimateNote")}</span>
-          </div>
           <label style={S.label}>{t("nutrition.confirmDetectedFoods")}</label>
           {items.map((it) => (
             <div key={it.localId} style={NS.aiFoodCard}>
+              {it.isAiEstimate && (
+                <div style={NS.disclaimerBox}>
+                  <span>🔮</span>
+                  <span>{t("nutrition.aiEstimateBadge")}</span>
+                </div>
+              )}
               <div style={NS.aiFoodCardHead}>
                 <input
                   value={it.query}
                   onChange={(e) => setItem(it.localId, { query: e.target.value })}
                   onKeyDown={(e) => { if (e.key === "Enter" && it.status !== "matched") matchItem(it.localId, it.query); }}
                   placeholder={t("nutrition.foodNamePlaceholder")}
-                  readOnly={it.status === "matched"}
+                  readOnly={it.status === "matched" && !it.isAiEstimate}
                   style={NS.aiFoodNameInput}
                 />
                 <button onClick={() => removeItem(it.localId)} style={NS.aiFoodDeleteBtn} aria-label={t("nutrition.removeItem")}>
@@ -2294,9 +2373,20 @@ function AIPhotoPanel({ onSave, onAllSaved, onManual, preselectedMealType, isSub
                       <div style={NS.aiFoodMacroField}><span style={NS.aiFoodMacroLabel}>{t("common.units.carbs")}</span><span>{preview.carbs}</span></div>
                       <div style={NS.aiFoodMacroField}><span style={NS.aiFoodMacroLabel}>{t("common.units.fat")}</span><span>{preview.fat}</span></div>
                     </div>
-                    <button onClick={() => changeMatch(it.localId)} style={{ background: "none", border: "none", color: "var(--gold)", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", padding: "6px 0" }}>
-                      {t("nutrition.aiItemChangeMatch")}
-                    </button>
+                    {it.isAiEstimate ? (
+                      <button
+                        onClick={() => regenerateEstimate(it.localId)}
+                        disabled={it.reestimating}
+                        style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", color: "var(--gold)", fontSize: 12, fontWeight: 700, cursor: it.reestimating ? "wait" : "pointer", fontFamily: "inherit", padding: "6px 0", opacity: it.reestimating ? 0.6 : 1 }}
+                      >
+                        {it.reestimating ? <Loader2 size={13} className="spin" /> : <RefreshCw size={13} />}
+                        {t("nutrition.reEstimateBtn")}
+                      </button>
+                    ) : (
+                      <button onClick={() => changeMatch(it.localId)} style={{ background: "none", border: "none", color: "var(--gold)", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", padding: "6px 0" }}>
+                        {t("nutrition.aiItemChangeMatch")}
+                      </button>
+                    )}
                   </>
                 );
               })()}
@@ -2330,7 +2420,19 @@ function AIPhotoPanel({ onSave, onAllSaved, onManual, preselectedMealType, isSub
               )}
             </div>
           ))}
-          <button onClick={addManualItem} style={NS.addFoodItemBtn}><Plus size={15} /> {t("nutrition.addFoodItem")}</button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input
+              value={textName}
+              onChange={(e) => setTextName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") addAiEstimateItem(textName); }}
+              placeholder={t("nutrition.aiTextEstimatePlaceholder")}
+              style={{ ...S.input, flex: 1 }}
+            />
+            <button onClick={() => addAiEstimateItem(textName)} disabled={textEstimating || !textName.trim()} style={{ ...S.exportBtn, marginBottom: 0, width: "auto", padding: "0 14px", opacity: textEstimating || !textName.trim() ? 0.6 : 1 }}>
+              {textEstimating ? <Loader2 size={15} className="spin" /> : <>🔮 {t("nutrition.aiTextEstimateBtn")}</>}
+            </button>
+          </div>
+          <button onClick={addManualItem} style={NS.addFoodItemBtn}><Plus size={15} /> {t("nutrition.addFoodItemFromDb")}</button>
           {pendingCount > 0 && matchedItems.length > 0 && (
             <p style={NS.notFoundNote}>{t("nutrition.aiPendingItemsNote", { count: pendingCount })}</p>
           )}

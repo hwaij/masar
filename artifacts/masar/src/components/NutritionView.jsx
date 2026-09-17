@@ -936,8 +936,30 @@ async function searchFoodCandidatesOnce(rawQuery, lang, isSub) {
     ? offSettled.value.products.map((p) => ({ ...p, origin: "off" }))
     : [];
 
+  // خلل حقيقي وُجد وأُصلح (تحقيق: اقتراحات "هل تقصد" لأطباق عربية/خليجية
+  // مركّبة كـ"كبة مقلية" تُظهر منتجات تجارية غريبة تماماً مثل "ORGANIC NITER
+  // KIBBEH GHEE" أو "KIBBEH BEEF CROQUETTE"): netlify/functions/usda.js يطلب
+  // عمداً كل أنواع بيانات USDA الأربعة معاً (Foundation/SR Legacy/Survey/
+  // Branded) بتعليق صريح يقول "Branded مضمّنة بأولوية أدنى فقط - تُرتَّب
+  // لاحقاً في الواجهة" - لكن هذا الترتيب (sortUsdaResults) لم يكن مطبَّقاً
+  // هنا إطلاقاً، فقط داخل SearchPanel (البحث المكتوب المباشر). لأطباق مركّبة
+  // محلية (كبة/سمبوسة/معجنات) لا وجود لها إطلاقاً كصنف عام في Foundation/SR
+  // Legacy/Survey (تلك مكوّنات خام لا أطباق جاهزة)، فكل نتائج USDA لمثل هذه
+  // الأطباق تكون Branded حصراً - حتى مع الترتيب، تبقى هي الوحيدة المتاحة
+  // ضمن أول 4 مرشّحين (classifyFoodMatches). الفرق الجوهري عن SearchPanel:
+  // هذه الدالة (searchFoodCandidatesOnce) تُستخدَم حصراً لمطابقة تلقائية
+  // بثقة (AI Photo/الأمر الصوتي/بحث الإدخال اليدوي بالاسم) بلا تصفّح حر من
+  // المستخدم عبر قائمة طويلة يمكنه فيها استبعاد نتيجة غريبة بصرياً بنفسه -
+  // فمنتج تجاري بعلامة تجارية غير ذات صلة هنا يصل مباشرة كـ"هل تقصد" مُلزِم
+  // بلا أي سياق يوضّح أنه غير مناسب. الإصلاح: استبعاد Branded كلياً من نتائج
+  // هذه الدالة تحديداً (لا SearchPanel - يبقى كما هو، فمستخدم يكتب اسم منتج
+  // تجاري بنفسه يستفيد من رؤيته). عند عدم وجود أي مطابقة غيرها، تُعامَل
+  // كـ"لا نتيجة" (classifyFoodMatches: kind="none") فيُطلَب من المستخدم
+  // تعديل الاسم بدل عرض اقتراح مُضلِّل - تماماً السلوك المطلوب.
+  const usdaFiltered = usda.filter((p) => p.dataType !== "Branded");
+
   // نفس ترتيب SearchPanel بالضبط: المحلي أولاً، ثم USDA، ثم custom_foods، ثم OFF.
-  return [...generic, ...usda, ...custom, ...off];
+  return [...generic, ...usdaFiltered, ...custom, ...off];
 }
 
 function dedupeFoodsByName(list) {

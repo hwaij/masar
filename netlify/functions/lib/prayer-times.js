@@ -10,6 +10,24 @@ const KUWAIT = { lat: 29.3759, lng: 47.9774, tz: 3 };
 const PARAMS = { fajrAngle: 18.5, ishaInterval: 90, maghribOffset: 1 };
 const KUWAIT_OFFSET_MS = 3 * 60 * 60 * 1000;
 
+// نفس قائمة src/lib/prayer.js بالضبط (KUWAIT_GOVERNORATES) - مكرَّرة عمداً
+// هنا لعدم إمكانية استيراد مشترك بين Vite/ESM والملف الحالي (CommonJS على
+// خادم Netlify). "capital" مطابقة حرفياً لثابت KUWAIT أعلاه - مستخدم بلا
+// prayer_region محدَّد (لم يفعّل الميزة الجديدة بعد) يحصل على نفس حساب
+// اليوم تماماً بلا أي تغيير في السلوك القائم.
+const KUWAIT_GOVERNORATES = {
+  capital: { lat: 29.3759, lng: 47.9774, tz: 3 },
+  hawalli: { lat: 29.3326, lng: 48.0289, tz: 3 },
+  farwaniya: { lat: 29.2977, lng: 47.9391, tz: 3 },
+  ahmadi: { lat: 29.0769, lng: 48.0839, tz: 3 },
+  jahra: { lat: 29.3375, lng: 47.6581, tz: 3 },
+  mubarak_al_kabeer: { lat: 29.1900, lng: 48.0764, tz: 3 },
+};
+const DEFAULT_PRAYER_REGION = "capital";
+function regionLocation(regionId) {
+  return KUWAIT_GOVERNORATES[regionId] || KUWAIT;
+}
+
 const dtr = (d) => (d * Math.PI) / 180;
 const rtd = (r) => (r * 180) / Math.PI;
 const fixHour = (h) => ((h % 24) + 24) % 24;
@@ -149,6 +167,9 @@ function nextPrayerNow(nowMs = Date.now()) {
 
 module.exports = {
   KUWAIT,
+  KUWAIT_GOVERNORATES,
+  DEFAULT_PRAYER_REGION,
+  regionLocation,
   to12h,
   prayerTimesForDate,
   fivePrayersForDate,

@@ -9,8 +9,16 @@
 // الفئات المدعومة، والفئة الوحيدة التي تتجاوز Quiet Hours (الصلاة، بموافقة
 // صريحة من صاحب المنتج - يختارها المستخدم عمداً، بخلاف تذكيرات الماء/
 // الوجبات/المهام التي يجب أن تحترم وقت هدوئه بصرامة).
-const CATEGORIES = ["prayer", "water", "meals", "sleep", "quran", "tasks", "steps"];
-const QUIET_HOURS_EXEMPT_CATEGORIES = new Set(["prayer"]);
+// "athan" فئة مستقلة تماماً عن "prayer" الموجودة أصلاً (تلك تذكير عام
+// بوقت صلاة واحد ثابت للكويت كلها ويُفحَص إنجازها عبر prayer_log؛ هذه
+// ميزة اختيارية جديدة كلياً بأوقات مبنية على محافظة يختارها المستخدم،
+// بلا أي علاقة بـprayer_log - راجع processAthan في scheduled-prayer-reminders.js).
+// نفس سبب استثناء "prayer" من Quiet Hours ينطبق هنا بالضبط: صلاة الفجر
+// غالباً تقع داخل نطاق الهدوء الافتراضي (22:00-06:00)، فاستثناؤها ضروري
+// حتى تصل فعلياً - هذا بالذات هو صلب الميزة (تذكير بوقت الصلاة الحقيقي)،
+// لا خرقاً للمبدأ.
+const CATEGORIES = ["prayer", "water", "meals", "sleep", "quran", "tasks", "steps", "athan"];
+const QUIET_HOURS_EXEMPT_CATEGORIES = new Set(["prayer", "athan"]);
 
 function assertValidCategory(category) {
   if (!CATEGORIES.includes(category)) {
@@ -141,6 +149,14 @@ const MESSAGES = {
     en: (ctx) => ctx?.variant === "reached"
       ? { title: "🎉 You reached your step goal!", body: "Great job! Keep up the activity." }
       : { title: "🎯 Almost there", body: `${ctx?.remaining ?? ""} steps left to reach your goal today.` },
+  },
+  // أذان محافظات الكويت (ميزة جديدة مستقلة - راجع تعليق CATEGORIES أعلاه).
+  // ctx.prayerName/ctx.time جاهزان مسبقاً من طبقة الاستدعاء (processAthan)،
+  // بنفس نمط ctx.prayerName في "prayer" أعلاه بالضبط، زائداً الوقت الفعلي
+  // المحسوب لمحافظة المستخدم تحديداً.
+  athan: {
+    ar: (ctx) => ({ title: `🕌 أذان ${ctx?.prayerName || ""}`, body: `حان الآن وقت صلاة ${ctx?.prayerName || ""} — ${ctx?.time || ""}` }),
+    en: (ctx) => ({ title: `🕌 ${ctx?.prayerName || "Prayer"} Athan`, body: `It's now time for ${ctx?.prayerName || "prayer"} — ${ctx?.time || ""}` }),
   },
 };
 

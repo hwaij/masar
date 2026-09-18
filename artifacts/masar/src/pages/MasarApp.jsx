@@ -16,9 +16,9 @@ import {
   Wallet, ArrowDownCircle, ArrowUpCircle, Crown,
   Utensils, Dumbbell, Menu, Users,
   Accessibility, ALargeSmall, Contrast, StretchHorizontal, Volume2, VolumeX,
-  Smartphone, Mic, MicOff, CalendarDays, Bed, Monitor,
+  Smartphone, Mic, MicOff, CalendarDays, Bed, Monitor, MapPin,
 } from "lucide-react";
-import { fivePrayers, nextPrayer, to12h } from "../lib/prayer";
+import { fivePrayers, nextPrayer, to12h, KUWAIT_GOVERNORATES, DEFAULT_PRAYER_REGION } from "../lib/prayer";
 import { ADHKAR_CATEGORIES, ADHKAR } from "../lib/adhkar";
 import { store, setOwner, getOwner, DEFAULT_CATEGORIES } from "../lib/store";
 import { speak, stopSpeaking, isSpeechSupported } from "../lib/speech";
@@ -6876,6 +6876,30 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
     await store.saveNotificationsPreference(false, true);
     showToast(t("settings.notifDisabled"));
   }
+  // أذان محافظات الكويت: تفعيل/تعطيل مستقل تماماً عن notificationsEnabled
+  // العام - كلاهما مطلوب معاً فعلياً حتى تصل الإشعارات (راجع تعليق
+  // saveAthanPreference في store.js)، فنطلب من المستخدم تفعيل الإشعارات
+  // العامة أولاً إن لم تكن مفعّلة بدل تفعيل صامت لن يعمل عملياً.
+  async function toggleAthanNotifications() {
+    const prev = profile.athanNotificationsEnabled;
+    const next = !prev;
+    if (next && !profile.notificationsEnabled) {
+      const result = await requestNotificationPermission(i18n.language);
+      const granted = !!result.saved;
+      setProfile((p) => ({ ...p, notificationsEnabled: granted, notificationsAsked: true }));
+      await store.saveNotificationsPreference(granted, true);
+      if (!granted) { showToast(result.error ? t(`common.errors.${result.error}`) : t("settings.notifNotEnabled")); return; }
+    }
+    setProfile((p) => ({ ...p, athanNotificationsEnabled: next }));
+    const res = await store.saveAthanPreference(next, profile.prayerRegion || DEFAULT_PRAYER_REGION);
+    if (!res.ok) { setProfile((p) => ({ ...p, athanNotificationsEnabled: prev })); showToast(t("settings.athanSaveFailed")); }
+  }
+  async function changePrayerRegion(regionId) {
+    const prev = profile.prayerRegion;
+    setProfile((p) => ({ ...p, prayerRegion: regionId }));
+    const res = await store.saveAthanPreference(profile.athanNotificationsEnabled, regionId);
+    if (!res.ok) { setProfile((p) => ({ ...p, prayerRegion: prev })); showToast(t("settings.athanSaveFailed")); }
+  }
   async function toggleCustomColors() {
     const prev = profile.customColorsEnabled;
     const next = !prev;
@@ -6986,6 +7010,30 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
         )}
       </div>
       <NotificationStatusCard profile={profile} onEnable={handleEnableNotifications} onDisable={handleDisableNotifications} />
+      <div style={S.catEditorCard}>
+        <div style={S.catEditorHeader}><MapPin size={15} color="#C9A24B" /><span>{t("settings.athanTitle")}</span></div>
+        <p style={S.profileHint}>{t("settings.athanNote")}</p>
+        <div style={S.rangeToggle}>
+          <button onClick={() => profile.athanNotificationsEnabled && toggleAthanNotifications()} style={{ ...S.rangeBtn, flex: 1, ...(!profile.athanNotificationsEnabled ? S.rangeBtnActive : {}) }}>{t("settings.off")}</button>
+          <button onClick={() => !profile.athanNotificationsEnabled && toggleAthanNotifications()} style={{ ...S.rangeBtn, flex: 1, ...(profile.athanNotificationsEnabled ? S.rangeBtnActive : {}) }}>{t("settings.on")}</button>
+        </div>
+        {profile.athanNotificationsEnabled && (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted2)", marginBottom: 8 }}>{t("settings.athanRegion")}</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {KUWAIT_GOVERNORATES.map((g) => (
+                <button
+                  key={g.id}
+                  onClick={() => changePrayerRegion(g.id)}
+                  style={{ ...S.rangeBtn, flex: "1 1 28%", minWidth: 96, ...((profile.prayerRegion || DEFAULT_PRAYER_REGION) === g.id ? S.rangeBtnActive : {}) }}
+                >
+                  {isEn ? g.nameEn : g.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
       <div style={S.catEditorCard}>
         <div style={S.catEditorHeader}><Volume2 size={15} color="#C9A24B" /><span>{t("settings.soundEffects")}</span></div>
         <p style={S.profileHint}>{t("settings.soundNote")}</p>

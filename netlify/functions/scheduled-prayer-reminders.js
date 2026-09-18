@@ -32,7 +32,7 @@
 // المستخدمين معاً دفعة واحدة، لا اشتراك مستخدم واحد كما في
 // send-test-push.js/prayer-reminder-test.js - يتجاوز RLS عمداً وبأمان فقط
 // لأن هذا المفتاح سري تماماً في متغيرات بيئة الخادم، لا يظهر لأي عميل مطلقاً.
-const { todayFivePrayers, todayDateKeyKuwait, kuwaitNowParts } = require("./lib/prayer-times");
+const { todayFivePrayers, todayDateKeyKuwait, kuwaitNowParts, fivePrayersForDate, DEFAULT_PRAYER_REGION, regionLocation } = require("./lib/prayer-times");
 const { shouldSend, buildOccurrenceKey, buildMessage } = require("./lib/notification-engine");
 const { configureVapid, sendToSubscriptionRow } = require("./lib/send-push");
 
@@ -201,6 +201,48 @@ exports.handler = async (event) => {
       summary.push({ type: "prayer", id: prayer.id, error: String(e) });
     }
   }
+
+  // أذان محافظات الكويت (ميزة جديدة، مستقلة تماماً عن duePrayers أعلاه):
+  // استعلام خفيف واحد فقط (مستخدمون فعّلوا الميزة فعلاً تحديداً، عادةً عدد
+  // قليل جداً مقارنة بكل من فعّل الإشعارات عموماً) - لا كُلفة إضافية تُذكر
+  // حين لا أحد فعّلها بعد (يخرج فوراً). التجميع حسب المحافظة الفعلية (أو
+  // الافتراضية لمن فعّل الميزة بلا اختيار محافظة بعد) ثم حساب مواقيت مستقل
+  // لكل محافظة - قد تكون صلاة "مستحقة" الآن لمحافظة وليست بعد لمحافظة أخرى
+  // (فرق دقائق قليلة طبيعي بين محافظات الكويت المتقاربة).
+  try {
+    const athanProfiles = await fetchJson(
+      `${url}/rest/v1/profile?notifications_enabled=eq.true&athan_notifications_enabled=eq.true&select=owner,prayer_region`,
+      headers,
+    );
+    const ownersByRegion = new Map();
+    for (const row of athanProfiles) {
+      const regionId = row.prayer_region || DEFAULT_PRAYER_REGION;
+      if (!ownersByRegion.has(regionId)) ownersByRegion.set(regionId, new Set());
+      ownersByRegion.get(regionId).add(row.owner);
+    }
+    const { year: todayYear, month: todayMonth, day: todayDay } = kuwaitNowParts();
+    for (const [regionId, owners] of ownersByRegion) {
+      const regionPrayers = fivePrayersForDate(todayYear, todayMonth, todayDay, regionLocation(regionId));
+      const dueRegionPrayers = regionPrayers.filter((p) => {
+        const [ph, pm] = p.time.split(":").map(Number);
+        return isDueNow(nowMin, ph * 60 + pm, PRAYER_WINDOW_HALF_MIN);
+      });
+      for (const prayer of dueRegionPrayers) {
+        const occurrenceKey = buildOccurrenceKey(todayKey, `${prayer.id}:${regionId}`);
+        try {
+          const result = await processAthan({ url, headers, prayer, occurrenceKey, nowHHMM, restrictOwners: owners });
+          summary.push({ type: "athan", id: `${prayer.id}:${regionId}`, ...result });
+        } catch (e) {
+          console.error(`[scheduled-prayer-reminders] processing athan ${prayer.id}/${regionId} failed:`, e);
+          summary.push({ type: "athan", id: `${prayer.id}:${regionId}`, error: String(e) });
+        }
+      }
+    }
+  } catch (e) {
+    console.error("[scheduled-prayer-reminders] athan region processing failed:", e);
+    summary.push({ type: "athan", error: String(e) });
+  }
+
   for (const mealType of dueMeals) {
     const occurrenceKey = buildOccurrenceKey(todayKey, mealType);
     try {
@@ -398,6 +440,29 @@ async function processPrayer({ url, headers, prayer, occurrenceKey, todayKey, no
     fulfilledOwners: new Set(prayed.map((r) => r.owner)),
     message,
     linkPath: "/prayer",
+  });
+}
+
+// ميزة "أذان محافظات الكويت" (جديدة، مستقلة تماماً عن processPrayer أعلاه):
+// لا مفهوم "صلّى بالفعل" هنا إطلاقاً (fulfilledOwners فارغ دائماً) - الهدف
+// تذكير بوقت الأذان نفسه بصرف النظر عن تسجيل الصلاة، لا تذكيراً مشروطاً
+// بعدم التسجيل كـ processPrayer. occurrenceKey يتضمّن معرّف المحافظة (لا
+// معرّف الصلاة وحده) لأن أوقات نفس الصلاة تختلف قليلاً بين المحافظات، فقد
+// تكون "مستحقة" لمحافظة الآن وليست بعد مستحقة لمحافظة أخرى في نفس التشغيلة -
+// مفتاح منفصل يمنع أي تعارض/تخطٍّ خاطئ بين المحافظات. restrictOwners دائماً
+// محدَّد هنا (أصحاب هذه المحافظة تحديداً فقط، مبنيّ في exports.handler).
+async function processAthan({ url, headers, prayer, occurrenceKey, nowHHMM, restrictOwners }) {
+  const message = buildMessage("athan", "ar", { prayerName: PRAYER_NAMES[prayer.id].ar, time: prayer.time });
+  return processReminder({
+    url,
+    headers,
+    category: "athan",
+    occurrenceKey,
+    nowHHMM,
+    fulfilledOwners: new Set(),
+    message,
+    linkPath: "/prayer",
+    restrictOwners,
   });
 }
 

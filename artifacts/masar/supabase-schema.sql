@@ -96,6 +96,13 @@ alter table profile add column if not exists sound_enabled boolean not null defa
 -- قسم. أي مفتاح غير موجود في الـjsonb يُقرأ في الكود كـfalse/0 افتراضياً -
 -- لا حاجة لأي ترحيل بيانات.
 alter table profile add column if not exists tour_progress jsonb not null default '{}'::jsonb;
+-- أذان محافظات الكويت (اختياري بالكامل، مُطفأ افتراضياً - لا شيء يعمل حتى
+-- يفعّله المستخدم صراحة عبر athan_notifications_enabled). prayer_region
+-- يحمل أحد معرّفات KUWAIT_GOVERNORATES (مثل "capital"، "hawalli"...)، أو
+-- يبقى null فيُستخدم DEFAULT_PRAYER_REGION ("capital") كافتراض آمن مطابق
+-- لحساب الصلاة الحالي في التطبيق بلا أي تغيير للمستخدمين الحاليين.
+alter table profile add column if not exists prayer_region text;
+alter table profile add column if not exists athan_notifications_enabled boolean not null default false;
 
 -- قسم "أنت": بيانات صحية أساسية + القيم المحسوبة منها (BMI/IBW/REE/TEE)
 -- مخزّنة جاهزة حتى تقرأها أقسام التغذية والرياضة لاحقاً دون إعادة حسابها.
@@ -2077,17 +2084,17 @@ create policy notification_preferences_user_own on notification_preferences for 
 create table if not exists notification_log (
   id              uuid primary key default gen_random_uuid(),
   owner           text not null,
-  category        text not null check (category in ('prayer', 'water', 'meals', 'sleep', 'quran', 'tasks', 'steps')),
+  category        text not null check (category in ('prayer', 'water', 'meals', 'sleep', 'quran', 'tasks', 'steps', 'athan')),
   occurrence_key  text not null,
   lang            text not null default 'ar',
   sent_at         timestamptz not null default now(),
   status          text not null default 'sent' check (status in ('sent', 'failed')),
   unique (owner, category, occurrence_key)
 );
--- إضافة "steps" لاحقاً (Batch 2 - Item 2) لقاعدة موجودة فعلاً - القيد أعلاه
--- في create table لا يُعاد تطبيقه على جدول موجود، فيُحدَّث صراحةً هنا.
+-- إضافة "steps" ثم "athan" لاحقاً لقاعدة موجودة فعلاً - القيد أعلاه في create
+-- table لا يُعاد تطبيقه على جدول موجود، فيُحدَّث صراحةً هنا في كل مرة.
 alter table notification_log drop constraint if exists notification_log_category_check;
-alter table notification_log add constraint notification_log_category_check check (category in ('prayer', 'water', 'meals', 'sleep', 'quran', 'tasks', 'steps'));
+alter table notification_log add constraint notification_log_category_check check (category in ('prayer', 'water', 'meals', 'sleep', 'quran', 'tasks', 'steps', 'athan'));
 create index if not exists notification_log_owner on notification_log (owner);
 create index if not exists notification_log_owner_sent_at on notification_log (owner, sent_at);
 alter table notification_log enable row level security;

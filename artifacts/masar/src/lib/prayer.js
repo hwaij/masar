@@ -1,6 +1,28 @@
 const KUWAIT = { lat: 29.3759, lng: 47.9774, tz: 3 };
 const PARAMS = { fajrAngle: 18.5, ishaInterval: 90, maghribOffset: 1 };
 
+// محافظات الكويت الست بإحداثيات تقريبية لمركز كل محافظة (إحصاء عام، لا
+// دقة مساحية - كافية تماماً لحساب فروق دقيقة قليلة بين مواقيت الصلاة، وهذا
+// هو مقدار التفاوت الحقيقي المتوقَّع أصلاً بين محافظات الكويت المتقاربة
+// جغرافياً). "capital" مطابقة حرفياً لثابت KUWAIT أعلاه (نفس الإحداثيات
+// بالضبط) عمداً - المستخدم الذي لم يختر محافظته بعد (prayer_region=null)
+// يحصل على نفس حساب اليوم تماماً بلا أي تغيير، لا افتراض جديد.
+// نفس هذه القائمة مكرَّرة بقصد في netlify/functions/lib/prayer-times.js
+// (لا استيراد مشترك ممكن بين Vite/ESM هنا وCommonJS هناك) - أي تحديث لاحق
+// للإحداثيات يجب تطبيقه في كليهما معاً.
+export const KUWAIT_GOVERNORATES = [
+  { id: "capital", name: "العاصمة", nameEn: "Al Asimah (Capital)", lat: 29.3759, lng: 47.9774, tz: 3 },
+  { id: "hawalli", name: "حولي", nameEn: "Hawalli", lat: 29.3326, lng: 48.0289, tz: 3 },
+  { id: "farwaniya", name: "الفروانية", nameEn: "Al Farwaniyah", lat: 29.2977, lng: 47.9391, tz: 3 },
+  { id: "ahmadi", name: "الأحمدي", nameEn: "Al Ahmadi", lat: 29.0769, lng: 48.0839, tz: 3 },
+  { id: "jahra", name: "الجهراء", nameEn: "Al Jahra", lat: 29.3375, lng: 47.6581, tz: 3 },
+  { id: "mubarak_al_kabeer", name: "مبارك الكبير", nameEn: "Mubarak Al-Kabeer", lat: 29.1900, lng: 48.0764, tz: 3 },
+];
+export const DEFAULT_PRAYER_REGION = "capital";
+export function regionLocation(regionId) {
+  return KUWAIT_GOVERNORATES.find((r) => r.id === regionId) || KUWAIT;
+}
+
 const dtr = (d) => (d * Math.PI) / 180;
 const rtd = (r) => (r * 180) / Math.PI;
 const fixHour = (h) => ((h % 24) + 24) % 24;

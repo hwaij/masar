@@ -320,7 +320,7 @@ export const store = {
     return !!lsGet("masar_profile", { soundEnabled: false }).soundEnabled;
   },
   async loadProfile() {
-    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false, customColorsEnabled: false, sectionColors: {}, soundEnabled: false, accessibilityMode: false, tourProgress: {} });
+    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false, customColorsEnabled: false, sectionColors: {}, soundEnabled: false, accessibilityMode: false, tourProgress: {}, prayerRegion: null, athanNotificationsEnabled: false });
     if (!useCloud()) return local;
     const { data, error } = await supabase.from("profile").select("*").eq("owner", CURRENT_OWNER).maybeSingle();
     if (error || !data) return local;
@@ -336,6 +336,8 @@ export const store = {
       sectionColors: (data.section_colors && typeof data.section_colors === "object") ? data.section_colors : {},
       soundEnabled: !!data.sound_enabled,
       tourProgress: (data.tour_progress && typeof data.tour_progress === "object") ? data.tour_progress : {},
+      prayerRegion: data.prayer_region || null,
+      athanNotificationsEnabled: !!data.athan_notifications_enabled,
     };
     lsSet("masar_profile", p);
     return p;
@@ -348,7 +350,7 @@ export const store = {
     }
   },
   async saveTourSeen(seen) {
-    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false, customColorsEnabled: false, sectionColors: {}, soundEnabled: false, accessibilityMode: false, tourProgress: {} });
+    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false, customColorsEnabled: false, sectionColors: {}, soundEnabled: false, accessibilityMode: false, tourProgress: {}, prayerRegion: null, athanNotificationsEnabled: false });
     lsSet("masar_profile", { ...local, tourSeen: seen });
     if (useCloud()) {
       const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, tour_seen: seen, updated_at: new Date().toISOString() });
@@ -362,7 +364,7 @@ export const store = {
   // فوق القيمة المحلية الحالية حتى لا يطغى تحديث "modules.nutrition" مثلاً
   // على "core.step" المحفوظ سابقاً.
   async saveTourProgress(partial) {
-    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false, customColorsEnabled: false, sectionColors: {}, soundEnabled: false, accessibilityMode: false, tourProgress: {} });
+    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false, customColorsEnabled: false, sectionColors: {}, soundEnabled: false, accessibilityMode: false, tourProgress: {}, prayerRegion: null, athanNotificationsEnabled: false });
     const merged = {
       ...local.tourProgress,
       ...partial,
@@ -377,7 +379,7 @@ export const store = {
     return { ok: true, tourProgress: merged };
   },
   async saveTheme(theme) {
-    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false, customColorsEnabled: false, sectionColors: {}, soundEnabled: false, accessibilityMode: false, tourProgress: {} });
+    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false, customColorsEnabled: false, sectionColors: {}, soundEnabled: false, accessibilityMode: false, tourProgress: {}, prayerRegion: null, athanNotificationsEnabled: false });
     lsSet("masar_profile", { ...local, theme });
     if (useCloud()) {
       const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, theme, updated_at: new Date().toISOString() });
@@ -386,7 +388,7 @@ export const store = {
     return { ok: true };
   },
   async saveLanguage(language) {
-    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false, customColorsEnabled: false, sectionColors: {}, soundEnabled: false, accessibilityMode: false, tourProgress: {} });
+    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false, customColorsEnabled: false, sectionColors: {}, soundEnabled: false, accessibilityMode: false, tourProgress: {}, prayerRegion: null, athanNotificationsEnabled: false });
     lsSet("masar_profile", { ...local, language });
     if (useCloud()) {
       const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, language, updated_at: new Date().toISOString() });
@@ -394,7 +396,7 @@ export const store = {
     }
   },
   async saveFontSize(fontSize) {
-    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false, customColorsEnabled: false, sectionColors: {}, soundEnabled: false, accessibilityMode: false, tourProgress: {} });
+    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false, customColorsEnabled: false, sectionColors: {}, soundEnabled: false, accessibilityMode: false, tourProgress: {}, prayerRegion: null, athanNotificationsEnabled: false });
     lsSet("masar_profile", { ...local, fontSize });
     if (useCloud()) {
       const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, font_size: fontSize, updated_at: new Date().toISOString() });
@@ -403,7 +405,7 @@ export const store = {
     return { ok: true };
   },
   async saveHighContrast(highContrast) {
-    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false, customColorsEnabled: false, sectionColors: {}, soundEnabled: false, accessibilityMode: false, tourProgress: {} });
+    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false, customColorsEnabled: false, sectionColors: {}, soundEnabled: false, accessibilityMode: false, tourProgress: {}, prayerRegion: null, athanNotificationsEnabled: false });
     lsSet("masar_profile", { ...local, highContrast });
     if (useCloud()) {
       const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, high_contrast: highContrast, updated_at: new Date().toISOString() });
@@ -412,7 +414,7 @@ export const store = {
     return { ok: true };
   },
   async saveSpacious(spacious) {
-    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false, customColorsEnabled: false, sectionColors: {}, soundEnabled: false, accessibilityMode: false, tourProgress: {} });
+    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false, customColorsEnabled: false, sectionColors: {}, soundEnabled: false, accessibilityMode: false, tourProgress: {}, prayerRegion: null, athanNotificationsEnabled: false });
     lsSet("masar_profile", { ...local, spacious });
     if (useCloud()) {
       const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, spacious, updated_at: new Date().toISOString() });
@@ -421,7 +423,7 @@ export const store = {
     return { ok: true };
   },
   async saveAccessibilityMode(accessibilityMode) {
-    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false, customColorsEnabled: false, sectionColors: {}, soundEnabled: false, accessibilityMode: false, tourProgress: {} });
+    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false, customColorsEnabled: false, sectionColors: {}, soundEnabled: false, accessibilityMode: false, tourProgress: {}, prayerRegion: null, athanNotificationsEnabled: false });
     lsSet("masar_profile", { ...local, accessibilityMode });
     if (useCloud()) {
       const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, accessibility_mode: accessibilityMode, updated_at: new Date().toISOString() });
@@ -430,7 +432,7 @@ export const store = {
     return { ok: true };
   },
   async saveCustomColorsEnabled(enabled) {
-    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false, customColorsEnabled: false, sectionColors: {}, soundEnabled: false, accessibilityMode: false, tourProgress: {} });
+    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false, customColorsEnabled: false, sectionColors: {}, soundEnabled: false, accessibilityMode: false, tourProgress: {}, prayerRegion: null, athanNotificationsEnabled: false });
     lsSet("masar_profile", { ...local, customColorsEnabled: enabled });
     if (useCloud()) {
       const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, custom_colors_enabled: enabled, updated_at: new Date().toISOString() });
@@ -439,7 +441,7 @@ export const store = {
     return { ok: true };
   },
   async saveSectionColors(sectionColors) {
-    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false, customColorsEnabled: false, sectionColors: {}, soundEnabled: false, accessibilityMode: false, tourProgress: {} });
+    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false, customColorsEnabled: false, sectionColors: {}, soundEnabled: false, accessibilityMode: false, tourProgress: {}, prayerRegion: null, athanNotificationsEnabled: false });
     lsSet("masar_profile", { ...local, sectionColors });
     if (useCloud()) {
       const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, section_colors: sectionColors, updated_at: new Date().toISOString() });
@@ -448,7 +450,7 @@ export const store = {
     return { ok: true };
   },
   async saveSoundEnabled(enabled) {
-    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false, customColorsEnabled: false, sectionColors: {}, soundEnabled: false, accessibilityMode: false, tourProgress: {} });
+    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false, customColorsEnabled: false, sectionColors: {}, soundEnabled: false, accessibilityMode: false, tourProgress: {}, prayerRegion: null, athanNotificationsEnabled: false });
     lsSet("masar_profile", { ...local, soundEnabled: enabled });
     if (useCloud()) {
       const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, sound_enabled: enabled, updated_at: new Date().toISOString() });
@@ -459,7 +461,7 @@ export const store = {
   // enabled: هل الاشتراك في الإشعارات مفعّل الآن. asked: هل عُرض على
   // المستخدم طلب الإذن ولو مرة (سواء وافق أو رفض) — حتى لا يُسأل مجدداً.
   async saveNotificationsPreference(enabled, asked) {
-    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false, customColorsEnabled: false, sectionColors: {}, soundEnabled: false, accessibilityMode: false, tourProgress: {} });
+    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false, customColorsEnabled: false, sectionColors: {}, soundEnabled: false, accessibilityMode: false, tourProgress: {}, prayerRegion: null, athanNotificationsEnabled: false });
     lsSet("masar_profile", { ...local, notificationsEnabled: enabled, notificationsAsked: asked });
     if (useCloud()) {
       const { error } = await supabase.from("profile").upsert({
@@ -467,6 +469,23 @@ export const store = {
       });
       if (error) console.error("[saveNotificationsPreference] Supabase error:", error.message);
     }
+  },
+
+  // أذان محافظات الكويت (ميزة اختيارية مستقلة تماماً عن notifications_enabled
+  // العام - كلاهما يجب أن يكون مفعّلاً معاً حتى تُرسَل الإشعارات فعلياً، راجع
+  // شرط الاستعلام في scheduled-prayer-reminders.js). region واحد من معرّفات
+  // KUWAIT_GOVERNORATES (src/lib/prayer.js) أو null (يُستخدَم الافتراضي
+  // "capital" حينها).
+  async saveAthanPreference(enabled, region) {
+    const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false, customColorsEnabled: false, sectionColors: {}, soundEnabled: false, accessibilityMode: false, tourProgress: {}, prayerRegion: null, athanNotificationsEnabled: false });
+    lsSet("masar_profile", { ...local, athanNotificationsEnabled: enabled, prayerRegion: region });
+    if (useCloud()) {
+      const { error } = await supabase.from("profile").upsert({
+        owner: CURRENT_OWNER, athan_notifications_enabled: enabled, prayer_region: region, updated_at: new Date().toISOString(),
+      });
+      if (error) { console.error("[saveAthanPreference] Supabase error:", error.message); return { ok: false, error: error.message }; }
+    }
+    return { ok: true };
   },
 
   // اشتراك Push حقيقي واحد لجهاز/متصفح واحد - يُستدعى من src/lib/push.js

@@ -58,6 +58,41 @@ function lsSet(key, value) {
   }
 }
 
+// تلميح على مستوى الجهاز نفسه، بمفتاح ثابت غير مبني عبر nsKey (أي غير
+// مرتبط بـowner إطلاقاً، خلافاً لكل مفاتيح lsGet/lsSet أعلاه) - يحل مشكلة
+// حقيقية: قراءة الثيم/اللغة الأولى (قبل أول رسم لـReact، انظر MasarApp.jsx
+// وi18n.js) تحدث بالضرورة قبل أن تُعرف هوية المستخدم الحقيقية (CURRENT_OWNER
+// لا يزال "solo" في تلك اللحظة دوماً حتى لمستخدم مسجَّل دخول فعلاً - معرفة
+// الهوية تتطلب جولة شبكة غير متزامنة لا يمكن أن تكتمل قبل أول رسم). القراءة
+// القديمة (nsKey("masar_profile") مع CURRENT_OWNER="solo") كانت تعرض دائماً
+// بيانات مساحة "الضيف" لأول لحظة - قد تكون فارغة (فترجع للافتراضي "dark"/
+// "ar") أو قد تحوي قيماً قديمة من استخدام ضيف سابق لهذا الجهاز لا علاقة لها
+// بالحساب المسجَّل دخول فعلياً. هذا التلميح يُحدَّث في كل مرة يصل فيها ثيم/
+// لغة حقيقيان موثوقان (loadProfile الناجح، أو تبديل صريح عبر saveTheme/
+// saveLanguage) - فيعكس عملياً "آخر ما رآه هذا الجهاز تحديداً" بصرف النظر
+// عن الحساب، وهو تخمين أولي أدق بكثير من افتراض "الضيف" دائماً. القيمة
+// النهائية الموثوقة تصل كما كانت الحال دوماً من loadProfile() الحقيقي -
+// هذا فقط يحسّن التخمين الأول قبل وصولها، لا يستبدلها.
+const DEVICE_UI_KEY = "masar_device_ui_hint";
+function getDeviceUiHint() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(DEVICE_UI_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+function setDeviceUiHint(partial) {
+  if (typeof window === "undefined") return;
+  try {
+    const current = getDeviceUiHint() || {};
+    window.localStorage.setItem(DEVICE_UI_KEY, JSON.stringify({ ...current, ...partial }));
+  } catch (e) {
+    console.error("[setDeviceUiHint] localStorage set failed:", e);
+  }
+}
+
 // أقسام Nutrition/Fitness/Vault/... تُحمَّل بـReact.lazy وتُفكَّك من الشجرة
 // عند مغادرتها (تبديل view في MasarApp) - أي رجوع لنفس القسم خلال نفس
 // الجلسة يُعيد تركيبها من الصفر، فيُعاد استدعاء Supabase لنفس البيانات
@@ -252,6 +287,8 @@ export const store = {
   // معرفة أن المستخدم اختار "system" تحديداً ليُبرز ذلك الخيار، لا اللون
   // الفعلي المُطبَّق الناتج عنه).
   getLocalThemeChoice() {
+    const hint = getDeviceUiHint();
+    if (hint && ["dark", "light", "pink", "blue", "system"].includes(hint.theme)) return hint.theme;
     const choice = lsGet("masar_profile", { theme: "dark" }).theme;
     return ["dark", "light", "pink", "blue", "system"].includes(choice) ? choice : "dark";
   },
@@ -274,6 +311,8 @@ export const store = {
   // i18next (قبل أول رسم) حتى لا تظهر ومضة باللغة الافتراضية قبل تطبيق
   // تفضيل المستخدم الفعلي.
   getLocalLanguage() {
+    const hint = getDeviceUiHint();
+    if (hint && (hint.language === "en" || hint.language === "ar")) return hint.language;
     return lsGet("masar_profile", { language: "ar" }).language === "en" ? "en" : "ar";
   },
   // شاشة اختيار اللغة الأولى - "لا تُظهرها" إذا سبق لهذا المتصفح اختيار
@@ -321,8 +360,11 @@ export const store = {
   },
   async loadProfile() {
     const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false, customColorsEnabled: false, sectionColors: {}, soundEnabled: false, accessibilityMode: false, tourProgress: {}, prayerRegion: null, athanNotificationsEnabled: false });
-    if (!useCloud()) return local;
+    if (!useCloud()) { setDeviceUiHint({ theme: local.theme, language: local.language }); return local; }
     const { data, error } = await supabase.from("profile").select("*").eq("owner", CURRENT_OWNER).maybeSingle();
+    // خطأ أو غياب صف: "local" هنا كاش مساحة "الضيف" (قد لا يعكس هذا الحساب
+    // الحقيقي إطلاقاً) - لا يُحدَّث تلميح الجهاز به عمداً، حتى لا يُثبَّت
+    // تخمين خاطئ محتمل كأنه موثوق.
     if (error || !data) return local;
     const p = {
       name: data.name || "", about: data.about || "", hobbies: data.hobbies || "", field: data.field || "",
@@ -340,6 +382,7 @@ export const store = {
       athanNotificationsEnabled: !!data.athan_notifications_enabled,
     };
     lsSet("masar_profile", p);
+    setDeviceUiHint({ theme: p.theme, language: p.language });
     return p;
   },
   async saveProfile(p) {
@@ -381,6 +424,7 @@ export const store = {
   async saveTheme(theme) {
     const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false, customColorsEnabled: false, sectionColors: {}, soundEnabled: false, accessibilityMode: false, tourProgress: {}, prayerRegion: null, athanNotificationsEnabled: false });
     lsSet("masar_profile", { ...local, theme });
+    setDeviceUiHint({ theme });
     if (useCloud()) {
       const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, theme, updated_at: new Date().toISOString() });
       if (error) { console.error("[saveTheme] Supabase error:", error.message); return { ok: false, error: error.message }; }
@@ -390,6 +434,7 @@ export const store = {
   async saveLanguage(language) {
     const local = lsGet("masar_profile", { name: "", about: "", hobbies: "", field: "", tourSeen: false, theme: "dark", notificationsEnabled: false, notificationsAsked: false, language: "ar", fontSize: "normal", highContrast: false, spacious: false, customColorsEnabled: false, sectionColors: {}, soundEnabled: false, accessibilityMode: false, tourProgress: {}, prayerRegion: null, athanNotificationsEnabled: false });
     lsSet("masar_profile", { ...local, language });
+    setDeviceUiHint({ language });
     if (useCloud()) {
       const { error } = await supabase.from("profile").upsert({ owner: CURRENT_OWNER, language, updated_at: new Date().toISOString() });
       if (error) console.error("[saveLanguage] Supabase error:", error.message);
@@ -533,7 +578,7 @@ export const store = {
   // بيانات قسم "أنت" الصحية (الطول/الوزن/العمر/الجنس/النشاط/الحالات
   // الصحية) والقيم المحسوبة منها (BMI/IBW/REE/TEE) — صف واحد لكل مستخدم،
   // بنفس نمط جدول profile.
-  async loadHealthProfile() {
+  async loadHealthProfile(preloaded) {
     const local = lsGet("masar_health_profile", {
       heightCm: null, weightKg: null, age: null, gender: null, activityLevel: null, conditions: [],
       bmi: null, bmiCategory: null, ibw: null, ree: null, tee: null,
@@ -541,7 +586,9 @@ export const store = {
     });
     if (!useCloud()) return local;
     try {
-      const { data, error } = await supabase.from("health_profile").select("*").eq("owner", CURRENT_OWNER).maybeSingle();
+      const { data, error } = preloaded !== undefined
+        ? { data: preloaded, error: null }
+        : await supabase.from("health_profile").select("*").eq("owner", CURRENT_OWNER).maybeSingle();
       if (error || !data) return local;
       const result = {
         heightCm: data.height_cm, weightKg: data.weight_kg, age: data.age, gender: data.gender,
@@ -850,12 +897,14 @@ export const store = {
   // source موجودة لدعم مصدر تلقائي مستقبلاً (Apple Health/Google Fit عبر
   // تطبيق Native) بلا أي تغيير بنيوي - القيمة الوحيدة المُستخدَمة اليوم هي
   // "manual" (انظر نفس المبدأ في activity_source بـsupabase-schema.sql).
-  async loadStepsLog() {
+  async loadStepsLog(preloaded) {
     const local = lsGet("masar_steps_log", {});
     if (!useCloud()) return local;
-    if (cloudFetchIsFresh("masar_steps_log")) return local;
+    if (preloaded === undefined && cloudFetchIsFresh("masar_steps_log")) return local;
     try {
-      const { data, error } = await supabase.from("steps_log").select("*").eq("owner", CURRENT_OWNER);
+      const { data, error } = preloaded !== undefined
+        ? { data: preloaded, error: null }
+        : await supabase.from("steps_log").select("*").eq("owner", CURRENT_OWNER);
       if (error || !data) return local;
       const log = {};
       data.forEach((r) => { log[r.date] = { steps: r.steps, source: r.source || "manual" }; });
@@ -1207,10 +1256,39 @@ export const store = {
     return { ok: true };
   },
 
-  async loadAchieve() {
+  // نداء واحد يجمع 13 استعلاماً صغيراً متكرراً (achieve/commitments/
+  // prayer_log/religious_tasks/points_log/tips_log/goals/sleep_log/
+  // steps_log/azkar_log/quran_progress/istighfar/health_profile) عبر RPC
+  // واحدة (get_background_bundle، راجع تعليقها في supabase-schema.sql) بدل
+  // 13 رحلة شبكية منفصلة عند كل فتح تطبيق - أثر مباشر على عدد الاستعلامات
+  // المتزامنة عند فتح كثيف (مثال واقعي: إشعار أذان يصل لمئات المستخدمين
+  // بنفس الدقيقة). null عند الفشل/الضيف - كل دالة loadX أدناه تتعامل مع
+  // preloaded=undefined كسلوكها القديم تماماً (استعلامها المستقل الخاص)، فلا
+  // فقدان بيانات ولا كسر لأي شيء لو تعذّرت هذه الدالة أو انتهت مهلتها.
+  async loadBackgroundBundle() {
+    if (!useCloud()) return null;
+    try {
+      const { data, error } = await supabase.rpc("get_background_bundle");
+      if (error || !data) return null;
+      return data;
+    } catch (e) {
+      console.error("[loadBackgroundBundle] RPC failed:", e);
+      return null;
+    }
+  },
+
+  // preloaded (اختياري): صفوف جاهزة من get_background_bundle() RPC أعلاه
+  // بدل استعلام REST منفصل - نفس شكل الأعمدة بالضبط (select("*") الأصلي)،
+  // فبقية الدالة (التحويل والتخزين المحلي) تعمل بلا أي تغيير بصرف النظر عن
+  // مصدر الصفوف. undefined (لا preloaded مُمرَّر إطلاقاً) يعني السلوك القديم
+  // تماماً: استعلام مباشر كما كان دوماً - يبقى هذا استدعاءً مستقلاً صحيحاً
+  // 100% لأي مستدعٍ آخر غير loadAll.
+  async loadAchieve(preloaded) {
     const local = lsGet("masar_achieve", []);
     if (!useCloud()) return local;
-    const { data, error } = await supabase.from("achieve").select("*").eq("owner", CURRENT_OWNER).order("created_at", { ascending: false });
+    const { data, error } = preloaded !== undefined
+      ? { data: preloaded, error: null }
+      : await supabase.from("achieve").select("*").eq("owner", CURRENT_OWNER).order("created_at", { ascending: false });
     if (error || !data) return local;
     const items = data.map((r) => ({ id: r.id, kind: r.kind, title: r.title, detail: r.detail, steps: r.steps || [], topic: r.topic, done: r.done }));
     lsSet("masar_achieve", items);
@@ -1257,10 +1335,12 @@ export const store = {
     return { ok: true };
   },
 
-  async loadCommitments() {
+  async loadCommitments(preloaded) {
     const local = lsGet("masar_commitments", []);
     if (!useCloud()) return local;
-    const { data, error } = await supabase.from("commitments").select("*").eq("owner", CURRENT_OWNER).order("created_at");
+    const { data, error } = preloaded !== undefined
+      ? { data: preloaded, error: null }
+      : await supabase.from("commitments").select("*").eq("owner", CURRENT_OWNER).order("created_at");
     if (error || !data) return local;
     const items = data.map((r) => ({ id: r.id, title: r.title, targetMinutes: r.target_minutes, catId: r.cat_id, log: r.log || {} }));
     lsSet("masar_commitments", items);
@@ -1285,10 +1365,12 @@ export const store = {
     return { ok: true };
   },
 
-  async loadPrayerLog() {
+  async loadPrayerLog(preloaded) {
     const local = lsGet("masar_prayer_log", []);
     if (!useCloud()) return local;
-    const { data, error } = await supabase.from("prayer_log").select("*").eq("owner", CURRENT_OWNER).order("done_at", { ascending: false });
+    const { data, error } = preloaded !== undefined
+      ? { data: preloaded, error: null }
+      : await supabase.from("prayer_log").select("*").eq("owner", CURRENT_OWNER).order("done_at", { ascending: false });
     if (error || !data) return local;
     const items = data.map((r) => ({
       id: r.id, date: r.date, prayerId: r.prayer_id,
@@ -1320,10 +1402,12 @@ export const store = {
     return { ok: true };
   },
 
-  async loadReligious() {
+  async loadReligious(preloaded) {
     const local = lsGet("masar_religious", []);
     if (!useCloud()) return local;
-    const { data, error } = await supabase.from("religious_tasks").select("*").eq("owner", CURRENT_OWNER).order("created_at", { ascending: false });
+    const { data, error } = preloaded !== undefined
+      ? { data: preloaded, error: null }
+      : await supabase.from("religious_tasks").select("*").eq("owner", CURRENT_OWNER).order("created_at", { ascending: false });
     if (error || !data) return local;
     const items = data.map((r) => ({ id: r.id, date: r.date, taskKey: r.task_key, title: r.title, targetCount: r.target_count, targetMinutes: r.target_minutes, minutesSpent: r.minutes_spent || 0, done: r.done }));
     lsSet("masar_religious", items);
@@ -1378,11 +1462,13 @@ export const store = {
     return { ok: true };
   },
 
-  async loadAzkarLog() {
+  async loadAzkarLog(preloaded) {
     const local = lsGet("masar_azkar_log", {});
     if (!useCloud()) return local;
     try {
-      const { data, error } = await supabase.from("azkar_log").select("*").eq("owner", CURRENT_OWNER).order("date");
+      const { data, error } = preloaded !== undefined
+        ? { data: preloaded, error: null }
+        : await supabase.from("azkar_log").select("*").eq("owner", CURRENT_OWNER).order("date");
       if (error) { console.error("[loadAzkarLog] Supabase error:", error.message); return local; }
       if (!data) return local;
       const log = {};
@@ -1417,11 +1503,13 @@ export const store = {
     return { ok: true };
   },
 
-  async loadQuranProgress() {
+  async loadQuranProgress(preloaded) {
     const local = lsGet("masar_quran_juz", {});
     if (!useCloud()) return local;
     try {
-      const { data, error } = await supabase.from("quran_progress").select("*").eq("owner", CURRENT_OWNER);
+      const { data, error } = preloaded !== undefined
+        ? { data: preloaded, error: null }
+        : await supabase.from("quran_progress").select("*").eq("owner", CURRENT_OWNER);
       if (error) { console.error("[loadQuranProgress] Supabase error:", error.message); return local; }
       if (!data) return local;
       const prog = {};
@@ -1443,11 +1531,16 @@ export const store = {
     return { ok: true };
   },
 
-  async loadIstighfar() {
+  // preloaded هنا صف واحد (أو null) من get_background_bundle() - بخلاف بقية
+  // preloaded أعلاه (مصفوفات)، لأن istighfar/health_profile صف واحد لكل
+  // owner أصلاً (maybeSingle، لا select عادي).
+  async loadIstighfar(preloaded) {
     const local = lsGet("masar_istighfar", { daily: {}, total: 0 });
     if (!useCloud()) return local;
     try {
-      const { data, error } = await supabase.from("istighfar").select("*").eq("owner", CURRENT_OWNER).maybeSingle();
+      const { data, error } = preloaded !== undefined
+        ? { data: preloaded, error: null }
+        : await supabase.from("istighfar").select("*").eq("owner", CURRENT_OWNER).maybeSingle();
       if (error) { console.error("[loadIstighfar] Supabase error:", error.message); return local; }
       if (!data) return local;
       const result = { daily: data.daily || {}, total: data.total || 0 };
@@ -1466,11 +1559,13 @@ export const store = {
     return { ok: true };
   },
 
-  async loadPointsLog() {
+  async loadPointsLog(preloaded) {
     const local = lsGet("masar_points_log", []);
     if (!useCloud()) return local;
     try {
-      const { data, error } = await supabase.from("points_log").select("*").eq("owner", CURRENT_OWNER).order("date", { ascending: false }).limit(200);
+      const { data, error } = preloaded !== undefined
+        ? { data: preloaded, error: null }
+        : await supabase.from("points_log").select("*").eq("owner", CURRENT_OWNER).order("date", { ascending: false }).limit(200);
       if (error) { console.error("[loadPointsLog] Supabase error:", error.message); return local; }
       if (!data) return local;
       const items = data.map((r) => ({ id: r.id, date: r.date, amount: r.amount, reason: r.reason }));
@@ -1604,11 +1699,13 @@ export const store = {
     return { ok: true };
   },
 
-  async loadTipsLog() {
+  async loadTipsLog(preloaded) {
     const local = lsGet("masar_tips_log", {});
     if (!useCloud()) return local;
     try {
-      const { data, error } = await supabase.from("tips_log").select("*").eq("owner", CURRENT_OWNER).order("date");
+      const { data, error } = preloaded !== undefined
+        ? { data: preloaded, error: null }
+        : await supabase.from("tips_log").select("*").eq("owner", CURRENT_OWNER).order("date");
       if (error) { console.error("[loadTipsLog] Supabase error:", error.message); return local; }
       if (!data) return local;
       const log = {};
@@ -1647,11 +1744,13 @@ export const store = {
     lsSet("masar_daily_tip_shown_date", date);
   },
 
-  async loadGoals() {
+  async loadGoals(preloaded) {
     const local = lsGet("masar_goals", []);
     if (!useCloud()) return local;
     try {
-      const { data, error } = await supabase.from("goals").select("*").eq("owner", CURRENT_OWNER).order("created_at", { ascending: false });
+      const { data, error } = preloaded !== undefined
+        ? { data: preloaded, error: null }
+        : await supabase.from("goals").select("*").eq("owner", CURRENT_OWNER).order("created_at", { ascending: false });
       if (error) { console.error("[loadGoals] Supabase error:", error.message); return local; }
       if (!data) return local;
       const items = data.map((r) => ({
@@ -2101,11 +2200,13 @@ export const store = {
   // يوماً) لهذا السجل، فلا حاجة لجلب كل التاريخ المتراكم منذ إنشاء الحساب.
   // plannedBedtime/plannedWakeTime (Priority 3): وقت مخطَّط أُدخِل مساءً قبل
   // النوم عبر تذكير - منفصل تماماً عن sleepTime/wakeTime/hours الفعلية.
-  async loadSleepLog() {
+  async loadSleepLog(preloaded) {
     const local = lsGet("masar_sleep_log", []);
     if (!useCloud()) return local;
     try {
-      const { data, error } = await supabase.from("sleep_log").select("*").eq("owner", CURRENT_OWNER).gte("date", isoDateDaysAgo(90)).order("date", { ascending: false });
+      const { data, error } = preloaded !== undefined
+        ? { data: preloaded, error: null }
+        : await supabase.from("sleep_log").select("*").eq("owner", CURRENT_OWNER).gte("date", isoDateDaysAgo(90)).order("date", { ascending: false });
       if (error) { console.error("[loadSleepLog] Supabase error:", error.message); return local; }
       if (!data) return local;
       // خلل حقيقي وُجد وأُصلح أثناء إضافة "الخطة بلا بيانات فعلية بعد": كان

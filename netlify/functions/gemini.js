@@ -41,7 +41,26 @@ async function isFreeForAllActive(url, anonKey) {
   }
 }
 
-async function requireActiveSubscriber(accessToken) {
+// يحلّ هوية المستخدم الحقيقية (userId) من accessToken - مستقل عن حالة
+// free_for_all عمداً (خلافاً لبقية requireActiveSubscriber أدناه) لأن حد
+// الاستخدام (rate limit) يجب أن يعمل حتى والميزة مجانية للجميع؛ فشل الحل هنا
+// يُعامَل كـ"مجهول" بلا رمي خطأ - المستدعي يقع حينها للتقييد بعنوان IP بدلاً.
+async function resolveUserId(url, anonKey, accessToken) {
+  if (!accessToken) return null;
+  try {
+    const userRes = await fetch(`${url}/auth/v1/user`, {
+      headers: { Authorization: `Bearer ${accessToken}`, apikey: anonKey },
+    });
+    if (!userRes.ok) return null;
+    const user = await userRes.json();
+    return user?.id || null;
+  } catch (e) {
+    console.error("[gemini] resolveUserId failed:", e);
+    return null;
+  }
+}
+
+async function requireActiveSubscriber(accessToken, userId) {
   const { url, anonKey } = readSupabaseEnv();
   if (!url || !anonKey) {
     return { ok: false, status: 500, error: "الخدمة غير مهيأة على الخادم." };
@@ -49,22 +68,8 @@ async function requireActiveSubscriber(accessToken) {
   if (await isFreeForAllActive(url, anonKey)) {
     return { ok: true };
   }
-  if (!accessToken) {
+  if (!accessToken || !userId) {
     return { ok: false, status: 401, error: "سجّل الدخول أولاً لاستخدام هذه الميزة." };
-  }
-
-  let userId;
-  try {
-    const userRes = await fetch(`${url}/auth/v1/user`, {
-      headers: { Authorization: `Bearer ${accessToken}`, apikey: anonKey },
-    });
-    if (!userRes.ok) return { ok: false, status: 401, error: "جلستك غير صالحة، سجّل الدخول مرة أخرى." };
-    const user = await userRes.json();
-    userId = user?.id;
-    if (!userId) return { ok: false, status: 401, error: "جلستك غير صالحة، سجّل الدخول مرة أخرى." };
-  } catch (e) {
-    console.error("[gemini] auth verification failed:", e);
-    return { ok: false, status: 502, error: "تعذّر التحقق من حسابك الآن، حاول مرة أخرى." };
   }
 
   try {
@@ -82,6 +87,59 @@ async function requireActiveSubscriber(accessToken) {
   } catch (e) {
     console.error("[gemini] subscription check failed:", e);
     return { ok: false, status: 502, error: "تعذّر التحقق من اشتراكك الآن، حاول مرة أخرى." };
+  }
+}
+
+// حد استخدام بسيط لكل هوية (مستخدم مسجَّل مفضَّل دائماً حين متاح، وإلا عنوان
+// IP للضيوف) - يحمي حصة Gemini المشتركة (مفتاح واحد لكل التطبيق) من استنزاف
+// عدد قليل من المستخدمين المكثّفين جداً قبل أن يصل الأثر لبقية المستخدمين
+// (هذا هو السيناريو الفعلي المتوقَّع عند تصوير الأكل بكثرة). رقم وقائي/
+// تخفيفي معقول، لا حد أمني صارم - قابل للتعديل بسهولة هنا وحده.
+const GEMINI_RATE_LIMIT_PER_MINUTE = 5;
+const GEMINI_RATE_WINDOW_MS = 60 * 1000;
+
+function clientIdentity(event, userId) {
+  if (userId) return `user:${userId}`;
+  const ip =
+    event.headers?.["x-nf-client-connection-ip"] ||
+    event.headers?.["client-ip"] ||
+    (event.headers?.["x-forwarded-for"] || "").split(",")[0].trim() ||
+    "unknown";
+  return `ip:${ip}`;
+}
+
+// فشل الفحص نفسه (شبكة/جدول) لا يجب أن يمنع استخداماً طبيعياً مشروعاً أبداً
+// - fail-open دائماً؛ Gemini نفسها تبقى خط الدفاع الأخير (429) لو تجاوزت
+// الحصة الحقيقية رغم ذلك. تنظيف عرضي منخفض الاحتمال (~2% من الطلبات) يمنع
+// تراكم صفوف قديمة بلا الحاجة لأي مهمة مجدولة منفصلة لهذا الجدول الصغير.
+async function checkAndRecordGeminiUsage(url, anonKey, identity) {
+  try {
+    const since = new Date(Date.now() - GEMINI_RATE_WINDOW_MS).toISOString();
+    const countRes = await fetch(
+      `${url}/rest/v1/gemini_usage_log?identity=eq.${encodeURIComponent(identity)}&created_at=gte.${encodeURIComponent(since)}&select=id`,
+      { headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` } },
+    );
+    if (!countRes.ok) return { allowed: true };
+    const rows = await countRes.json();
+    if (Array.isArray(rows) && rows.length >= GEMINI_RATE_LIMIT_PER_MINUTE) {
+      return { allowed: false };
+    }
+    fetch(`${url}/rest/v1/gemini_usage_log`, {
+      method: "POST",
+      headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ identity }),
+    }).catch((e) => console.error("[gemini] usage log write failed:", e));
+    if (Math.random() < 0.02) {
+      const cutoff = new Date(Date.now() - GEMINI_RATE_WINDOW_MS).toISOString();
+      fetch(`${url}/rest/v1/gemini_usage_log?created_at=lt.${encodeURIComponent(cutoff)}`, {
+        method: "DELETE",
+        headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
+      }).catch((e) => console.error("[gemini] usage log cleanup failed:", e));
+    }
+    return { allowed: true };
+  } catch (e) {
+    console.error("[gemini] usage check failed:", e);
+    return { allowed: true };
   }
 }
 
@@ -105,13 +163,29 @@ exports.handler = async (event) => {
 
   const authHeader = event.headers?.authorization || event.headers?.Authorization || "";
   const accessToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-  const gate = await requireActiveSubscriber(accessToken);
+  const { url: supabaseUrl, anonKey } = readSupabaseEnv();
+  // تُحلّ مرة واحدة هنا وتُمرَّر لكل من requireActiveSubscriber (تتجاوز حلّها
+  // ذاتياً حين free_for_all مفعّلة) وclientIdentity أدناه - بلا تكرار نداء
+  // /auth/v1/user مرتين لنفس الطلب.
+  const userId = await resolveUserId(supabaseUrl, anonKey, accessToken);
+  const gate = await requireActiveSubscriber(accessToken, userId);
   if (!gate.ok) {
     return {
       statusCode: gate.status,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ error: gate.error }),
     };
+  }
+
+  if (supabaseUrl && anonKey) {
+    const usage = await checkAndRecordGeminiUsage(supabaseUrl, anonKey, clientIdentity(event, userId));
+    if (!usage.allowed) {
+      return {
+        statusCode: 429,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ error: "الطلبات كثيرة من حسابك الآن، انتظر دقيقة ثم حاول مرة أخرى." }),
+      };
+    }
   }
 
   // This endpoint is reachable directly (not only from the app's own UI),

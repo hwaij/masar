@@ -376,37 +376,69 @@ export default function MasarApp() {
       // ضد التعليق الحقيقي، لكن هذا لم يعد يؤخّر فتح التطبيق نفسه أبداً.
       const T = 8000;
 
+      // إن فاز fallback افتراضي بالسباق (شبكة/جلسة بطيئة عند فتح التطبيق من
+      // الخلفية - راجع تعليق withTimeout في helpers.js)، النتيجة الحقيقية
+      // المتأخرة لم تعد تُهمَل بصمت - تُطبَّق تلقائياً فور وصولها بدل بقاء
+      // الحالة عالقة على القيم الافتراضية (ثيم داكن/غير مشترك...) حتى يعيد
+      // المستخدم تحميل الصفحة يدوياً. فحص loadVersionRef هنا يمنع تطبيق
+      // نتيجة متأخرة تخص تحميلاً سابقاً أُلغي فعلياً بتسجيل دخول/خروج لاحق -
+      // نفس الحارس المستخدَم أدناه لكامل دفعتَي essential/background.
+      const lateApply = (setter) => (real) => { if (loadVersionRef.current === myVersion) setter(real); };
+
       const essential = Promise.all([
-        withTimeout(store.loadCategories(), T, DEFAULT_CATEGORIES),
-        withTimeout(store.loadEntries(), T, []),
-        withTimeout(store.loadTasks(), T, []),
-        withTimeout(store.loadReports(), T, []),
-        withTimeout(store.loadGamify(), T, { points: 0, badges: [] }),
-        withTimeout(store.loadProfile(), T, { name: "", about: "", hobbies: "", field: "", tourSeen: false, tourProgress: {}, theme: "dark", language: "ar" }),
-        withTimeout(store.loadMandatoryLog(), T, {}),
-        withTimeout(store.loadFocus(), T, []),
-        withTimeout(store.loadSubscription(), T, { isSubscriber: false, subscriptionEnd: null, isVip: false, subscriptionType: null }),
+        withTimeout(store.loadCategories(), T, DEFAULT_CATEGORIES, lateApply(setCategories)),
+        withTimeout(store.loadEntries(), T, [], lateApply(setEntries)),
+        withTimeout(store.loadTasks(), T, [], lateApply(setTasks)),
+        withTimeout(store.loadReports(), T, [], lateApply(setReports)),
+        withTimeout(store.loadGamify(), T, { points: 0, badges: [] }, lateApply(setGamify)),
+        // تصحيح خاص لهذا الحقل تحديداً (لا lateApply العامة): profile.theme/
+        // language لا تُطبَّقان تلقائياً على الحالة الحقيقية (theme/i18n) إلا
+        // ضمن useEffect مربوط بتحوّل loaded من false إلى true (أدناه) - وهذا
+        // التحوّل لا يتكرر لاحقاً، فتصحيح متأخر لـsetProfile وحدها لن يصل
+        // فعلياً لسمة data-theme ولا للغة الواجهة. هنا نطبّق نفس منطق ذينك
+        // الـeffect مباشرة عند وصول profile الحقيقي متأخراً.
+        withTimeout(store.loadProfile(), T, { name: "", about: "", hobbies: "", field: "", tourSeen: false, tourProgress: {}, theme: "dark", language: "ar" }, (real) => {
+          if (loadVersionRef.current !== myVersion) return;
+          setProfile(real);
+          setTheme(["dark", "light", "pink", "blue", "system"].includes(real.theme) ? real.theme : "dark");
+          i18n.changeLanguage(real.language === "en" ? "en" : "ar");
+        }),
+        withTimeout(store.loadMandatoryLog(), T, {}, lateApply(setMandatoryLog)),
+        withTimeout(store.loadFocus(), T, [], lateApply(setFocus)),
+        withTimeout(store.loadSubscription(), T, { isSubscriber: false, subscriptionEnd: null, isVip: false, subscriptionType: null }, lateApply(setSubscription)),
       ]);
 
+      // دفعة الخلفية: نداء واحد (get_background_bundle RPC) يجمع 13 استعلاماً
+      // كان كل منها ينفصل تماماً من قبل - راجع تعليق loadBackgroundBundle في
+      // store.js. bundle=null (ضيف/فشل/انتهاء مهلة) يعني كل loadX أدناه يُمرَّر
+      // preloaded=undefined فتعمل تماماً كسلوكها القديم المستقل (استعلامها
+      // الخاص) - تراجع آمن تلقائي بلا أي تغيير ظاهر، فقط بلا تسريع إضافي.
+      // azkarItems ليست هنا عمداً - محلية بحتة (لا Supabase) أصلاً، لم تكن
+      // جزءاً من الرحلات الشبكية موضوع هذا التحسين. مهلة أقصر خاصة بهذا
+      // النداء وحده (3 ثوانٍ لا 8) عمداً: لو تعذّرت الدالة المجمّعة تحديداً
+      // (مثال: الترحيل SQL لم يُطبَّق على الإنتاج بعد)، الأفضل الرجوع سريعاً
+      // للاستعلامات الـ13 المنفصلة المضمونة العمل بدل انتظار مهلة كاملة أولاً
+      // قبل حتى تجربتها - يحدّ هذا من أسوأ سيناريو تراجع لهذا التحسين بذاته.
+      const bundle = await withTimeout(store.loadBackgroundBundle(), 3000, null);
       const background = Promise.all([
-        withTimeout(store.loadAchieve(), T, []),
-        withTimeout(store.loadCommitments(), T, []),
-        withTimeout(store.loadPrayerLog(), T, []),
-        withTimeout(store.loadReligious(), T, []),
-        withTimeout(store.loadPointsLog(), T, []),
-        withTimeout(store.loadTipsLog(), T, {}),
-        withTimeout(store.loadGoals(), T, []),
-        withTimeout(store.loadSleepLog(), T, []),
-        withTimeout(store.loadStepsLog(), T, {}),
-        withTimeout(store.loadAzkarLog(), T, {}),
-        withTimeout(store.loadAzkarItems(), T, {}),
-        withTimeout(store.loadQuranProgress(), T, {}),
-        withTimeout(store.loadIstighfar(), T, { daily: {}, total: 0 }),
-        withTimeout(store.loadHealthProfile(), T, {
+        withTimeout(store.loadAchieve(bundle?.achieve), T, [], lateApply(setAchieve)),
+        withTimeout(store.loadCommitments(bundle?.commitments), T, [], lateApply(setCommitments)),
+        withTimeout(store.loadPrayerLog(bundle?.prayer_log), T, [], lateApply(setPrayerLog)),
+        withTimeout(store.loadReligious(bundle?.religious_tasks), T, [], lateApply(setReligious)),
+        withTimeout(store.loadPointsLog(bundle?.points_log), T, [], lateApply(setPointsLog)),
+        withTimeout(store.loadTipsLog(bundle?.tips_log), T, {}, lateApply(setTipsLog)),
+        withTimeout(store.loadGoals(bundle?.goals), T, [], lateApply(setGoals)),
+        withTimeout(store.loadSleepLog(bundle?.sleep_log), T, [], lateApply(setSleepLog)),
+        withTimeout(store.loadStepsLog(bundle?.steps_log), T, {}, lateApply(setStepsLog)),
+        withTimeout(store.loadAzkarLog(bundle?.azkar_log), T, {}, lateApply(setAzkarLog)),
+        withTimeout(store.loadAzkarItems(), T, {}, lateApply(setAzkarItems)),
+        withTimeout(store.loadQuranProgress(bundle?.quran_progress), T, {}, lateApply(setQuranProgress)),
+        withTimeout(store.loadIstighfar(bundle?.istighfar), T, { daily: {}, total: 0 }, lateApply(setIstighfar)),
+        withTimeout(store.loadHealthProfile(bundle?.health_profile), T, {
           heightCm: null, weightKg: null, age: null, gender: null, activityLevel: null, conditions: [],
           bmi: null, bmiCategory: null, ibw: null, ree: null, tee: null,
           foodLikes: "", foodDislikes: "", lifestylePreferences: "", dailyStepsGoal: null,
-        }),
+        }, lateApply(setHealthProfile)),
       ]);
 
       const [c, e, t, r, g, p, ml, f, sub] = await essential;

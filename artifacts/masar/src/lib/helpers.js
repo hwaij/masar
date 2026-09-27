@@ -11,10 +11,28 @@ export function todayKey(d = new Date()) {
 // withTimeout يضمن أن أي وعد "يستقر" خلال مهلة محددة دائماً، عبر
 // Promise.race مع مؤقّت يُرجع قيمة احتياطية - لا يُلغي الوعد الأصلي (قد
 // يكتمل لاحقاً في الخلفية دون تأثير)، لكنه يمنع تعليق واجهة المستخدم.
-export function withTimeout(promise, ms, fallbackValue) {
+//
+// onLate (اختياري): إن فاز المؤقّت بالسباق (شبكة بطيئة، لا قفل عالق -
+// الوعد الحقيقي سيكتمل لاحقاً فعلاً)، القيمة الحقيقية لم تعد تُهمَل بصمت
+// كما كانت الحال سابقاً - تُمرَّر لهذه الدالة فور وصولها، فيقدر المستدعي
+// (loadAll في MasarApp.jsx) تصحيح الحالة تلقائياً خلال ثوانٍ قليلة إضافية
+// بدل بقائها عالقة على القيمة الاحتياطية حتى يعيد المستخدم تحميل الصفحة
+// يدوياً. لا يُستدعى إطلاقاً إن فاز الوعد الحقيقي بالسباق أصلاً (لا تكرار).
+// أي رفض (reject) من الوعد الأصلي يُعامَل كفشل صامت يرجع القيمة الاحتياطية
+// (بدل ترك Promise.all المُستدعي يرفض بالكامل بلا داعٍ - كل دوال التحميل
+// في store.js مصمَّمة أصلاً لتُرجع قيمة احتياطية آمنة لا أن ترمي).
+export function withTimeout(promise, ms, fallbackValue, onLate) {
+  let timedOut = false;
+  const guarded = Promise.resolve(promise).catch((e) => {
+    console.error("[withTimeout] guarded promise rejected:", e);
+    return fallbackValue;
+  });
+  if (onLate) {
+    guarded.then((real) => { if (timedOut) onLate(real); });
+  }
   return Promise.race([
-    promise,
-    new Promise((resolve) => setTimeout(() => resolve(fallbackValue), ms)),
+    guarded,
+    new Promise((resolve) => setTimeout(() => { timedOut = true; resolve(fallbackValue); }, ms)),
   ]);
 }
 

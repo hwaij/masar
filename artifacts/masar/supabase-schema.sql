@@ -2162,6 +2162,85 @@ alter table sleep_log alter column hours drop not null;
 -- لا تملك مفهوم "خطة" أصلاً (المستخدم يكتب رقماً استرجاعياً مباشرة بلا مؤقّت).
 alter table focus_sessions add column if not exists target_minutes integer;
 
+-- حد استخدام بسيط لكل مستخدم/جهاز على دالة Gemini (تصوير الأكل بالذكاء
+-- الاصطناعي) - يحمي حصة Gemini المشتركة بمفتاح واحد لكل التطبيق من استنزاف
+-- عدد قليل من المستخدمين المكثّفين جداً (أو استخدام مسيء) قبل أن يصل أثر
+-- ذلك لبقية المستخدمين (راجع GEMINI_RATE_LIMIT_PER_MINUTE في
+-- netlify/functions/gemini.js). صف واحد لكل استدعاء ناجح (لا عمود عدّاد
+-- يُحدَّث - نفس نمط notification_log/usda_cache: بساطة أكثر من عمود
+-- عدّاد يحتاج زيادة ذرية عبر RPC، والحد هنا وقائي/تخفيفي لا أمني صارم،
+-- فتفاوت بسيط تحت تزامن حقيقي غير ضائر). identity هي "user:<uuid>" لمستخدم
+-- مسجَّل دخول (مفضَّلة دائماً حين تتوفر)، أو "ip:<العنوان>" للضيوف - الدالة
+-- نفسها (لا هذا الجدول) تقرر أيّهما تستخدم. القراءة/الكتابة بمفتاح anon
+-- (الدالة لا تملك مفتاح service_role) بنفس مبرر usda_cache تماماً: لا بيانات
+-- شخصية هنا سوى معرّف/IP مجرَّد لغرض العدّ المؤقت فقط.
+create table if not exists gemini_usage_log (
+  id          uuid primary key default gen_random_uuid(),
+  identity    text not null,
+  created_at  timestamptz not null default now()
+);
+create index if not exists gemini_usage_log_identity_created on gemini_usage_log (identity, created_at);
+alter table gemini_usage_log enable row level security;
+drop policy if exists gemini_usage_log_public_read on gemini_usage_log;
+drop policy if exists gemini_usage_log_public_insert on gemini_usage_log;
+create policy gemini_usage_log_public_read on gemini_usage_log for select to anon, authenticated using (true);
+create policy gemini_usage_log_public_insert on gemini_usage_log for insert to anon, authenticated with check (true);
+-- تنظيف دوري بسيط: يمنع تراكم صفوف قديمة للأبد (كل صف عديم الفائدة بعد
+-- دقيقة واحدة من نافذة الحد نفسها) - يُنفَّذ عرَضياً من الدالة نفسها بلا
+-- الحاجة لأي cron منفصل (راجع checkAndRecordGeminiUsage في gemini.js).
+
+-- تجميع دفعة "الخلفية" (13 جدولاً صغيراً يُحمَّل كل واحد منها اليوم باستعلام
+-- REST منفصل عند كل فتح تطبيق - راجع loadAll في MasarApp.jsx) في نداء واحد
+-- بدل 13 رحلة شبكية منفصلة لكل مستخدم عند كل فتح - أثر مباشر على زمن
+-- الإقلاع خاصة تحت ازدحام حقيقي (مئات المستخدمين يفتحون التطبيق معاً، مثال
+-- واقعي: إشعار أذان يصل للجميع بنفس الدقيقة). auth.uid() داخلياً فقط (بنفس
+-- نمط increment_gamify_points تماماً) - لا p_owner كمعامل من العميل، حتى لا
+-- يقدر أي طلب مُعدَّل يدوياً قراءة بيانات حساب آخر. القيم المُعادة خام
+-- بالضبط كما يُعيدها select("*") الحالي لكل جدول (نفس الأعمدة بأسمائها
+-- الأصلية) - التحويل لشكل JS (camelCase وغيره) يبقى في store.js كما كان،
+-- هذه الدالة لا تُغيّر شكل البيانات، فقط تجمع نفس الاستعلامات الحالية معاً.
+create or replace function get_background_bundle()
+returns json
+language plpgsql security definer set search_path = public
+as $$
+declare
+  p_owner text := auth.uid()::text;
+  result json;
+begin
+  if p_owner is null then
+    raise exception 'NOT_AUTHENTICATED' using errcode = 'P0001';
+  end if;
+  select json_build_object(
+    'achieve', (select coalesce(json_agg(row_to_json(x)), '[]'::json)
+                from (select * from achieve where owner = p_owner order by created_at desc) x),
+    'commitments', (select coalesce(json_agg(row_to_json(x)), '[]'::json)
+                from (select * from commitments where owner = p_owner order by created_at asc) x),
+    'prayer_log', (select coalesce(json_agg(row_to_json(x)), '[]'::json)
+                from (select * from prayer_log where owner = p_owner order by done_at desc) x),
+    'religious_tasks', (select coalesce(json_agg(row_to_json(x)), '[]'::json)
+                from (select * from religious_tasks where owner = p_owner order by created_at desc) x),
+    'points_log', (select coalesce(json_agg(row_to_json(x)), '[]'::json)
+                from (select * from points_log where owner = p_owner order by date desc limit 200) x),
+    'tips_log', (select coalesce(json_agg(row_to_json(x)), '[]'::json)
+                from (select * from tips_log where owner = p_owner order by date asc) x),
+    'goals', (select coalesce(json_agg(row_to_json(x)), '[]'::json)
+                from (select * from goals where owner = p_owner order by created_at desc) x),
+    'sleep_log', (select coalesce(json_agg(row_to_json(x)), '[]'::json)
+                from (select * from sleep_log where owner = p_owner and date >= (current_date - 90)::text order by date desc) x),
+    'steps_log', (select coalesce(json_agg(row_to_json(x)), '[]'::json)
+                from (select * from steps_log where owner = p_owner) x),
+    'azkar_log', (select coalesce(json_agg(row_to_json(x)), '[]'::json)
+                from (select * from azkar_log where owner = p_owner order by date asc) x),
+    'quran_progress', (select coalesce(json_agg(row_to_json(x)), '[]'::json)
+                from (select * from quran_progress where owner = p_owner) x),
+    'istighfar', (select row_to_json(x) from (select * from istighfar where owner = p_owner limit 1) x),
+    'health_profile', (select row_to_json(x) from (select * from health_profile where owner = p_owner limit 1) x)
+  ) into result;
+  return result;
+end;
+$$;
+grant execute on function get_background_bundle() to authenticated;
+
 -- إجبار طبقة PostgREST (التي تُعرِّض RPC عبر supabase.rpc(...)) على إعادة
 -- تحميل ذاكرتها المؤقتة للمخطط فوراً، بدل انتظار إعادة التحميل التلقائية
 -- (تحدث عادة خلال ثوانٍ، لكن قد تتأخر) - يضمن أن get_group_by_invite_code

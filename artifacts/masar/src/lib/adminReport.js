@@ -36,12 +36,11 @@ export async function checkIsAdmin() {
   }
 }
 
-// يرمي خطأ عند الرفض/الفشل بدل إرجاع قيمة صامتة - الشاشة نفسها تعرض الرسالة
-// المناسبة (رُفض الوصول/تعذّر البحث) بدل التعامل مع نتيجة غامضة.
-export async function searchStudentNutritionLog(universityId) {
+async function callAdminReport(params) {
   const token = await getAccessToken();
   if (!token) throw new Error("NOT_SIGNED_IN");
-  const res = await fetch(`${ADMIN_REPORT_URL}?mode=search&universityId=${encodeURIComponent(universityId)}`, {
+  const qs = new URLSearchParams(params).toString();
+  const res = await fetch(`${ADMIN_REPORT_URL}?${qs}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   let data;
@@ -56,4 +55,27 @@ export async function searchStudentNutritionLog(universityId) {
     throw err;
   }
   return data;
+}
+
+// اقتراحات فورية أثناء الكتابة (بداية الرقم الجامعي أو احتواء بجزء من
+// الاسم) - يُرجع [] بصمت عند الفشل بدل رمي خطأ، لأن هذا استدعاء خلفي متكرر
+// أثناء الكتابة (debounced في الواجهة) لا يستحق رسالة خطأ مزعجة في كل مرة.
+export async function suggestStudents(query) {
+  try {
+    const data = await callAdminReport({ mode: "suggest", q: query });
+    return data?.suggestions || [];
+  } catch {
+    return [];
+  }
+}
+
+// السجل الغذائي الكامل لطالب محدَّد بمعرّف حسابه (owner، من نتيجة
+// suggestStudents أعلاه) - range اختياري { from, to } بصيغة YYYY-MM-DD.
+// يرمي خطأ عند الرفض/الفشل بدل إرجاع قيمة صامتة - الشاشة نفسها تعرض الرسالة
+// المناسبة (رُفض الوصول/تعذّر الجلب) بدل التعامل مع نتيجة غامضة.
+export async function fetchStudentReport(owner, range = {}) {
+  const params = { mode: "report", owner };
+  if (range.from) params.from = range.from;
+  if (range.to) params.to = range.to;
+  return callAdminReport(params);
 }

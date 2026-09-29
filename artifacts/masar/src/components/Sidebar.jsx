@@ -1,6 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { Languages } from "lucide-react";
+import { Languages, ShieldCheck } from "lucide-react";
 import { store } from "../lib/store";
 import { MENU_SECTIONS } from "./SideMenu";
 
@@ -27,7 +27,7 @@ const SBS = {
   langPillActive: { background: "var(--gold)", color: "var(--on-accent)" },
 };
 
-export default function Sidebar({ view, setView, customColorsEnabled, sectionColors }) {
+export default function Sidebar({ view, setView, customColorsEnabled, sectionColors, isAdmin }) {
   const { t, i18n } = useTranslation();
 
   function setLanguage(lang) {
@@ -56,6 +56,12 @@ export default function Sidebar({ view, setView, customColorsEnabled, sectionCol
           })}
         </div>
       ))}
+      {isAdmin && (
+        <button onClick={() => setView("adminReport")} style={{ ...SBS.item, ...(view === "adminReport" ? SBS.itemActive : {}) }}>
+          <span style={SBS.itemIcon}><ShieldCheck size={17} /></span>
+          {t("nav.adminReport")}
+        </button>
+      )}
       <div style={SBS.langRow}>
         <span style={SBS.langIcon}><Languages size={16} /></span>
         <div style={SBS.langToggle}>

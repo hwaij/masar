@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import {
   X, Moon, Eye, User, Utensils, Dumbbell, Salad, ClipboardList,
   Timer, ListChecks, Target, Wallet, TrendingUp, Footprints, Bed,
-  MessageCircle, Rocket, Settings, Languages, Users, HelpCircle,
+  MessageCircle, Rocket, Settings, Languages, Users, HelpCircle, ShieldCheck,
 } from "lucide-react";
 import { store } from "../lib/store";
 import TasbihIcon from "./TasbihIcon";
@@ -93,7 +93,7 @@ const MS = {
   langPillActive: { background: "var(--gold)", color: "var(--on-accent)" },
 };
 
-export default function SideMenu({ open, onClose, view, setView, customColorsEnabled, sectionColors, onHelp }) {
+export default function SideMenu({ open, onClose, view, setView, customColorsEnabled, sectionColors, onHelp, isAdmin }) {
   const { t, i18n } = useTranslation();
   const reduceMotion = useReducedMotion();
 
@@ -171,6 +171,12 @@ export default function SideMenu({ open, onClose, view, setView, customColorsEna
                       </button>
                     );
                   })}
+                  {section.titleKey === "nav.account" && isAdmin && (
+                    <button key="adminReport" onClick={() => go("adminReport")} style={{ ...MS.item, ...(view === "adminReport" ? MS.itemActive : {}) }}>
+                      <span style={MS.itemIcon}><ShieldCheck size={18} /></span>
+                      {t("nav.adminReport")}
+                    </button>
+                  )}
                   {section.titleKey === "nav.account" && (
                     <div style={MS.langRow}>
                       <span style={MS.langIcon}><Languages size={18} /></span>

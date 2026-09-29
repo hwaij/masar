@@ -21,6 +21,7 @@ import {
 import { fivePrayers, nextPrayer, to12h, KUWAIT_GOVERNORATES, DEFAULT_PRAYER_REGION } from "../lib/prayer";
 import { ADHKAR_CATEGORIES, ADHKAR } from "../lib/adhkar";
 import { store, setOwner, getOwner, DEFAULT_CATEGORIES } from "../lib/store";
+import { checkIsAdmin } from "../lib/adminReport";
 import { speak, stopSpeaking, isSpeechSupported } from "../lib/speech";
 import { startListening, stopListening, isRecognitionSupported } from "../lib/speechRecognition";
 import { parseVoiceCommand, parseVoiceCommandSmart } from "../lib/voiceCommands";
@@ -60,6 +61,10 @@ const GroupsView = lazy(() => import("../components/GroupsView"));
 const VaultView = lazy(() => import("../components/VaultView"));
 const DietPlansView = lazy(() => import("../components/DietPlansView"));
 const NutritionPlanView = lazy(() => import("../components/NutritionPlanView"));
+// شاشة إدارية محصورة بحساب واحد فقط (راجع netlify/functions/admin-report.js) -
+// محمَّلة عند الطلب مثل بقية الأقسام أعلاه، فلا تُحمَّل إطلاقاً لأي مستخدم
+// عادي (isAdminUser=false دائماً لهم، فلا يُعرَض الزر المؤدي إليها أصلاً).
+const AdminReportView = lazy(() => import("../components/AdminReportView"));
 
 // recharts (~114kB gzip) كانت تُستورَد ثابتاً هنا رغم أن استخدامها الوحيد في
 // هذا الملف محصور بثلاث دوال (التقارير/النوم/تقرير التركيز) - ما يعني
@@ -362,6 +367,17 @@ export default function MasarApp() {
   const [sessionCheckAmbiguous, setSessionCheckAmbiguous] = useState(false);
   const userIdRef = useRef(undefined);
   const loadVersionRef = useRef(0);
+  // الشاشة الإدارية (راجع netlify/functions/admin-report.js): لا بريد ولا أي
+  // مقارنة هوية هنا إطلاقاً - فقط نتيجة جاهزة (true/false) من الخادم بعد
+  // تحققه هو من صاحب الجلسة. تُعاد قراءتها كلما تغيّر المستخدم (تسجيل دخول/
+  // خروج) - false افتراضياً لأي حالة (بلا مستخدم، فشل الفحص، مستخدم عادي).
+  const [isAdminUser, setIsAdminUser] = useState(false);
+  useEffect(() => {
+    let active = true;
+    if (!user) { setIsAdminUser(false); return undefined; }
+    checkIsAdmin().then((v) => { if (active) setIsAdminUser(v); });
+    return () => { active = false; };
+  }, [user]);
 
   const loadAll = useCallback(async () => {
       const myVersion = ++loadVersionRef.current;
@@ -1135,13 +1151,13 @@ export default function MasarApp() {
 
   return (
     <div style={S.app} className="masar-app">
-      <Header view={view} setView={setView} gamify={gamify} stats={stats} hasCloud={store.hasCloud} user={user} onSignIn={handleSignIn} onSignOut={handleSignOut} subscription={subscription} theme={theme} toggleTheme={toggleTheme} customColorsEnabled={profile.customColorsEnabled} sectionColors={profile.sectionColors} onStartTour={startTour} />
+      <Header view={view} setView={setView} gamify={gamify} stats={stats} hasCloud={store.hasCloud} user={user} onSignIn={handleSignIn} onSignOut={handleSignOut} subscription={subscription} theme={theme} toggleTheme={toggleTheme} customColorsEnabled={profile.customColorsEnabled} sectionColors={profile.sectionColors} onStartTour={startTour} isAdmin={isAdminUser} />
       <div className="masar-shell">
       {/* الشريط الجانبي الثابت (masar-sidebar) لا يُعرَض فعلياً إلا على
           الشاشات العريضة (>=1024px) عبر CSS في masar.css - على الجوال/التابلت
           الأضيق يبقى display:none فيستبدله زر ☰ + SideMenu المنبثقة كما هو،
           فلا تكرار ولا تعارض بين الاثنين. */}
-      <Sidebar view={view} setView={setView} customColorsEnabled={profile.customColorsEnabled} sectionColors={profile.sectionColors} />
+      <Sidebar view={view} setView={setView} customColorsEnabled={profile.customColorsEnabled} sectionColors={profile.sectionColors} isAdmin={isAdminUser} />
       <div style={S.body} key={view} className="view-fade masar-body">
         {view === "today" && (
           <TodayView
@@ -1190,7 +1206,7 @@ export default function MasarApp() {
         {view === "sleep" && (isSub ? <SleepView sleepLog={sleepLog} setSleepLog={setSleepLog} showToast={showToast} /> : (
           <div style={S.view}><UpsellCard icon={Bed} title={i18n.language === "en" ? "Track your sleep in Masarak Premium" : "تتبّع نومك في مسارك الكامل"} message={i18n.language === "en" ? "Log your bedtime and wake time, see your sleep duration automatically, and track your pattern across days." : "سجّل وقت نومك واستيقاظك، واعرف مدة نومك تلقائياً، وتابع نمطك عبر الأيام."} /></div>
         ))}
-        {(view === "nutrition" || view === "nutritionPlan" || view === "dietPlans" || view === "fitness" || view === "steps" || (view === "groups" && isSub) || (view === "vault" && isSub)) && (
+        {(view === "nutrition" || view === "nutritionPlan" || view === "dietPlans" || view === "fitness" || view === "steps" || (view === "groups" && isSub) || (view === "vault" && isSub) || (view === "adminReport" && isAdminUser)) && (
           <LazySectionErrorBoundary key={view} isEn={i18n.language === "en"}>
             <Suspense fallback={<div style={{ ...S.view, display: "flex", justifyContent: "center", padding: 40 }}><Loader2 size={24} color="#C9A24B" className="spin" /></div>}>
               {view === "nutrition" && <NutritionView healthProfile={healthProfile} showToast={showToast} profile={profile} setProfile={setProfile} subscription={subscription} journeyActive={tourOpen} voiceCommand={voiceCommand} clearVoiceCommand={clearVoiceCommand} onDisambiguationPendingChange={setNutritionAwaitingDisambiguation} />}
@@ -1200,6 +1216,7 @@ export default function MasarApp() {
               {view === "steps" && <StepsView stepsLog={stepsLog} setStepsLog={setStepsLog} showToast={showToast} healthProfile={healthProfile} setHealthProfile={setHealthProfile} />}
               {view === "groups" && isSub && <GroupsView showToast={showToast} />}
               {view === "vault" && isSub && <VaultView showToast={showToast} />}
+              {view === "adminReport" && isAdminUser && <AdminReportView />}
             </Suspense>
           </LazySectionErrorBoundary>
         )}
@@ -1892,7 +1909,7 @@ function LandingPage({ onSignIn, onEmailSignIn, onEmailSignUp }) {
   );
 }
 
-function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSignOut, subscription, theme, toggleTheme, customColorsEnabled, sectionColors, onStartTour }) {
+function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSignOut, subscription, theme, toggleTheme, customColorsEnabled, sectionColors, onStartTour, isAdmin }) {
   const { t, i18n } = useTranslation();
   const isVip = !!subscription?.isVip;
   const isSub = isActiveSubscriber(subscription);
@@ -1976,7 +1993,7 @@ function Header({ view, setView, gamify, stats, hasCloud, user, onSignIn, onSign
           <span style={S.hStat}><Star size={13} color="#C9A24B" /> {gamify.points}</span>
         </div>
       </div>
-      <SideMenu open={menuOpen} onClose={() => setMenuOpen(false)} view={view} setView={setView} customColorsEnabled={customColorsEnabled} sectionColors={sectionColors} onHelp={() => setHelpOpen(true)} />
+      <SideMenu open={menuOpen} onClose={() => setMenuOpen(false)} view={view} setView={setView} customColorsEnabled={customColorsEnabled} sectionColors={sectionColors} onHelp={() => setHelpOpen(true)} isAdmin={isAdmin} />
       {helpOpen && <HelpCenter view={view} setView={setView} onClose={() => setHelpOpen(false)} onStartTour={onStartTour} />}
     </>
   );
@@ -7580,6 +7597,8 @@ function ProfileCard({ profile, setProfile, showToast }) {
       <p style={S.profileHint}>{isEn ? "This data makes Achieve's suggestions and analysis personal to you." : "هذه البيانات تجعل اقتراحات أنجز والتحليل مرتبطة بك شخصياً."}</p>
       <label style={S.label}>{isEn ? "Your name" : "اسمك"}</label>
       <input value={local.name || ""} onChange={(e) => change("name", e.target.value)} placeholder={isEn ? "e.g. Ahmed" : "مثال: أحمد"} style={S.input} />
+      <label style={S.label}>{isEn ? "University ID" : "الرقم الجامعي"}</label>
+      <input value={local.universityId || ""} onChange={(e) => change("universityId", e.target.value)} placeholder={isEn ? "e.g. 202012345" : "مثال: 202012345"} style={S.input} />
       <label style={S.label}>{isEn ? "About me" : "من أنا"}</label>
       <input value={local.about} onChange={(e) => change("about", e.target.value)} placeholder={isEn ? "e.g. Photographer, visual content designer, and university student" : "مثال: مصور ومصمم محتوى بصري وطالب جامعي"} style={S.input} />
       <label style={S.label}>{isEn ? "My hobbies" : "هواياتي"}</label>

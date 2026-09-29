@@ -283,3 +283,70 @@ export async function buildUnifiedReportExcelBuffer(rows, { healthProfile, owner
 
   return workbook.xlsx.writeBuffer();
 }
+
+// تصدير Excel بسيط لسجل غذائي خام لطالب واحد (الشاشة الإدارية،
+// netlify/functions/admin-report.js) - صف واحد لكل إدخال فعلي (لا تجميع
+// يومي، بخلاف buildUnifiedReportExcelBuffer أعلاه)، مرتَّب بالتاريخ كما
+// وصل من الخادم (الأحدث أولاً). بنفس هوية التنسيق البصري (رأس مظلَّل +
+// تبطيط صفوف متبادل + حدود) دون منطق الاحتياج/التلوين (لا يخص ملفاً واحداً
+// محدداً هنا، بل عدة سجلات خام لأي طالب).
+export async function buildStudentNutritionLogExcelBuffer(entries, universityId) {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("Nutrition Log", {
+    views: [{ rightToLeft: false, state: "frozen", ySplit: 1 }],
+  });
+
+  sheet.columns = [
+    { header: "University ID", key: "universityId", width: 16 },
+    { header: "Date", key: "date", width: 12 },
+    { header: "Meal", key: "mealType", width: 12 },
+    { header: "Food", key: "foodName", width: 30 },
+    { header: "Quantity", key: "quantity", width: 10 },
+    { header: "Unit", key: "unit", width: 8 },
+    { header: "Calories (kcal)", key: "calories", width: 14 },
+    { header: "Protein (g)", key: "protein", width: 12 },
+    { header: "Carbs (g)", key: "carbs", width: 12 },
+    { header: "Fat (g)", key: "fat", width: 12 },
+    { header: "Fiber (g)", key: "fiber", width: 12 },
+    { header: "Sugar (g)", key: "sugar", width: 12 },
+    { header: "Sodium (mg)", key: "sodium", width: 12 },
+    { header: "Cholesterol (mg)", key: "cholesterol", width: 16 },
+    { header: "Source", key: "source", width: 12 },
+  ];
+
+  const headerRow = sheet.getRow(1);
+  headerRow.font = { bold: true };
+  headerRow.alignment = { horizontal: "left" };
+  headerRow.eachCell((cell) => {
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: FILL_HEADER } };
+    cell.border = ALL_BORDERS;
+  });
+
+  entries.forEach((e, rowIndex) => {
+    const addedRow = sheet.addRow({
+      universityId,
+      date: e.date,
+      mealType: e.meal_type || "",
+      foodName: e.food_name,
+      quantity: e.quantity ?? "",
+      unit: e.unit || "",
+      calories: e.calories,
+      protein: e.protein,
+      carbs: e.carbs,
+      fat: e.fat,
+      fiber: e.fiber,
+      sugar: e.sugar,
+      sodium: e.sodium,
+      cholesterol: e.cholesterol,
+      source: e.source || "",
+    });
+    addedRow.alignment = { horizontal: "left" };
+    const isBanded = rowIndex % 2 === 1;
+    addedRow.eachCell({ includeEmpty: true }, (cell) => {
+      if (isBanded) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: FILL_BAND } };
+      cell.border = ALL_BORDERS;
+    });
+  });
+
+  return workbook.xlsx.writeBuffer();
+}

@@ -103,6 +103,14 @@ alter table profile add column if not exists tour_progress jsonb not null defaul
 -- لحساب الصلاة الحالي في التطبيق بلا أي تغيير للمستخدمين الحاليين.
 alter table profile add column if not exists prayer_region text;
 alter table profile add column if not exists athan_notifications_enabled boolean not null default false;
+-- الرقم الجامعي (اختياري بحت، بجانب name لا بديلاً عنه - name ما زال
+-- يُستخدَم فعلياً لتخصيص سياق المساعد الذكي "أنجز"). الحقل المعرِّف الوحيد
+-- المستخدَم في شاشة التقرير الإداري (netlify/functions/admin-report.js) -
+-- لا قيد unique عمداً (لو أدخل طالبان نفس الرقم خطأً، لا يجوز أن يفشل حفظ
+-- ملفهما الشخصي بسبب هذا؛ الشاشة الإدارية تُرجع أول تطابق فقط، حالة نادرة
+-- مقبولة الأثر لهذا الاستخدام تحديداً).
+alter table profile add column if not exists university_id text;
+create index if not exists profile_university_id on profile (university_id);
 
 -- قسم "أنت": بيانات صحية أساسية + القيم المحسوبة منها (BMI/IBW/REE/TEE)
 -- مخزّنة جاهزة حتى تقرأها أقسام التغذية والرياضة لاحقاً دون إعادة حسابها.

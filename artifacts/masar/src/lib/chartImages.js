@@ -408,3 +408,124 @@ export function buildStepsChart(rows, stepsGoal = null) {
     { label: "Steps", values: rows.map((r) => r.steps), color: COLORS.steps, axis: "primary", target: typeof stepsGoal === "number" ? stepsGoal : null },
   ], "Steps Over Time");
 }
+
+// ===== أعمدة مزدوجة (احتياج مقابل فعلي) لكل يوم - تخدم الشاشة الإدارية
+// (استعلام السجل الغذائي) تحديداً، حيث الفترة المعروضة غالباً قصيرة جداً
+// (يوم واحد أو أسبوع)، فرسم خطي كـrenderSingleMetricChart أعلاه يفقد معناه
+// (نقطة واحدة ليوم واحد)، بخلاف عمودين واضحين للمقارنة بصرف النظر عن عدد
+// الأيام. goal رقم ثابت واحد لكل الفترة كلها (نفس الطالب، احتياجه اليومي
+// المحسوب من health_profile.tee لا يتغيّر خلال فترة قصيرة كهذه) - null يعني
+// بيانات الطالب الصحية غير مكتملة، فتُرسَم أعمدة "الفعلي" وحدها بلا أي عمود
+// احتياج مُختلَق. =====
+function renderGroupedBarChart(days, actualValues, goal, { label, unit, color }) {
+  const PAD_LEFT = 56, PAD_RIGHT = 30, PAD_TOP = 58, PAD_BOTTOM = 42;
+  const H = HEIGHT;
+  const canvas = document.createElement("canvas");
+  canvas.width = WIDTH * SCALE;
+  canvas.height = H * SCALE;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(SCALE, SCALE);
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, WIDTH, H);
+
+  ctx.fillStyle = "#1B3A3A";
+  ctx.font = "bold 18px sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText(`${label}: Needed vs Actual`, PAD_LEFT, 28);
+
+  const plotW = WIDTH - PAD_LEFT - PAD_RIGHT;
+  const plotH = H - PAD_TOP - PAD_BOTTOM;
+
+  const realVals = actualValues.filter((v) => typeof v === "number");
+  const maxVal = niceMax(Math.max(realVals.length ? Math.max(...realVals) : 1, typeof goal === "number" ? goal : 0));
+
+  ctx.strokeStyle = "#EDEAE2";
+  ctx.lineWidth = 1;
+  ctx.font = "12px sans-serif";
+  for (let i = 0; i <= 4; i++) {
+    const y = PAD_TOP + (plotH * i) / 4;
+    ctx.beginPath();
+    ctx.moveTo(PAD_LEFT, y);
+    ctx.lineTo(WIDTH - PAD_RIGHT, y);
+    ctx.stroke();
+    ctx.fillStyle = "#8A8272";
+    ctx.textAlign = "right";
+    ctx.fillText(String(Math.round(maxVal * (1 - i / 4))), PAD_LEFT - 8, y + 4);
+  }
+
+  const n = days.length;
+  const groupW = plotW / n;
+  const barW = Math.min(28, groupW * 0.32);
+  const gap = 4;
+  const baseY = PAD_TOP + plotH;
+  const yFor = (v) => PAD_TOP + plotH * (1 - Math.min(v, maxVal) / maxVal);
+  const NEED_COLOR = "#8A8272";
+
+  days.forEach((_, i) => {
+    const groupCenter = PAD_LEFT + groupW * (i + 0.5);
+    if (typeof goal === "number") {
+      const needX = groupCenter - barW - gap / 2;
+      const needY = yFor(goal);
+      ctx.fillStyle = NEED_COLOR;
+      ctx.fillRect(needX, needY, barW, baseY - needY);
+    }
+    const actual = actualValues[i];
+    if (typeof actual === "number") {
+      const actX = groupCenter + gap / 2;
+      const actY = yFor(actual);
+      ctx.fillStyle = color;
+      ctx.fillRect(actX, actY, barW, baseY - actY);
+    }
+  });
+
+  ctx.fillStyle = "#8A8272";
+  ctx.font = "11px sans-serif";
+  ctx.textAlign = "center";
+  days.forEach((d, i) => ctx.fillText(d, PAD_LEFT + groupW * (i + 0.5), H - PAD_BOTTOM + 20));
+
+  ctx.strokeStyle = "#C9BFA5";
+  ctx.beginPath();
+  ctx.moveTo(PAD_LEFT, baseY);
+  ctx.lineTo(WIDTH - PAD_RIGHT, baseY);
+  ctx.stroke();
+
+  ctx.font = "12px sans-serif";
+  ctx.textAlign = "left";
+  let lx = PAD_LEFT;
+  const ly = 48;
+  if (typeof goal === "number") {
+    const neededLabel = `Needed${unit ? ` (${unit})` : ""}`;
+    ctx.fillStyle = NEED_COLOR;
+    ctx.fillRect(lx, ly - 9, 11, 11);
+    ctx.fillStyle = "#3A342C";
+    ctx.fillText(neededLabel, lx + 15, ly);
+    lx += 15 + ctx.measureText(neededLabel).width + 20;
+  }
+  const actualLabel = `Actual${unit ? ` (${unit})` : ""}`;
+  ctx.fillStyle = color;
+  ctx.fillRect(lx, ly - 9, 11, 11);
+  ctx.fillStyle = "#3A342C";
+  ctx.fillText(actualLabel, lx + 15, ly);
+
+  return { base64: canvas.toDataURL("image/png").split(",")[1], width: WIDTH, height: H };
+}
+
+function buildNeedVsActualChart(days, actualValues, goal, spec) {
+  if (!days.length) return null;
+  if (!actualValues.some((v) => typeof v === "number") && typeof goal !== "number") return null;
+  return renderGroupedBarChart(days, actualValues, goal, spec);
+}
+
+export function buildCaloriesNeedVsActualChart(days, actualValues, goal) {
+  return buildNeedVsActualChart(days, actualValues, goal, { label: "Calories", unit: "kcal", color: COLORS.calories });
+}
+export function buildProteinNeedVsActualChart(days, actualValues, goal) {
+  return buildNeedVsActualChart(days, actualValues, goal, { label: "Protein", unit: "g", color: COLORS.protein });
+}
+export function buildCarbsNeedVsActualChart(days, actualValues, goal) {
+  return buildNeedVsActualChart(days, actualValues, goal, { label: "Carbs", unit: "g", color: COLORS.carbs });
+}
+export function buildFatNeedVsActualChart(days, actualValues, goal) {
+  return buildNeedVsActualChart(days, actualValues, goal, { label: "Fat", unit: "g", color: COLORS.fat });
+}

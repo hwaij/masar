@@ -170,15 +170,31 @@ exports.handler = async (event) => {
       if (to) logUrl += `&date=lte.${encodeURIComponent(to)}`;
       logUrl += `&order=date.desc,created_at.desc`;
 
-      const logRes = await fetch(logUrl, { headers: serviceHeaders });
+      const [logRes, healthRes] = await Promise.all([
+        fetch(logUrl, { headers: serviceHeaders }),
+        fetch(
+          `${url}/rest/v1/health_profile?owner=eq.${encodeURIComponent(owner)}&select=tee&limit=1`,
+          { headers: serviceHeaders },
+        ),
+      ]);
       if (!logRes.ok) return json(502, { error: "تعذّر جلب السجل الغذائي الآن، حاول مرة أخرى." });
       const entries = await logRes.json();
+      // tee (Total Energy Expenditure): يُحسَب ويُخزَّن فقط بعد أن يكمل
+      // الطالب بياناته الصحية (طول/وزن/عمر/جنس/نشاط) في قسم "أنت" - غيابه
+      // يعني بيانات ناقصة، لا خطأً، فتُعاد null صراحة بدل رقم مُختلَق
+      // (الواجهة تعرض رسالة واضحة بدلاً من ذلك).
+      let tee = null;
+      if (healthRes.ok) {
+        const healthRows = await healthRes.json();
+        tee = (Array.isArray(healthRows) && typeof healthRows[0]?.tee === "number") ? healthRows[0].tee : null;
+      }
       return json(200, {
         found: true,
         owner: profile.owner,
         universityId: profile.university_id || "",
         name: profile.name || "",
         entries,
+        healthProfile: { tee },
       });
     } catch (e) {
       console.error("[admin-report] report failed:", e);

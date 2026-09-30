@@ -284,14 +284,112 @@ export async function buildUnifiedReportExcelBuffer(rows, { healthProfile, owner
   return workbook.xlsx.writeBuffer();
 }
 
-// تصدير Excel بسيط لسجل غذائي خام لطالب واحد (الشاشة الإدارية،
-// netlify/functions/admin-report.js) - صف واحد لكل إدخال فعلي (لا تجميع
-// يومي، بخلاف buildUnifiedReportExcelBuffer أعلاه)، مرتَّب بالتاريخ كما
-// وصل من الخادم (الأحدث أولاً). بنفس هوية التنسيق البصري (رأس مظلَّل +
-// تبطيط صفوف متبادل + حدود) دون منطق الاحتياج/التلوين (لا يخص ملفاً واحداً
-// محدداً هنا، بل عدة سجلات خام لأي طالب).
-export async function buildStudentNutritionLogExcelBuffer(entries, universityId) {
+// تصدير Excel لسجل غذائي طالب واحد (الشاشة الإدارية، netlify/functions/
+// admin-report.js) - ثلاث شيتات:
+// 1) "Charts" (إن وُجدت بيانات كافية): 4 رسوم أعمدة مزدوجة (احتياج/فعلي)
+//    للسعرات/البروتين/الكارب/الدهون - مبنية بالمتصفح عبر chartImages.js
+//    ومُمرَّرة جاهزة (charts) بنفس نمط buildUnifiedReportExcelBuffer تماماً.
+// 2) "Daily Summary": صف واحد لكل يوم ضمن الفترة المعروضة - استهلاك فعلي
+//    مقابل احتياج محسوب (dailySummaries، محسوبة بالمستدعي عبر
+//    getDailyNutritionSummary - نفس محرك الحساب المستخدَم أصلاً في التطبيق،
+//    لا صيغة موازية هنا) + حالة نصية/تلوين بنفس معايير statusText/
+//    fillForConsumption أعلاه بالضبط. hasGoal=false (بيانات الطالب الصحية
+//    غير مكتملة - لا tee محسوب) يعني أعمدة الاحتياج/الحالة غير موجودة
+//    إطلاقاً + ملاحظة صريحة أعلى الشيت، بدل عرض "N/A" أو صفر مضلِّل.
+// 3) "Nutrition Log": صف واحد لكل إدخال فعلي (خام، بلا تجميع)، كما كانت.
+export async function buildStudentNutritionLogExcelBuffer(entries, universityId, { dailySummaries = [], hasGoal = false, charts = null } = {}) {
   const workbook = new ExcelJS.Workbook();
+
+  if (charts) {
+    const chartsSheet = workbook.addWorksheet("Charts", { views: [{ rightToLeft: false }] });
+    const allCharts = [charts.calories, charts.protein, charts.carbs, charts.fat];
+    if (allCharts.every((c) => !c)) {
+      chartsSheet.getCell("A1").value = "No data available yet for any chart in this period.";
+    } else {
+      let row = 0;
+      for (const chart of allCharts) row = addChartImage(workbook, chartsSheet, chart, row);
+    }
+  }
+
+  const summaryColumns = hasGoal
+    ? [
+        { header: "Date", key: "date", width: 12 },
+        { header: "Calories Actual", key: "caloriesConsumed", width: 15 },
+        { header: "Calories Needed", key: "caloriesGoal", width: 15 },
+        { header: "Calories Status", key: "caloriesStatus", width: 20 },
+        { header: "Protein Actual (g)", key: "proteinConsumed", width: 16 },
+        { header: "Protein Needed (g)", key: "proteinGoal", width: 16 },
+        { header: "Protein Status", key: "proteinStatus", width: 20 },
+        { header: "Carbs Actual (g)", key: "carbsConsumed", width: 15 },
+        { header: "Carbs Needed (g)", key: "carbsGoal", width: 15 },
+        { header: "Carbs Status", key: "carbsStatus", width: 20 },
+        { header: "Fat Actual (g)", key: "fatConsumed", width: 13 },
+        { header: "Fat Needed (g)", key: "fatGoal", width: 13 },
+        { header: "Fat Status", key: "fatStatus", width: 20 },
+      ]
+    : [
+        { header: "Date", key: "date", width: 12 },
+        { header: "Calories Actual", key: "caloriesConsumed", width: 15 },
+        { header: "Protein Actual (g)", key: "proteinConsumed", width: 16 },
+        { header: "Carbs Actual (g)", key: "carbsConsumed", width: 15 },
+        { header: "Fat Actual (g)", key: "fatConsumed", width: 13 },
+      ];
+
+  const summarySheet = workbook.addWorksheet("Daily Summary", {
+    views: [{ rightToLeft: false, state: "frozen", ySplit: hasGoal ? 1 : 2 }],
+  });
+  summarySheet.columns = summaryColumns; // يكتب رأس الأعمدة بالصف 1 تلقائياً
+
+  // بيانات صحية ناقصة: نُدرج صف ملاحظة صريح قبل الرأس (يزيحه exceljs
+  // تلقائياً للصف 2 عبر insertRow) بدل عرض أعمدة احتياج/حالة بقيم مُختلَقة
+  // أو فارغة بلا تفسير.
+  if (!hasGoal) {
+    summarySheet.insertRow(1, []);
+    summarySheet.getCell("A1").value =
+      "Daily need could not be calculated: this student's health profile (height/weight/age/gender/activity level) is incomplete. Showing actual consumption only.";
+    summarySheet.getCell("A1").font = { italic: true, color: { argb: "FF842029" } };
+    summarySheet.mergeCells(`A1:${String.fromCharCode(64 + summaryColumns.length)}1`);
+  }
+
+  const summaryHeaderRow = summarySheet.getRow(hasGoal ? 1 : 2);
+  summaryHeaderRow.font = { bold: true };
+  summaryHeaderRow.alignment = { horizontal: "left" };
+  summaryHeaderRow.eachCell((cell) => {
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: FILL_HEADER } };
+    cell.border = ALL_BORDERS;
+  });
+
+  dailySummaries.forEach((d, rowIndex) => {
+    const rowData = hasGoal
+      ? {
+          date: d.date,
+          caloriesConsumed: d.caloriesConsumed, caloriesGoal: d.caloriesGoal ?? null, caloriesStatus: statusText(d.caloriesConsumed, d.caloriesGoal),
+          proteinConsumed: d.proteinConsumed, proteinGoal: d.proteinGoal ?? null, proteinStatus: statusText(d.proteinConsumed, d.proteinGoal),
+          carbsConsumed: d.carbsConsumed, carbsGoal: d.carbsGoal ?? null, carbsStatus: statusText(d.carbsConsumed, d.carbsGoal),
+          fatConsumed: d.fatConsumed, fatGoal: d.fatGoal ?? null, fatStatus: statusText(d.fatConsumed, d.fatGoal),
+        }
+      : {
+          date: d.date, caloriesConsumed: d.caloriesConsumed, proteinConsumed: d.proteinConsumed, carbsConsumed: d.carbsConsumed, fatConsumed: d.fatConsumed,
+        };
+    const addedRow = summarySheet.addRow(rowData);
+    addedRow.alignment = { horizontal: "left" };
+    const isBanded = rowIndex % 2 === 1;
+    addedRow.eachCell({ includeEmpty: true }, (cell) => {
+      if (isBanded) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: FILL_BAND } };
+      cell.border = ALL_BORDERS;
+    });
+    if (hasGoal) {
+      for (const [consumedKey, goalKey] of [["caloriesConsumed", "caloriesGoal"], ["proteinConsumed", "proteinGoal"], ["carbsConsumed", "carbsGoal"], ["fatConsumed", "fatGoal"]]) {
+        const style = fillForConsumption(rowData[consumedKey], rowData[goalKey]);
+        if (style) {
+          const cell = addedRow.getCell(consumedKey);
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: style.fill } };
+          cell.font = { color: { argb: style.font } };
+        }
+      }
+    }
+  });
+
   const sheet = workbook.addWorksheet("Nutrition Log", {
     views: [{ rightToLeft: false, state: "frozen", ySplit: 1 }],
   });

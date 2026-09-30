@@ -15,6 +15,7 @@ import { useTranslation } from "react-i18next";
 import { Search, Loader2, Download, ShieldAlert, ClipboardList, Calendar } from "lucide-react";
 import { suggestStudents, fetchStudentReport } from "../lib/adminReport";
 import { localDayKey } from "../lib/tips";
+import { getDailyNutritionSummary } from "../lib/nutrition-plan";
 import { S } from "./styles";
 
 const AR = {
@@ -41,7 +42,41 @@ const AR = {
   th: { textAlign: "start", padding: "9px 10px", background: "var(--surface-sunken)", borderBottom: "1px solid var(--line)", fontWeight: 700, color: "var(--muted2)", whiteSpace: "nowrap" },
   td: { padding: "8px 10px", borderBottom: "1px solid var(--line)", color: "var(--ink)", whiteSpace: "nowrap" },
   tdFood: { padding: "8px 10px", borderBottom: "1px solid var(--line)", color: "var(--ink)", minWidth: 160 },
+  sectionLabel: { fontSize: 13, fontWeight: 700, color: "var(--ink)", margin: "18px 0 8px" },
+  noteBox: { display: "flex", gap: 8, alignItems: "flex-start", background: "rgba(201,162,75,0.08)", border: "1px solid rgba(201,162,75,0.3)", borderRadius: 12, padding: "10px 12px", marginBottom: 16, fontSize: 12.5, color: "var(--ink-soft)", lineHeight: 1.7 },
+  badge: { display: "inline-block", borderRadius: 8, padding: "2px 7px", fontSize: 11, fontWeight: 700 },
 };
+
+const TIER_STYLE = {
+  low: { bg: "rgba(76,126,168,0.14)", color: "#4C7EA8" },
+  medium: { bg: "rgba(138,130,114,0.14)", color: "#8A8272" },
+  within: { bg: "rgba(91,138,114,0.16)", color: "#5B8A72" },
+  exceeded: { bg: "rgba(181,101,79,0.16)", color: "#B5654F" },
+};
+const TIER_TEXT = {
+  ar: { low: "أقل بكثير", medium: "أقل من المعتاد", within: "ضمن النطاق", exceeded: "تجاوز الاحتياج" },
+  en: { low: "Much lower", medium: "Below target", within: "Within range", exceeded: "Exceeded" },
+};
+
+function pctStatus(consumed, goal) {
+  if (typeof goal !== "number" || goal <= 0 || typeof consumed !== "number") return null;
+  const pct = Math.round((consumed / goal) * 100);
+  const tier = pct <= 50 ? "low" : pct <= 90 ? "medium" : pct <= 110 ? "within" : "exceeded";
+  return { pct, tier };
+}
+
+function groupEntriesByDate(entries) {
+  const map = new Map();
+  for (const e of entries) {
+    if (!map.has(e.date)) map.set(e.date, { date: e.date, calories: 0, protein: 0, carbs: 0, fat: 0 });
+    const t = map.get(e.date);
+    t.calories += Number(e.calories) || 0;
+    t.protein += Number(e.protein) || 0;
+    t.carbs += Number(e.carbs) || 0;
+    t.fat += Number(e.fat) || 0;
+  }
+  return [...map.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
 
 const RANGES = ["today", "week", "month", "custom"];
 const RANGE_LABEL = {
@@ -103,6 +138,29 @@ export default function AdminReportView() {
 
   const range = useMemo(() => computeRange(rangeId, customFrom, customTo), [rangeId, customFrom, customTo]);
 
+  // مقارنة الاحتياج اليومي (health_profile.tee للطالب المختار) مقابل
+  // الاستهلاك الفعلي لكل يوم ضمن الفترة - بنفس محرك الحساب المستخدَم أصلاً
+  // بالتطبيق (getDailyNutritionSummary، nutritionPlan:null بنفس اتفاقية
+  // excelReport.js الحالية: لا خطة نشطة كمصدر هدف خارج شاشتها المخصّصة، فقط
+  // tee). hasGoal=false يعني tee غير محسوب (بيانات صحية ناقصة) - لا رقم
+  // مُختلَق، فقط استهلاك فعلي.
+  const { dailySummaries, hasGoal } = useMemo(() => {
+    if (!result?.found || !result.entries?.length) return { dailySummaries: [], hasGoal: false };
+    const tee = result.healthProfile?.tee;
+    const hasGoalVal = typeof tee === "number";
+    const summaries = groupEntriesByDate(result.entries).map((t) => {
+      const summary = getDailyNutritionSummary({ totals: t, healthProfile: result.healthProfile, nutritionPlan: null });
+      return {
+        date: t.date,
+        caloriesConsumed: Math.round(t.calories), caloriesGoal: summary.calorieGoal,
+        proteinConsumed: Math.round(t.protein), proteinGoal: summary.proteinGoal,
+        carbsConsumed: Math.round(t.carbs), carbsGoal: summary.carbsGoal,
+        fatConsumed: Math.round(t.fat), fatGoal: summary.fatGoal,
+      };
+    });
+    return { dailySummaries: summaries, hasGoal: hasGoalVal };
+  }, [result]);
+
   async function loadReport(student, r) {
     setLoading(true);
     setError(null);
@@ -137,8 +195,18 @@ export default function AdminReportView() {
     if (!result?.entries?.length || exporting) return;
     setExporting(true);
     try {
-      const { buildStudentNutritionLogExcelBuffer } = await import("../lib/excelReport");
-      const buffer = await buildStudentNutritionLogExcelBuffer(result.entries, result.universityId || result.name || "");
+      const [{ buildStudentNutritionLogExcelBuffer }, chartLib] = await Promise.all([
+        import("../lib/excelReport"),
+        import("../lib/chartImages"),
+      ]);
+      const days = dailySummaries.map((d) => d.date);
+      const charts = {
+        calories: chartLib.buildCaloriesNeedVsActualChart(days, dailySummaries.map((d) => d.caloriesConsumed), hasGoal ? dailySummaries[0]?.caloriesGoal ?? null : null),
+        protein: chartLib.buildProteinNeedVsActualChart(days, dailySummaries.map((d) => d.proteinConsumed), hasGoal ? dailySummaries[0]?.proteinGoal ?? null : null),
+        carbs: chartLib.buildCarbsNeedVsActualChart(days, dailySummaries.map((d) => d.carbsConsumed), hasGoal ? dailySummaries[0]?.carbsGoal ?? null : null),
+        fat: chartLib.buildFatNeedVsActualChart(days, dailySummaries.map((d) => d.fatConsumed), hasGoal ? dailySummaries[0]?.fatGoal ?? null : null),
+      };
+      const buffer = await buildStudentNutritionLogExcelBuffer(result.entries, result.universityId || result.name || "", { dailySummaries, hasGoal, charts });
       const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -250,38 +318,91 @@ export default function AdminReportView() {
               </div>
             </div>
           ) : (
-            <div style={AR.tableWrap}>
-              <table style={AR.table}>
-                <thead>
-                  <tr>
-                    <th style={AR.th}>{isEn ? "Date" : "التاريخ"}</th>
-                    <th style={AR.th}>{isEn ? "Meal" : "الوجبة"}</th>
-                    <th style={AR.th}>{isEn ? "Food" : "الطعام"}</th>
-                    <th style={AR.th}>{isEn ? "Qty" : "الكمية"}</th>
-                    <th style={AR.th}>{isEn ? "Calories" : "سعرات"}</th>
-                    <th style={AR.th}>{isEn ? "Protein" : "بروتين"}</th>
-                    <th style={AR.th}>{isEn ? "Carbs" : "كارب"}</th>
-                    <th style={AR.th}>{isEn ? "Fat" : "دهون"}</th>
-                    <th style={AR.th}>{isEn ? "Source" : "المصدر"}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.entries.map((e, i) => (
-                    <tr key={i}>
-                      <td style={AR.td}>{e.date}</td>
-                      <td style={AR.td}>{e.meal_type || "—"}</td>
-                      <td style={AR.tdFood}>{e.food_name}</td>
-                      <td style={AR.td}>{e.quantity != null ? `${e.quantity} ${e.unit || ""}` : "—"}</td>
-                      <td style={AR.td}>{e.calories}</td>
-                      <td style={AR.td}>{e.protein}</td>
-                      <td style={AR.td}>{e.carbs}</td>
-                      <td style={AR.td}>{e.fat}</td>
-                      <td style={AR.td}>{e.source || "—"}</td>
+            <>
+              <div style={AR.sectionLabel}>{isEn ? "Daily need vs actual" : "الاحتياج اليومي مقابل الاستهلاك الفعلي"}</div>
+              {!hasGoal && (
+                <div style={AR.noteBox}>
+                  <ShieldAlert size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <span>
+                    {isEn
+                      ? "This student's health profile (height/weight/age/gender/activity level) is incomplete, so daily need cannot be calculated. Showing actual consumption only."
+                      : "بيانات هذا الطالب الصحية (الطول/الوزن/العمر/الجنس/مستوى النشاط) غير مكتملة، فلا يمكن حساب الاحتياج اليومي. المعروض أدناه الاستهلاك الفعلي فقط."}
+                  </span>
+                </div>
+              )}
+              <div style={{ ...AR.tableWrap, marginBottom: 20 }}>
+                <table style={AR.table}>
+                  <thead>
+                    <tr>
+                      <th style={AR.th}>{isEn ? "Date" : "التاريخ"}</th>
+                      <th style={AR.th}>{isEn ? "Calories" : "سعرات"}</th>
+                      <th style={AR.th}>{isEn ? "Protein" : "بروتين"}</th>
+                      <th style={AR.th}>{isEn ? "Carbs" : "كارب"}</th>
+                      <th style={AR.th}>{isEn ? "Fat" : "دهون"}</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {dailySummaries.map((d) => (
+                      <tr key={d.date}>
+                        <td style={AR.td}>{d.date}</td>
+                        {[
+                          ["caloriesConsumed", "caloriesGoal"],
+                          ["proteinConsumed", "proteinGoal"],
+                          ["carbsConsumed", "carbsGoal"],
+                          ["fatConsumed", "fatGoal"],
+                        ].map(([ck, gk]) => {
+                          const status = hasGoal ? pctStatus(d[ck], d[gk]) : null;
+                          return (
+                            <td style={AR.td} key={ck}>
+                              {d[ck]}{hasGoal && d[gk] != null ? ` / ${d[gk]}` : ""}
+                              {status && (
+                                <span style={{ ...AR.badge, background: TIER_STYLE[status.tier].bg, color: TIER_STYLE[status.tier].color, marginInlineStart: 6 }}>
+                                  {TIER_TEXT[isEn ? "en" : "ar"][status.tier]}
+                                </span>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div style={AR.sectionLabel}>{isEn ? "Raw log" : "السجل الخام"}</div>
+              <div style={AR.tableWrap}>
+                <table style={AR.table}>
+                  <thead>
+                    <tr>
+                      <th style={AR.th}>{isEn ? "Date" : "التاريخ"}</th>
+                      <th style={AR.th}>{isEn ? "Meal" : "الوجبة"}</th>
+                      <th style={AR.th}>{isEn ? "Food" : "الطعام"}</th>
+                      <th style={AR.th}>{isEn ? "Qty" : "الكمية"}</th>
+                      <th style={AR.th}>{isEn ? "Calories" : "سعرات"}</th>
+                      <th style={AR.th}>{isEn ? "Protein" : "بروتين"}</th>
+                      <th style={AR.th}>{isEn ? "Carbs" : "كارب"}</th>
+                      <th style={AR.th}>{isEn ? "Fat" : "دهون"}</th>
+                      <th style={AR.th}>{isEn ? "Source" : "المصدر"}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {result.entries.map((e, i) => (
+                      <tr key={i}>
+                        <td style={AR.td}>{e.date}</td>
+                        <td style={AR.td}>{e.meal_type || "—"}</td>
+                        <td style={AR.tdFood}>{e.food_name}</td>
+                        <td style={AR.td}>{e.quantity != null ? `${e.quantity} ${e.unit || ""}` : "—"}</td>
+                        <td style={AR.td}>{e.calories}</td>
+                        <td style={AR.td}>{e.protein}</td>
+                        <td style={AR.td}>{e.carbs}</td>
+                        <td style={AR.td}>{e.fat}</td>
+                        <td style={AR.td}>{e.source || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </>
       )}

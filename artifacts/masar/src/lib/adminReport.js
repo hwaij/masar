@@ -79,3 +79,10 @@ export async function fetchStudentReport(owner, range = {}) {
   if (range.to) params.to = range.to;
   return callAdminReport(params);
 }
+
+// نظرة عامة على كل الطلاب (ذوي رقم جامعي مسجَّل) ليوم واحد محدَّد (YYYY-MM-DD) -
+// استعلام واحد مجمَّع من الخادم (راجع mode=overview في admin-report.js)،
+// لا نداء منفصل لكل طالب.
+export async function fetchOverview(date) {
+  return callAdminReport({ mode: "overview", date });
+}

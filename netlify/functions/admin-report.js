@@ -202,5 +202,69 @@ exports.handler = async (event) => {
     }
   }
 
+  // نظرة عامة على كل الطلاب دفعة واحدة ليوم محدَّد - 3 استعلامات فقط بصرف
+  // النظر عن عدد الطلاب (لا طلب منفصل لكل طالب، مطلوب صراحة لتحمّل +500
+  // طالب): (1) كل الملفات الشخصية التي تحمل رقماً جامعياً، (2) nutrition_log
+  // لهذا التاريخ فقط بلا فلترة owner (يتفادى بناء قائمة in.() ضخمة قد تتجاوز
+  // حدود طول الرابط مع مئات المعرّفات)، (3) health_profile لعمودي owner/tee
+  // فقط لكل الصفوف (خفيف الحجم حتى مع آلاف المستخدمين). المطابقة والتجميع
+  // (owner -> مجموع اليوم) تتم بالذاكرة هنا بعد الجلب، لا بالقاعدة.
+  if (mode === "overview") {
+    const date = (event.queryStringParameters?.date || "").trim();
+    if (!isValidDateStr(date)) return json(400, { error: "تاريخ غير صالح." });
+
+    try {
+      const profRes = await fetch(
+        `${url}/rest/v1/profile?university_id=not.is.null&select=owner,university_id,name&limit=2000`,
+        { headers: serviceHeaders },
+      );
+      if (!profRes.ok) return json(502, { error: "تعذّر جلب قائمة الطلاب الآن، حاول مرة أخرى." });
+      const profiles = await profRes.json();
+      if (!Array.isArray(profiles) || profiles.length === 0) return json(200, { date, students: [] });
+
+      const [logRes, healthRes] = await Promise.all([
+        fetch(
+          `${url}/rest/v1/nutrition_log?date=eq.${encodeURIComponent(date)}&select=owner,calories,protein,carbs,fat`,
+          { headers: serviceHeaders },
+        ),
+        fetch(`${url}/rest/v1/health_profile?select=owner,tee`, { headers: serviceHeaders }),
+      ]);
+      if (!logRes.ok || !healthRes.ok) return json(502, { error: "تعذّر جلب بيانات اليوم الآن، حاول مرة أخرى." });
+      const logs = await logRes.json();
+      const healthRows = await healthRes.json();
+
+      const totalsByOwner = new Map();
+      for (const row of logs) {
+        if (!totalsByOwner.has(row.owner)) totalsByOwner.set(row.owner, { calories: 0, protein: 0, carbs: 0, fat: 0, count: 0 });
+        const t = totalsByOwner.get(row.owner);
+        t.calories += Number(row.calories) || 0;
+        t.protein += Number(row.protein) || 0;
+        t.carbs += Number(row.carbs) || 0;
+        t.fat += Number(row.fat) || 0;
+        t.count += 1;
+      }
+      const teeByOwner = new Map(healthRows.map((r) => [r.owner, typeof r.tee === "number" ? r.tee : null]));
+
+      const students = profiles.map((p) => {
+        const t = totalsByOwner.get(p.owner);
+        return {
+          owner: p.owner,
+          universityId: p.university_id || "",
+          name: p.name || "",
+          ateToday: !!t && t.count > 0,
+          calories: t ? Math.round(t.calories) : 0,
+          protein: t ? Math.round(t.protein) : 0,
+          carbs: t ? Math.round(t.carbs) : 0,
+          fat: t ? Math.round(t.fat) : 0,
+          tee: teeByOwner.get(p.owner) ?? null,
+        };
+      });
+      return json(200, { date, students });
+    } catch (e) {
+      console.error("[admin-report] overview failed:", e);
+      return json(502, { error: "تعذّر جلب النظرة العامة الآن، حاول مرة أخرى." });
+    }
+  }
+
   return json(400, { error: "طلب غير صالح." });
 };

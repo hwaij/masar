@@ -12,8 +12,8 @@
 // الاقتراح، لا بإعادة كتابة نص، فلا التباس بين طلاب متشابهين بالاسم/الرقم.
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Search, Loader2, Download, ShieldAlert, ClipboardList, Calendar } from "lucide-react";
-import { suggestStudents, fetchStudentReport } from "../lib/adminReport";
+import { Search, Loader2, Download, ShieldAlert, ClipboardList, Calendar, Users } from "lucide-react";
+import { suggestStudents, fetchStudentReport, fetchOverview } from "../lib/adminReport";
 import { localDayKey } from "../lib/tips";
 import { getDailyNutritionSummary } from "../lib/nutrition-plan";
 import { S } from "./styles";
@@ -45,6 +45,9 @@ const AR = {
   sectionLabel: { fontSize: 13, fontWeight: 700, color: "var(--ink)", margin: "18px 0 8px" },
   noteBox: { display: "flex", gap: 8, alignItems: "flex-start", background: "rgba(201,162,75,0.08)", border: "1px solid rgba(201,162,75,0.3)", borderRadius: 12, padding: "10px 12px", marginBottom: 16, fontSize: 12.5, color: "var(--ink-soft)", lineHeight: 1.7 },
   badge: { display: "inline-block", borderRadius: 8, padding: "2px 7px", fontSize: 11, fontWeight: 700 },
+  topTabs: { display: "flex", gap: 6, marginBottom: 16, borderBottom: "1px solid var(--line)" },
+  topTab: { display: "flex", alignItems: "center", gap: 6, border: "none", background: "transparent", color: "var(--muted2)", fontSize: 13.5, fontWeight: 700, padding: "10px 4px", cursor: "pointer", fontFamily: "inherit", borderBottom: "2px solid transparent", marginBottom: -1 },
+  topTabActive: { color: "var(--gold)", borderBottomColor: "var(--gold)" },
 };
 
 const TIER_STYLE = {
@@ -100,7 +103,9 @@ function computeRange(rangeId, customFrom, customTo) {
   return { from: customFrom || null, to: customTo || null };
 }
 
-export default function AdminReportView() {
+// "البحث": تفاصيل دقيقة لطالب واحد محدَّد بالاسم/الرقم - السجل الكامل +
+// الرسوم البيانية + التصدير (كما كانت هذه الشاشة قبل إضافة "نظرة عامة").
+function SearchTab() {
   const { i18n } = useTranslation();
   const isEn = i18n.language === "en";
   const L = isEn ? RANGE_LABEL.en : RANGE_LABEL.ar;
@@ -225,12 +230,11 @@ export default function AdminReportView() {
   }
 
   return (
-    <div style={AR.wrap}>
-      <h1 style={S.sectionTitle}>{isEn ? "Nutrition Log Lookup" : "استعلام السجل الغذائي"}</h1>
+    <div>
       <p style={S.profileHint}>
         {isEn
-          ? "Type part of a university ID or student name to search."
-          : "اكتب جزءاً من الرقم الجامعي أو اسم الطالب للبحث."}
+          ? "Type part of a university ID or student name to search for one specific student's full log, charts, and export."
+          : "اكتب جزءاً من الرقم الجامعي أو اسم الطالب للوصول لسجله الكامل والرسوم البيانية والتصدير."}
       </p>
 
       <div style={AR.searchWrap}>
@@ -406,6 +410,167 @@ export default function AdminReportView() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+const OVERVIEW_BADGE = {
+  ate: { bg: "rgba(91,138,114,0.16)", color: "#5B8A72" },
+  notAte: { bg: "rgba(181,101,79,0.16)", color: "#B5654F" },
+  metGoal: { bg: "rgba(91,138,114,0.16)", color: "#5B8A72" },
+  notMetGoal: { bg: "rgba(181,101,79,0.16)", color: "#B5654F" },
+  noGoal: { bg: "rgba(138,130,114,0.14)", color: "#8A8272" },
+};
+
+// "نظرة عامة": جدول سريع لكل الطلاب دفعة واحدة ليوم محدَّد - أكل/لم يأكل
+// وهل حقق احتياجه أو لا، بلا أي تفاصيل لكل وجبة (ذلك يبقى حصراً في "البحث").
+// نفس getDailyNutritionSummary المستخدَمة في SearchTab بالضبط لكل صف طالب -
+// لا منطق حساب احتياج موازٍ هنا.
+function OverviewTab() {
+  const { i18n } = useTranslation();
+  const isEn = i18n.language === "en";
+  const [date, setDate] = useState(() => localDayKey());
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError(null);
+    fetchOverview(date)
+      .then((d) => { if (active) setData(d); })
+      .catch((e) => {
+        if (!active) return;
+        setError(e.status === 403
+          ? (isEn ? "Access denied." : "الوصول مرفوض.")
+          : (isEn ? "Failed to load the overview, please try again." : "تعذّر جلب النظرة العامة الآن، حاول مرة أخرى."));
+      })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date]);
+
+  // "حقق احتياجه" يعتمد على السعرات تحديداً (المؤشر الأساسي) بنفس تصنيف
+  // pctStatus المستخدَم في SearchTab بالضبط - ضمن النطاق أو تجاوز = نعم.
+  const rows = useMemo(() => {
+    if (!data?.students) return [];
+    return data.students.map((s) => {
+      const hasGoalVal = typeof s.tee === "number";
+      let metGoal = null;
+      if (hasGoalVal && s.ateToday) {
+        const summary = getDailyNutritionSummary({
+          totals: { calories: s.calories, protein: s.protein, carbs: s.carbs, fat: s.fat },
+          healthProfile: { tee: s.tee },
+          nutritionPlan: null,
+        });
+        const status = pctStatus(s.calories, summary.calorieGoal);
+        metGoal = status ? (status.tier === "within" || status.tier === "exceeded") : null;
+      }
+      return { ...s, hasGoal: hasGoalVal, metGoal };
+    });
+  }, [data]);
+
+  return (
+    <div>
+      <p style={S.profileHint}>
+        {isEn
+          ? "A quick table of every student with a registered university ID for one day at a time."
+          : "جدول سريع بكل الطلاب الذين لديهم رقم جامعي مسجَّل ليوم واحد في كل مرة."}
+      </p>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+        <Calendar size={15} color="var(--muted2)" />
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={AR.dateInput} max={localDayKey()} />
+      </div>
+
+      {loading && <div style={AR.emptyBox}><Loader2 size={20} className="spin" /></div>}
+
+      {error && (
+        <div style={AR.errorBox}>
+          <ShieldAlert size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {!loading && !error && data && (
+        rows.length === 0 ? (
+          <div style={AR.emptyBox}>
+            {isEn ? "No students with a registered university ID yet." : "لا يوجد طلاب لديهم رقم جامعي مسجَّل بعد."}
+          </div>
+        ) : (
+          <>
+            <div style={AR.resultCount}>
+              {isEn ? `${rows.length} students` : `${rows.length} طالب`}
+            </div>
+            <div style={{ ...AR.tableWrap, marginTop: 8 }}>
+              <table style={AR.table}>
+                <thead>
+                  <tr>
+                    <th style={AR.th}>{isEn ? "University ID" : "الرقم الجامعي"}</th>
+                    <th style={AR.th}>{isEn ? "Name" : "الاسم"}</th>
+                    <th style={AR.th}>{isEn ? "Ate today" : "أكل اليوم؟"}</th>
+                    <th style={AR.th}>{isEn ? "Calories" : "سعرات"}</th>
+                    <th style={AR.th}>{isEn ? "Protein" : "بروتين"}</th>
+                    <th style={AR.th}>{isEn ? "Carbs" : "كارب"}</th>
+                    <th style={AR.th}>{isEn ? "Fat" : "دهون"}</th>
+                    <th style={AR.th}>{isEn ? "Met daily need?" : "حقق احتياجه؟"}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r) => (
+                    <tr key={r.owner}>
+                      <td style={AR.td}>{r.universityId || "—"}</td>
+                      <td style={AR.td}>{r.name || "—"}</td>
+                      <td style={AR.td}>
+                        <span style={{ ...AR.badge, background: OVERVIEW_BADGE[r.ateToday ? "ate" : "notAte"].bg, color: OVERVIEW_BADGE[r.ateToday ? "ate" : "notAte"].color }}>
+                          {r.ateToday ? (isEn ? "Yes" : "نعم") : (isEn ? "No" : "لا")}
+                        </span>
+                      </td>
+                      <td style={AR.td}>{r.ateToday ? r.calories : "—"}</td>
+                      <td style={AR.td}>{r.ateToday ? r.protein : "—"}</td>
+                      <td style={AR.td}>{r.ateToday ? r.carbs : "—"}</td>
+                      <td style={AR.td}>{r.ateToday ? r.fat : "—"}</td>
+                      <td style={AR.td}>
+                        {!r.ateToday ? (
+                          <span style={{ ...AR.badge, background: OVERVIEW_BADGE.notMetGoal.bg, color: OVERVIEW_BADGE.notMetGoal.color }}>{isEn ? "No" : "لا"}</span>
+                        ) : !r.hasGoal ? (
+                          <span style={{ ...AR.badge, background: OVERVIEW_BADGE.noGoal.bg, color: OVERVIEW_BADGE.noGoal.color }}>{isEn ? "Not calculated" : "غير محسوب"}</span>
+                        ) : (
+                          <span style={{ ...AR.badge, background: OVERVIEW_BADGE[r.metGoal ? "metGoal" : "notMetGoal"].bg, color: OVERVIEW_BADGE[r.metGoal ? "metGoal" : "notMetGoal"].color }}>
+                            {r.metGoal ? (isEn ? "Yes" : "نعم") : (isEn ? "No" : "لا")}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )
+      )}
+    </div>
+  );
+}
+
+export default function AdminReportView() {
+  const { i18n } = useTranslation();
+  const isEn = i18n.language === "en";
+  const [tab, setTab] = useState("search");
+
+  return (
+    <div style={AR.wrap}>
+      <h1 style={S.sectionTitle}>{isEn ? "Nutrition Log Lookup" : "استعلام السجل الغذائي"}</h1>
+      <div style={AR.topTabs}>
+        <button onClick={() => setTab("search")} style={{ ...AR.topTab, ...(tab === "search" ? AR.topTabActive : {}) }}>
+          <Search size={14} /> {isEn ? "Search" : "البحث"}
+        </button>
+        <button onClick={() => setTab("overview")} style={{ ...AR.topTab, ...(tab === "overview" ? AR.topTabActive : {}) }}>
+          <Users size={14} /> {isEn ? "Overview" : "نظرة عامة"}
+        </button>
+      </div>
+      {tab === "search" ? <SearchTab /> : <OverviewTab />}
     </div>
   );
 }

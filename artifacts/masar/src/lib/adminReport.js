@@ -87,19 +87,19 @@ export async function fetchOverview(date) {
   return callAdminReport({ mode: "overview", date });
 }
 
-// تذكير وجبة يدوي فوري لكل المستخدمين (mealType: "breakfast"|"lunch"|"dinner") -
-// POST لا GET (إجراء جانبي حقيقي: إرسال Push فعلي، لا قراءة بلا أثر كبقية
-// الدوال أعلاه). يرمي خطأ عند الرفض/الفشل (403 لغير المالك، أو فشل خادم
-// آخر) - الشاشة نفسها تعرض رسالة الخطأ المناسبة، ولا تفترض نجاحاً صامتاً.
-// يُرجِع {totalUsers, sentUsers} من الخادم - عدد المستخدمين المؤهَّلين فعلياً
-// مقابل من وصله الإشعار فعلاً (قد يقل عن المؤهَّل لاشتراكات منتهية/فشل إرسال).
-export async function sendMealReminder(mealType) {
+// جوهر مشترك لإرسال التذكير الفوري (POST لا GET - إجراء جانبي حقيقي: إرسال
+// Push فعلي، لا قراءة بلا أثر كبقية الدوال أعلاه). يرمي خطأ عند الرفض/الفشل
+// (403 لغير المالك، أو فشل خادم آخر) - الشاشة نفسها تعرض رسالة الخطأ
+// المناسبة، ولا تفترض نجاحاً صامتاً. يُرجِع {totalUsers, sentUsers} من
+// الخادم - عدد المستخدمين المؤهَّلين فعلياً مقابل من وصله الإشعار فعلاً (قد
+// يقل عن المؤهَّل لاشتراكات منتهية/فشل إرسال).
+async function postBroadcast(payload) {
   const token = await getAccessToken();
   if (!token) throw new Error("NOT_SIGNED_IN");
   const res = await fetch(`${ADMIN_REPORT_URL}?mode=broadcast`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ mealType }),
+    body: JSON.stringify(payload),
   });
   let data;
   try {
@@ -113,4 +113,16 @@ export async function sendMealReminder(mealType) {
     throw err;
   }
   return data;
+}
+
+// تذكير وجبة يدوي فوري لكل المستخدمين (mealType: "breakfast"|"lunch"|"dinner") -
+// نص جاهز ثابت (راجع MEAL_BROADCAST_MESSAGES في admin-report.js).
+export async function sendMealReminder(mealType) {
+  return postBroadcast({ mealType });
+}
+
+// رسالة حرة يكتبها المالك بنفسه بالضبط (بلا أي قالب) - نفس مسار الإرسال
+// والتحقق تماماً (mode=broadcast نفسه)، فرق واحد فقط في حمولة الطلب.
+export async function sendCustomReminder(message) {
+  return postBroadcast({ customMessage: message });
 }

@@ -13,7 +13,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Search, Loader2, Download, ShieldAlert, ClipboardList, Calendar, Users, Bell, Send, CheckCircle2 } from "lucide-react";
-import { suggestStudents, fetchStudentReport, fetchOverview, sendMealReminder } from "../lib/adminReport";
+import { suggestStudents, fetchStudentReport, fetchOverview, sendMealReminder, sendCustomReminder } from "../lib/adminReport";
 import { localDayKey } from "../lib/tips";
 import { getDailyNutritionSummary } from "../lib/nutrition-plan";
 import { S } from "./styles";
@@ -570,11 +570,42 @@ const MEAL_BUTTONS = [
 // الصلاة/الأذان، لا نظام موازٍ). تأكيد بسيط (window.confirm) قبل أي إرسال
 // فعلي يتفادى ضغطة بالخطأ، والنتيجة (كم وصله فعلاً من أصل كم مؤهَّل) تُعرَض
 // بوضوح بعد كل إرسال لكل زر على حدة.
+const CUSTOM_KEY = "custom";
+
+// صندوق نتيجة إرسال واحد - مشترك بين الأزرار الجاهزة والرسالة الحرة (نفس
+// الشكل بالضبط، لا تمييز بصري بينهما - كلاهما نفس مسار الإرسال والتحقق).
+function ReminderResultBox({ result, isEn }) {
+  if (!result) return null;
+  if (result.error) {
+    return (
+      <div style={{ ...AR.errorBox, marginTop: 10, marginBottom: 0 }}>
+        <ShieldAlert size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+        <span>{result.error}</span>
+      </div>
+    );
+  }
+  return (
+    <div style={{ ...AR.noteBox, marginTop: 10, marginBottom: 0, display: "flex", alignItems: "flex-start", gap: 8 }}>
+      <CheckCircle2 size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+      <span>
+        {isEn
+          ? `Delivered to ${result.sentUsers} of ${result.totalUsers} eligible users.`
+          : `وصل الإشعار فعلياً إلى ${result.sentUsers} من أصل ${result.totalUsers} مستخدم مؤهَّل.`}
+      </span>
+    </div>
+  );
+}
+
+function errorMessage(e, isEn) {
+  return e.status === 403 ? (isEn ? "Access denied." : "الوصول مرفوض.") : (isEn ? "Failed to send, please try again." : "تعذّر الإرسال، حاول مرة أخرى.");
+}
+
 function RemindersTab() {
   const { i18n } = useTranslation();
   const isEn = i18n.language === "en";
   const [sendingId, setSendingId] = useState(null);
-  const [results, setResults] = useState({}); // { [mealId]: { sentUsers, totalUsers } | { error } }
+  const [results, setResults] = useState({}); // { [mealId|CUSTOM_KEY]: { sentUsers, totalUsers } | { error } }
+  const [customText, setCustomText] = useState("");
 
   async function handleSend(meal) {
     const confirmed = window.confirm(isEn ? meal.confirmEn : meal.confirmAr);
@@ -585,10 +616,32 @@ function RemindersTab() {
       const data = await sendMealReminder(meal.id);
       setResults((prev) => ({ ...prev, [meal.id]: { sentUsers: data.sentUsers, totalUsers: data.totalUsers } }));
     } catch (e) {
-      setResults((prev) => ({
-        ...prev,
-        [meal.id]: { error: e.status === 403 ? (isEn ? "Access denied." : "الوصول مرفوض.") : (isEn ? "Failed to send, please try again." : "تعذّر الإرسال، حاول مرة أخرى.") },
-      }));
+      setResults((prev) => ({ ...prev, [meal.id]: { error: errorMessage(e, isEn) } }));
+    } finally {
+      setSendingId(null);
+    }
+  }
+
+  // الرسالة الحرة: نفس مسار mode=broadcast بالضبط (راجع sendCustomReminder)،
+  // فرق واحد فقط هو نص الرسالة نفسه بلا أي قالب جاهز. منع إرسال نص فارغ قبل
+  // حتى محاولة الاتصال بالخادم (تنبيه فوري بسيط، لا رحلة شبكة بلا فائدة).
+  async function handleSendCustom() {
+    const text = customText.trim();
+    if (!text) {
+      window.alert(isEn ? "Write a message first." : "اكتب رسالة أولاً.");
+      return;
+    }
+    const confirmed = window.confirm(
+      isEn ? `Send this custom message to all users?\n\n"${text}"` : `متأكدة ترسلين هذه الرسالة لجميع المستخدمين؟\n\n"${text}"`,
+    );
+    if (!confirmed) return;
+    setSendingId(CUSTOM_KEY);
+    setResults((prev) => ({ ...prev, [CUSTOM_KEY]: null }));
+    try {
+      const data = await sendCustomReminder(text);
+      setResults((prev) => ({ ...prev, [CUSTOM_KEY]: { sentUsers: data.sentUsers, totalUsers: data.totalUsers } }));
+    } catch (e) {
+      setResults((prev) => ({ ...prev, [CUSTOM_KEY]: { error: errorMessage(e, isEn) } }));
     } finally {
       setSendingId(null);
     }
@@ -618,26 +671,32 @@ function RemindersTab() {
                   {isEn ? meal.en : meal.ar}
                 </button>
               </div>
-              {result && (
-                result.error ? (
-                  <div style={{ ...AR.errorBox, marginTop: 10, marginBottom: 0 }}>
-                    <ShieldAlert size={15} style={{ flexShrink: 0, marginTop: 1 }} />
-                    <span>{result.error}</span>
-                  </div>
-                ) : (
-                  <div style={{ ...AR.noteBox, marginTop: 10, marginBottom: 0, display: "flex", alignItems: "flex-start", gap: 8 }}>
-                    <CheckCircle2 size={15} style={{ flexShrink: 0, marginTop: 1 }} />
-                    <span>
-                      {isEn
-                        ? `Delivered to ${result.sentUsers} of ${result.totalUsers} eligible users.`
-                        : `وصل الإشعار فعلياً إلى ${result.sentUsers} من أصل ${result.totalUsers} مستخدم مؤهَّل.`}
-                    </span>
-                  </div>
-                )
-              )}
+              <ReminderResultBox result={result} isEn={isEn} />
             </div>
           );
         })}
+
+        <div style={{ border: "1px solid var(--line)", borderRadius: 12, padding: "14px 16px" }}>
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--ink)", marginBottom: 8 }}>
+            {isEn ? "Or write a custom message" : "أو اكتب رسالة مخصصة"}
+          </div>
+          <textarea
+            value={customText}
+            onChange={(e) => setCustomText(e.target.value)}
+            placeholder={isEn ? "Write the message to send to all users..." : "اكتب الرسالة التي تريد إرسالها لجميع المستخدمين..."}
+            rows={3}
+            style={{ ...S.input, width: "100%", resize: "vertical", fontFamily: "inherit", marginBottom: 10 }}
+          />
+          <button
+            onClick={handleSendCustom}
+            disabled={sendingId !== null}
+            style={{ ...S.exportBtn, width: "auto", padding: "9px 16px", marginBottom: 0, opacity: sendingId !== null ? 0.6 : 1 }}
+          >
+            {sendingId === CUSTOM_KEY ? <Loader2 size={15} className="spin" /> : <Send size={15} />}
+            {isEn ? "Send to everyone" : "إرسال للجميع"}
+          </button>
+          <ReminderResultBox result={results[CUSTOM_KEY]} isEn={isEn} />
+        </div>
       </div>
     </div>
   );

@@ -305,9 +305,20 @@ exports.handler = async (event) => {
     } catch {
       bodyParams = {};
     }
+    // إما نوع وجبة جاهز (mealType، نص ثابت) أو رسالة حرة (customMessage، نص
+    // المالك نفسه بالضبط بلا أي قالب) - أحدهما مطلوب، لا كلاهما معاً (قيمة
+    // غير فارغة واحدة فقط من الاثنين تُحدِّد نوع الإرسال).
     const mealType = (bodyParams.mealType || "").trim();
-    if (!MEAL_BROADCAST_MESSAGES[mealType]) {
-      return json(400, { error: "نوع وجبة غير صالح." });
+    const customMessage = (bodyParams.customMessage || "").trim();
+    let title, body;
+    if (mealType) {
+      if (!MEAL_BROADCAST_MESSAGES[mealType]) return json(400, { error: "نوع وجبة غير صالح." });
+      ({ title, body } = MEAL_BROADCAST_MESSAGES[mealType]);
+    } else if (customMessage) {
+      title = "📢 رسالة من الإدارة";
+      body = customMessage;
+    } else {
+      return json(400, { error: "الرسالة فارغة." });
     }
 
     const vapidPublicKey = (process.env.VAPID_PUBLIC_KEY || "").trim();
@@ -341,7 +352,6 @@ exports.handler = async (event) => {
       const subs = allSubs.filter((s) => candidateOwners.has(s.owner));
       if (subs.length === 0) return json(200, { totalUsers: candidateOwners.size, sentUsers: 0 });
 
-      const { title, body } = MEAL_BROADCAST_MESSAGES[mealType];
       const notificationPayload = JSON.stringify({ title, body, url: "/nutrition" });
 
       const results = await Promise.all(

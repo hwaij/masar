@@ -315,7 +315,10 @@ exports.handler = async (event) => {
       if (!MEAL_BROADCAST_MESSAGES[mealType]) return json(400, { error: "نوع وجبة غير صالح." });
       ({ title, body } = MEAL_BROADCAST_MESSAGES[mealType]);
     } else if (customMessage) {
-      title = "📢 رسالة من الإدارة";
+      // عنوان اسم التطبيق فقط - بلا أي إشارة لـ"إدارة"/جهة مراقبة قد تُخيف
+      // المستخدم (نفس نمط مصدر الإشعار في send-test-push.js: "مسارك" بلا
+      // صفة إدارية). النص الحر يبقى في body بلا أي تعديل.
+      title = "مسارك";
       body = customMessage;
     } else {
       return json(400, { error: "الرسالة فارغة." });

@@ -1360,7 +1360,7 @@ const JOURNEY_STAGES = [
       { view: "groups", target: '[data-tour="groups-create-card"]', requiresSub: true }, // 0
       { view: "assistant", target: '[data-tour="assistant-suggestion-0"]', requiresSub: true, requiresIdentity: true }, // 1
       { view: "achieve", target: '[data-tour="achieve-coach-card"]', requiresSub: true, requiresIdentity: true }, // 2
-      { view: "you", target: '[data-tour="you-identity-card"]', neverLast: true }, // 3: آخر خطوة بالرحلة كلها (هويتي انتقلت من الإعدادات إلى "أنت")
+      { view: "settings", target: '[data-tour="settings-identity-card"]', neverLast: true }, // 3: آخر خطوة بالرحلة كلها (نبذة/هوايات/تخصص انتقلت إلى "التخصيص"، الاسم والرقم الجامعي بقيا في "أنت")
     ],
   },
 ];
@@ -4548,7 +4548,7 @@ function AssistantView({ entries, tasks, categories, focus, prayerLog, religious
             <div style={S.setupText}>
               {t("assistant.setupNudge")}
               <div>
-                <button onClick={() => setView("you")} style={{ ...S.linkBtn, marginTop: 8 }}>{t("assistant.goToSettings")}</button>
+                <button onClick={() => setView("settings")} style={{ ...S.linkBtn, marginTop: 8 }}>{t("assistant.goToSettings")}</button>
               </div>
             </div>
           </div>
@@ -5512,7 +5512,7 @@ const HELP_SEARCH_INDEX = [
   { viewId: "reports", keywords: ["report", "progress", "stats", "تقرير", "تقارير", "احصائيات", "إحصائيات", "تقدم"] },
   { viewId: "assistant", keywords: ["ai", "chat", "ask", "assistant", "ذكاء", "مساعد", "اسأل", "شات"] },
   { viewId: "achieve", keywords: ["achieve", "challenge", "project", "أنجز", "تحدي", "مشروع"] },
-  { viewId: "you", keywords: ["profile", "about", "health", "أنت", "بيانات", "صحية", "ملف", "هوايات"] },
+  { viewId: "you", keywords: ["profile", "health", "أنت", "بيانات", "صحية", "ملف"] },
   { viewId: "prayer", keywords: ["prayer", "salah", "صلاة", "استغفار"] },
   { viewId: "adhkar", keywords: ["adhkar", "dhikr", "اذكار", "أذكار", "تسبيح"] },
   { viewId: "tips", keywords: ["wisdom", "tip", "بصيرة", "حكمة", "نصيحة"] },
@@ -5520,7 +5520,7 @@ const HELP_SEARCH_INDEX = [
   { viewId: "vault", keywords: ["money", "expense", "budget", "خزنة", "مال", "مصروف", "ميزانية"] },
   { viewId: "nutritionPlan", keywords: ["diet plan", "نظام غذائي", "خطة تغذية"] },
   { viewId: "dietPlans", keywords: ["diet plans", "انظمة غذائية", "أنظمة"] },
-  { viewId: "settings", keywords: ["settings", "hobbies", "theme", "اعدادات", "إعدادات", "تخصيص"] },
+  { viewId: "settings", keywords: ["settings", "hobbies", "about", "field", "bio", "theme", "اعدادات", "إعدادات", "تخصيص", "هوايات", "نبذة", "تخصص"] },
 ];
 const HELP_NAV_LABEL_KEY = { focus: "focusStudy", groups: "studyGroups" };
 // قائمة الجولات السياقية القابلة لإعادة التشغيل الفردية من الإعدادات -
@@ -6635,7 +6635,7 @@ function AchieveView({ achieve, setAchieve, profile, focus, tasks, prayerLog, re
           <div style={S.setupText}>
             {IDENTITY_NUDGE}
             <div>
-              <button onClick={() => setView("you")} style={{ ...S.linkBtn, marginTop: 8 }}>{t("achieve.goToSettings")}</button>
+              <button onClick={() => setView("settings")} style={{ ...S.linkBtn, marginTop: 8 }}>{t("achieve.goToSettings")}</button>
             </div>
           </div>
         </div>
@@ -6975,6 +6975,7 @@ function SettingsView({ categories, setCategories, gamify, hasCloud, showToast, 
   return (
     <div style={S.view}>
       <h1 style={S.sectionTitle}>{t("settings.title")}</h1>
+      <IdentityDetailsCard profile={profile} setProfile={setProfile} showToast={showToast} />
       <div style={S.catEditorCard}>
         <div style={S.catEditorHeader}>{theme === "dark" ? <Moon size={15} color="#C9A24B" /> : <Sun size={15} color="#C9A24B" />}<span>{t("settings.appearance")}</span></div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -7576,9 +7577,11 @@ function YouView({ healthProfile, setHealthProfile, showToast, profile, setProfi
 
 // "missing locale key"s لهذا المكوّن كاملاً (لا مساحة أسماء مخصّصة له بعد
 // في ملفات الترجمة): settings.identity.title/subtitle/nameLabel/
-// namePlaceholder/aboutLabel/aboutPlaceholder/hobbiesLabel/
-// hobbiesPlaceholder/fieldLabel/fieldPlaceholder/saveButton - استُخدم نص
-// إنجليزي/عربي حرفي بديل مؤقتاً بدلاً منها.
+// namePlaceholder/saveButton - استُخدم نص إنجليزي/عربي حرفي بديل مؤقتاً
+// بدلاً منها.
+// حقول "من أنا"/"هواياتي"/"تخصصي" انتقلت من هنا إلى IdentityDetailsCard
+// أدناه (تُعرَض الآن بقسم "التخصيص" - راجع تعليق تلك الدالة) - نفس
+// profile.about/hobbies/field ونفس store.saveProfile بالضبط، نقل عرض فقط.
 function ProfileCard({ profile, setProfile, showToast }) {
   const { t, i18n } = useTranslation();
   const isEn = i18n.language === "en";
@@ -7599,6 +7602,34 @@ function ProfileCard({ profile, setProfile, showToast }) {
       <input value={local.name || ""} onChange={(e) => change("name", e.target.value)} placeholder={isEn ? "e.g. Ahmed" : "مثال: أحمد"} style={S.input} />
       <label style={S.label}>{isEn ? "University ID" : "الرقم الجامعي"}</label>
       <input value={local.universityId || ""} onChange={(e) => change("universityId", e.target.value)} placeholder={isEn ? "e.g. 202012345" : "مثال: 202012345"} style={S.input} />
+      {dirty && <button onClick={save} style={{ ...S.saveBtn, marginTop: 12 }}>{isEn ? "Save my identity" : "حفظ هويتي"}</button>}
+    </div>
+  );
+}
+
+// نُقلت من ProfileCard أعلاه (قسم "أنت") إلى قسم "التخصيص" بناءً على طلب
+// إعادة تنظيم واجهة بحت - نفس حقول profile.about/hobbies/field ونفس
+// store.saveProfile(local) بالضبط (local نسخة كاملة من profile، فلا خطر
+// فقدان أي حقل آخر عند الحفظ)؛ لا تغيير بقاعدة البيانات أو منطق الحفظ/
+// التحميل إطلاقاً. data-tour="settings-identity-card" يحل محل
+// "you-identity-card" كهدف لخطوة "أكمل هويتك" بجولة التعريف (راجع
+// JOURNEY_STAGES stage4) وزرّي "الذهاب إلى الإعدادات" بشاشتي المساعد/أنجز.
+function IdentityDetailsCard({ profile, setProfile, showToast }) {
+  const { t, i18n } = useTranslation();
+  const isEn = i18n.language === "en";
+  const [local, setLocal] = useState(profile);
+  const [dirty, setDirty] = useState(false);
+  useEffect(() => { setLocal(profile); }, [profile]);
+
+  function change(field, val) { setLocal((p) => ({ ...p, [field]: val })); setDirty(true); }
+  async function save() {
+    setProfile(local); await store.saveProfile(local); setDirty(false); showToast(t("todayView.savedSuccess"));
+  }
+
+  return (
+    <div style={S.profileCard} data-tour="settings-identity-card">
+      <div style={S.catEditorHeader}><User size={15} color="#C9A24B" /><span>{isEn ? "About You" : "نبذة عنك"}</span></div>
+      <p style={S.profileHint}>{isEn ? "This data makes Achieve's suggestions and analysis personal to you." : "هذه البيانات تجعل اقتراحات أنجز والتحليل مرتبطة بك شخصياً."}</p>
       <label style={S.label}>{isEn ? "About me" : "من أنا"}</label>
       <input value={local.about} onChange={(e) => change("about", e.target.value)} placeholder={isEn ? "e.g. Photographer, visual content designer, and university student" : "مثال: مصور ومصمم محتوى بصري وطالب جامعي"} style={S.input} />
       <label style={S.label}>{isEn ? "My hobbies" : "هواياتي"}</label>

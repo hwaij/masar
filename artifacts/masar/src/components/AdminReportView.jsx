@@ -426,6 +426,12 @@ const OVERVIEW_BADGE = {
 // وهل حقق احتياجه أو لا، بلا أي تفاصيل لكل وجبة (ذلك يبقى حصراً في "البحث").
 // نفس getDailyNutritionSummary المستخدَمة في SearchTab بالضبط لكل صف طالب -
 // لا منطق حساب احتياج موازٍ هنا.
+const ATE_FILTERS = ["all", "ate", "notAte"];
+const ATE_FILTER_LABEL = {
+  ar: { all: "الكل", ate: "أكلوا اليوم فقط", notAte: "لم يأكلوا اليوم فقط" },
+  en: { all: "All", ate: "Ate today only", notAte: "Did not eat today only" },
+};
+
 function OverviewTab() {
   const { i18n } = useTranslation();
   const isEn = i18n.language === "en";
@@ -433,6 +439,10 @@ function OverviewTab() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
+  // فلترة فورية بالواجهة فقط على نتيجة الاستعلام المجلوبة أصلاً (data.students
+  // عبر rows أدناه) - لا استعلام جديد لقاعدة البيانات، لا أي استدعاء شبكي
+  // إضافي عند تبديل الفلتر.
+  const [ateFilter, setAteFilter] = useState("all");
 
   useEffect(() => {
     let active = true;
@@ -471,6 +481,19 @@ function OverviewTab() {
     });
   }, [data]);
 
+  // عداد ثابت بصرف النظر عن الفلتر المختار - دائماً من كل الصفوف (rows)
+  // لا من النتيجة المفلترة، حتى يبقى "X من أصل Y" ثابت المرجع مهما بدّل
+  // المستخدم الفلتر.
+  const ateCount = useMemo(() => rows.filter((r) => r.ateToday).length, [rows]);
+
+  // فلترة فورية محض بالذاكرة - rows نفسها (نتيجة الاستعلام المجلوبة أصلاً)
+  // بلا أي طلب شبكي جديد عند تبديل الفلتر.
+  const filteredRows = useMemo(() => {
+    if (ateFilter === "ate") return rows.filter((r) => r.ateToday);
+    if (ateFilter === "notAte") return rows.filter((r) => !r.ateToday);
+    return rows;
+  }, [rows, ateFilter]);
+
   return (
     <div>
       <p style={S.profileHint}>
@@ -501,8 +524,20 @@ function OverviewTab() {
         ) : (
           <>
             <div style={AR.resultCount}>
-              {isEn ? `${rows.length} students` : `${rows.length} طالب`}
+              {isEn ? `${ateCount} of ${rows.length} ate today` : `${ateCount} من أصل ${rows.length} أكلوا اليوم`}
             </div>
+            <div style={{ ...AR.rangeRow, marginTop: 10 }}>
+              {ATE_FILTERS.map((f) => (
+                <button key={f} onClick={() => setAteFilter(f)} style={{ ...AR.rangeBtn, ...(ateFilter === f ? AR.rangeBtnActive : {}) }}>
+                  {(isEn ? ATE_FILTER_LABEL.en : ATE_FILTER_LABEL.ar)[f]}
+                </button>
+              ))}
+            </div>
+            {filteredRows.length === 0 ? (
+              <div style={AR.emptyBox}>
+                {isEn ? "No students match this filter." : "لا يوجد طلاب مطابقون لهذا الفلتر."}
+              </div>
+            ) : (
             <div style={{ ...AR.tableWrap, marginTop: 8 }}>
               <table style={AR.table}>
                 <thead>
@@ -519,7 +554,7 @@ function OverviewTab() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((r) => (
+                  {filteredRows.map((r) => (
                     <tr key={r.owner}>
                       <td style={AR.td}>{r.universityId || "—"}</td>
                       <td style={AR.td}>{r.name || "—"}</td>
@@ -549,6 +584,7 @@ function OverviewTab() {
                 </tbody>
               </table>
             </div>
+            )}
           </>
         )
       )}

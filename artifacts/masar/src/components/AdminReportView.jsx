@@ -13,7 +13,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Search, Loader2, Download, ShieldAlert, ClipboardList, Calendar, Users, Bell, Send, CheckCircle2 } from "lucide-react";
-import { suggestStudents, fetchStudentReport, fetchOverview, sendMealReminder, sendCustomReminder } from "../lib/adminReport";
+import { suggestStudents, fetchStudentReport, fetchOverview, sendReminder, sendCustomReminder } from "../lib/adminReport";
 import { localDayKey } from "../lib/tips";
 import { getDailyNutritionSummary } from "../lib/nutrition-plan";
 import { S } from "./styles";
@@ -556,20 +556,25 @@ function OverviewTab() {
   );
 }
 
-const MEAL_BUTTONS = [
+// الأنواع الخمسة هنا (فطور/غداء/عشاء/نوم/تسجيل الأكل) هي بالضبط ما أُوقف
+// إرسالها التلقائي المجدول (راجع scheduled-prayer-reminders.js) - أصبحت
+// تُرسَل يدوياً فقط من هذه الأزرار.
+const REMINDER_BUTTONS = [
   { id: "breakfast", ar: "تذكير بالفطور", en: "Breakfast reminder", confirmAr: "متأكدة ترسلين تذكير فطور لجميع المستخدمين؟", confirmEn: "Send a breakfast reminder to all users?" },
   { id: "lunch", ar: "تذكير بالغداء", en: "Lunch reminder", confirmAr: "متأكدة ترسلين تذكير غداء لجميع المستخدمين؟", confirmEn: "Send a lunch reminder to all users?" },
   { id: "dinner", ar: "تذكير بالعشاء", en: "Dinner reminder", confirmAr: "متأكدة ترسلين تذكير عشاء لجميع المستخدمين؟", confirmEn: "Send a dinner reminder to all users?" },
+  { id: "sleep", ar: "تذكير بالنوم", en: "Sleep reminder", confirmAr: "متأكدة ترسلين تذكير نوم لجميع المستخدمين؟", confirmEn: "Send a sleep reminder to all users?" },
+  { id: "mealLog", ar: "تذكير بتسجيل الأكل", en: "Log your food reminder", confirmAr: "متأكدة ترسلين تذكير تسجيل أكل لجميع المستخدمين؟", confirmEn: "Send a log-your-food reminder to all users?" },
 ];
 
 // "تذكيرات": بديل احتياطي يدوي عن التذكيرات المجدولة تلقائياً (أحياناً غير
-// موثوقة فعلياً، راجع تعليق scheduled-prayer-reminders.js) - ثلاثة أزرار
-// منفصلة ترسل Push فوري حقيقي لكل المستخدمين المؤهَّلين دفعة واحدة (عبر
-// sendMealReminder في lib/adminReport.js -> mode=broadcast في admin-report.js
-// -> نفس sendToSubscriptionRow/configureVapid المستخدَمة أصلاً لإشعارات
-// الصلاة/الأذان، لا نظام موازٍ). تأكيد بسيط (window.confirm) قبل أي إرسال
-// فعلي يتفادى ضغطة بالخطأ، والنتيجة (كم وصله فعلاً من أصل كم مؤهَّل) تُعرَض
-// بوضوح بعد كل إرسال لكل زر على حدة.
+// موثوقة فعلياً، راجع تعليق scheduled-prayer-reminders.js) - أزرار منفصلة
+// ترسل Push فوري حقيقي لكل المستخدمين المؤهَّلين دفعة واحدة (عبر sendReminder
+// في lib/adminReport.js -> mode=broadcast في admin-report.js -> نفس
+// sendToSubscriptionRow/configureVapid المستخدَمة أصلاً لإشعارات الصلاة/
+// الأذان، لا نظام موازٍ). تأكيد بسيط (window.confirm) قبل أي إرسال فعلي
+// يتفادى ضغطة بالخطأ، والنتيجة (كم وصله فعلاً من أصل كم مؤهَّل) تُعرَض بوضوح
+// بعد كل إرسال لكل زر على حدة.
 const CUSTOM_KEY = "custom";
 
 // صندوق نتيجة إرسال واحد - مشترك بين الأزرار الجاهزة والرسالة الحرة (نفس
@@ -613,7 +618,7 @@ function RemindersTab() {
     setSendingId(meal.id);
     setResults((prev) => ({ ...prev, [meal.id]: null }));
     try {
-      const data = await sendMealReminder(meal.id);
+      const data = await sendReminder(meal.id);
       setResults((prev) => ({ ...prev, [meal.id]: { sentUsers: data.sentUsers, totalUsers: data.totalUsers } }));
     } catch (e) {
       setResults((prev) => ({ ...prev, [meal.id]: { error: errorMessage(e, isEn) } }));
@@ -655,7 +660,7 @@ function RemindersTab() {
           : "إرسال تذكير فوري بإشعار Push لكل المستخدمين المسجّلين الآن، بشكل مستقل عن التذكيرات المجدولة تلقائياً."}
       </p>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        {MEAL_BUTTONS.map((meal) => {
+        {REMINDER_BUTTONS.map((meal) => {
           const result = results[meal.id];
           const sending = sendingId === meal.id;
           return (

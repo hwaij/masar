@@ -28,14 +28,20 @@ const ADMIN_EMAIL = "hwaijmamoud@gmail.com";
 
 const SUGGEST_LIMIT = 15;
 
-// نصوص تذكير الوجبات اليدوي الفوري (mode=broadcast) - منفصلة عمداً عن
-// MESSAGES.meals في notification-engine.js (تلك صياغة محايدة لا تفترض وجبة
-// بعينها لم تُسجَّل بعد "يمكنك تسجيلها متى ناسبك"؛ هذه رسالة مباشرة بنص
-// الوجبة المحدَّدة التي طلبها المالك حرفياً: "لا تنسَ تسجيل فطورك").
-const MEAL_BROADCAST_MESSAGES = {
-  breakfast: { title: "🍳 تذكير بالفطور", body: "لا تنسَ تسجيل فطورك في مسارك 🍳" },
-  lunch: { title: "🍲 تذكير بالغداء", body: "لا تنسَ تسجيل غدائك في مسارك 🍲" },
-  dinner: { title: "🍽️ تذكير بالعشاء", body: "لا تنسَ تسجيل عشائك في مسارك 🍽️" },
+// نصوص التذكيرات اليدوية الفورية (mode=broadcast) - منفصلة عمداً عن
+// MESSAGES.meals/sleep في notification-engine.js (تلك صياغة محايدة
+// للمسار المجدول تلقائياً سابقاً؛ هذه رسالة مباشرة بنص المالك المطلوب
+// حرفياً). العنوان "مسارك" فقط لكل الحالات (بلا أي إشارة لـ"إدارة"/جهة
+// مراقبة قد تُخيف المستخدم) - مطابق تماماً لعنوان الرسالة المخصّصة أدناه،
+// لا فرق بينهما. فطور/غداء/عشاء/نوم/تسجيل الأكل هي الفئات الخمس التي
+// أُوقف إرسالها التلقائي المجدول (راجع scheduled-prayer-reminders.js) -
+// تُرسَل من الآن يدوياً فقط من هنا.
+const BROADCAST_MESSAGES = {
+  breakfast: { title: "مسارك", body: "لا تنسَ تسجيل فطورك في مسارك 🍳" },
+  lunch: { title: "مسارك", body: "لا تنسَ تسجيل غدائك في مسارك 🍲" },
+  dinner: { title: "مسارك", body: "لا تنسَ تسجيل عشائك في مسارك 🍽️" },
+  sleep: { title: "مسارك", body: "لا تنسَ تسجيل نومك في مسارك 🌙" },
+  mealLog: { title: "مسارك", body: "لا تنسَ تسجيل وجبتك في مسارك 🍽️" },
 };
 
 function readSupabaseEnv() {
@@ -305,15 +311,15 @@ exports.handler = async (event) => {
     } catch {
       bodyParams = {};
     }
-    // إما نوع وجبة جاهز (mealType، نص ثابت) أو رسالة حرة (customMessage، نص
+    // إما نوع تذكير جاهز (reminderType، نص ثابت) أو رسالة حرة (customMessage، نص
     // المالك نفسه بالضبط بلا أي قالب) - أحدهما مطلوب، لا كلاهما معاً (قيمة
     // غير فارغة واحدة فقط من الاثنين تُحدِّد نوع الإرسال).
-    const mealType = (bodyParams.mealType || "").trim();
+    const reminderType = (bodyParams.reminderType || "").trim();
     const customMessage = (bodyParams.customMessage || "").trim();
     let title, body;
-    if (mealType) {
-      if (!MEAL_BROADCAST_MESSAGES[mealType]) return json(400, { error: "نوع وجبة غير صالح." });
-      ({ title, body } = MEAL_BROADCAST_MESSAGES[mealType]);
+    if (reminderType) {
+      if (!BROADCAST_MESSAGES[reminderType]) return json(400, { error: "نوع تذكير غير صالح." });
+      ({ title, body } = BROADCAST_MESSAGES[reminderType]);
     } else if (customMessage) {
       // عنوان اسم التطبيق فقط - بلا أي إشارة لـ"إدارة"/جهة مراقبة قد تُخيف
       // المستخدم (نفس نمط مصدر الإشعار في send-test-push.js: "مسارك" بلا

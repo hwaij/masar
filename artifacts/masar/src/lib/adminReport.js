@@ -115,10 +115,13 @@ async function postBroadcast(payload) {
   return data;
 }
 
-// تذكير وجبة يدوي فوري لكل المستخدمين (mealType: "breakfast"|"lunch"|"dinner") -
-// نص جاهز ثابت (راجع MEAL_BROADCAST_MESSAGES في admin-report.js).
-export async function sendMealReminder(mealType) {
-  return postBroadcast({ mealType });
+// تذكير يدوي فوري جاهز لكل المستخدمين (reminderType: "breakfast"|"lunch"|
+// "dinner"|"sleep"|"mealLog") - نص جاهز ثابت (راجع BROADCAST_MESSAGES في
+// admin-report.js). هذه الأنواع الخمسة بالذات أُوقف إرسالها التلقائي
+// المجدول (راجع scheduled-prayer-reminders.js) - تُرسَل الآن يدوياً فقط من
+// هنا.
+export async function sendReminder(reminderType) {
+  return postBroadcast({ reminderType });
 }
 
 // رسالة حرة يكتبها المالك بنفسه بالضبط (بلا أي قالب) - نفس مسار الإرسال

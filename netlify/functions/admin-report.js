@@ -22,9 +22,21 @@
 // بالفعل لرؤية كل بيانات أي طالب)، بل الحل الوحيد الموثوق لتفادي التباس بين
 // طلاب بنفس الاسم أو رقم جامعي متشابه جزئياً - الاختيار دائماً بمعرّف الحساب
 // الفريد، لا بنص الاسم/الرقم المعروض.
+const { configureVapid, sendToSubscriptionRow } = require("./lib/send-push");
+
 const ADMIN_EMAIL = "hwaijmamoud@gmail.com";
 
 const SUGGEST_LIMIT = 15;
+
+// نصوص تذكير الوجبات اليدوي الفوري (mode=broadcast) - منفصلة عمداً عن
+// MESSAGES.meals في notification-engine.js (تلك صياغة محايدة لا تفترض وجبة
+// بعينها لم تُسجَّل بعد "يمكنك تسجيلها متى ناسبك"؛ هذه رسالة مباشرة بنص
+// الوجبة المحدَّدة التي طلبها المالك حرفياً: "لا تنسَ تسجيل فطورك").
+const MEAL_BROADCAST_MESSAGES = {
+  breakfast: { title: "🍳 تذكير بالفطور", body: "لا تنسَ تسجيل فطورك في مسارك 🍳" },
+  lunch: { title: "🍲 تذكير بالغداء", body: "لا تنسَ تسجيل غدائك في مسارك 🍲" },
+  dinner: { title: "🍽️ تذكير بالعشاء", body: "لا تنسَ تسجيل عشائك في مسارك 🍽️" },
+};
 
 function readSupabaseEnv() {
   const url = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").trim();
@@ -70,7 +82,11 @@ function isValidDateStr(s) {
 }
 
 exports.handler = async (event) => {
-  if (event.httpMethod !== "GET") {
+  // GET لكل أوضاع القراءة كما كانت (check/suggest/report/overview)، وPOST
+  // فقط للوضع الوحيد الذي يُنفِّذ فعلاً إجراءً جانبياً (broadcast: إرسال
+  // إشعار حقيقي) - فصل METHOD يطابق طبيعة كل وضع (قراءة بلا أثر جانبي مقابل
+  // إجراء حقيقي)، لا تعسفاً.
+  if (event.httpMethod !== "GET" && event.httpMethod !== "POST") {
     return json(405, { error: "Method not allowed" });
   }
 
@@ -227,7 +243,7 @@ exports.handler = async (event) => {
           `${url}/rest/v1/nutrition_log?date=eq.${encodeURIComponent(date)}&select=owner,calories,protein,carbs,fat`,
           { headers: serviceHeaders },
         ),
-        fetch(`${url}/rest/v1/health_profile?select=owner,tee`, { headers: serviceHeaders }),
+        fetch(`${url}/rest/v1/health_profile?select=owner,tee,gender`, { headers: serviceHeaders }),
       ]);
       if (!logRes.ok || !healthRes.ok) return json(502, { error: "تعذّر جلب بيانات اليوم الآن، حاول مرة أخرى." });
       const logs = await logRes.json();
@@ -244,6 +260,9 @@ exports.handler = async (event) => {
         t.count += 1;
       }
       const teeByOwner = new Map(healthRows.map((r) => [r.owner, typeof r.tee === "number" ? r.tee : null]));
+      // الجنس (male/female) - عرض فقط، لا علاقة له بأي حساب هنا (ذاك يبقى
+      // حصراً عبر tee المحسوب مسبقاً وقت إكمال "أنت"؛ هذا العمود توضيحي بحت).
+      const genderByOwner = new Map(healthRows.map((r) => [r.owner, r.gender === "male" || r.gender === "female" ? r.gender : null]));
 
       const students = profiles.map((p) => {
         const t = totalsByOwner.get(p.owner);
@@ -251,6 +270,7 @@ exports.handler = async (event) => {
           owner: p.owner,
           universityId: p.university_id || "",
           name: p.name || "",
+          gender: genderByOwner.get(p.owner) ?? null,
           ateToday: !!t && t.count > 0,
           calories: t ? Math.round(t.calories) : 0,
           protein: t ? Math.round(t.protein) : 0,
@@ -263,6 +283,79 @@ exports.handler = async (event) => {
     } catch (e) {
       console.error("[admin-report] overview failed:", e);
       return json(502, { error: "تعذّر جلب النظرة العامة الآن، حاول مرة أخرى." });
+    }
+  }
+
+  // تذكير وجبة يدوي فوري لكل المستخدمين المؤهَّلين دفعة واحدة - بديل احتياطي
+  // يدوي عن scheduled-prayer-reminders.js (التي ثبت أحياناً عدم موثوقيتها
+  // فعلياً بسبب تأخير/إسقاط تشغيلات الجدولة الخارجية، راجع تعليق ذلك الملف) -
+  // يستخدم بالضبط نفس بنية الإرسال (configureVapid/sendToSubscriptionRow من
+  // lib/send-push.js)، لا نظاماً موازياً. فوري عمداً: لا فحص تكرار (notification_log)
+  // ولا Quiet Hours ولا حد يومي ولا تفضيل فئة فردي - هذا إجراء يدوي واعٍ
+  // ومقصود من المالك تحديداً لتجاوز عدم موثوقية الجدولة التلقائية، لا تذكيراً
+  // تلقائياً آخر يجب أن يخضع لنفس قيودها؛ يبقى مُقيَّداً فقط بما يُقيِّد كل
+  // إشعار آخر بالتطبيق: profile.notifications_enabled=true (تفعيل الإشعارات
+  // عموماً) ووجود اشتراك Push فعلي.
+  if (mode === "broadcast") {
+    if (event.httpMethod !== "POST") return json(405, { error: "Method not allowed" });
+
+    let bodyParams = {};
+    try {
+      bodyParams = JSON.parse(event.body || "{}");
+    } catch {
+      bodyParams = {};
+    }
+    const mealType = (bodyParams.mealType || "").trim();
+    if (!MEAL_BROADCAST_MESSAGES[mealType]) {
+      return json(400, { error: "نوع وجبة غير صالح." });
+    }
+
+    const vapidPublicKey = (process.env.VAPID_PUBLIC_KEY || "").trim();
+    const vapidPrivateKey = (process.env.VAPID_PRIVATE_KEY || "").trim();
+    const vapidSubject = (process.env.VAPID_SUBJECT || "").trim();
+    if (!vapidPublicKey || !vapidPrivateKey || !vapidSubject) {
+      return json(500, { error: "خدمة الإشعارات غير مهيأة على الخادم." });
+    }
+    configureVapid(vapidSubject, vapidPublicKey, vapidPrivateKey);
+
+    try {
+      const candidatesRes = await fetch(
+        `${url}/rest/v1/profile?notifications_enabled=eq.true&select=owner`,
+        { headers: serviceHeaders },
+      );
+      if (!candidatesRes.ok) return json(502, { error: "تعذّر جلب قائمة المستخدمين الآن، حاول مرة أخرى." });
+      const candidateRows = await candidatesRes.json();
+      const candidateOwners = new Set(candidateRows.map((r) => r.owner).filter((o) => o && o !== "solo"));
+      if (candidateOwners.size === 0) return json(200, { totalUsers: 0, sentUsers: 0 });
+
+      // لا in.() بقائمة owner هنا عمداً (نفس سبب mode=overview أعلاه بالضبط:
+      // قد تتجاوز حدود طول الرابط مع مئات/آلاف المستخدمين) - نجلب كل صفوف
+      // push_subscriptions (عمودين فقط لازمين زائد ما يحتاجه الإرسال، خفيف
+      // الحجم) ثم نُصفّي بالذاكرة بمن هو مؤهَّل فعلاً.
+      const subsRes = await fetch(
+        `${url}/rest/v1/push_subscriptions?select=id,owner,endpoint,p256dh,auth,platform`,
+        { headers: serviceHeaders },
+      );
+      if (!subsRes.ok) return json(502, { error: "تعذّر جلب اشتراكات الإشعارات الآن، حاول مرة أخرى." });
+      const allSubs = await subsRes.json();
+      const subs = allSubs.filter((s) => candidateOwners.has(s.owner));
+      if (subs.length === 0) return json(200, { totalUsers: candidateOwners.size, sentUsers: 0 });
+
+      const { title, body } = MEAL_BROADCAST_MESSAGES[mealType];
+      const notificationPayload = JSON.stringify({ title, body, url: "/nutrition" });
+
+      const results = await Promise.all(
+        subs.map((sub) => sendToSubscriptionRow({ url, headers: serviceHeaders, sub, notificationPayload })),
+      );
+      const sentOwners = new Set();
+      results.forEach((r, i) => {
+        if (r.ok) sentOwners.add(subs[i].owner);
+      });
+
+      return json(200, { totalUsers: candidateOwners.size, sentUsers: sentOwners.size });
+    } catch (e) {
+      console.error("[admin-report] broadcast failed:", e);
+      return json(502, { error: "تعذّر إرسال التذكير الآن، حاول مرة أخرى." });
     }
   }
 

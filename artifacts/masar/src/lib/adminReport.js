@@ -86,3 +86,31 @@ export async function fetchStudentReport(owner, range = {}) {
 export async function fetchOverview(date) {
   return callAdminReport({ mode: "overview", date });
 }
+
+// تذكير وجبة يدوي فوري لكل المستخدمين (mealType: "breakfast"|"lunch"|"dinner") -
+// POST لا GET (إجراء جانبي حقيقي: إرسال Push فعلي، لا قراءة بلا أثر كبقية
+// الدوال أعلاه). يرمي خطأ عند الرفض/الفشل (403 لغير المالك، أو فشل خادم
+// آخر) - الشاشة نفسها تعرض رسالة الخطأ المناسبة، ولا تفترض نجاحاً صامتاً.
+// يُرجِع {totalUsers, sentUsers} من الخادم - عدد المستخدمين المؤهَّلين فعلياً
+// مقابل من وصله الإشعار فعلاً (قد يقل عن المؤهَّل لاشتراكات منتهية/فشل إرسال).
+export async function sendMealReminder(mealType) {
+  const token = await getAccessToken();
+  if (!token) throw new Error("NOT_SIGNED_IN");
+  const res = await fetch(`${ADMIN_REPORT_URL}?mode=broadcast`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ mealType }),
+  });
+  let data;
+  try {
+    data = await res.json();
+  } catch {
+    data = {};
+  }
+  if (!res.ok) {
+    const err = new Error(data?.error || "UNKNOWN");
+    err.status = res.status;
+    throw err;
+  }
+  return data;
+}

@@ -12,8 +12,8 @@
 // الاقتراح، لا بإعادة كتابة نص، فلا التباس بين طلاب متشابهين بالاسم/الرقم.
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Search, Loader2, Download, ShieldAlert, ClipboardList, Calendar, Users } from "lucide-react";
-import { suggestStudents, fetchStudentReport, fetchOverview } from "../lib/adminReport";
+import { Search, Loader2, Download, ShieldAlert, ClipboardList, Calendar, Users, Bell, Send, CheckCircle2 } from "lucide-react";
+import { suggestStudents, fetchStudentReport, fetchOverview, sendMealReminder } from "../lib/adminReport";
 import { localDayKey } from "../lib/tips";
 import { getDailyNutritionSummary } from "../lib/nutrition-plan";
 import { S } from "./styles";
@@ -509,6 +509,7 @@ function OverviewTab() {
                   <tr>
                     <th style={AR.th}>{isEn ? "University ID" : "الرقم الجامعي"}</th>
                     <th style={AR.th}>{isEn ? "Name" : "الاسم"}</th>
+                    <th style={AR.th}>{isEn ? "Gender" : "الجنس"}</th>
                     <th style={AR.th}>{isEn ? "Ate today" : "أكل اليوم؟"}</th>
                     <th style={AR.th}>{isEn ? "Calories" : "سعرات"}</th>
                     <th style={AR.th}>{isEn ? "Protein" : "بروتين"}</th>
@@ -522,6 +523,7 @@ function OverviewTab() {
                     <tr key={r.owner}>
                       <td style={AR.td}>{r.universityId || "—"}</td>
                       <td style={AR.td}>{r.name || "—"}</td>
+                      <td style={AR.td}>{r.gender === "male" ? (isEn ? "Male" : "ذكر") : r.gender === "female" ? (isEn ? "Female" : "أنثى") : "—"}</td>
                       <td style={AR.td}>
                         <span style={{ ...AR.badge, background: OVERVIEW_BADGE[r.ateToday ? "ate" : "notAte"].bg, color: OVERVIEW_BADGE[r.ateToday ? "ate" : "notAte"].color }}>
                           {r.ateToday ? (isEn ? "Yes" : "نعم") : (isEn ? "No" : "لا")}
@@ -554,6 +556,93 @@ function OverviewTab() {
   );
 }
 
+const MEAL_BUTTONS = [
+  { id: "breakfast", ar: "تذكير بالفطور", en: "Breakfast reminder", confirmAr: "متأكدة ترسلين تذكير فطور لجميع المستخدمين؟", confirmEn: "Send a breakfast reminder to all users?" },
+  { id: "lunch", ar: "تذكير بالغداء", en: "Lunch reminder", confirmAr: "متأكدة ترسلين تذكير غداء لجميع المستخدمين؟", confirmEn: "Send a lunch reminder to all users?" },
+  { id: "dinner", ar: "تذكير بالعشاء", en: "Dinner reminder", confirmAr: "متأكدة ترسلين تذكير عشاء لجميع المستخدمين؟", confirmEn: "Send a dinner reminder to all users?" },
+];
+
+// "تذكيرات": بديل احتياطي يدوي عن التذكيرات المجدولة تلقائياً (أحياناً غير
+// موثوقة فعلياً، راجع تعليق scheduled-prayer-reminders.js) - ثلاثة أزرار
+// منفصلة ترسل Push فوري حقيقي لكل المستخدمين المؤهَّلين دفعة واحدة (عبر
+// sendMealReminder في lib/adminReport.js -> mode=broadcast في admin-report.js
+// -> نفس sendToSubscriptionRow/configureVapid المستخدَمة أصلاً لإشعارات
+// الصلاة/الأذان، لا نظام موازٍ). تأكيد بسيط (window.confirm) قبل أي إرسال
+// فعلي يتفادى ضغطة بالخطأ، والنتيجة (كم وصله فعلاً من أصل كم مؤهَّل) تُعرَض
+// بوضوح بعد كل إرسال لكل زر على حدة.
+function RemindersTab() {
+  const { i18n } = useTranslation();
+  const isEn = i18n.language === "en";
+  const [sendingId, setSendingId] = useState(null);
+  const [results, setResults] = useState({}); // { [mealId]: { sentUsers, totalUsers } | { error } }
+
+  async function handleSend(meal) {
+    const confirmed = window.confirm(isEn ? meal.confirmEn : meal.confirmAr);
+    if (!confirmed) return;
+    setSendingId(meal.id);
+    setResults((prev) => ({ ...prev, [meal.id]: null }));
+    try {
+      const data = await sendMealReminder(meal.id);
+      setResults((prev) => ({ ...prev, [meal.id]: { sentUsers: data.sentUsers, totalUsers: data.totalUsers } }));
+    } catch (e) {
+      setResults((prev) => ({
+        ...prev,
+        [meal.id]: { error: e.status === 403 ? (isEn ? "Access denied." : "الوصول مرفوض.") : (isEn ? "Failed to send, please try again." : "تعذّر الإرسال، حاول مرة أخرى.") },
+      }));
+    } finally {
+      setSendingId(null);
+    }
+  }
+
+  return (
+    <div>
+      <p style={S.profileHint}>
+        {isEn
+          ? "Send an immediate push reminder to every registered user right now, independent of the scheduled automatic reminders."
+          : "إرسال تذكير فوري بإشعار Push لكل المستخدمين المسجّلين الآن، بشكل مستقل عن التذكيرات المجدولة تلقائياً."}
+      </p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {MEAL_BUTTONS.map((meal) => {
+          const result = results[meal.id];
+          const sending = sendingId === meal.id;
+          return (
+            <div key={meal.id} style={{ border: "1px solid var(--line)", borderRadius: 12, padding: "14px 16px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--ink)" }}>{isEn ? meal.en : meal.ar}</div>
+                <button
+                  onClick={() => handleSend(meal)}
+                  disabled={sendingId !== null}
+                  style={{ ...S.exportBtn, width: "auto", padding: "9px 16px", marginBottom: 0, opacity: sendingId !== null ? 0.6 : 1 }}
+                >
+                  {sending ? <Loader2 size={15} className="spin" /> : <Send size={15} />}
+                  {isEn ? meal.en : meal.ar}
+                </button>
+              </div>
+              {result && (
+                result.error ? (
+                  <div style={{ ...AR.errorBox, marginTop: 10, marginBottom: 0 }}>
+                    <ShieldAlert size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+                    <span>{result.error}</span>
+                  </div>
+                ) : (
+                  <div style={{ ...AR.noteBox, marginTop: 10, marginBottom: 0, display: "flex", alignItems: "flex-start", gap: 8 }}>
+                    <CheckCircle2 size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+                    <span>
+                      {isEn
+                        ? `Delivered to ${result.sentUsers} of ${result.totalUsers} eligible users.`
+                        : `وصل الإشعار فعلياً إلى ${result.sentUsers} من أصل ${result.totalUsers} مستخدم مؤهَّل.`}
+                    </span>
+                  </div>
+                )
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function AdminReportView() {
   const { i18n } = useTranslation();
   const isEn = i18n.language === "en";
@@ -569,8 +658,11 @@ export default function AdminReportView() {
         <button onClick={() => setTab("overview")} style={{ ...AR.topTab, ...(tab === "overview" ? AR.topTabActive : {}) }}>
           <Users size={14} /> {isEn ? "Overview" : "نظرة عامة"}
         </button>
+        <button onClick={() => setTab("reminders")} style={{ ...AR.topTab, ...(tab === "reminders" ? AR.topTabActive : {}) }}>
+          <Bell size={14} /> {isEn ? "Reminders" : "تذكيرات"}
+        </button>
       </div>
-      {tab === "search" ? <SearchTab /> : <OverviewTab />}
+      {tab === "search" ? <SearchTab /> : tab === "overview" ? <OverviewTab /> : <RemindersTab />}
     </div>
   );
 }

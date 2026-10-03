@@ -154,7 +154,7 @@ export function getLevel(points, lang = "ar") {
     "أسطوري",
     "لا يُهزم",
     "خرافي",
-    "إلهي",
+    "الماسي",
   ];
   const FIXED_LABELS_EN = [
     "Beginner",
@@ -171,7 +171,7 @@ export function getLevel(points, lang = "ar") {
     "Legendary",
     "Unbeatable",
     "Mythical",
-    "Divine",
+    "Diamond",
   ];
   const FIXED_LABELS = lang === "en" ? FIXED_LABELS_EN : FIXED_LABELS_AR;
 

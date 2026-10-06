@@ -379,6 +379,33 @@ alter table nutrition_log add column if not exists stress smallint check (stress
 -- (أو مسجَّل قبل هذا التحديث) يبقى بلا قيمة، بلا أي كسر لأي حساب/عرض قائم.
 alter table nutrition_log add column if not exists meal_time text;
 
+-- خلل حقيقي وُجد وأُصلح هنا (مراجعة كود كاملة لمصادر بيانات الأكل): الأمر
+-- الصوتي لتسجيل الطعام يحفظ source='voice' (NutritionView.jsx) منذ ميزة
+-- "الاستماع المستمر" - لكن nutrition_log_source_check أعلاه لم يكن يعرف
+-- هذه القيمة إطلاقاً، فكل محاولة حفظ صوتية كانت ستفشل فعلياً على قاعدة
+-- إنتاج حقيقية بخطأ "check constraint violation" (نفس فئة خلل 'ai_estimate'
+-- الذي أُصلح سابقاً أعلاه) - يُعاد إنشاء القيد هنا ليشملها.
+alter table nutrition_log drop constraint if exists nutrition_log_source_check;
+alter table nutrition_log add constraint nutrition_log_source_check check (source in ('barcode', 'manual', 'search', 'ai_photo', 'label', 'common', 'ai_estimate', 'voice'));
+
+-- data_origin: من أين جاءت القيم الغذائية فعلياً لهذا الإدخال - مختلف تماماً
+-- عن source أعلاه (الذي يصف طريقة الإضافة: بحث/باركود/صوت/صورة...، لا من
+-- أين البيانات). القيم الممكنة:
+--   'generic'       قائمة مسار المحلية (generic-foods.js، مبنية على USDA)
+--   'usda'          USDA FoodData Central (Foundation/SR Legacy/Survey)
+--   'usda_branded'  USDA FoodData Central - نوع Branded (منتج تجاري)
+--   'off'           Open Food Facts
+--   'custom_foods'  أضافه مستخدم آخر (أو نفس المستخدم) يدوياً - غير موثَّق
+-- null يعني عمداً "غير معروف/غير قابل للتحديد" - يشمل كل الصفوف المسجَّلة
+-- قبل هذا العمود (لا تُخمَّن قيمة لها بأثر رجعي)، وأيضاً إدخالات لا "منتج"
+-- حقيقي وراءها أصلاً (تقدير AI مباشر من صورة/اسم - source='ai_estimate'،
+-- أو قراءة ملصق - source='label') حيث يبقى source نفسه كافياً لوصف الحالة
+-- بدقة بلا حاجة لـdata_origin. راجع src/lib/foodSource.js للعرض الفعلي في
+-- الواجهة (عرض فقط - لا يؤثر على أي حساب غذائي أو منطق بحث).
+alter table nutrition_log add column if not exists data_origin text;
+alter table nutrition_log drop constraint if exists nutrition_log_data_origin_check;
+alter table nutrition_log add constraint nutrition_log_data_origin_check check (data_origin is null or data_origin in ('generic', 'usda', 'usda_branded', 'off', 'custom_foods'));
+
 -- مفتاحها (owner, barcode) — لو أدخل المستخدم منتجاً يدوياً لباركود غير
 -- موجود في Open Food Facts، يُستخدم هذا الصف تلقائياً في المرة القادمة
 -- لنفس الباركود قبل حتى محاولة الاتصال بالـ API.

@@ -26,6 +26,7 @@ import {
 import { getDailyNutritionSummary } from "../lib/nutrition-plan";
 import { requestNotificationPermission } from "../lib/push";
 import { searchGenericFoods, genericFoodToProduct, GENERIC_FOODS } from "../lib/generic-foods";
+import { deriveDataOrigin, getFoodSourceLabel } from "../lib/foodSource";
 import { isolateNumbers } from "../lib/bidi";
 import { speak, isSpeechSupported } from "../lib/speech";
 import NumericValue from "./NumericValue";
@@ -55,6 +56,9 @@ const NS = {
   logItem: { display: "flex", alignItems: "center", gap: "var(--space-3)", marginBottom: "var(--space-2)" },
   logItemName: { fontSize: 13.5, fontWeight: 700, color: "var(--ink)" },
   logItemMeta: { fontSize: 11, color: "var(--muted2)", marginTop: 2 },
+  // سطر "المصدر: ..." صغير وخافت اللون (لا يزاحم اسم الأكل/سعراته) - يُعرض
+  // تحت كل أكل بكل مكان يظهر فيه (نتائج بحث/باركود/صورة وصوت/السجل اليومي).
+  sourceLine: { fontSize: 10.5, color: "var(--muted2)", marginTop: 1, opacity: 0.85 },
   logItemCalories: { fontSize: 13, fontWeight: 700, color: "var(--gold)", whiteSpace: "nowrap" },
   deleteBtn: { background: "none", border: "none", color: "var(--muted2)", cursor: "pointer", padding: 4, flexShrink: 0 },
   emptyHint: { fontSize: 12.5, color: "var(--muted2)", textAlign: "center", padding: "20px 0" },
@@ -218,7 +222,7 @@ const NS = {
   guidelineContributorChip: { fontSize: 11, fontWeight: 600, color: "var(--ink-soft)", background: "var(--panel)", border: "1px solid var(--border2)", borderRadius: 20, padding: "3px 9px" },
 };
 
-const SOURCE_ICONS = { barcode: Hash, search: Search, manual: Edit3, ai_photo: Sparkles, ai_estimate: Sparkles, label: Camera, common: ClipboardList };
+const SOURCE_ICONS = { barcode: Hash, search: Search, manual: Edit3, ai_photo: Sparkles, ai_estimate: Sparkles, label: Camera, common: ClipboardList, voice: Volume2 };
 
 const SUBSCRIBE_URL = "https://www.instagram.com/hjmasar";
 
@@ -706,6 +710,7 @@ function MealCard({ mealType, items, dayTotalCalories, usualTimeLabel, isCurrent
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={NS.logItemName}>{item.foodName}</div>
                     <div style={NS.logItemMeta}>{item.servingInfo}</div>
+                    <div style={NS.sourceLine}>{getFoodSourceLabel({ source: item.source, dataOrigin: item.dataOrigin, microAiEstimated: item.microAiEstimated }, isEn)}</div>
                   </div>
                   <div style={NS.logItemCalories}><NumericValue value={Math.round(item.calories)} unit={t("common.units.kcal")} /></div>
                 </button>
@@ -989,9 +994,13 @@ function classifyFoodMatches(results, normalizedQuery) {
   return { kind: "multiple", candidates: deduped.slice(0, 4) };
 }
 
-function ConfirmQuantityCard({ product: initialProduct, source, onAdd, onCancel, showToast, preselectedMealType, initialQty, initialUnit, voiceConfirmTrigger, onInvalidVoiceConfirm }) {
-  const { t } = useTranslation();
+function ConfirmQuantityCard({ product: initialProduct, source, dataOrigin: forcedDataOrigin, onAdd, onCancel, showToast, preselectedMealType, initialQty, initialUnit, voiceConfirmTrigger, onInvalidVoiceConfirm }) {
+  const { t, i18n } = useTranslation();
   const [product, setProduct] = useState(initialProduct);
+  // dataOrigin الفعلي: مُمرَّر صراحة فقط لحالة "إعادة استخدام صنف سابق"
+  // (حيث product.origin="previous" مصطنع لأغراض عرض أخرى، لا يصلح كمصدر
+  // بيانات حقيقي) - في كل الحالات الأخرى يُشتَق مباشرة من product نفسه.
+  const effectiveDataOrigin = forcedDataOrigin !== undefined ? forcedDataOrigin : deriveDataOrigin(product);
   const [editing, setEditing] = useState(false);
   const hasServing = !!product.servingGrams;
   // الوحدة الافتراضية تطابق أساس بيانات المنتج نفسه (وزن أم حجم) - أدق
@@ -1094,7 +1103,7 @@ function ConfirmQuantityCard({ product: initialProduct, source, onAdd, onCancel,
             ? `${multiplier} × ${Math.round(product.servingGrams)}${t("common.units.g")}`
             : `${grams} ${t("common.units.g")}`)
         : `${fmtQty(unitQty)} ${t(`nutrition.unitOptions.${unit}`)}`,
-      source, mealType,
+      source, dataOrigin: effectiveDataOrigin, mealType,
       // origin==="generic" فقط (أطعمة generic-foods.js التقريبية) تُوسَم
       // بـmicroApprox=true - بيانات باركود/بحث/USDA الحقيقية الأخرى تبقى
       // بلا علامة تقريب لأنها دقيقة فعلياً لهذا المنتج بعينه.
@@ -1145,6 +1154,7 @@ function ConfirmQuantityCard({ product: initialProduct, source, onAdd, onCancel,
         <div style={{ flex: 1 }}>
           <div style={NS.productName}>{product.name}</div>
           <div style={NS.productMeta}>{t("nutrition.calPer100g", { cal: product.caloriesPer100g })}</div>
+          <div style={NS.sourceLine}>{getFoodSourceLabel({ source, dataOrigin: effectiveDataOrigin }, i18n.language === "en")}</div>
         </div>
         {product.origin === "custom_foods" && (
           <button onClick={() => setEditing(true)} style={NS.editDataBtn}><Edit3 size={13} /> {t("nutrition.editData")}</button>
@@ -1326,6 +1336,7 @@ function ManualEntryForm({ onSave, onCancel, showToast, preselectedMealType, ini
                   {" · "}{t("common.units.carbs")} {Math.round(p.carbsPer100g)}{t("common.units.g")}
                   {" · "}{t("common.units.fat")} {Math.round(p.fatPer100g)}{t("common.units.g")}
                 </div>
+                <div style={NS.sourceLine}>{getFoodSourceLabel({ dataOrigin: deriveDataOrigin(p) }, i18n.language === "en")}</div>
               </div>
             </button>
           ))}
@@ -1481,7 +1492,7 @@ function AddProductWizard({ initialBarcode, onSave, onManual, showToast }) {
       id: uid(), foodName: name.trim(), ...qtyPreview,
       unit: qtyUnit,
       servingInfo: qtyUnit === "g" ? `${qtyGrams} ${t("common.units.g")}` : `${fmtQty(qtyUnitQty)} ${t(`nutrition.unitOptions.${qtyUnit}`)}`,
-      source: "manual", barcode: barcode.trim(),
+      source: "manual", dataOrigin: "custom_foods", barcode: barcode.trim(),
       productPer100: {
         calories: per100.caloriesPer100g, protein: per100.proteinPer100g, carbs: per100.carbsPer100g,
         fat: per100.fatPer100g, fiber: per100.fiberPer100g, sugar: per100.sugarPer100g, sodium: per100.sodiumPer100gMg,
@@ -2018,6 +2029,7 @@ function SearchPanel({ onPick, onManual, isSub }) {
               {" · "}{t("common.units.carbs")} {Math.round(p.carbsPer100g)}{t("common.units.g")}
               {" · "}{t("common.units.fat")} {Math.round(p.fatPer100g)}{t("common.units.g")}
             </div>
+            <div style={NS.sourceLine}>{getFoodSourceLabel({ dataOrigin: deriveDataOrigin(p) }, isEn)}</div>
           </div>
         </button>
       ))}
@@ -2229,7 +2241,9 @@ function AIPhotoPanel({ onSave, onAllSaved, onManual, preselectedMealType, isSub
         // "ai_photo" لصنف أُضيف عبر "+ أضف من القاعدة" (مطابقة حقيقية) - راجع
         // تمييزهما بـ nutrition_log_source_check في supabase-schema.sql
         // ومقياس isAiEstimate أعلاه؛ يفيد لاحقاً لتحليل دقة كل مصدر بمعزل عن الآخر.
-        source: it.isAiEstimate ? "ai_estimate" : "ai_photo", mealType,
+        source: it.isAiEstimate ? "ai_estimate" : "ai_photo",
+        dataOrigin: it.isAiEstimate ? null : deriveDataOrigin(it.product),
+        mealType,
         microApprox: it.product.origin === "generic",
         micronutrients: scaleMicronutrients(it.product.micronutrientsPer100g, grams),
         quantity: grams,
@@ -2352,6 +2366,7 @@ function AIPhotoPanel({ onSave, onAllSaved, onManual, preselectedMealType, isSub
                 return (
                   <>
                     <div style={NS.resultMeta}>{t("nutrition.calPer100g", { cal: Math.round(it.product.caloriesPer100g) })}</div>
+                    <div style={NS.sourceLine}>{getFoodSourceLabel(it.isAiEstimate ? { source: "ai_estimate" } : { dataOrigin: deriveDataOrigin(it.product) }, isEn)}</div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "8px 0" }}>
                       <input
                         type="number" inputMode="decimal" value={it.grams}
@@ -2404,6 +2419,7 @@ function AIPhotoPanel({ onSave, onAllSaved, onManual, preselectedMealType, isSub
                       <div style={{ flex: 1 }}>
                         <div style={NS.resultName}>{p.name}</div>
                         <div style={NS.resultMeta}>{t("nutrition.calPer100g", { cal: Math.round(p.caloriesPer100g) })}</div>
+                        <div style={NS.sourceLine}>{getFoodSourceLabel({ dataOrigin: deriveDataOrigin(p) }, isEn)}</div>
                       </div>
                     </button>
                   ))}
@@ -2654,6 +2670,7 @@ function LabelPhotoPanel({ onSave, onManual, preselectedMealType }) {
         </>
       )}
       {labelConversion.approxDensity && <p style={NS.unitApproxNote}>{t("nutrition.approxDensityNote")}</p>}
+      <div style={NS.sourceLine}>{getFoodSourceLabel({ source: "label" }, i18n.language === "en")}</div>
 
       <div style={NS.previewGrid}>
         <div style={NS.previewChip}><div style={NS.macroValue}><NumericValue value={preview2.calories} /></div><div style={NS.macroLabel}>{t("common.units.kcal")}</div></div>
@@ -3034,14 +3051,17 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
         servingGrams: item.productBasis.servingGrams || null,
         origin: "previous",
       };
-      setPendingProduct({ product, source: item.source || "manual" });
+      // dataOrigin صريح هنا (لا اشتقاق من product.origin="previous" المصطنع
+      // أعلاه) - نفس مصدر بيانات الإدخال القديم المُعاد استخدامه بالضبط، أو
+      // null إن كان ذلك الإدخال نفسه سابقاً لإضافة هذا العمود.
+      setPendingProduct({ product, source: item.source || "manual", dataOrigin: item.dataOrigin || null });
       setSheet("confirm");
     } else {
       addEntry({
         id: uid(), foodName: item.foodName, calories: item.calories, protein: item.protein,
         carbs: item.carbs, fat: item.fat, fiber: item.fiber || 0, sugar: item.sugar || 0,
         sodium: item.sodium || 0, cholesterol: item.cholesterol || 0,
-        servingInfo: item.servingInfo || "", source: item.source || "manual", unit: item.unit || "g",
+        servingInfo: item.servingInfo || "", source: item.source || "manual", dataOrigin: item.dataOrigin || null, unit: item.unit || "g",
         micronutrients: item.micronutrients || {}, mealType: preselectedMealType || guessMealType(),
         microApprox: !!item.microApprox,
       });
@@ -3588,6 +3608,7 @@ ${missingMealsLine}
               <div style={{ flex: 1 }}>
                 <div style={NS.logItemName}>{e.foodName}</div>
                 <div style={NS.logItemMeta}>{isolateNumbers(t("nutrition.servingSummary", { servingInfo: e.servingInfo, p: e.protein, c: e.carbs, f: e.fat }))}</div>
+                <div style={NS.sourceLine}>{getFoodSourceLabel({ source: e.source, dataOrigin: e.dataOrigin, microAiEstimated: e.microAiEstimated }, i18n.language === "en")}</div>
               </div>
               <div style={NS.logItemCalories}>{isolateNumbers(t("nutrition.calSuffix", { cal: Math.round(e.calories) }))}</div>
               <button onClick={() => removeEntry(e.id)} aria-label={t("nutrition.deleteEntryAria")} style={NS.deleteBtn}><Trash2 size={15} aria-hidden="true" /></button>
@@ -3753,6 +3774,7 @@ ${missingMealsLine}
                 key={voiceQtyOverride ? `voice-${pendingProduct.product.barcode}-${voiceQtyOverride.qty}-${voiceQtyOverride.unit}` : "static"}
                 product={pendingProduct.product}
                 source={pendingProduct.source}
+                dataOrigin={pendingProduct.dataOrigin}
                 onAdd={addEntry}
                 onCancel={closeSheet}
                 showToast={showToast}

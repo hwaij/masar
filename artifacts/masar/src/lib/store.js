@@ -994,6 +994,10 @@ export const store = {
         carbs: r.carbs, fat: r.fat, fiber: r.fiber || 0, sugar: r.sugar || 0, sodium: r.sodium || 0,
         cholesterol: r.cholesterol || 0,
         servingInfo: r.serving_info || "", source: r.source, unit: r.unit || "g",
+        // من أين جاءت القيم الغذائية فعلياً (قاعدة مسار/USDA/USDA Branded/
+        // Open Food Facts/مستخدم) - عرض فقط (src/lib/foodSource.js)، null
+        // لصفوف قديمة قبل هذا العمود (راجع تعليق data_origin بـsupabase-schema.sql).
+        dataOrigin: r.data_origin || null,
         micronutrients: r.micronutrients || {},
         mealType: r.meal_type || null, microApprox: !!r.micro_approx,
         // وقت التسجيل الفعلي (لا وقت الأكل - غير معروف) - يُستخدَم فقط
@@ -1028,6 +1032,7 @@ export const store = {
       fiber: entry.fiber || 0, sugar: entry.sugar || 0, sodium: entry.sodium || 0,
       cholesterol: entry.cholesterol || 0,
       serving_info: entry.servingInfo || "", source: entry.source, unit: entry.unit || "g",
+      data_origin: entry.dataOrigin || null,
       micronutrients: entry.micronutrients || {},
       meal_type: entry.mealType || null, micro_approx: !!entry.microApprox,
       quantity: entry.quantity ?? null, product_basis: entry.productBasis || null,

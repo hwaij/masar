@@ -2276,6 +2276,101 @@ end;
 $$;
 grant execute on function get_background_bundle() to authenticated;
 
+-- ============================================================
+-- حظر حسابات (استثناء مقصود من free_for_all - حظر مستخدمين، لا قفل ميزة):
+-- البنية التحتية القابلة لإعادة الاستخدام فقط هنا (جدول + دوال عامة)، بلا
+-- أي بريد/رقم جامعي فعلي لأي طالب بعينه (تلك أوامر تشغيلية لمرة واحدة،
+-- تُنفَّذ مباشرة من SQL Editor بلا حفظها هنا أو بأي ملف بالريبو - لا يليق
+-- حفظ بيانات تعريف طلاب محظورين ضمن كود مصدري مشترك).
+-- ============================================================
+
+-- email بأحرف صغيرة دائماً (lower()) حتى تبقى المطابقة غير حسّاسة لحالة
+-- الأحرف في كل مكان يُستخدَم فيه هذا الجدول (الحظر نفسه ومنع إعادة التسجيل
+-- معاً) - المُستدعي مسؤول عن تمرير lower(email) عند الإدخال، والدوال أدناه
+-- تقارن بـlower() أيضاً كخط دفاع مزدوج لا يفترض التزام المُستدعي بذلك.
+create table if not exists blocked_users (
+  email         text primary key,
+  university_id text,
+  reason        text,
+  blocked_at    timestamptz not null default now()
+);
+create index if not exists blocked_users_university_id on blocked_users (university_id);
+-- RLS مفعّل بلا أي policy لأي دور عادي (anon/authenticated) عمداً - هذا
+-- الجدول يُقرأ فقط من: (1) SQL Editor مباشرة (دور postgres/خدمة)، (2) دوال
+-- SECURITY DEFINER أدناه (تتجاوز RLS بامتلاك المالك postgres لها افتراضياً،
+-- لا بأي صلاحية ممنوحة صراحة لأي دور مستخدم). لا قراءة ولا كتابة من تطبيق
+-- العميل مطلقاً بأي شكل.
+alter table blocked_users enable row level security;
+
+-- يمنع حفظ رقم جامعي محظور في profile.university_id (محاولة تحايل على
+-- الحظر بإنشاء حساب auth جديد ببريد مختلف، ثم كتابة نفس الرقم الجامعي
+-- المحظور في الملف الشخصي) - SECURITY DEFINER ضروري هنا (خلافاً لتوصية
+-- Supabase العامة بعدم استخدامه) لأن RLS على blocked_users يمنع الدور
+-- العادي (authenticated) من رؤية أي صف فيه إطلاقاً بلا هذا التجاوز، فالفحص
+-- سيفشل صامتاً (لا يرى أي تطابق أبداً) بدونه. يفحص فقط عند تغيّر العمود
+-- university_id تحديداً (before ... of university_id) فلا يتأثر أي حفظ آخر
+-- لبقية حقول الملف الشخصي إطلاقاً.
+create or replace function public.prevent_blocked_university_id()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if new.university_id is not null and exists (
+    select 1 from public.blocked_users bu where bu.university_id = new.university_id
+  ) then
+    raise exception 'ACCOUNT_BLOCKED'
+      using errcode = 'P0001',
+            detail = 'This university ID belongs to a blocked account.';
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists trg_prevent_blocked_university_id on public.profile;
+create trigger trg_prevent_blocked_university_id
+  before insert or update of university_id on public.profile
+  for each row
+  execute function public.prevent_blocked_university_id();
+
+-- "Before User Created" Auth Hook: يمنع إنشاء حساب auth جديد بأي بريد
+-- موجود في blocked_users (غير حسّاس لحالة الأحرف) - يصدّ أبسط طريقة تحايل
+-- على الحظر (إعادة التسجيل بنفس البريد المحظور). SECURITY DEFINER لنفس
+-- سبب الدالة أعلاه بالضبط (تجاوز RLS على blocked_users لدور
+-- supabase_auth_admin الذي يستدعيها). شكل الإدخال/الإخراج (event jsonb
+-- بحقلي metadata/user، ورجوع {} للسماح أو {"error":{...}} للرفض) موثَّق في:
+-- https://supabase.com/docs/guides/auth/auth-hooks/before-user-created-hook
+--
+-- ⚠️ تنفيذ هذا الـSQL وحده لا يُفعِّل الخطّاف - يلزم أيضاً تفعيله يدوياً من
+-- لوحة Supabase: Authentication → Hooks → "Before User Created" → اختيار
+-- نوع "Postgres Function" → تحديد public.block_banned_email_signup. لا
+-- توجد طريقة لتفعيل هذا الربط عبر SQL وحده.
+create or replace function public.block_banned_email_signup(event jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  new_email text;
+begin
+  new_email := lower(event->'user'->>'email');
+  if new_email is not null and exists (
+    select 1 from public.blocked_users bu where bu.email = new_email
+  ) then
+    return jsonb_build_object(
+      'error', jsonb_build_object(
+        'http_code', 403,
+        'message', 'تم إيقاف هذا الحساب. للاستفسار تواصل مع الإدارة.'
+      )
+    );
+  end if;
+  return '{}'::jsonb;
+end;
+$$;
+revoke execute on function public.block_banned_email_signup(jsonb) from public, anon, authenticated;
+grant execute on function public.block_banned_email_signup(jsonb) to supabase_auth_admin;
+
 -- إجبار طبقة PostgREST (التي تُعرِّض RPC عبر supabase.rpc(...)) على إعادة
 -- تحميل ذاكرتها المؤقتة للمخطط فوراً، بدل انتظار إعادة التحميل التلقائية
 -- (تحدث عادة خلال ثوانٍ، لكن قد تتأخر) - يضمن أن get_group_by_invite_code

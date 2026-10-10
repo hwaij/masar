@@ -232,6 +232,7 @@
       "invalidEmail": "Invalid email address",
       "emailNotConfirmed": "Please confirm your email first — check your confirmation message",
       "notConfigured": "This account isn't enabled on this site right now",
+      "banned": "This account has been suspended. Please contact the administration if you have questions.",
       "generic": "Couldn't sign in right now, please try again"
     }
   },

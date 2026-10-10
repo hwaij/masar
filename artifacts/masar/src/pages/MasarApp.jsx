@@ -566,6 +566,29 @@ export default function MasarApp() {
     setTimeout(() => setToast(null), 2200);
   }, []);
 
+  // رفض GoTrue لحساب محظور عبر OAuth يصل كمعامل رابط (error_description)، لا كاستثناء JS.
+  // التوست مؤجَّل حتى تختفي شاشة البداية لأنها تستبدل الشجرة بالكامل فلا يوجد عنصر Toast أثناءها.
+  const [pendingBannedToast, setPendingBannedToast] = useState(false);
+  useEffect(() => {
+    const raw = (window.location.hash || "").replace(/^#/, "") || window.location.search.replace(/^\?/, "");
+    if (!raw) return;
+    const params = new URLSearchParams(raw);
+    const desc = params.get("error_description") || params.get("error") || "";
+    if (desc.toLowerCase().includes("banned")) {
+      setPendingBannedToast(true);
+      const url = new URL(window.location.href);
+      url.hash = ""; url.search = "";
+      window.history.replaceState({}, "", url.toString());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (pendingBannedToast && !showSplash) {
+      showToast(t("auth.errors.banned"));
+      setPendingBannedToast(false);
+    }
+  }, [pendingBannedToast, showSplash, showToast, t]);
+
   // Show the onboarding tour once per first-time profile (guest-local or
   // per Supabase account) — re-evaluated only when a fresh load completes,
   // so it never reopens just from navigating between views.
@@ -1734,6 +1757,8 @@ const FEATURE_ICONS = ["🕌", "⏱️", "📿", "✅", "📊", "🤖"];
 
 function translateAuthError(err, t) {
   const msg = String(err?.message || err || "");
+  // حساب محظور (banned_until في auth.users) - فحص بالأحرف الصغيرة لاختلاف صياغة GoTrue بين الإصدارات.
+  if (msg.toLowerCase().includes("banned")) return t("auth.errors.banned");
   if (msg.includes("Invalid login credentials")) return t("auth.errors.invalidCredentials");
   if (msg.includes("User already registered")) return t("auth.errors.alreadyRegistered");
   if (msg.includes("Password should be at least")) return t("auth.errors.passwordTooShort");

@@ -576,6 +576,48 @@ export const store = {
     }
   },
 
+  // رسالة الأدمن الحاجبة (Phase 3) - أحدث رسالة لم يُضغَط "موافق" عليها بعد
+  // لهذا المستخدم تحديداً. تُقرأ عبر supabase-js العادي (RLS، لا service
+  // role) - سياسة admin_messages_select_recipient على admin_messages تمنع
+  // ظهور أي رسالة بلا صف admin_message_receipts مطابق لصاحب الجلسة، فلا
+  // تظهر لغير المستلمين إطلاقاً (راجع supabase-schema.sql). null لأي ضيف
+  // محلي، أو عند أي فشل/عدم وجود رسالة معلَّقة - لا يُفترض أبداً أن غياب
+  // الاتصال يعني "لا توجد رسالة"، لكن المستدعي (MasarApp.jsx) يطبّق هذا
+  // بحذر (مهلة قصيرة + تجاهل صامت للفشل، لا حجب المستخدم أبداً بسبب شبكة).
+  async fetchPendingAdminMessage() {
+    if (!useCloud()) return null;
+    try {
+      const { data, error } = await supabase
+        .from("admin_message_receipts")
+        .select("message_id, sent_at, admin_messages(body)")
+        .eq("owner", CURRENT_OWNER)
+        .is("acknowledged_at", null)
+        .order("sent_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error || !data || !data.admin_messages) return null;
+      return { messageId: data.message_id, body: data.admin_messages.body };
+    } catch (e) {
+      console.error("[fetchPendingAdminMessage] failed:", e);
+      return null;
+    }
+  },
+  // تأكيد الضغط على "موافق" - RPC بصلاحية security definer يضبط
+  // acknowledged_at لصف المستخدم المتصل هو نفسه فقط (راجع
+  // acknowledge_admin_message في supabase-schema.sql)، لا تحديث مباشر على
+  // الجدول (لا policy لـupdate عليه إطلاقاً لأي مستخدم عادي).
+  async acknowledgeAdminMessage(messageId) {
+    if (!useCloud() || !messageId) return { ok: false };
+    try {
+      const { error } = await supabase.rpc("acknowledge_admin_message", { p_message_id: messageId });
+      if (error) { console.error("[acknowledgeAdminMessage] Supabase error:", error.message); return { ok: false, error: error.message }; }
+      return { ok: true };
+    } catch (e) {
+      console.error("[acknowledgeAdminMessage] failed:", e);
+      return { ok: false, error: String(e) };
+    }
+  },
+
   // بيانات قسم "أنت" الصحية (الطول/الوزن/العمر/الجنس/النشاط/الحالات
   // الصحية) والقيم المحسوبة منها (BMI/IBW/REE/TEE) — صف واحد لكل مستخدم،
   // بنفس نمط جدول profile.

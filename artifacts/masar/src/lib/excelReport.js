@@ -448,3 +448,135 @@ export async function buildStudentNutritionLogExcelBuffer(entries, universityId,
 
   return workbook.xlsx.writeBuffer();
 }
+
+// تصدير قائمة الطلاب (الشاشة الإدارية، تبويب "الطلاب" - Phase 2). صف واحد
+// لكل طالب - نفس أعمدة الجدول المعروض بالضبط، زائد وقت الدخول الكامل
+// بتوقيت الكويت (التاريخ المحلي signupLocalDate وحده لا يحمل الساعة، فيُعاد
+// بناء "تاريخ ووقت" من signupAt الخام (UTC ISO) هنا عبر toLocaleString بتلك
+// المنطقة الزمنية تحديداً - لا نص جاهز من الخادم).
+export async function buildStudentsRosterExcelBuffer(students) {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("Students", { views: [{ rightToLeft: false, state: "frozen", ySplit: 1 }] });
+
+  sheet.columns = [
+    { header: "University ID", key: "universityId", width: 16 },
+    { header: "Name", key: "name", width: 24 },
+    { header: "Gender", key: "gender", width: 10 },
+    { header: "Signup Date & Time (Kuwait)", key: "signupAt", width: 24 },
+    { header: "First Meal Logged", key: "firstLogDate", width: 16 },
+    { header: "Window End Date", key: "windowEndDate", width: 16 },
+    { header: "Days Remaining", key: "daysRemaining", width: 14 },
+    { header: "Status", key: "status", width: 12 },
+    { header: "Days Logged (of 14)", key: "daysLoggedInWindow", width: 16 },
+  ];
+
+  const headerRow = sheet.getRow(1);
+  headerRow.font = { bold: true };
+  headerRow.alignment = { horizontal: "left" };
+  headerRow.eachCell((cell) => {
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: FILL_HEADER } };
+    cell.border = ALL_BORDERS;
+  });
+
+  students.forEach((s, rowIndex) => {
+    const signupAtText = s.signupAt
+      ? new Date(s.signupAt).toLocaleString("en-GB", { timeZone: "Asia/Kuwait", dateStyle: "medium", timeStyle: "short" })
+      : "";
+    const addedRow = sheet.addRow({
+      universityId: s.universityId || "",
+      name: s.name || "",
+      gender: s.gender === "male" ? "Male" : s.gender === "female" ? "Female" : "",
+      signupAt: signupAtText,
+      firstLogDate: s.firstLogDate || "",
+      windowEndDate: s.windowEndDate || "",
+      daysRemaining: s.status === "completed" ? 0 : s.daysRemaining,
+      status: s.status === "completed" ? "Completed" : "Ongoing",
+      daysLoggedInWindow: s.daysLoggedInWindow ?? 0,
+    });
+    addedRow.alignment = { horizontal: "left" };
+    const isBanded = rowIndex % 2 === 1;
+    addedRow.eachCell({ includeEmpty: true }, (cell) => {
+      if (isBanded) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: FILL_BAND } };
+      cell.border = ALL_BORDERS;
+    });
+  });
+
+  return workbook.xlsx.writeBuffer();
+}
+
+// تصدير مجموعة طلاب دفعة واحدة (الشاشة الإدارية، Phase 4 - "تصدير لكل
+// مجموعة") - صف واحد لكل (طالب، يوم) فيه أي نشاط مسجَّل ضمن نافذته (أكل/
+// ماء/وزن/خطوات/تمرين)، بدل ملف منفصل لكل طالب - أسهل للمراجعة الجماعية
+// دفعة واحدة. windowReports: Map<owner, نتيجة admin_student_window_report>.
+export async function buildGroupWindowReportExcelBuffer(students, windowReports) {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("Group Report", { views: [{ rightToLeft: false, state: "frozen", ySplit: 1 }] });
+
+  sheet.columns = [
+    { header: "University ID", key: "universityId", width: 16 },
+    { header: "Name", key: "name", width: 22 },
+    { header: "Date", key: "date", width: 12 },
+    { header: "Calories", key: "calories", width: 12 },
+    { header: "Protein (g)", key: "protein", width: 12 },
+    { header: "Carbs (g)", key: "carbs", width: 12 },
+    { header: "Fat (g)", key: "fat", width: 12 },
+    { header: "Sodium (mg)", key: "sodium", width: 13 },
+    { header: "Water Cups", key: "waterCups", width: 12 },
+    { header: "Weight (kg)", key: "weightKg", width: 12 },
+    { header: "Steps", key: "steps", width: 10 },
+    { header: "Workout Done", key: "workoutDone", width: 14 },
+  ];
+
+  const headerRow = sheet.getRow(1);
+  headerRow.font = { bold: true };
+  headerRow.alignment = { horizontal: "left" };
+  headerRow.eachCell((cell) => {
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: FILL_HEADER } };
+    cell.border = ALL_BORDERS;
+  });
+
+  let rowIndex = 0;
+  for (const s of students) {
+    const report = windowReports.get(s.owner);
+    if (!report || !report.found) continue;
+
+    const byDate = new Map();
+    const ensure = (date) => {
+      if (!byDate.has(date)) byDate.set(date, { date, calories: 0, protein: 0, carbs: 0, fat: 0, sodium: 0, waterCups: null, weightKg: null, steps: null, workoutDone: null });
+      return byDate.get(date);
+    };
+    for (const e of report.nutritionLog || []) {
+      const d = ensure(e.date);
+      d.calories += Number(e.calories) || 0;
+      d.protein += Number(e.protein) || 0;
+      d.carbs += Number(e.carbs) || 0;
+      d.fat += Number(e.fat) || 0;
+      d.sodium += Number(e.sodium) || 0;
+    }
+    for (const w of report.waterLog || []) ensure(w.date).waterCups = w.cups_count;
+    for (const w of report.weightLog || []) ensure(w.date).weightKg = w.weight_kg;
+    for (const st of report.stepsLog || []) ensure(st.date).steps = st.steps;
+    for (const f of report.fitnessLog || []) ensure(f.date).workoutDone = !!f.day_completed;
+
+    const dates = [...byDate.keys()].sort();
+    for (const date of dates) {
+      const d = byDate.get(date);
+      const addedRow = sheet.addRow({
+        universityId: s.universityId || "", name: s.name || "",
+        date: d.date,
+        calories: Math.round(d.calories), protein: Math.round(d.protein), carbs: Math.round(d.carbs), fat: Math.round(d.fat), sodium: Math.round(d.sodium),
+        waterCups: d.waterCups ?? "", weightKg: d.weightKg ?? "", steps: d.steps ?? "",
+        workoutDone: d.workoutDone === null ? "" : d.workoutDone ? "Yes" : "No",
+      });
+      addedRow.alignment = { horizontal: "left" };
+      const isBanded = rowIndex % 2 === 1;
+      addedRow.eachCell({ includeEmpty: true }, (cell) => {
+        if (isBanded) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: FILL_BAND } };
+        cell.border = ALL_BORDERS;
+      });
+      rowIndex += 1;
+    }
+  }
+
+  return workbook.xlsx.writeBuffer();
+}

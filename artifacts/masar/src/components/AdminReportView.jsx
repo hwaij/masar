@@ -12,8 +12,11 @@
 // الاقتراح، لا بإعادة كتابة نص، فلا التباس بين طلاب متشابهين بالاسم/الرقم.
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Search, Loader2, Download, ShieldAlert, ClipboardList, Calendar, Users, Bell, Send, CheckCircle2 } from "lucide-react";
-import { suggestStudents, fetchStudentReport, fetchOverview, sendReminder, sendCustomReminder } from "../lib/adminReport";
+import { Search, Loader2, Download, ShieldAlert, ClipboardList, Calendar, Users, Bell, Send, CheckCircle2, X, ChevronLeft, XCircle } from "lucide-react";
+import {
+  suggestStudents, fetchStudentReport, fetchOverview, sendReminder, sendCustomReminder,
+  fetchStudentsOverview, fetchStudentWindowReport, sendGroupMessage, fetchMessages, fetchMessageReceipts,
+} from "../lib/adminReport";
 import { localDayKey } from "../lib/tips";
 import { getDailyNutritionSummary } from "../lib/nutrition-plan";
 import { S } from "./styles";
@@ -32,7 +35,7 @@ const AR = {
   rangeBtnActive: { background: "var(--gold)", color: "var(--bg)", borderColor: "var(--gold)" },
   customDates: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" },
   dateInput: { ...S.input, width: "auto" },
-  errorBox: { display: "flex", gap: 8, alignItems: "flex-start", background: "rgba(209,123,95,0.1)", border: "1px solid rgba(209,123,95,0.35)", borderRadius: 12, padding: "12px 14px", marginBottom: 16, fontSize: 13, color: "var(--ink)", lineHeight: 1.7 },
+  errorBox: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", background: "rgba(209,123,95,0.1)", border: "1px solid rgba(209,123,95,0.35)", borderRadius: 12, padding: "12px 14px", marginBottom: 16, fontSize: 13, color: "var(--ink)", lineHeight: 1.7 },
   emptyBox: { textAlign: "center", padding: "30px 10px", color: "var(--muted2)", fontSize: 13 },
   resultHead: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 },
   resultTitle: { fontSize: 14, fontWeight: 700, color: "var(--ink)" },
@@ -45,8 +48,14 @@ const AR = {
   sectionLabel: { fontSize: 13, fontWeight: 700, color: "var(--ink)", margin: "18px 0 8px" },
   noteBox: { display: "flex", gap: 8, alignItems: "flex-start", background: "rgba(201,162,75,0.08)", border: "1px solid rgba(201,162,75,0.3)", borderRadius: 12, padding: "10px 12px", marginBottom: 16, fontSize: 12.5, color: "var(--ink-soft)", lineHeight: 1.7 },
   badge: { display: "inline-block", borderRadius: 8, padding: "2px 7px", fontSize: 11, fontWeight: 700 },
-  topTabs: { display: "flex", gap: 6, marginBottom: 16, borderBottom: "1px solid var(--line)" },
+  topTabs: { display: "flex", gap: 6, marginBottom: 16, borderBottom: "1px solid var(--line)", flexWrap: "wrap" },
   topTab: { display: "flex", alignItems: "center", gap: 6, border: "none", background: "transparent", color: "var(--muted2)", fontSize: 13.5, fontWeight: 700, padding: "10px 4px", cursor: "pointer", fontFamily: "inherit", borderBottom: "2px solid transparent", marginBottom: -1 },
+  modalOverlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-start", justifyContent: "center", zIndex: 200, padding: "20px 14px", overflowY: "auto" },
+  modalBox: { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: 18, width: "100%", maxWidth: 820, marginBottom: 40 },
+  modalHeaderRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 16, flexWrap: "wrap" },
+  statChip: { background: "var(--surface-sunken)", border: "1px solid var(--line)", borderRadius: 10, padding: "6px 10px", fontSize: 12, color: "var(--ink-soft)" },
+  dayCard: { textAlign: "start", border: "1px solid var(--border2)", background: "var(--surface-sunken)", borderRadius: 12, padding: "9px 13px", cursor: "pointer", fontFamily: "inherit", minWidth: 150 },
+  dayCardActive: { borderColor: "var(--gold)", background: "rgba(201,162,75,0.12)" },
   topTabActive: { color: "var(--gold)", borderBottomColor: "var(--gold)" },
 };
 
@@ -443,6 +452,9 @@ function OverviewTab() {
   // عبر rows أدناه) - لا استعلام جديد لقاعدة البيانات، لا أي استدعاء شبكي
   // إضافي عند تبديل الفلتر.
   const [ateFilter, setAteFilter] = useState("all");
+  // عدّاد طلب يدوي لإعادة المحاولة (زر "أعد المحاولة" أدناه) - تغييره يعيد
+  // تشغيل نفس الأثر (useEffect) بلا تغيّر date نفسه.
+  const [retryTick, setRetryTick] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -452,6 +464,9 @@ function OverviewTab() {
       .then((d) => { if (active) setData(d); })
       .catch((e) => {
         if (!active) return;
+        // partial=true تعني فشلاً كاملاً وواضحاً من الخادم (RPC فشلت/تعذّر
+        // الاتصال) - لا نتيجة جزئية صامتة تُعرَض كأنها كاملة، رسالة خطأ
+        // صريحة + زر إعادة المحاولة بدل شاشة فاضية مضلِّلة.
         setError(e.status === 403
           ? (isEn ? "Access denied." : "الوصول مرفوض.")
           : (isEn ? "Failed to load the overview, please try again." : "تعذّر جلب النظرة العامة الآن، حاول مرة أخرى."));
@@ -459,7 +474,7 @@ function OverviewTab() {
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [date]);
+  }, [date, retryTick]);
 
   // "حقق احتياجه" يعتمد على السعرات تحديداً (المؤشر الأساسي) بنفس تصنيف
   // pctStatus المستخدَم في SearchTab بالضبط - ضمن النطاق أو تجاوز = نعم.
@@ -513,6 +528,9 @@ function OverviewTab() {
         <div style={AR.errorBox}>
           <ShieldAlert size={16} style={{ flexShrink: 0, marginTop: 1 }} />
           <span>{error}</span>
+          <button onClick={() => setRetryTick((n) => n + 1)} style={{ ...S.exportBtn, marginTop: 0, marginBottom: 0, width: "auto", padding: "7px 14px", flexShrink: 0 }}>
+            {isEn ? "Retry" : "أعد المحاولة"}
+          </button>
         </div>
       )}
 
@@ -524,7 +542,7 @@ function OverviewTab() {
         ) : (
           <>
             <div style={AR.resultCount}>
-              {isEn ? `${ateCount} of ${rows.length} ate today` : `${ateCount} من أصل ${rows.length} أكلوا اليوم`}
+              {isEn ? `Loaded ${rows.length} students · ${ateCount} ate today` : `تم تحميل ${rows.length} طالب · ${ateCount} أكلوا اليوم`}
             </div>
             <div style={{ ...AR.rangeRow, marginTop: 10 }}>
               {ATE_FILTERS.map((f) => (
@@ -588,6 +606,445 @@ function OverviewTab() {
           </>
         )
       )}
+
+      {/* قسم منفصل: من سجّل أكلاً بنفس اليوم بلا رقم جامعي محفوظ في ملفه -
+          سبب حقيقي ثانٍ منفصل تماماً عن مشكلة الصفوف الناقصة (هؤلاء
+          مستثنون بنيوياً من الجدول أعلاه بصرف النظر عن أي إصلاح، راجع
+          تعليق admin_overview_for_date في supabase-schema.sql) - يظهر هنا
+          حتى تُرى كل من يستخدم التطبيق فعلياً، لا فقط من حفظ رقمه الجامعي. */}
+      {!loading && !error && data && data.noUniversityId && data.noUniversityId.length > 0 && (
+        <div style={{ marginTop: 24 }}>
+          <div style={AR.sectionLabel}>
+            {isEn ? "Logged food without a university ID" : "سجلوا أكل بدون رقم جامعي"}
+          </div>
+          <div style={{ ...AR.resultCount, marginBottom: 8 }}>
+            {isEn ? `${data.noUniversityId.length} accounts` : `${data.noUniversityId.length} حساب`}
+          </div>
+          <div style={AR.tableWrap}>
+            <table style={AR.table}>
+              <thead>
+                <tr>
+                  <th style={AR.th}>{isEn ? "Name" : "الاسم"}</th>
+                  <th style={AR.th}>{isEn ? "Account ID" : "معرّف الحساب"}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.noUniversityId.map((s) => (
+                  <tr key={s.owner}>
+                    <td style={AR.td}>{s.name || "—"}</td>
+                    <td style={AR.td}>{s.owner}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const SOURCE_LABEL = {
+  ar: { barcode: "باركود", manual: "يدوي", search: "بحث", ai_photo: "صورة AI", label: "ملصق", common: "شائع", ai_estimate: "تقدير AI", voice: "صوت" },
+  en: { barcode: "Barcode", manual: "Manual", search: "Search", ai_photo: "AI Photo", label: "Label", common: "Common", ai_estimate: "AI Estimate", voice: "Voice" },
+};
+
+// تقرير نافذة الأسبوعين الكامل لطالب واحد (Phase 4) - يُفتح بالضغط على طالب
+// من جدول تبويب "الطلاب". يوم بيوم: كل ما سجّله (أكل بوقته، ماء، وزن،
+// خطوات، تمرين)، مصادر الأكل بالأعداد، معدل كل عنصر غذائي مقابل احتياجه،
+// أيام الانقطاع، وآخر نشاط. نداء شبكي واحد فقط (admin_student_window_report)
+// بصرف النظر عن عدد الأيام/الإدخالات.
+function StudentWindowReportModal({ owner, universityId, name, onClose }) {
+  const { i18n } = useTranslation();
+  const isEn = i18n.language === "en";
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [report, setReport] = useState(null);
+  const [exporting, setExporting] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError(null);
+    fetchStudentWindowReport(owner)
+      .then((d) => { if (active) setReport(d); })
+      .catch(() => { if (active) setError(isEn ? "Failed to load the report, please try again." : "تعذّر جلب التقرير الآن، حاول مرة أخرى."); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [owner, isEn]);
+
+  // يوم بيوم: كل مصادر الأنشطة مدموجة بمفتاح التاريخ معاً (نفس أسلوب
+  // buildGroupWindowReportExcelBuffer في excelReport.js بالضبط).
+  const { days, sourceCounts, avg, lastActivityDate, gapDays } = useMemo(() => {
+    if (!report?.found) return { days: [], sourceCounts: {}, avg: null, lastActivityDate: null, gapDays: 0 };
+    const byDate = new Map();
+    const ensure = (date) => {
+      if (!byDate.has(date)) byDate.set(date, { date, calories: 0, protein: 0, carbs: 0, fat: 0, sodium: 0, mealsCount: 0, waterCups: null, weightKg: null, steps: null, workoutDone: null });
+      return byDate.get(date);
+    };
+    const counts = {};
+    for (const e of report.nutritionLog || []) {
+      const d = ensure(e.date);
+      d.calories += Number(e.calories) || 0;
+      d.protein += Number(e.protein) || 0;
+      d.carbs += Number(e.carbs) || 0;
+      d.fat += Number(e.fat) || 0;
+      d.sodium += Number(e.sodium) || 0;
+      d.mealsCount += 1;
+      if (e.source) counts[e.source] = (counts[e.source] || 0) + 1;
+    }
+    for (const w of report.waterLog || []) ensure(w.date).waterCups = w.cups_count;
+    for (const w of report.weightLog || []) ensure(w.date).weightKg = w.weight_kg;
+    for (const st of report.stepsLog || []) ensure(st.date).steps = st.steps;
+    for (const f of report.fitnessLog || []) ensure(f.date).workoutDone = !!f.day_completed;
+
+    const sortedDays = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+    const loggedDays = sortedDays.filter((d) => d.mealsCount > 0);
+    const totalDaysInWindow = Math.round((new Date(report.windowEndDate) - new Date(report.signupDate)) / 86400000) + 1;
+    const avgVal = loggedDays.length
+      ? {
+          calories: Math.round(loggedDays.reduce((s, d) => s + d.calories, 0) / loggedDays.length),
+          protein: Math.round(loggedDays.reduce((s, d) => s + d.protein, 0) / loggedDays.length),
+          carbs: Math.round(loggedDays.reduce((s, d) => s + d.carbs, 0) / loggedDays.length),
+          fat: Math.round(loggedDays.reduce((s, d) => s + d.fat, 0) / loggedDays.length),
+          sodium: Math.round(loggedDays.reduce((s, d) => s + d.sodium, 0) / loggedDays.length),
+        }
+      : null;
+    const lastDate = sortedDays.length ? sortedDays[sortedDays.length - 1].date : null;
+    return { days: sortedDays, sourceCounts: counts, avg: avgVal, lastActivityDate: lastDate, gapDays: Math.max(totalDaysInWindow - loggedDays.length, 0) };
+  }, [report]);
+
+  const tee = typeof report?.healthProfile?.tee === "number" ? report.healthProfile.tee : null;
+
+  async function handleExport() {
+    if (!report?.found || exporting) return;
+    setExporting(true);
+    try {
+      const { buildStudentNutritionLogExcelBuffer } = await import("../lib/excelReport");
+      const dailySummaries = days.map((d) => ({
+        date: d.date,
+        caloriesConsumed: Math.round(d.calories), caloriesGoal: tee,
+        proteinConsumed: Math.round(d.protein), proteinGoal: null,
+        carbsConsumed: Math.round(d.carbs), carbsGoal: null,
+        fatConsumed: Math.round(d.fat), fatGoal: null,
+      }));
+      const buffer = await buildStudentNutritionLogExcelBuffer(report.nutritionLog || [], universityId || name || owner, { dailySummaries, hasGoal: tee != null });
+      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = `window-report-${universityId || owner}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch (e) {
+      console.error("[StudentWindowReportModal] export failed:", e);
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  return (
+    <div style={AR.modalOverlay} onClick={onClose}>
+      <div style={AR.modalBox} onClick={(e) => e.stopPropagation()}>
+        <div style={AR.modalHeaderRow}>
+          <button onClick={onClose} style={{ ...S.iconBtn }}>{isEn ? <X size={18} /> : <ChevronLeft size={18} />}</button>
+          <div style={{ fontWeight: 700, fontSize: 14.5 }}>{universityId || "—"}{name ? ` · ${name}` : ""}</div>
+          <button onClick={handleExport} disabled={exporting || !report?.found} style={{ ...S.exportBtn, width: "auto", marginTop: 0, marginBottom: 0, padding: "7px 14px", opacity: exporting || !report?.found ? 0.6 : 1 }}>
+            {exporting ? <Loader2 size={14} className="spin" /> : <Download size={14} />}
+          </button>
+        </div>
+
+        {loading && <div style={AR.emptyBox}><Loader2 size={20} className="spin" /></div>}
+        {error && <div style={AR.errorBox}><ShieldAlert size={16} /><span>{error}</span></div>}
+
+        {!loading && !error && report && !report.found && (
+          <div style={AR.emptyBox}>{isEn ? "Account not found." : "الحساب غير موجود."}</div>
+        )}
+
+        {!loading && !error && report?.found && (
+          <>
+            <div style={{ ...AR.resultCount, marginBottom: 12 }}>
+              {isEn
+                ? `Window: ${report.signupDate} → ${report.windowEndDate}`
+                : `النافذة: ${report.signupDate} ← ${report.windowEndDate}`}
+            </div>
+
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+              <div style={AR.statChip}>{isEn ? `Avg calories: ${avg?.calories ?? "—"}${tee ? ` / ${tee}` : ""}` : `معدل السعرات: ${avg?.calories ?? "—"}${tee ? ` / ${tee}` : ""}`}</div>
+              <div style={AR.statChip}>{isEn ? `Avg protein: ${avg?.protein ?? "—"}g` : `معدل البروتين: ${avg?.protein ?? "—"}غ`}</div>
+              <div style={AR.statChip}>{isEn ? `Avg carbs: ${avg?.carbs ?? "—"}g` : `معدل الكارب: ${avg?.carbs ?? "—"}غ`}</div>
+              <div style={AR.statChip}>{isEn ? `Avg fat: ${avg?.fat ?? "—"}g` : `معدل الدهون: ${avg?.fat ?? "—"}غ`}</div>
+              <div style={AR.statChip}>{isEn ? `Avg sodium: ${avg?.sodium ?? "—"}mg` : `معدل الصوديوم: ${avg?.sodium ?? "—"}مغ`}</div>
+              <div style={AR.statChip}>{isEn ? `Gap days: ${gapDays}` : `أيام الانقطاع: ${gapDays}`}</div>
+              <div style={AR.statChip}>{isEn ? `Last activity: ${lastActivityDate || "—"}` : `آخر نشاط: ${lastActivityDate || "—"}`}</div>
+            </div>
+
+            {Object.keys(sourceCounts).length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+                {Object.entries(sourceCounts).map(([src, count]) => (
+                  <div key={src} style={AR.statChip}>{(isEn ? SOURCE_LABEL.en : SOURCE_LABEL.ar)[src] || src}: {count}</div>
+                ))}
+              </div>
+            )}
+
+            <div style={AR.tableWrap}>
+              <table style={AR.table}>
+                <thead>
+                  <tr>
+                    <th style={AR.th}>{isEn ? "Date" : "التاريخ"}</th>
+                    <th style={AR.th}>{isEn ? "Meals" : "الوجبات"}</th>
+                    <th style={AR.th}>{isEn ? "Calories" : "سعرات"}</th>
+                    <th style={AR.th}>{isEn ? "Protein" : "بروتين"}</th>
+                    <th style={AR.th}>{isEn ? "Carbs" : "كارب"}</th>
+                    <th style={AR.th}>{isEn ? "Fat" : "دهون"}</th>
+                    <th style={AR.th}>{isEn ? "Water" : "ماء"}</th>
+                    <th style={AR.th}>{isEn ? "Weight" : "وزن"}</th>
+                    <th style={AR.th}>{isEn ? "Steps" : "خطوات"}</th>
+                    <th style={AR.th}>{isEn ? "Workout" : "تمرين"}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {days.length === 0 ? (
+                    <tr><td style={AR.td} colSpan={10}>{isEn ? "No activity logged in this window." : "لا نشاط مسجَّل بهذه النافذة."}</td></tr>
+                  ) : days.map((d) => (
+                    <tr key={d.date}>
+                      <td style={AR.td}>{d.date}</td>
+                      <td style={AR.td}>{d.mealsCount || "—"}</td>
+                      <td style={AR.td}>{d.mealsCount ? Math.round(d.calories) : "—"}</td>
+                      <td style={AR.td}>{d.mealsCount ? Math.round(d.protein) : "—"}</td>
+                      <td style={AR.td}>{d.mealsCount ? Math.round(d.carbs) : "—"}</td>
+                      <td style={AR.td}>{d.mealsCount ? Math.round(d.fat) : "—"}</td>
+                      <td style={AR.td}>{d.waterCups ?? "—"}</td>
+                      <td style={AR.td}>{d.weightKg ?? "—"}</td>
+                      <td style={AR.td}>{d.steps ?? "—"}</td>
+                      <td style={AR.td}>{d.workoutDone === null ? "—" : d.workoutDone ? (isEn ? "Yes" : "نعم") : (isEn ? "No" : "لا")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const DAY_NAME = {
+  ar: ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"],
+  en: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+};
+
+function daysAgo(n) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return localDayKey(d);
+}
+
+// "الطلاب": قائمة كل الطلاب مع تاريخ/وقت دخولهم ونافذة الأسبوعين (Phase 2) -
+// مجمَّعون حسب تاريخ الدخول في خانات قابلة للضغط، بجدول كامل + فلاتر +
+// تصدير Excel + ضغط على طالب يفتح تقرير نافذته الكامل (Phase 4).
+function StudentsTab() {
+  const { i18n } = useTranslation();
+  const isEn = i18n.language === "en";
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [students, setStudents] = useState([]);
+  const [retryTick, setRetryTick] = useState(0);
+  const [statusFilter, setStatusFilter] = useState("all"); // all | completed | ongoing
+  const [selectedDay, setSelectedDay] = useState(null); // signupLocalDate أو null
+  const [exporting, setExporting] = useState(false);
+  const [openStudent, setOpenStudent] = useState(null); // {owner, universityId, name} أو null
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError(null);
+    // النظرة العامة لليوم الحالي تُستخدَم فقط لمعرفة "كم أكل اليوم" ضمن كل
+    // خانة يوم دخول (راجع ateTodayByOwner أدناه) - لا علاقة لها بتاريخ الدخول
+    // نفسه.
+    Promise.all([fetchStudentsOverview(), fetchOverview(localDayKey())])
+      .then(([rosterData, todayData]) => {
+        if (!active) return;
+        const ateTodayByOwner = new Map((todayData?.students || []).map((s) => [s.owner, s.ateToday]));
+        setStudents((rosterData?.students || []).map((s) => ({ ...s, ateToday: ateTodayByOwner.get(s.owner) ?? false })));
+      })
+      .catch(() => { if (active) setError(isEn ? "Failed to load the students list, please try again." : "تعذّر جلب قائمة الطلاب الآن، حاول مرة أخرى."); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [retryTick]);
+
+  const dayBuckets = useMemo(() => {
+    const map = new Map();
+    for (const s of students) {
+      const key = s.signupLocalDate;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(s);
+    }
+    return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+  }, [students]);
+
+  const enteredToday = useMemo(() => students.filter((s) => s.signupLocalDate === localDayKey()).length, [students]);
+  const enteredThisWeek = useMemo(() => {
+    const weekAgo = daysAgo(7);
+    return students.filter((s) => s.signupLocalDate >= weekAgo).length;
+  }, [students]);
+
+  const filteredStudents = useMemo(() => {
+    let rows = students;
+    if (statusFilter !== "all") rows = rows.filter((s) => s.status === statusFilter);
+    if (selectedDay) rows = rows.filter((s) => s.signupLocalDate === selectedDay);
+    return rows;
+  }, [students, statusFilter, selectedDay]);
+
+  async function handleExport() {
+    if (exporting || filteredStudents.length === 0) return;
+    setExporting(true);
+    try {
+      const { buildStudentsRosterExcelBuffer } = await import("../lib/excelReport");
+      const buffer = await buildStudentsRosterExcelBuffer(filteredStudents);
+      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = "students.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch (e) {
+      console.error("[StudentsTab] export failed:", e);
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  return (
+    <div>
+      <p style={S.profileHint}>
+        {isEn
+          ? "All students with signup dates, the two-week tracking window, and daily logging progress."
+          : "كل الطلاب مع تواريخ دخولهم ونافذة تتبّع الأسبوعين وتقدّم تسجيلهم اليومي."}
+      </p>
+
+      {loading && <div style={AR.emptyBox}><Loader2 size={20} className="spin" /></div>}
+      {error && (
+        <div style={AR.errorBox}>
+          <ShieldAlert size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+          <span>{error}</span>
+          <button onClick={() => setRetryTick((n) => n + 1)} style={{ ...S.exportBtn, marginTop: 0, marginBottom: 0, width: "auto", padding: "7px 14px", flexShrink: 0 }}>
+            {isEn ? "Retry" : "أعد المحاولة"}
+          </button>
+        </div>
+      )}
+
+      {!loading && !error && (
+        <>
+          <div style={{ ...AR.resultCount, marginBottom: 12 }}>
+            {isEn
+              ? `Loaded ${students.length} students · ${enteredToday} entered today · ${enteredThisWeek} entered this week`
+              : `تم تحميل ${students.length} طالب · ${enteredToday} دخلوا اليوم · ${enteredThisWeek} دخلوا هذا الأسبوع`}
+          </div>
+
+          <div style={AR.sectionLabel}>{isEn ? "By signup day" : "حسب تاريخ الدخول"}</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+            {dayBuckets.map(([date, group]) => {
+              const dow = new Date(`${date}T00:00:00`).getDay();
+              const males = group.filter((s) => s.gender === "male").length;
+              const females = group.filter((s) => s.gender === "female").length;
+              const ate = group.filter((s) => s.ateToday).length;
+              const active = selectedDay === date;
+              return (
+                <button
+                  key={date}
+                  onClick={() => setSelectedDay(active ? null : date)}
+                  style={{ ...AR.dayCard, ...(active ? AR.dayCardActive : {}) }}
+                >
+                  <div style={{ fontWeight: 700, fontSize: 13 }}>{(isEn ? DAY_NAME.en : DAY_NAME.ar)[dow]} · {date}</div>
+                  <div style={{ fontSize: 12, color: "var(--muted2)", marginTop: 2 }}>
+                    {isEn ? `${group.length} students · ${males}M/${females}F` : `${group.length} طالب · ${males} ذكر / ${females} أنثى`}
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--muted2)" }}>
+                    {isEn ? `${ate} ate today, ${group.length - ate} did not` : `${ate} أكل، ${group.length - ate} لم يأكل اليوم`}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+            {["all", "ongoing", "completed"].map((f) => (
+              <button key={f} onClick={() => setStatusFilter(f)} style={{ ...AR.rangeBtn, ...(statusFilter === f ? AR.rangeBtnActive : {}) }}>
+                {isEn
+                  ? { all: "All", ongoing: "Ongoing", completed: "Completed two weeks" }[f]
+                  : { all: "الكل", ongoing: "جارية", completed: "اكتملوا أسبوعين" }[f]}
+              </button>
+            ))}
+            {selectedDay && (
+              <button onClick={() => setSelectedDay(null)} style={{ ...AR.rangeBtn, display: "flex", alignItems: "center", gap: 4 }}>
+                <XCircle size={13} /> {isEn ? `Clear date filter (${selectedDay})` : `إزالة فلتر التاريخ (${selectedDay})`}
+              </button>
+            )}
+            <button onClick={handleExport} disabled={exporting || filteredStudents.length === 0} style={{ ...S.exportBtn, width: "auto", marginTop: 0, marginBottom: 0, padding: "7px 14px", opacity: exporting || filteredStudents.length === 0 ? 0.6 : 1 }}>
+              {exporting ? <Loader2 size={14} className="spin" /> : <Download size={14} />}
+              {isEn ? "Export Excel" : "تصدير Excel"}
+            </button>
+          </div>
+
+          {filteredStudents.length === 0 ? (
+            <div style={AR.emptyBox}>{isEn ? "No students match this filter." : "لا يوجد طلاب مطابقون لهذا الفلتر."}</div>
+          ) : (
+            <div style={AR.tableWrap}>
+              <table style={AR.table}>
+                <thead>
+                  <tr>
+                    <th style={AR.th}>{isEn ? "University ID" : "الرقم الجامعي"}</th>
+                    <th style={AR.th}>{isEn ? "Name" : "الاسم"}</th>
+                    <th style={AR.th}>{isEn ? "Gender" : "الجنس"}</th>
+                    <th style={AR.th}>{isEn ? "Signup date" : "تاريخ الدخول"}</th>
+                    <th style={AR.th}>{isEn ? "First meal" : "أول تسجيل أكل"}</th>
+                    <th style={AR.th}>{isEn ? "Window ends" : "نهاية الأسبوعين"}</th>
+                    <th style={AR.th}>{isEn ? "Days left" : "الأيام المتبقية"}</th>
+                    <th style={AR.th}>{isEn ? "Status" : "الحالة"}</th>
+                    <th style={AR.th}>{isEn ? "Days logged / 14" : "أيام التسجيل / 14"}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredStudents.map((s) => (
+                    <tr key={s.owner} onClick={() => setOpenStudent(s)} style={{ cursor: "pointer" }}>
+                      <td style={AR.td}>{s.universityId || "—"}</td>
+                      <td style={AR.td}>{s.name || "—"}</td>
+                      <td style={AR.td}>{s.gender === "male" ? (isEn ? "Male" : "ذكر") : s.gender === "female" ? (isEn ? "Female" : "أنثى") : "—"}</td>
+                      <td style={AR.td}>{s.signupLocalDate}</td>
+                      <td style={AR.td}>{s.firstLogDate || "—"}</td>
+                      <td style={AR.td}>{s.windowEndDate}</td>
+                      <td style={AR.td}>{s.status === "completed" ? "—" : s.daysRemaining}</td>
+                      <td style={AR.td}>
+                        <span style={{ ...AR.badge, ...(s.status === "completed" ? { background: OVERVIEW_BADGE.ate.bg, color: OVERVIEW_BADGE.ate.color } : { background: OVERVIEW_BADGE.noGoal.bg, color: OVERVIEW_BADGE.noGoal.color }) }}>
+                          {s.status === "completed" ? (isEn ? "Completed" : "اكتملت") : (isEn ? "Ongoing" : "جارية")}
+                        </span>
+                      </td>
+                      <td style={AR.td}>{s.daysLoggedInWindow} / 14</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+
+      {openStudent && (
+        <StudentWindowReportModal
+          owner={openStudent.owner}
+          universityId={openStudent.universityId}
+          name={openStudent.name}
+          onClose={() => setOpenStudent(null)}
+        />
+      )}
     </div>
   );
 }
@@ -639,6 +1096,253 @@ function ReminderResultBox({ result, isEn }) {
 
 function errorMessage(e, isEn) {
   return e.status === 403 ? (isEn ? "Access denied." : "الوصول مرفوض.") : (isEn ? "Failed to send, please try again." : "تعذّر الإرسال، حاول مرة أخرى.");
+}
+
+// قسم "رسالة لمجموعة" (Phase 3) - اختيار مجموعة (بتاريخ/تواريخ دخول، أو كل
+// من اكتملوا أسبوعين) مع إمكانية استبعاد أي طالب بإلغاء التحديد، ثم رسالة
+// حرة يكتبها المالك بنفسه بالكامل (الحقل يبدأ فارغاً دائماً - لا نص جاهز
+// ولا تعديل عليه هنا إطلاقاً). الإرسال يُنشئ admin_messages + صف استلام
+// واحد لكل مستلم (راجع mode=sendMessage في admin-report.js) - المسار
+// الموثوق هو الشاشة الحاجبة داخل التطبيق، لا الإشعار (قد لا يصل كما هو
+// معروف، راجع تعليق MasarApp.jsx).
+function GroupMessageSection() {
+  const { i18n } = useTranslation();
+  const isEn = i18n.language === "en";
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [students, setStudents] = useState([]);
+  const [selectedDays, setSelectedDays] = useState(new Set());
+  const [completedOnly, setCompletedOnly] = useState(false);
+  const [excluded, setExcluded] = useState(new Set());
+  const [body, setBody] = useState("");
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    fetchStudentsOverview()
+      .then((d) => { if (active) setStudents(d?.students || []); })
+      .catch(() => { if (active) setError(isEn ? "Failed to load the students list, please try again." : "تعذّر جلب قائمة الطلاب الآن، حاول مرة أخرى."); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [isEn]);
+
+  const dayOptions = useMemo(() => [...new Set(students.map((s) => s.signupLocalDate))].sort((a, b) => b.localeCompare(a)), [students]);
+
+  const candidates = useMemo(() => {
+    let rows = students;
+    if (completedOnly) rows = rows.filter((s) => s.status === "completed");
+    if (selectedDays.size > 0) rows = rows.filter((s) => selectedDays.has(s.signupLocalDate));
+    if (completedOnly && selectedDays.size === 0) {
+      // "اكتملوا أسبوعين" وحدها بلا تاريخ محدَّد - كل من اكتمل فقط.
+    } else if (!completedOnly && selectedDays.size === 0) {
+      rows = [];
+    }
+    return rows;
+  }, [students, completedOnly, selectedDays]);
+
+  const targetOwners = useMemo(() => candidates.filter((s) => !excluded.has(s.owner)).map((s) => s.owner), [candidates, excluded]);
+
+  function toggleDay(date) {
+    setSelectedDays((prev) => {
+      const next = new Set(prev);
+      if (next.has(date)) next.delete(date); else next.add(date);
+      return next;
+    });
+  }
+
+  function toggleExcluded(owner) {
+    setExcluded((prev) => {
+      const next = new Set(prev);
+      if (next.has(owner)) next.delete(owner); else next.add(owner);
+      return next;
+    });
+  }
+
+  async function handleSend() {
+    const text = body.trim();
+    if (!text) { window.alert(isEn ? "Write a message first." : "اكتب رسالة أولاً."); return; }
+    if (targetOwners.length === 0) { window.alert(isEn ? "No students selected." : "لم يتم اختيار أي طالب."); return; }
+    const confirmed = window.confirm(
+      isEn
+        ? `Send this message to ${targetOwners.length} students?\n\n"${text}"`
+        : `متأكدة ترسلين هذه الرسالة إلى ${targetOwners.length} طالب؟\n\n"${text}"`,
+    );
+    if (!confirmed) return;
+
+    const targetDescription = completedOnly && selectedDays.size === 0
+      ? (isEn ? "Completed two weeks" : "اكتملوا أسبوعين")
+      : [...selectedDays].sort().join(", ");
+
+    setSending(true);
+    setResult(null);
+    try {
+      const data = await sendGroupMessage({ targetOwners, body: text, targetDescription });
+      setResult({ totalTargets: data.totalTargets, pushSent: data.pushSent });
+      setBody("");
+      setExcluded(new Set());
+    } catch (e) {
+      setResult({ error: errorMessage(e, isEn) });
+    } finally {
+      setSending(false);
+    }
+  }
+
+  if (loading) return <div style={{ border: "1px solid var(--line)", borderRadius: 12, padding: "14px 16px" }}><Loader2 size={18} className="spin" /></div>;
+  if (error) return <div style={AR.errorBox}><ShieldAlert size={16} /><span>{error}</span></div>;
+
+  return (
+    <div style={{ border: "1px solid var(--line)", borderRadius: 12, padding: "14px 16px" }}>
+      <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--ink)", marginBottom: 10 }}>
+        {isEn ? "Message to a group" : "رسالة لمجموعة"}
+      </div>
+
+      <div style={{ fontSize: 12.5, color: "var(--muted2)", marginBottom: 6 }}>{isEn ? "By signup date(s)" : "بتاريخ/تواريخ الدخول"}</div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+        {dayOptions.map((date) => (
+          <button key={date} onClick={() => toggleDay(date)} style={{ ...AR.rangeBtn, ...(selectedDays.has(date) ? AR.rangeBtnActive : {}) }}>
+            {date}
+          </button>
+        ))}
+      </div>
+      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "var(--ink-soft)", marginBottom: 12, cursor: "pointer" }}>
+        <input type="checkbox" checked={completedOnly} onChange={(e) => setCompletedOnly(e.target.checked)} />
+        {isEn ? "Everyone who completed two weeks (ignores dates above if none selected)" : "كل من اكتملوا أسبوعين (بصرف النظر عن التواريخ أعلاه لو لم تُحدَّد)"}
+      </label>
+
+      {candidates.length > 0 && (
+        <>
+          <div style={{ fontSize: 12.5, color: "var(--muted2)", marginBottom: 6 }}>
+            {isEn ? `${targetOwners.length} of ${candidates.length} selected (uncheck to exclude)` : `${targetOwners.length} من أصل ${candidates.length} محدَّدون (أزل التحديد للاستبعاد)`}
+          </div>
+          <div style={{ maxHeight: 180, overflowY: "auto", border: "1px solid var(--line)", borderRadius: 10, padding: 8, marginBottom: 12 }}>
+            {candidates.map((s) => (
+              <label key={s.owner} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, padding: "4px 2px", cursor: "pointer" }}>
+                <input type="checkbox" checked={!excluded.has(s.owner)} onChange={() => toggleExcluded(s.owner)} />
+                <span>{s.universityId || "—"}{s.name ? ` · ${s.name}` : ""}</span>
+              </label>
+            ))}
+          </div>
+        </>
+      )}
+
+      <textarea
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        placeholder={isEn ? "Write the message..." : "اكتب الرسالة..."}
+        rows={3}
+        style={{ ...S.input, width: "100%", resize: "vertical", fontFamily: "inherit", marginBottom: 10 }}
+      />
+      <button
+        onClick={handleSend}
+        disabled={sending || targetOwners.length === 0}
+        style={{ ...S.exportBtn, width: "auto", padding: "9px 16px", marginBottom: 0, opacity: sending || targetOwners.length === 0 ? 0.6 : 1 }}
+      >
+        {sending ? <Loader2 size={15} className="spin" /> : <Send size={15} />}
+        {isEn ? `Send to ${targetOwners.length} students` : `إرسال إلى ${targetOwners.length} طالب`}
+      </button>
+
+      {result && (
+        result.error ? (
+          <div style={{ ...AR.errorBox, marginTop: 10, marginBottom: 0 }}><ShieldAlert size={15} /><span>{result.error}</span></div>
+        ) : (
+          <div style={{ ...AR.noteBox, marginTop: 10, marginBottom: 0, display: "flex", gap: 8, alignItems: "flex-start" }}>
+            <CheckCircle2 size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+            <span>
+              {isEn
+                ? `Message sent to ${result.totalTargets} students. Push notification delivered to ${result.pushSent}.`
+                : `أُرسلت الرسالة إلى ${result.totalTargets} طالب. وصل الإشعار فعلياً إلى ${result.pushSent}.`}
+            </span>
+          </div>
+        )
+      )}
+    </div>
+  );
+}
+
+// قائمة الرسائل المرسَلة سابقاً + عدّاد الاستلام، وبالضغط على رسالة تظهر
+// قائمة المستلمين (✓/✗ + وقت الضغط) مع فلتر "من لم يضغط".
+function SentMessagesSection() {
+  const { i18n } = useTranslation();
+  const isEn = i18n.language === "en";
+  const [loading, setLoading] = useState(true);
+  const [messages, setMessages] = useState([]);
+  const [openId, setOpenId] = useState(null);
+  const [receipts, setReceipts] = useState(null);
+  const [receiptsLoading, setReceiptsLoading] = useState(false);
+  const [onlyPending, setOnlyPending] = useState(false);
+
+  useEffect(() => {
+    fetchMessages().then((d) => setMessages(d?.messages || [])).catch(() => setMessages([])).finally(() => setLoading(false));
+  }, []);
+
+  async function openMessage(id) {
+    if (openId === id) { setOpenId(null); setReceipts(null); return; }
+    setOpenId(id);
+    setReceipts(null);
+    setReceiptsLoading(true);
+    setOnlyPending(false);
+    try {
+      const data = await fetchMessageReceipts(id);
+      setReceipts(data?.receipts || []);
+    } catch {
+      setReceipts([]);
+    } finally {
+      setReceiptsLoading(false);
+    }
+  }
+
+  if (loading) return null;
+  if (messages.length === 0) return null;
+
+  return (
+    <div style={{ border: "1px solid var(--line)", borderRadius: 12, padding: "14px 16px" }}>
+      <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--ink)", marginBottom: 10 }}>
+        {isEn ? "Sent messages" : "الرسائل المرسَلة"}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {messages.map((m) => (
+          <div key={m.id}>
+            <button
+              onClick={() => openMessage(m.id)}
+              style={{ ...AR.rangeBtn, width: "100%", textAlign: "start", display: "block", background: openId === m.id ? "var(--surface-raised)" : AR.rangeBtn.background }}
+            >
+              <div style={{ fontWeight: 700, marginBottom: 2 }}>{m.body.length > 80 ? `${m.body.slice(0, 80)}…` : m.body}</div>
+              <div style={{ fontSize: 11, color: "var(--muted2)", fontWeight: 400 }}>
+                {m.targetDescription ? `${m.targetDescription} · ` : ""}
+                {isEn ? `${m.acknowledgedCount} of ${m.totalTargets} acknowledged` : `${m.acknowledgedCount} من أصل ${m.totalTargets} ضغطوا موافق`}
+              </div>
+            </button>
+            {openId === m.id && (
+              <div style={{ marginTop: 6, paddingInlineStart: 8 }}>
+                {receiptsLoading ? (
+                  <Loader2 size={16} className="spin" />
+                ) : (
+                  <>
+                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, marginBottom: 6, cursor: "pointer" }}>
+                      <input type="checkbox" checked={onlyPending} onChange={(e) => setOnlyPending(e.target.checked)} />
+                      {isEn ? "Only show who hasn't acknowledged" : "فقط من لم يضغط"}
+                    </label>
+                    <div style={{ maxHeight: 220, overflowY: "auto" }}>
+                      {(receipts || [])
+                        .filter((r) => !onlyPending || !r.acknowledgedAt)
+                        .map((r) => (
+                          <div key={r.owner} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, padding: "3px 0" }}>
+                            {r.acknowledgedAt ? <CheckCircle2 size={14} color="#5B8A72" /> : <XCircle size={14} color="#B5654F" />}
+                            <span>{r.universityId || "—"}{r.name ? ` · ${r.name}` : ""}</span>
+                            {r.acknowledgedAt && <span style={{ color: "var(--muted2)", fontSize: 11 }}>{new Date(r.acknowledgedAt).toLocaleString(isEn ? "en-GB" : "ar", { timeZone: "Asia/Kuwait" })}</span>}
+                          </div>
+                        ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function RemindersTab() {
@@ -738,6 +1442,9 @@ function RemindersTab() {
           </button>
           <ReminderResultBox result={results[CUSTOM_KEY]} isEn={isEn} />
         </div>
+
+        <GroupMessageSection />
+        <SentMessagesSection />
       </div>
     </div>
   );
@@ -758,11 +1465,14 @@ export default function AdminReportView() {
         <button onClick={() => setTab("overview")} style={{ ...AR.topTab, ...(tab === "overview" ? AR.topTabActive : {}) }}>
           <Users size={14} /> {isEn ? "Overview" : "نظرة عامة"}
         </button>
+        <button onClick={() => setTab("students")} style={{ ...AR.topTab, ...(tab === "students" ? AR.topTabActive : {}) }}>
+          <ClipboardList size={14} /> {isEn ? "Students" : "الطلاب"}
+        </button>
         <button onClick={() => setTab("reminders")} style={{ ...AR.topTab, ...(tab === "reminders" ? AR.topTabActive : {}) }}>
           <Bell size={14} /> {isEn ? "Reminders" : "تذكيرات"}
         </button>
       </div>
-      {tab === "search" ? <SearchTab /> : tab === "overview" ? <OverviewTab /> : <RemindersTab />}
+      {tab === "search" ? <SearchTab /> : tab === "overview" ? <OverviewTab /> : tab === "students" ? <StudentsTab /> : <RemindersTab />}
     </div>
   );
 }

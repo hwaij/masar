@@ -379,6 +379,27 @@ export default function MasarApp() {
     return () => { active = false; };
   }, [user]);
 
+  // رسالة الأدمن الحاجبة (Phase 3) - تُجلب فقط بعد اكتمال الإقلاع (loaded)
+  // حتى لا تؤخّره أبداً (نفس مشكلة cold-start السابقة)، بمهلة قصيرة وفشل
+  // صامت (withTimeout بقيمة احتياطية null) - غياب الاتصال لا يحجب المستخدم
+  // إطلاقاً، فقط يعني عدم ظهور الشاشة هذه الجلسة (ستظهر لاحقاً عند نجاح
+  // الاتصال، لا تُفقَد أبداً لأنها تبقى في القاعدة بلا acknowledged_at).
+  const [pendingAdminMessage, setPendingAdminMessage] = useState(null);
+  useEffect(() => {
+    let active = true;
+    if (!loaded || !store.hasCloud) return undefined;
+    withTimeout(store.fetchPendingAdminMessage(), 5000, null).then((msg) => {
+      if (active && msg) setPendingAdminMessage(msg);
+    });
+    return () => { active = false; };
+  }, [loaded]);
+
+  async function acknowledgePendingAdminMessage() {
+    if (!pendingAdminMessage) return;
+    await store.acknowledgeAdminMessage(pendingAdminMessage.messageId);
+    setPendingAdminMessage(null);
+  }
+
   const loadAll = useCallback(async () => {
       const myVersion = ++loadVersionRef.current;
       // سبب البطء الحقيقي بعد إصلاح التعليق السابق: Promise.all واحد لكل
@@ -1174,6 +1195,7 @@ export default function MasarApp() {
 
   return (
     <div style={S.app} className="masar-app">
+      {pendingAdminMessage && <AdminMessageOverlay message={pendingAdminMessage} onAcknowledge={acknowledgePendingAdminMessage} />}
       <Header view={view} setView={setView} gamify={gamify} stats={stats} hasCloud={store.hasCloud} user={user} onSignIn={handleSignIn} onSignOut={handleSignOut} subscription={subscription} theme={theme} toggleTheme={toggleTheme} customColorsEnabled={profile.customColorsEnabled} sectionColors={profile.sectionColors} onStartTour={startTour} isAdmin={isAdminUser} />
       <div className="masar-shell">
       {/* الشريط الجانبي الثابت (masar-sidebar) لا يُعرَض فعلياً إلا على
@@ -1929,6 +1951,66 @@ function LandingPage({ onSignIn, onEmailSignIn, onEmailSignUp }) {
             {t("landing.signInNow")}
           </motion.button>
         </motion.div>
+      </div>
+    </div>
+  );
+}
+
+// رسالة الأدمن الحاجبة (Phase 3) - طبقة (overlay) مستقلة لا استبدال شجرة
+// كامل (نفس خلل ظهور التوست المُصلَح سابقاً في هذا الملف - استبدال الشجرة
+// بالكامل كان سيمنع أي شيء آخر من العمل تحتها)؛ هنا التطبيق يبقى مُحمَّلاً
+// كاملاً تحتها، فقط محجوب بصرياً وتفاعلياً (z-index أعلى من كل شيء + لا
+// معالج onClick على الطبقة الخلفية نفسها، فلا إغلاق بالنقر خارجها ولا زر
+// إغلاق - الزر الوحيد هو "موافق"). نص الرسالة يُعرَض كنص عادي فقط ({msg}
+// مباشرة بالـJSX، React يُهرِّب أي HTML تلقائياً - بلا dangerouslySetInnerHTML
+// إطلاقاً) منعاً لأي حقن. اتجاه الكتابة يتبع لغة الواجهة الحالية مباشرة
+// (نفس ما تفعله بقية الشاشات، لا منطق جديد).
+function AdminMessageOverlay({ message, onAcknowledge }) {
+  const { t, i18n } = useTranslation();
+  const isEn = i18n.language === "en";
+  const [sending, setSending] = useState(false);
+
+  async function handleOk() {
+    if (sending) return;
+    setSending(true);
+    try {
+      await onAcknowledge();
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div
+      dir={isEn ? "ltr" : "rtl"}
+      style={{
+        position: "fixed", inset: 0, zIndex: 500,
+        background: "rgba(0,0,0,0.72)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: 20,
+      }}
+    >
+      <div
+        style={{
+          background: "var(--surface-sunken)", borderRadius: 20, border: "1px solid var(--border2)",
+          width: "100%", maxWidth: 420, padding: "24px 22px", textAlign: "center",
+        }}
+      >
+        <div
+          style={{
+            fontSize: 14.5, color: "var(--ink)", lineHeight: 1.8, whiteSpace: "pre-wrap",
+            marginBottom: 22,
+          }}
+        >
+          {message.body}
+        </div>
+        <button
+          onClick={handleOk}
+          disabled={sending}
+          style={{ ...S.exportBtn, marginTop: 0, marginBottom: 0, width: "100%", justifyContent: "center", opacity: sending ? 0.7 : 1 }}
+        >
+          {sending ? <Loader2 size={15} className="spin" /> : t("adminMessage.ok")}
+        </button>
       </div>
     </div>
   );

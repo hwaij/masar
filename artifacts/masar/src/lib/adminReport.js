@@ -82,9 +82,22 @@ export async function fetchStudentReport(owner, range = {}) {
 
 // نظرة عامة على كل الطلاب (ذوي رقم جامعي مسجَّل) ليوم واحد محدَّد (YYYY-MM-DD) -
 // استعلام واحد مجمَّع من الخادم (راجع mode=overview في admin-report.js)،
-// لا نداء منفصل لكل طالب.
+// لا نداء منفصل لكل طالب. يتضمَّن أيضاً noUniversityId (من سجّل أكلاً بنفس
+// اليوم بلا رقم جامعي محفوظ) وloadedCount (لعرض "تم تحميل N طالب" بالواجهة).
 export async function fetchOverview(date) {
   return callAdminReport({ mode: "overview", date });
+}
+
+// Phase 2: قائمة كل الطلاب مع تاريخ/وقت الدخول ونافذة الأسبوعين المحسوبة -
+// راجع mode=studentsOverview في admin-report.js.
+export async function fetchStudentsOverview() {
+  return callAdminReport({ mode: "studentsOverview" });
+}
+
+// Phase 4: تقرير نافذة الأسبوعين الكامل لطالب واحد (كل الأنشطة المسجَّلة
+// ضمن النافذة) - راجع mode=studentWindowReport في admin-report.js.
+export async function fetchStudentWindowReport(owner) {
+  return callAdminReport({ mode: "studentWindowReport", owner });
 }
 
 // جوهر مشترك لإرسال التذكير الفوري (POST لا GET - إجراء جانبي حقيقي: إرسال
@@ -128,4 +141,40 @@ export async function sendReminder(reminderType) {
 // والتحقق تماماً (mode=broadcast نفسه)، فرق واحد فقط في حمولة الطلب.
 export async function sendCustomReminder(message) {
   return postBroadcast({ customMessage: message });
+}
+
+// Phase 3: رسالة لمجموعة محدَّدة (مو لكل المستخدمين كـsendReminder/
+// sendCustomReminder أعلاه) - targetOwners مصفوفة معرّفات حسابات، body نص
+// الرسالة كما كتبه المالك بالضبط، targetDescription وصف نصي اختياري لعرضه
+// لاحقاً في قائمة الرسائل المرسَلة ("كل من دخل يوم 2026-10-05" مثلاً).
+export async function sendGroupMessage({ targetOwners, body, targetDescription }) {
+  const token = await getAccessToken();
+  if (!token) throw new Error("NOT_SIGNED_IN");
+  const res = await fetch(`${ADMIN_REPORT_URL}?mode=sendMessage`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ targetOwners, body, targetDescription }),
+  });
+  let data;
+  try {
+    data = await res.json();
+  } catch {
+    data = {};
+  }
+  if (!res.ok) {
+    const err = new Error(data?.error || "UNKNOWN");
+    err.status = res.status;
+    throw err;
+  }
+  return data;
+}
+
+// قائمة الرسائل المرسَلة سابقاً + عدّاد الاستلام لكل واحدة.
+export async function fetchMessages() {
+  return callAdminReport({ mode: "messages" });
+}
+
+// تفاصيل مستلمي رسالة واحدة (✓/✗ لكل طالب + وقت الضغط).
+export async function fetchMessageReceipts(messageId) {
+  return callAdminReport({ mode: "messageReceipts", messageId });
 }

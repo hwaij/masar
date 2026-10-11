@@ -224,71 +224,86 @@ exports.handler = async (event) => {
     }
   }
 
-  // نظرة عامة على كل الطلاب دفعة واحدة ليوم محدَّد - 3 استعلامات فقط بصرف
-  // النظر عن عدد الطلاب (لا طلب منفصل لكل طالب، مطلوب صراحة لتحمّل +500
-  // طالب): (1) كل الملفات الشخصية التي تحمل رقماً جامعياً، (2) nutrition_log
-  // لهذا التاريخ فقط بلا فلترة owner (يتفادى بناء قائمة in.() ضخمة قد تتجاوز
-  // حدود طول الرابط مع مئات المعرّفات)، (3) health_profile لعمودي owner/tee
-  // فقط لكل الصفوف (خفيف الحجم حتى مع آلاف المستخدمين). المطابقة والتجميع
-  // (owner -> مجموع اليوم) تتم بالذاكرة هنا بعد الجلب، لا بالقاعدة.
+  // نظرة عامة على كل الطلاب دفعة واحدة ليوم محدَّد. السبب الحقيقي للخلل
+  // القديم (قائمة ناقصة/غير مستقرة، طلبة سجّلوا أكلاً ولا يظهرون): كل
+  // استعلام "صفوف متعددة" من PostgREST يخضع لحد Supabase الافتراضي للصفوف
+  // المُعادة (Max Rows، 1000 افتراضياً) بصرف النظر عن limit= المطلوب صريحاً،
+  // وبلا ORDER BY ثابت على تلك الاستعلامات القديمة (profile/nutrition_log)
+  // أي صفوف تقع ضمن الـ1000 المُعادة غير مضمونة الثبات بين طلبين متطابقين -
+  // هذا يطابق تماماً عرض "رفرش عدة مرات لرؤية الكل" و"طلبة سجّلوا ولا
+  // يظهرون" (قد يسقطون من الاقتطاع العشوائي في أي طلب). الإصلاح: استدعاء
+  // admin_overview_for_date (راجع supabase-schema.sql) التي تُعيد صفاً واحداً
+  // فقط دائماً (json يحوي كل البيانات كمصفوفة بداخله) - حد الصفوف لا ينطبق
+  // إطلاقاً على استجابة من صف واحد بصرف النظر عن عدد الطلاب الحقيقي.
   if (mode === "overview") {
     const date = (event.queryStringParameters?.date || "").trim();
     if (!isValidDateStr(date)) return json(400, { error: "تاريخ غير صالح." });
 
     try {
-      const profRes = await fetch(
-        `${url}/rest/v1/profile?university_id=not.is.null&select=owner,university_id,name&limit=2000`,
-        { headers: serviceHeaders },
-      );
-      if (!profRes.ok) return json(502, { error: "تعذّر جلب قائمة الطلاب الآن، حاول مرة أخرى." });
-      const profiles = await profRes.json();
-      if (!Array.isArray(profiles) || profiles.length === 0) return json(200, { date, students: [] });
-
-      const [logRes, healthRes] = await Promise.all([
-        fetch(
-          `${url}/rest/v1/nutrition_log?date=eq.${encodeURIComponent(date)}&select=owner,calories,protein,carbs,fat`,
-          { headers: serviceHeaders },
-        ),
-        fetch(`${url}/rest/v1/health_profile?select=owner,tee,gender`, { headers: serviceHeaders }),
-      ]);
-      if (!logRes.ok || !healthRes.ok) return json(502, { error: "تعذّر جلب بيانات اليوم الآن، حاول مرة أخرى." });
-      const logs = await logRes.json();
-      const healthRows = await healthRes.json();
-
-      const totalsByOwner = new Map();
-      for (const row of logs) {
-        if (!totalsByOwner.has(row.owner)) totalsByOwner.set(row.owner, { calories: 0, protein: 0, carbs: 0, fat: 0, count: 0 });
-        const t = totalsByOwner.get(row.owner);
-        t.calories += Number(row.calories) || 0;
-        t.protein += Number(row.protein) || 0;
-        t.carbs += Number(row.carbs) || 0;
-        t.fat += Number(row.fat) || 0;
-        t.count += 1;
-      }
-      const teeByOwner = new Map(healthRows.map((r) => [r.owner, typeof r.tee === "number" ? r.tee : null]));
-      // الجنس (male/female) - عرض فقط، لا علاقة له بأي حساب هنا (ذاك يبقى
-      // حصراً عبر tee المحسوب مسبقاً وقت إكمال "أنت"؛ هذا العمود توضيحي بحت).
-      const genderByOwner = new Map(healthRows.map((r) => [r.owner, r.gender === "male" || r.gender === "female" ? r.gender : null]));
-
-      const students = profiles.map((p) => {
-        const t = totalsByOwner.get(p.owner);
-        return {
-          owner: p.owner,
-          universityId: p.university_id || "",
-          name: p.name || "",
-          gender: genderByOwner.get(p.owner) ?? null,
-          ateToday: !!t && t.count > 0,
-          calories: t ? Math.round(t.calories) : 0,
-          protein: t ? Math.round(t.protein) : 0,
-          carbs: t ? Math.round(t.carbs) : 0,
-          fat: t ? Math.round(t.fat) : 0,
-          tee: teeByOwner.get(p.owner) ?? null,
-        };
+      const res = await fetch(`${url}/rest/v1/rpc/admin_overview_for_date`, {
+        method: "POST",
+        headers: { ...serviceHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ p_date: date }),
       });
-      return json(200, { date, students });
+      if (!res.ok) return json(502, { error: "تعذّر جلب النظرة العامة الآن، حاول مرة أخرى.", partial: true });
+      const data = await res.json();
+      const students = (data?.students || []).map((s) => ({
+        owner: s.owner,
+        universityId: s.universityId || "",
+        name: s.name || "",
+        gender: s.gender === "male" || s.gender === "female" ? s.gender : null,
+        ateToday: !!s.ateToday,
+        calories: Math.round(Number(s.calories) || 0),
+        protein: Math.round(Number(s.protein) || 0),
+        carbs: Math.round(Number(s.carbs) || 0),
+        fat: Math.round(Number(s.fat) || 0),
+        tee: typeof s.tee === "number" ? s.tee : null,
+      }));
+      const noUniversityId = (data?.noUniversityId || []).map((s) => ({ owner: s.owner, name: s.name || "" }));
+      return json(200, { date, students, noUniversityId, loadedCount: students.length });
     } catch (e) {
       console.error("[admin-report] overview failed:", e);
-      return json(502, { error: "تعذّر جلب النظرة العامة الآن، حاول مرة أخرى." });
+      return json(502, { error: "تعذّر جلب النظرة العامة الآن، حاول مرة أخرى.", partial: true });
+    }
+  }
+
+  // Phase 2: قائمة كل الطلاب مع تاريخ/وقت الدخول ونافذة الأسبوعين - راجع
+  // admin_students_overview في supabase-schema.sql لمنطق الحساب الكامل (كل
+  // شيء بتوقيت الكويت، وداخل نداء واحد بنفس مبدأ إصلاح mode=overview أعلاه).
+  if (mode === "studentsOverview") {
+    try {
+      const res = await fetch(`${url}/rest/v1/rpc/admin_students_overview`, {
+        method: "POST",
+        headers: { ...serviceHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) return json(502, { error: "تعذّر جلب قائمة الطلاب الآن، حاول مرة أخرى.", partial: true });
+      const students = await res.json();
+      return json(200, { students: Array.isArray(students) ? students : [], loadedCount: Array.isArray(students) ? students.length : 0 });
+    } catch (e) {
+      console.error("[admin-report] studentsOverview failed:", e);
+      return json(502, { error: "تعذّر جلب قائمة الطلاب الآن، حاول مرة أخرى.", partial: true });
+    }
+  }
+
+  // Phase 4: تقرير نافذة الأسبوعين الكامل لطالب واحد (كل الأنشطة المسجَّلة
+  // ضمن النافذة، نداء واحد - راجع admin_student_window_report في
+  // supabase-schema.sql).
+  if (mode === "studentWindowReport") {
+    const owner = (event.queryStringParameters?.owner || "").trim();
+    if (!owner) return json(400, { error: "معرّف طالب غير صالح." });
+    try {
+      const res = await fetch(`${url}/rest/v1/rpc/admin_student_window_report`, {
+        method: "POST",
+        headers: { ...serviceHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ p_owner: owner }),
+      });
+      if (!res.ok) return json(502, { error: "تعذّر جلب تقرير الطالب الآن، حاول مرة أخرى." });
+      const data = await res.json();
+      return json(200, data);
+    } catch (e) {
+      console.error("[admin-report] studentWindowReport failed:", e);
+      return json(502, { error: "تعذّر جلب تقرير الطالب الآن، حاول مرة أخرى." });
     }
   }
 
@@ -375,6 +390,169 @@ exports.handler = async (event) => {
     } catch (e) {
       console.error("[admin-report] broadcast failed:", e);
       return json(502, { error: "تعذّر إرسال التذكير الآن، حاول مرة أخرى." });
+    }
+  }
+
+  // Phase 3: إرسال رسالة لمجموعة محدَّدة من الطلاب (owners مختارون من
+  // الواجهة، بإقصاء أي استبعاد فردي سبق منه) - تُنشئ صف admin_messages واحد
+  // + صف admin_message_receipts لكل مستلم (الحارس الحقيقي لـ"ظهور الرسالة
+  // الحاجبة له فقط" - RLS على admin_messages نفسها تمنع أي قراءة بلا صف
+  // استلام مطابق، راجع supabase-schema.sql)، ثم تحاول إرسال Push حقيقي (أفضل
+  // مجهود - المسار الموثوق الحقيقي يبقى الشاشة الحاجبة داخل التطبيق نفسها،
+  // لا الإشعار).
+  if (mode === "sendMessage") {
+    if (event.httpMethod !== "POST") return json(405, { error: "Method not allowed" });
+
+    let bodyParams = {};
+    try {
+      bodyParams = JSON.parse(event.body || "{}");
+    } catch {
+      bodyParams = {};
+    }
+    const messageBody = (bodyParams.body || "").trim();
+    const targetOwners = Array.isArray(bodyParams.targetOwners)
+      ? [...new Set(bodyParams.targetOwners.filter((o) => typeof o === "string" && o && o !== "solo"))]
+      : [];
+    const targetDescription = (bodyParams.targetDescription || "").trim();
+    if (!messageBody) return json(400, { error: "الرسالة فارغة." });
+    if (targetOwners.length === 0) return json(400, { error: "لم يتم اختيار أي طالب." });
+
+    try {
+      const createRes = await fetch(`${url}/rest/v1/admin_messages`, {
+        method: "POST",
+        headers: { ...serviceHeaders, "Content-Type": "application/json", Prefer: "return=representation" },
+        body: JSON.stringify({ body: messageBody, target_description: targetDescription || null }),
+      });
+      if (!createRes.ok) return json(502, { error: "تعذّر إنشاء الرسالة الآن، حاول مرة أخرى." });
+      const created = await createRes.json();
+      const messageId = Array.isArray(created) && created[0]?.id;
+      if (!messageId) return json(502, { error: "تعذّر إنشاء الرسالة الآن، حاول مرة أخرى." });
+
+      const receiptsRes = await fetch(`${url}/rest/v1/admin_message_receipts`, {
+        method: "POST",
+        headers: { ...serviceHeaders, "Content-Type": "application/json", Prefer: "return=minimal" },
+        body: JSON.stringify(targetOwners.map((owner) => ({ message_id: messageId, owner }))),
+      });
+      if (!receiptsRes.ok) return json(502, { error: "تعذّر تسجيل المستلمين الآن، حاول مرة أخرى." });
+
+      // إرسال Push أفضل مجهود - فشله لا يفشل الطلب كله (الرسالة والمستلمون
+      // سُجِّلوا فعلاً، والشاشة الحاجبة ستظهر عند فتح التطبيق بصرف النظر عن
+      // نجاح/فشل الإشعار نفسه).
+      let pushSent = 0;
+      const vapidPublicKey = (process.env.VAPID_PUBLIC_KEY || "").trim();
+      const vapidPrivateKey = (process.env.VAPID_PRIVATE_KEY || "").trim();
+      const vapidSubject = (process.env.VAPID_SUBJECT || "").trim();
+      if (vapidPublicKey && vapidPrivateKey && vapidSubject) {
+        try {
+          configureVapid(vapidSubject, vapidPublicKey, vapidPrivateKey);
+          const targetSet = new Set(targetOwners);
+          const subsRes = await fetch(
+            `${url}/rest/v1/push_subscriptions?select=id,owner,endpoint,p256dh,auth,platform`,
+            { headers: serviceHeaders },
+          );
+          if (subsRes.ok) {
+            const allSubs = await subsRes.json();
+            const subs = allSubs.filter((s) => targetSet.has(s.owner));
+            // العنوان "مسارك" فقط - بلا "رسالة من الإدارة" أو أي كلمة تخوّف
+            // (نفس اشتراط الواجهة الحاجبة بالضبط).
+            const notificationPayload = JSON.stringify({ title: "مسارك", body: messageBody, url: "/" });
+            const results = await Promise.all(
+              subs.map((sub) => sendToSubscriptionRow({ url, headers: serviceHeaders, sub, notificationPayload })),
+            );
+            const sentOwners = new Set();
+            results.forEach((r, i) => { if (r.ok) sentOwners.add(subs[i].owner); });
+            pushSent = sentOwners.size;
+          }
+        } catch (e) {
+          console.error("[admin-report] sendMessage push failed (message still created):", e);
+        }
+      }
+
+      return json(200, { messageId, totalTargets: targetOwners.length, pushSent });
+    } catch (e) {
+      console.error("[admin-report] sendMessage failed:", e);
+      return json(502, { error: "تعذّر إرسال الرسالة الآن، حاول مرة أخرى." });
+    }
+  }
+
+  // قائمة الرسائل المرسَلة سابقاً + عدّاد (كم ضغط موافق من أصل كم مستلم)
+  // لكل واحدة - آخر 100 رسالة فقط (كافية لأي استخدام فعلي لهذه الميزة).
+  if (mode === "messages") {
+    try {
+      const messagesRes = await fetch(
+        `${url}/rest/v1/admin_messages?select=id,body,created_at,target_description&order=created_at.desc&limit=100`,
+        { headers: serviceHeaders },
+      );
+      if (!messagesRes.ok) return json(502, { error: "تعذّر جلب الرسائل الآن، حاول مرة أخرى." });
+      const messages = await messagesRes.json();
+      if (!Array.isArray(messages) || messages.length === 0) return json(200, { messages: [] });
+
+      const ids = messages.map((m) => `"${m.id}"`).join(",");
+      const receiptsRes = await fetch(
+        `${url}/rest/v1/admin_message_receipts?message_id=in.(${ids})&select=message_id,acknowledged_at`,
+        { headers: serviceHeaders },
+      );
+      if (!receiptsRes.ok) return json(502, { error: "تعذّر جلب حالة الاستلام الآن، حاول مرة أخرى." });
+      const receipts = await receiptsRes.json();
+
+      const countsByMessage = new Map();
+      for (const r of receipts) {
+        if (!countsByMessage.has(r.message_id)) countsByMessage.set(r.message_id, { total: 0, acknowledged: 0 });
+        const c = countsByMessage.get(r.message_id);
+        c.total += 1;
+        if (r.acknowledged_at) c.acknowledged += 1;
+      }
+
+      return json(200, {
+        messages: messages.map((m) => {
+          const c = countsByMessage.get(m.id) || { total: 0, acknowledged: 0 };
+          return {
+            id: m.id,
+            body: m.body,
+            createdAt: m.created_at,
+            targetDescription: m.target_description || "",
+            totalTargets: c.total,
+            acknowledgedCount: c.acknowledged,
+          };
+        }),
+      });
+    } catch (e) {
+      console.error("[admin-report] messages failed:", e);
+      return json(502, { error: "تعذّر جلب الرسائل الآن، حاول مرة أخرى." });
+    }
+  }
+
+  // تفاصيل مستلمي رسالة واحدة (✓/✗ لكل طالب + وقت الضغط) - messageId مطلوب.
+  if (mode === "messageReceipts") {
+    const messageId = (event.queryStringParameters?.messageId || "").trim();
+    if (!messageId) return json(400, { error: "معرّف رسالة غير صالح." });
+    try {
+      const [receiptsRes, profilesRes] = await Promise.all([
+        fetch(
+          `${url}/rest/v1/admin_message_receipts?message_id=eq.${encodeURIComponent(messageId)}&select=owner,sent_at,acknowledged_at`,
+          { headers: serviceHeaders },
+        ),
+        fetch(`${url}/rest/v1/profile?select=owner,university_id,name`, { headers: serviceHeaders }),
+      ]);
+      if (!receiptsRes.ok || !profilesRes.ok) return json(502, { error: "تعذّر جلب قائمة المستلمين الآن، حاول مرة أخرى." });
+      const receipts = await receiptsRes.json();
+      const profiles = await profilesRes.json();
+      const profileByOwner = new Map(profiles.map((p) => [p.owner, p]));
+
+      const result = receipts.map((r) => {
+        const p = profileByOwner.get(r.owner);
+        return {
+          owner: r.owner,
+          universityId: p?.university_id || "",
+          name: p?.name || "",
+          sentAt: r.sent_at,
+          acknowledgedAt: r.acknowledged_at || null,
+        };
+      });
+      return json(200, { receipts: result });
+    } catch (e) {
+      console.error("[admin-report] messageReceipts failed:", e);
+      return json(502, { error: "تعذّر جلب قائمة المستلمين الآن، حاول مرة أخرى." });
     }
   }
 

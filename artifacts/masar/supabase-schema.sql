@@ -2371,6 +2371,248 @@ $$;
 revoke execute on function public.block_banned_email_signup(jsonb) from public, anon, authenticated;
 grant execute on function public.block_banned_email_signup(jsonb) to supabase_auth_admin;
 
+-- ============================================================
+-- لوحة الأدمن - إصلاح القائمة الناقصة (Phase 1) + جدول الطلاب/تواريخ
+-- الدخول (Phase 2) + تقرير نافذة الأسبوعين (Phase 4).
+--
+-- السبب الجذري للخلل القديم (راجع التقرير النهائي للتفاصيل الكاملة): كل
+-- استعلامات netlify/functions/admin-report.js السابقة كانت تطلب "صفوفاً"
+-- مباشرة من PostgREST (profile/nutrition_log)، وأي استجابة "صفوف متعددة"
+-- من PostgREST تخضع لحد Supabase الافتراضي للصفوف المُعادة لكل طلب (Max
+-- Rows، 1000 افتراضياً من لوحة Settings > API) بصرف النظر عن أي limit=
+-- أكبر يطلبه الكود صريحاً - وبلا ORDER BY ثابت على تلك الاستعلامات، أي صفوف
+-- بالضبط تقع ضمن الـ1000 المُعادة غير مضمونة الثبات بين طلبين متطابقين (لا
+-- ترتيب فعلي لصفوف الجدول بلا ORDER BY في SQL، خاصة مع جدول يستمر الكتابة
+-- عليه). الحل هنا: كل دالة أدناه تُعيد صفاً واحداً فقط دائماً (json واحد
+-- يحوي كل البيانات كمصفوفة JSON بداخله) - بنفس المبدأ المُثبَت أصلاً في
+-- get_background_bundle() أعلاه - فحد الصفوف لا ينطبق إطلاقاً بصرف النظر
+-- عن عدد الطلاب الحقيقي.
+--
+-- أمان حرج: الدوال الثلاث أدناه security definer (تتجاوز RLS لتقرأ بيانات
+-- كل الطلاب معاً، لا بيانات المتصل بها هو فقط) ولا تحتوي أي فحص صلاحية
+-- داخلي خاص بها - الفحص الوحيد (بريد الأدمن) يبقى حصراً في admin-report.js
+-- على الخادم قبل استدعائها بمفتاح service_role. لذا يجب حصر صلاحية
+-- EXECUTE على service_role فقط (revoke/grant أدناه لكل دالة) - بلا هذا
+-- الحصر، أي مستخدم مسجَّل دخول عادي يقدر يستدعيها مباشرة من المتصفح
+-- (supabase.rpc(...)) ويرى بيانات كل الطلاب الصحية/الغذائية، لا بيانات
+-- حسابه هو فقط. هذا هو نفس نمط الحصر المطبَّق أصلاً على
+-- block_banned_email_signup أعلاه بالضبط.
+-- ============================================================
+
+-- نظرة عامة ليوم واحد: كل الطلاب ذوي رقم جامعي (مع مجموع استهلاكهم لليوم)،
+-- + قسم منفصل لمن سجّل أكلاً بنفس اليوم بلا رقم جامعي محفوظ في ملفه (سبب
+-- حقيقي ثانٍ منفصل تماماً عن حد الصفوف: هؤلاء لا يظهرون أبداً في القائمة
+-- الأولى بصرف النظر عن أي إصلاح لحد الصفوف، لأن الشرط university_id is not
+-- null يستثنيهم بنيوياً - لا علّة عابرة).
+create or replace function public.admin_overview_for_date(p_date text)
+returns json
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  result json;
+begin
+  select json_build_object(
+    'students', coalesce((
+      select json_agg(row_to_json(x) order by x.university_id)
+      from (
+        select
+          p.owner,
+          p.university_id as "universityId",
+          p.name,
+          hp.gender,
+          (nl.owner is not null) as "ateToday",
+          coalesce(nl.calories, 0) as calories,
+          coalesce(nl.protein, 0) as protein,
+          coalesce(nl.carbs, 0) as carbs,
+          coalesce(nl.fat, 0) as fat,
+          hp.tee
+        from profile p
+        left join health_profile hp on hp.owner = p.owner
+        left join (
+          select owner, sum(calories) as calories, sum(protein) as protein, sum(carbs) as carbs, sum(fat) as fat
+          from nutrition_log where date = p_date
+          group by owner
+        ) nl on nl.owner = p.owner
+        where p.university_id is not null and p.university_id <> ''
+      ) x
+    ), '[]'::json),
+    'noUniversityId', coalesce((
+      select json_agg(row_to_json(y) order by y.owner)
+      from (
+        select distinct nl.owner, p.name
+        from nutrition_log nl
+        left join profile p on p.owner = nl.owner
+        where nl.date = p_date
+          and (p.university_id is null or p.university_id = '')
+      ) y
+    ), '[]'::json)
+  ) into result;
+  return result;
+end;
+$$;
+revoke all on function public.admin_overview_for_date(text) from public, anon, authenticated;
+grant execute on function public.admin_overview_for_date(text) to service_role;
+
+-- قائمة كل الطلاب (ذوي رقم جامعي) مع تاريخ/وقت دخولهم الحقيقي (auth.users.
+-- created_at، محوَّل لتوقيت الكويت) ونافذة الأسبوعين المحسوبة منه تحديداً
+-- لكل طالب (لا تاريخ موحَّد) - الأيام المسجَّلة تُحسب فقط داخل تلك النافذة
+-- بالضبط (date >= تاريخ الدخول وdate <= تاريخ الدخول+14) كما طُلب صراحة.
+create or replace function public.admin_students_overview()
+returns json
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  result json;
+begin
+  select coalesce(json_agg(row_to_json(x) order by x."signupAt" desc), '[]'::json) into result
+  from (
+    select
+      p.owner,
+      p.university_id as "universityId",
+      p.name,
+      hp.gender,
+      u.created_at as "signupAt",
+      (u.created_at at time zone 'Asia/Kuwait')::date as "signupLocalDate",
+      fl.first_log_date as "firstLogDate",
+      ((u.created_at at time zone 'Asia/Kuwait')::date + 14) as "windowEndDate",
+      case when (now() at time zone 'Asia/Kuwait')::date > ((u.created_at at time zone 'Asia/Kuwait')::date + 14)
+        then 'completed' else 'ongoing' end as status,
+      greatest(((u.created_at at time zone 'Asia/Kuwait')::date + 14) - (now() at time zone 'Asia/Kuwait')::date, 0) as "daysRemaining",
+      coalesce(dl.days_logged, 0) as "daysLoggedInWindow"
+    from profile p
+    join auth.users u on u.id::text = p.owner
+    left join health_profile hp on hp.owner = p.owner
+    left join (
+      select owner, min(date) as first_log_date from nutrition_log group by owner
+    ) fl on fl.owner = p.owner
+    left join (
+      select nl.owner, count(distinct nl.date) as days_logged
+      from nutrition_log nl
+      join profile pp on pp.owner = nl.owner
+      join auth.users uu on uu.id::text = pp.owner
+      where nl.date >= ((uu.created_at at time zone 'Asia/Kuwait')::date)::text
+        and nl.date <= (((uu.created_at at time zone 'Asia/Kuwait')::date + 14))::text
+      group by nl.owner
+    ) dl on dl.owner = p.owner
+    where p.university_id is not null and p.university_id <> ''
+  ) x;
+  return result;
+end;
+$$;
+revoke all on function public.admin_students_overview() from public, anon, authenticated;
+grant execute on function public.admin_students_overview() to service_role;
+
+-- تقرير نافذة الأسبوعين الكامل لطالب واحد (من دخوله إلى +14 يوم بتوقيت
+-- الكويت) - كل الأنشطة المسجَّلة ضمن النافذة في نداء واحد (نفس مبدأ تجميع
+-- json_agg أعلاه، لا طلبات متعددة لكل جدول).
+create or replace function public.admin_student_window_report(p_owner text)
+returns json
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  result json;
+  v_signup_date date;
+  v_window_end date;
+begin
+  select (u.created_at at time zone 'Asia/Kuwait')::date into v_signup_date
+  from auth.users u where u.id::text = p_owner;
+
+  if v_signup_date is null then
+    return json_build_object('found', false);
+  end if;
+  v_window_end := v_signup_date + 14;
+
+  select json_build_object(
+    'found', true,
+    'owner', p_owner,
+    'signupDate', v_signup_date,
+    'windowEndDate', v_window_end,
+    'profile', (select row_to_json(x) from (select name, university_id as "universityId" from profile where owner = p_owner) x),
+    'healthProfile', (select row_to_json(x) from (select gender, tee from health_profile where owner = p_owner) x),
+    'nutritionLog', coalesce((select json_agg(row_to_json(x) order by x.date, x.created_at) from (
+      select date, meal_type, food_name, quantity, unit, calories, protein, carbs, fat, fiber, sugar, sodium, cholesterol, source, created_at
+      from nutrition_log where owner = p_owner and date >= v_signup_date::text and date <= v_window_end::text
+    ) x), '[]'::json),
+    'waterLog', coalesce((select json_agg(row_to_json(x) order by x.date) from (
+      select date, cups_count from water_log where owner = p_owner and date >= v_signup_date::text and date <= v_window_end::text
+    ) x), '[]'::json),
+    'weightLog', coalesce((select json_agg(row_to_json(x) order by x.date) from (
+      select date, weight_kg from weight_log where owner = p_owner and date >= v_signup_date::text and date <= v_window_end::text
+    ) x), '[]'::json),
+    'stepsLog', coalesce((select json_agg(row_to_json(x) order by x.date) from (
+      select date, steps from steps_log where owner = p_owner and date >= v_signup_date::text and date <= v_window_end::text
+    ) x), '[]'::json),
+    'fitnessLog', coalesce((select json_agg(row_to_json(x) order by x.date) from (
+      select date, day_completed from fitness_log where owner = p_owner and date >= v_signup_date::text and date <= v_window_end::text
+    ) x), '[]'::json)
+  ) into result;
+
+  return result;
+end;
+$$;
+revoke all on function public.admin_student_window_report(text) from public, anon, authenticated;
+grant execute on function public.admin_student_window_report(text) to service_role;
+
+-- ============================================================
+-- رسالة لمجموعة محددة مع إجبار "موافق" (Phase 3).
+-- admin_messages: نص الرسالة - يُنشأ فقط من الخادم (service_role بعد تحقق
+-- بريد الأدمن) - RLS مفعّل بلا أي policy لـinsert/update/delete لأي دور
+-- عادي، وselect محصور لمن له صف استلام فعلي (أدناه) فلا تظهر لغير المستلمين.
+-- admin_message_receipts: صف واحد لكل (رسالة، مستلم) - المستلم يقرأ صفّه هو
+-- فقط، ولا يعدّله مباشرة إطلاقاً (لا policy لـupdate هنا) - التأكيد الوحيد
+-- الممكن هو عبر acknowledge_admin_message أدناه (تضبط acknowledged_at
+-- لصفّه هو فقط، بفحص داخلي لا يعتمد على أي policy خارجية).
+-- ============================================================
+create table if not exists admin_messages (
+  id                 uuid primary key default gen_random_uuid(),
+  body               text not null,
+  created_at         timestamptz not null default now(),
+  target_description text
+);
+alter table admin_messages enable row level security;
+
+create table if not exists admin_message_receipts (
+  message_id        uuid not null references admin_messages(id) on delete cascade,
+  owner             text not null,
+  sent_at           timestamptz not null default now(),
+  acknowledged_at   timestamptz,
+  primary key (message_id, owner)
+);
+create index if not exists admin_message_receipts_owner on admin_message_receipts (owner);
+alter table admin_message_receipts enable row level security;
+
+drop policy if exists admin_message_receipts_select_own on admin_message_receipts;
+create policy admin_message_receipts_select_own on admin_message_receipts for select to authenticated
+  using (owner = auth.uid()::text);
+
+drop policy if exists admin_messages_select_recipient on admin_messages;
+create policy admin_messages_select_recipient on admin_messages for select to authenticated
+  using (exists (select 1 from admin_message_receipts r where r.message_id = admin_messages.id and r.owner = auth.uid()::text));
+
+-- تأكيد "موافق" - يضبط acknowledged_at لصف المستخدم المتصل هو نفسه فقط (لا
+-- معامل يحدّد مستخدماً آخر)، ولمرة واحدة فقط فعلياً (and acknowledged_at is
+-- null، فلا تُستبدَل أول قيمة فعلية بوقت ضغط ثانٍ وهمي لو استُدعيت مرتين).
+create or replace function public.acknowledge_admin_message(p_message_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  update admin_message_receipts
+  set acknowledged_at = now()
+  where message_id = p_message_id and owner = auth.uid()::text and acknowledged_at is null;
+end;
+$$;
+revoke all on function public.acknowledge_admin_message(uuid) from public;
+grant execute on function public.acknowledge_admin_message(uuid) to authenticated;
+
 -- إجبار طبقة PostgREST (التي تُعرِّض RPC عبر supabase.rpc(...)) على إعادة
 -- تحميل ذاكرتها المؤقتة للمخطط فوراً، بدل انتظار إعادة التحميل التلقائية
 -- (تحدث عادة خلال ثوانٍ، لكن قد تتأخر) - يضمن أن get_group_by_invite_code

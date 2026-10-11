@@ -236,6 +236,9 @@
       "generic": "Couldn't sign in right now, please try again"
     }
   },
+  "adminMessage": {
+    "ok": "OK"
+  },
   "onboarding": {
     "skip": "Skip",
     "start": "Start your journey now 🤍",

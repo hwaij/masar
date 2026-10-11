@@ -2404,6 +2404,27 @@ grant execute on function public.block_banned_email_signup(jsonb) to supabase_au
 -- حقيقي ثانٍ منفصل تماماً عن حد الصفوف: هؤلاء لا يظهرون أبداً في القائمة
 -- الأولى بصرف النظر عن أي إصلاح لحد الصفوف، لأن الشرط university_id is not
 -- null يستثنيهم بنيوياً - لا علّة عابرة).
+--
+-- إصلاح حقيقي (وُجد بالدليل - راجع التقرير): كانت ORDER BY تكتب
+-- x.university_id بينما العمود الفعلي بالاستعلام الفرعي x مُسمّى
+-- "universityId" (معرّف بحروف كبيرة/صغيرة مقتبَس عبر as "universityId")-
+-- "x.university_id" غير موجود إطلاقاً فيرمي PostgreSQL خطأ عمود غير موجود
+-- (42703) عند كل استدعاء عبر PostgREST، وهذا بالضبط ما كسر تبويب "نظرة
+-- عامة" (SQL Editor نفسه لا يكشف هذا إلا بتشغيل الاستدعاء الفعلي، لا بمجرد
+-- CREATE FUNCTION الذي ينجح نحوياً بصرف النظر عن صحة الإشارة للعمود داخل
+-- جملة لا تُنفَّذ إلا عند الاستدعاء الحقيقي).
+--
+-- حظر: يُستبعد أي حساب رقمه الجامعي أو بريده (lower() على الطرفين معاً -
+-- بلا افتراض أن blocked_users.email محفوظ بأحرف صغيرة دائماً، خط دفاع
+-- مزدوج كما في بقية الحظر) موجود في blocked_users - من هذه القائمة ومن
+-- قسم noUniversityId معاً، بلا حذف أي بيانات فعلية.
+--
+-- أعمدة جديدة لكل طالب: usageDaysNumerator/usageDaysDenominator ("أيام
+-- الاستخدام": كم يوماً سجّل فيه أكلاً من كم يوماً مرّ عليه منذ دخوله، اليوم
+-- الأول هو يوم الدخول نفسه، بحد أقصى 14) وgeneralActivityDays (أي نشاط
+-- مسجَّل - أكل/ماء/وزن/خطوات/تمرين - ضمن نفس الحد، لعرضه كرقم ثانٍ صغير
+-- بجانب الأساسي). والنافذة مُصحَّحة (راجع admin_students_overview أدناه
+-- لتفصيل إصلاح الـ14 يوماً).
 create or replace function public.admin_overview_for_date(p_date text)
 returns json
 language plpgsql
@@ -2415,7 +2436,7 @@ declare
 begin
   select json_build_object(
     'students', coalesce((
-      select json_agg(row_to_json(x) order by x.university_id)
+      select json_agg(row_to_json(x) order by x."universityId")
       from (
         select
           p.owner,
@@ -2427,15 +2448,67 @@ begin
           coalesce(nl.protein, 0) as protein,
           coalesce(nl.carbs, 0) as carbs,
           coalesce(nl.fat, 0) as fat,
-          hp.tee
+          hp.tee,
+          win.signup_local_date as "signupLocalDate",
+          win.window_end_date as "windowEndDate",
+          win.status,
+          win.days_remaining as "daysRemaining",
+          win.usage_numerator as "usageDaysNumerator",
+          win.usage_denominator as "usageDaysDenominator",
+          win.general_activity_days as "generalActivityDays"
         from profile p
+        join auth.users u on u.id::text = p.owner
         left join health_profile hp on hp.owner = p.owner
         left join (
           select owner, sum(calories) as calories, sum(protein) as protein, sum(carbs) as carbs, sum(fat) as fat
           from nutrition_log where date = p_date
           group by owner
         ) nl on nl.owner = p.owner
+        cross join lateral (
+          select
+            (u.created_at at time zone 'Asia/Kuwait')::date as signup_local_date,
+            ((u.created_at at time zone 'Asia/Kuwait')::date + 13) as window_end_date,
+            case when (now() at time zone 'Asia/Kuwait')::date > ((u.created_at at time zone 'Asia/Kuwait')::date + 13)
+              then 'completed' else 'ongoing' end as status,
+            greatest(((u.created_at at time zone 'Asia/Kuwait')::date + 13) - (now() at time zone 'Asia/Kuwait')::date, 0) as days_remaining,
+            least(
+              greatest(((now() at time zone 'Asia/Kuwait')::date - (u.created_at at time zone 'Asia/Kuwait')::date) + 1, 1),
+              14
+            ) as usage_denominator,
+            (
+              select count(distinct nl2.date)
+              from nutrition_log nl2
+              where nl2.owner = p.owner
+                and nl2.date >= ((u.created_at at time zone 'Asia/Kuwait')::date)::text
+                and nl2.date <= least(
+                  (now() at time zone 'Asia/Kuwait')::date,
+                  ((u.created_at at time zone 'Asia/Kuwait')::date + 13)
+                )::text
+            ) as usage_numerator,
+            (
+              select count(distinct d) from (
+                select date as d from nutrition_log where owner = p.owner
+                union
+                select date from water_log where owner = p.owner
+                union
+                select date from weight_log where owner = p.owner
+                union
+                select date from steps_log where owner = p.owner
+                union
+                select date from fitness_log where owner = p.owner
+              ) all_days
+              where d >= ((u.created_at at time zone 'Asia/Kuwait')::date)::text
+                and d <= least(
+                  (now() at time zone 'Asia/Kuwait')::date,
+                  ((u.created_at at time zone 'Asia/Kuwait')::date + 13)
+                )::text
+            ) as general_activity_days
+        ) win
         where p.university_id is not null and p.university_id <> ''
+          and not exists (
+            select 1 from blocked_users bu
+            where bu.university_id = p.university_id or lower(bu.email) = lower(u.email)
+          )
       ) x
     ), '[]'::json),
     'noUniversityId', coalesce((
@@ -2444,8 +2517,12 @@ begin
         select distinct nl.owner, p.name
         from nutrition_log nl
         left join profile p on p.owner = nl.owner
+        left join auth.users u on u.id::text = nl.owner
         where nl.date = p_date
           and (p.university_id is null or p.university_id = '')
+          and not exists (
+            select 1 from blocked_users bu where lower(bu.email) = lower(u.email)
+          )
       ) y
     ), '[]'::json)
   ) into result;
@@ -2457,8 +2534,20 @@ grant execute on function public.admin_overview_for_date(text) to service_role;
 
 -- قائمة كل الطلاب (ذوي رقم جامعي) مع تاريخ/وقت دخولهم الحقيقي (auth.users.
 -- created_at، محوَّل لتوقيت الكويت) ونافذة الأسبوعين المحسوبة منه تحديداً
--- لكل طالب (لا تاريخ موحَّد) - الأيام المسجَّلة تُحسب فقط داخل تلك النافذة
--- بالضبط (date >= تاريخ الدخول وdate <= تاريخ الدخول+14) كما طُلب صراحة.
+-- لكل طالب (لا تاريخ موحَّد). مُرتَّبة من الأقدم دخولاً للأحدث افتراضياً
+-- (الواجهة تملك زر عكس الترتيب - لا يعتمد على ترتيب هذه الدالة تحديداً،
+-- لكن هذا الترتيب الأساسي الأصح منطقياً).
+--
+-- إصلاح حساب النافذة (كانت تحسب 15 يوماً خطأً: الدخول إلى الدخول+14 شاملاً
+-- الطرفين): اليوم الأول = يوم الدخول نفسه، آخر يوم بالنافذة (اليوم 14) =
+-- الدخول+13 - فالنافذة الآن 14 يوماً بالضبط كما يجب. "اكتملت" تبقى تُحسب
+-- بنفس المقارنة (> نهاية النافذة) لكن بعد تصحيح قيمة نهاية النافذة نفسها،
+-- فتصبح الحالة "اكتملت" فقط بعد مرور اليوم 14 كاملاً (لا أثناءه) كما طُلب.
+-- عدد الأيام المسجَّلة (daysLoggedInWindow) محصور بنفس النافذة المصحَّحة
+-- فلا يتجاوز 14 بنيوياً (مدى التاريخ نفسه 14 يوماً فقط).
+--
+-- حظر: نفس استبعاد blocked_users (رقم جامعي أو بريد، غير حسّاس لحالة
+-- الأحرف) المطبَّق في admin_overview_for_date أعلاه بالضبط.
 create or replace function public.admin_students_overview()
 returns json
 language plpgsql
@@ -2468,7 +2557,7 @@ as $$
 declare
   result json;
 begin
-  select coalesce(json_agg(row_to_json(x) order by x."signupAt" desc), '[]'::json) into result
+  select coalesce(json_agg(row_to_json(x) order by x."signupAt" asc), '[]'::json) into result
   from (
     select
       p.owner,
@@ -2478,10 +2567,10 @@ begin
       u.created_at as "signupAt",
       (u.created_at at time zone 'Asia/Kuwait')::date as "signupLocalDate",
       fl.first_log_date as "firstLogDate",
-      ((u.created_at at time zone 'Asia/Kuwait')::date + 14) as "windowEndDate",
-      case when (now() at time zone 'Asia/Kuwait')::date > ((u.created_at at time zone 'Asia/Kuwait')::date + 14)
+      ((u.created_at at time zone 'Asia/Kuwait')::date + 13) as "windowEndDate",
+      case when (now() at time zone 'Asia/Kuwait')::date > ((u.created_at at time zone 'Asia/Kuwait')::date + 13)
         then 'completed' else 'ongoing' end as status,
-      greatest(((u.created_at at time zone 'Asia/Kuwait')::date + 14) - (now() at time zone 'Asia/Kuwait')::date, 0) as "daysRemaining",
+      greatest(((u.created_at at time zone 'Asia/Kuwait')::date + 13) - (now() at time zone 'Asia/Kuwait')::date, 0) as "daysRemaining",
       coalesce(dl.days_logged, 0) as "daysLoggedInWindow"
     from profile p
     join auth.users u on u.id::text = p.owner
@@ -2495,10 +2584,14 @@ begin
       join profile pp on pp.owner = nl.owner
       join auth.users uu on uu.id::text = pp.owner
       where nl.date >= ((uu.created_at at time zone 'Asia/Kuwait')::date)::text
-        and nl.date <= (((uu.created_at at time zone 'Asia/Kuwait')::date + 14))::text
+        and nl.date <= (((uu.created_at at time zone 'Asia/Kuwait')::date + 13))::text
       group by nl.owner
     ) dl on dl.owner = p.owner
     where p.university_id is not null and p.university_id <> ''
+      and not exists (
+        select 1 from blocked_users bu
+        where bu.university_id = p.university_id or lower(bu.email) = lower(u.email)
+      )
   ) x;
   return result;
 end;
@@ -2506,9 +2599,10 @@ $$;
 revoke all on function public.admin_students_overview() from public, anon, authenticated;
 grant execute on function public.admin_students_overview() to service_role;
 
--- تقرير نافذة الأسبوعين الكامل لطالب واحد (من دخوله إلى +14 يوم بتوقيت
--- الكويت) - كل الأنشطة المسجَّلة ضمن النافذة في نداء واحد (نفس مبدأ تجميع
--- json_agg أعلاه، لا طلبات متعددة لكل جدول).
+-- تقرير نافذة الأسبوعين الكامل لطالب واحد (من دخوله إلى +13 يوم بتوقيت
+-- الكويت - 14 يوماً بالضبط، نفس إصلاح admin_students_overview أعلاه) - كل
+-- الأنشطة المسجَّلة ضمن النافذة في نداء واحد (نفس مبدأ تجميع json_agg
+-- أعلاه، لا طلبات متعددة لكل جدول).
 create or replace function public.admin_student_window_report(p_owner text)
 returns json
 language plpgsql
@@ -2526,7 +2620,7 @@ begin
   if v_signup_date is null then
     return json_build_object('found', false);
   end if;
-  v_window_end := v_signup_date + 14;
+  v_window_end := v_signup_date + 13;
 
   select json_build_object(
     'found', true,

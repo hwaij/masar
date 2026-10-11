@@ -285,6 +285,14 @@ exports.handler = async (event) => {
         carbs: Math.round(Number(s.carbs) || 0),
         fat: Math.round(Number(s.fat) || 0),
         tee: typeof s.tee === "number" ? s.tee : null,
+        // "أيام الاستخدام" (X من Y) و"المتبقي" وعدد أيام النشاط العام -
+        // راجع admin_overview_for_date في supabase-schema.sql لمنطق الحساب.
+        windowEndDate: s.windowEndDate || null,
+        status: s.status === "completed" ? "completed" : "ongoing",
+        daysRemaining: typeof s.daysRemaining === "number" ? s.daysRemaining : 0,
+        usageDaysNumerator: typeof s.usageDaysNumerator === "number" ? s.usageDaysNumerator : 0,
+        usageDaysDenominator: typeof s.usageDaysDenominator === "number" ? s.usageDaysDenominator : 0,
+        generalActivityDays: typeof s.generalActivityDays === "number" ? s.generalActivityDays : 0,
       }));
       const noUniversityId = (data?.noUniversityId || []).map((s) => ({ owner: s.owner, name: s.name || "" }));
       return json(200, { date, students, noUniversityId, loadedCount: students.length });

@@ -599,6 +599,8 @@ function OverviewTab() {
                     <th style={AR.th}>{isEn ? "Carbs" : "كارب"}</th>
                     <th style={AR.th}>{isEn ? "Fat" : "دهون"}</th>
                     <th style={AR.th}>{isEn ? "Met daily need?" : "حقق احتياجه؟"}</th>
+                    <th style={AR.th}>{isEn ? "Usage days" : "أيام الاستخدام"}</th>
+                    <th style={AR.th}>{isEn ? "Remaining" : "المتبقي"}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -626,6 +628,15 @@ function OverviewTab() {
                             {r.metGoal ? (isEn ? "Yes" : "نعم") : (isEn ? "No" : "لا")}
                           </span>
                         )}
+                      </td>
+                      <td style={AR.td}>
+                        {isEn ? `${r.usageDaysNumerator} of ${r.usageDaysDenominator}` : `${r.usageDaysNumerator} من ${r.usageDaysDenominator}`}{" "}
+                        <span style={{ fontSize: 11, color: "var(--muted2)" }}>
+                          {isEn ? `(${r.generalActivityDays} active)` : `(نشاط: ${r.generalActivityDays})`}
+                        </span>
+                      </td>
+                      <td style={AR.td}>
+                        {r.status === "completed" ? (isEn ? "Completed" : "اكتملت") : r.daysRemaining}
                       </td>
                     </tr>
                   ))}
@@ -897,6 +908,9 @@ function StudentsTab() {
   const [retryTick, setRetryTick] = useState(0);
   const [statusFilter, setStatusFilter] = useState("all"); // all | completed | ongoing
   const [selectedDay, setSelectedDay] = useState(null); // signupLocalDate أو null
+  // الترتيب الافتراضي: الأقدم دخولاً أولاً (true) - زر صغير يعكسه. يُطبَّق
+  // على خانات تاريخ الدخول وجدول الطلاب معاً.
+  const [sortAsc, setSortAsc] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [openStudent, setOpenStudent] = useState(null); // {owner, universityId, name} أو null
 
@@ -931,8 +945,10 @@ function StudentsTab() {
       if (!map.has(key)) map.set(key, []);
       map.get(key).push(s);
     }
-    return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
-  }, [students]);
+    const entries = [...map.entries()];
+    entries.sort((a, b) => (sortAsc ? a[0].localeCompare(b[0]) : b[0].localeCompare(a[0])));
+    return entries;
+  }, [students, sortAsc]);
 
   const enteredToday = useMemo(() => students.filter((s) => s.signupLocalDate === localDayKey()).length, [students]);
   const enteredThisWeek = useMemo(() => {
@@ -944,8 +960,9 @@ function StudentsTab() {
     let rows = students;
     if (statusFilter !== "all") rows = rows.filter((s) => s.status === statusFilter);
     if (selectedDay) rows = rows.filter((s) => s.signupLocalDate === selectedDay);
+    rows = [...rows].sort((a, b) => (sortAsc ? a.signupAt.localeCompare(b.signupAt) : b.signupAt.localeCompare(a.signupAt)));
     return rows;
-  }, [students, statusFilter, selectedDay]);
+  }, [students, statusFilter, selectedDay, sortAsc]);
 
   async function handleExport() {
     if (exporting || filteredStudents.length === 0) return;
@@ -1038,6 +1055,9 @@ function StudentsTab() {
                 <XCircle size={13} /> {isEn ? `Clear date filter (${selectedDay})` : `إزالة فلتر التاريخ (${selectedDay})`}
               </button>
             )}
+            <button onClick={() => setSortAsc((v) => !v)} style={{ ...AR.rangeBtn, display: "flex", alignItems: "center", gap: 4 }}>
+              {sortAsc ? "↓" : "↑"} {isEn ? (sortAsc ? "Oldest first" : "Newest first") : (sortAsc ? "الأقدم أولاً" : "الأحدث أولاً")}
+            </button>
             <button onClick={handleExport} disabled={exporting || filteredStudents.length === 0} style={{ ...S.exportBtn, width: "auto", marginTop: 0, marginBottom: 0, padding: "7px 14px", opacity: exporting || filteredStudents.length === 0 ? 0.6 : 1 }}>
               {exporting ? <Loader2 size={14} className="spin" /> : <Download size={14} />}
               {isEn ? "Export Excel" : "تصدير Excel"}

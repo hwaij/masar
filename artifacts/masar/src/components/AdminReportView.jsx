@@ -441,12 +441,35 @@ const ATE_FILTER_LABEL = {
   en: { all: "All", ate: "Ate today only", notAte: "Did not eat today only" },
 };
 
+// تفاصيل خطأ PostgREST الحقيقية (code/message/hint) بخط صغير تحت رسالة
+// الخطأ العامة - هذه الشاشة محصورة بالأدمن فقط (راجع isAdminUser في
+// MasarApp.jsx، تُحمَّل هذه الشاشة أصلاً فقط له)، فلا تسريب لغيره، ولا يحوي
+// جسم خطأ PostgREST أي سرّ/مفتاح بطبيعته - فقط معلومات تشخيص SQL.
+function RpcErrorDebug({ debug, isEn }) {
+  if (!debug) return null;
+  const parts = [
+    debug.status != null && `HTTP ${debug.status}`,
+    debug.code && `code: ${debug.code}`,
+    debug.message && `message: ${debug.message}`,
+    debug.hint && `hint: ${debug.hint}`,
+    debug.details && `details: ${debug.details}`,
+  ].filter(Boolean);
+  if (parts.length === 0) return null;
+  return (
+    <div style={{ fontSize: 10.5, color: "var(--muted2)", fontFamily: "monospace", marginTop: -10, marginBottom: 16, wordBreak: "break-word", lineHeight: 1.6 }}>
+      {isEn ? "Admin diagnostic: " : "تشخيص (للأدمن فقط): "}
+      {parts.join(" · ")}
+    </div>
+  );
+}
+
 function OverviewTab() {
   const { i18n } = useTranslation();
   const isEn = i18n.language === "en";
   const [date, setDate] = useState(() => localDayKey());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [errorDebug, setErrorDebug] = useState(null);
   const [data, setData] = useState(null);
   // فلترة فورية بالواجهة فقط على نتيجة الاستعلام المجلوبة أصلاً (data.students
   // عبر rows أدناه) - لا استعلام جديد لقاعدة البيانات، لا أي استدعاء شبكي
@@ -460,16 +483,20 @@ function OverviewTab() {
     let active = true;
     setLoading(true);
     setError(null);
+    setErrorDebug(null);
     fetchOverview(date)
       .then((d) => { if (active) setData(d); })
       .catch((e) => {
         if (!active) return;
         // partial=true تعني فشلاً كاملاً وواضحاً من الخادم (RPC فشلت/تعذّر
         // الاتصال) - لا نتيجة جزئية صامتة تُعرَض كأنها كاملة، رسالة خطأ
-        // صريحة + زر إعادة المحاولة بدل شاشة فاضية مضلِّلة.
+        // صريحة + زر إعادة المحاولة بدل شاشة فاضية مضلِّلة. e.debug (إن
+        // وُجد) تفاصيل خطأ PostgREST الحقيقية - تُعرَض بخط صغير تحت الرسالة
+        // (هذه الشاشة محصورة بالأدمن أصلاً، فلا تسريب لغيره).
         setError(e.status === 403
           ? (isEn ? "Access denied." : "الوصول مرفوض.")
           : (isEn ? "Failed to load the overview, please try again." : "تعذّر جلب النظرة العامة الآن، حاول مرة أخرى."));
+        setErrorDebug(e.debug || null);
       })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -525,13 +552,16 @@ function OverviewTab() {
       {loading && <div style={AR.emptyBox}><Loader2 size={20} className="spin" /></div>}
 
       {error && (
-        <div style={AR.errorBox}>
-          <ShieldAlert size={16} style={{ flexShrink: 0, marginTop: 1 }} />
-          <span>{error}</span>
-          <button onClick={() => setRetryTick((n) => n + 1)} style={{ ...S.exportBtn, marginTop: 0, marginBottom: 0, width: "auto", padding: "7px 14px", flexShrink: 0 }}>
-            {isEn ? "Retry" : "أعد المحاولة"}
-          </button>
-        </div>
+        <>
+          <div style={AR.errorBox}>
+            <ShieldAlert size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+            <span>{error}</span>
+            <button onClick={() => setRetryTick((n) => n + 1)} style={{ ...S.exportBtn, marginTop: 0, marginBottom: 0, width: "auto", padding: "7px 14px", flexShrink: 0 }}>
+              {isEn ? "Retry" : "أعد المحاولة"}
+            </button>
+          </div>
+          <RpcErrorDebug debug={errorDebug} isEn={isEn} />
+        </>
       )}
 
       {!loading && !error && data && (
@@ -659,6 +689,7 @@ function StudentWindowReportModal({ owner, universityId, name, onClose }) {
   const isEn = i18n.language === "en";
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [errorDebug, setErrorDebug] = useState(null);
   const [report, setReport] = useState(null);
   const [exporting, setExporting] = useState(false);
 
@@ -666,9 +697,14 @@ function StudentWindowReportModal({ owner, universityId, name, onClose }) {
     let active = true;
     setLoading(true);
     setError(null);
+    setErrorDebug(null);
     fetchStudentWindowReport(owner)
       .then((d) => { if (active) setReport(d); })
-      .catch(() => { if (active) setError(isEn ? "Failed to load the report, please try again." : "تعذّر جلب التقرير الآن، حاول مرة أخرى."); })
+      .catch((e) => {
+        if (!active) return;
+        setError(isEn ? "Failed to load the report, please try again." : "تعذّر جلب التقرير الآن، حاول مرة أخرى.");
+        setErrorDebug(e.debug || null);
+      })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [owner, isEn]);
@@ -757,7 +793,12 @@ function StudentWindowReportModal({ owner, universityId, name, onClose }) {
         </div>
 
         {loading && <div style={AR.emptyBox}><Loader2 size={20} className="spin" /></div>}
-        {error && <div style={AR.errorBox}><ShieldAlert size={16} /><span>{error}</span></div>}
+        {error && (
+          <>
+            <div style={AR.errorBox}><ShieldAlert size={16} /><span>{error}</span></div>
+            <RpcErrorDebug debug={errorDebug} isEn={isEn} />
+          </>
+        )}
 
         {!loading && !error && report && !report.found && (
           <div style={AR.emptyBox}>{isEn ? "Account not found." : "الحساب غير موجود."}</div>
@@ -851,6 +892,7 @@ function StudentsTab() {
   const isEn = i18n.language === "en";
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [errorDebug, setErrorDebug] = useState(null);
   const [students, setStudents] = useState([]);
   const [retryTick, setRetryTick] = useState(0);
   const [statusFilter, setStatusFilter] = useState("all"); // all | completed | ongoing
@@ -862,6 +904,7 @@ function StudentsTab() {
     let active = true;
     setLoading(true);
     setError(null);
+    setErrorDebug(null);
     // النظرة العامة لليوم الحالي تُستخدَم فقط لمعرفة "كم أكل اليوم" ضمن كل
     // خانة يوم دخول (راجع ateTodayByOwner أدناه) - لا علاقة لها بتاريخ الدخول
     // نفسه.
@@ -871,7 +914,11 @@ function StudentsTab() {
         const ateTodayByOwner = new Map((todayData?.students || []).map((s) => [s.owner, s.ateToday]));
         setStudents((rosterData?.students || []).map((s) => ({ ...s, ateToday: ateTodayByOwner.get(s.owner) ?? false })));
       })
-      .catch(() => { if (active) setError(isEn ? "Failed to load the students list, please try again." : "تعذّر جلب قائمة الطلاب الآن، حاول مرة أخرى."); })
+      .catch((e) => {
+        if (!active) return;
+        setError(isEn ? "Failed to load the students list, please try again." : "تعذّر جلب قائمة الطلاب الآن، حاول مرة أخرى.");
+        setErrorDebug(e.debug || null);
+      })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -932,13 +979,16 @@ function StudentsTab() {
 
       {loading && <div style={AR.emptyBox}><Loader2 size={20} className="spin" /></div>}
       {error && (
-        <div style={AR.errorBox}>
-          <ShieldAlert size={16} style={{ flexShrink: 0, marginTop: 1 }} />
-          <span>{error}</span>
-          <button onClick={() => setRetryTick((n) => n + 1)} style={{ ...S.exportBtn, marginTop: 0, marginBottom: 0, width: "auto", padding: "7px 14px", flexShrink: 0 }}>
-            {isEn ? "Retry" : "أعد المحاولة"}
-          </button>
-        </div>
+        <>
+          <div style={AR.errorBox}>
+            <ShieldAlert size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+            <span>{error}</span>
+            <button onClick={() => setRetryTick((n) => n + 1)} style={{ ...S.exportBtn, marginTop: 0, marginBottom: 0, width: "auto", padding: "7px 14px", flexShrink: 0 }}>
+              {isEn ? "Retry" : "أعد المحاولة"}
+            </button>
+          </div>
+          <RpcErrorDebug debug={errorDebug} isEn={isEn} />
+        </>
       )}
 
       {!loading && !error && (
@@ -1110,6 +1160,7 @@ function GroupMessageSection() {
   const isEn = i18n.language === "en";
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [errorDebug, setErrorDebug] = useState(null);
   const [students, setStudents] = useState([]);
   const [selectedDays, setSelectedDays] = useState(new Set());
   const [completedOnly, setCompletedOnly] = useState(false);
@@ -1122,7 +1173,11 @@ function GroupMessageSection() {
     let active = true;
     fetchStudentsOverview()
       .then((d) => { if (active) setStudents(d?.students || []); })
-      .catch(() => { if (active) setError(isEn ? "Failed to load the students list, please try again." : "تعذّر جلب قائمة الطلاب الآن، حاول مرة أخرى."); })
+      .catch((e) => {
+        if (!active) return;
+        setError(isEn ? "Failed to load the students list, please try again." : "تعذّر جلب قائمة الطلاب الآن، حاول مرة أخرى.");
+        setErrorDebug(e.debug || null);
+      })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [isEn]);
@@ -1189,7 +1244,12 @@ function GroupMessageSection() {
   }
 
   if (loading) return <div style={{ border: "1px solid var(--line)", borderRadius: 12, padding: "14px 16px" }}><Loader2 size={18} className="spin" /></div>;
-  if (error) return <div style={AR.errorBox}><ShieldAlert size={16} /><span>{error}</span></div>;
+  if (error) return (
+    <div>
+      <div style={AR.errorBox}><ShieldAlert size={16} /><span>{error}</span></div>
+      <RpcErrorDebug debug={errorDebug} isEn={isEn} />
+    </div>
+  );
 
   return (
     <div style={{ border: "1px solid var(--line)", borderRadius: 12, padding: "14px 16px" }}>

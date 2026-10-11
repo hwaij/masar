@@ -87,6 +87,29 @@ function isValidDateStr(s) {
   return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
 }
 
+// استخراج تفاصيل خطأ PostgREST الحقيقية (code/message/hint/details) من
+// استجابة RPC فاشلة - تُستخدَم حصراً لأوضاع الأدمن الثلاثة التي تستدعي
+// دوال RPC جديدة (overview/studentsOverview/studentWindowReport)، حيث
+// الرسالة العامة وحدها لا تكفي لتشخيص فشل حقيقي بين الدالة (تعمل صح في
+// SQL Editor) وPostgREST (قد لا يعرف الدالة بعد - ذاكرة مخطط قديمة، مثلاً).
+// لا سرّ أو مفتاح في جسم خطأ PostgREST إطلاقاً - آمن للعرض لمن يصل أصلاً
+// لهذه الدوال (الأدمن فقط، بعد فحص isAdmin أعلاه).
+async function describeFailedRpcResponse(res) {
+  let body = null;
+  try {
+    body = await res.json();
+  } catch {
+    body = null;
+  }
+  return {
+    status: res.status,
+    code: body?.code || null,
+    message: body?.message || null,
+    hint: body?.hint || null,
+    details: body?.details || null,
+  };
+}
+
 exports.handler = async (event) => {
   // GET لكل أوضاع القراءة كما كانت (check/suggest/report/overview)، وPOST
   // فقط للوضع الوحيد الذي يُنفِّذ فعلاً إجراءً جانبياً (broadcast: إرسال
@@ -245,7 +268,11 @@ exports.handler = async (event) => {
         headers: { ...serviceHeaders, "Content-Type": "application/json" },
         body: JSON.stringify({ p_date: date }),
       });
-      if (!res.ok) return json(502, { error: "تعذّر جلب النظرة العامة الآن، حاول مرة أخرى.", partial: true });
+      if (!res.ok) {
+        const debug = await describeFailedRpcResponse(res);
+        console.error("[admin-report] admin_overview_for_date RPC failed:", debug);
+        return json(502, { error: "تعذّر جلب النظرة العامة الآن، حاول مرة أخرى.", partial: true, debug });
+      }
       const data = await res.json();
       const students = (data?.students || []).map((s) => ({
         owner: s.owner,
@@ -263,7 +290,7 @@ exports.handler = async (event) => {
       return json(200, { date, students, noUniversityId, loadedCount: students.length });
     } catch (e) {
       console.error("[admin-report] overview failed:", e);
-      return json(502, { error: "تعذّر جلب النظرة العامة الآن، حاول مرة أخرى.", partial: true });
+      return json(502, { error: "تعذّر جلب النظرة العامة الآن، حاول مرة أخرى.", partial: true, debug: { status: null, message: String(e?.message || e) } });
     }
   }
 
@@ -277,12 +304,16 @@ exports.handler = async (event) => {
         headers: { ...serviceHeaders, "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
-      if (!res.ok) return json(502, { error: "تعذّر جلب قائمة الطلاب الآن، حاول مرة أخرى.", partial: true });
+      if (!res.ok) {
+        const debug = await describeFailedRpcResponse(res);
+        console.error("[admin-report] admin_students_overview RPC failed:", debug);
+        return json(502, { error: "تعذّر جلب قائمة الطلاب الآن، حاول مرة أخرى.", partial: true, debug });
+      }
       const students = await res.json();
       return json(200, { students: Array.isArray(students) ? students : [], loadedCount: Array.isArray(students) ? students.length : 0 });
     } catch (e) {
       console.error("[admin-report] studentsOverview failed:", e);
-      return json(502, { error: "تعذّر جلب قائمة الطلاب الآن، حاول مرة أخرى.", partial: true });
+      return json(502, { error: "تعذّر جلب قائمة الطلاب الآن، حاول مرة أخرى.", partial: true, debug: { status: null, message: String(e?.message || e) } });
     }
   }
 
@@ -298,12 +329,16 @@ exports.handler = async (event) => {
         headers: { ...serviceHeaders, "Content-Type": "application/json" },
         body: JSON.stringify({ p_owner: owner }),
       });
-      if (!res.ok) return json(502, { error: "تعذّر جلب تقرير الطالب الآن، حاول مرة أخرى." });
+      if (!res.ok) {
+        const debug = await describeFailedRpcResponse(res);
+        console.error("[admin-report] admin_student_window_report RPC failed:", debug);
+        return json(502, { error: "تعذّر جلب تقرير الطالب الآن، حاول مرة أخرى.", debug });
+      }
       const data = await res.json();
       return json(200, data);
     } catch (e) {
       console.error("[admin-report] studentWindowReport failed:", e);
-      return json(502, { error: "تعذّر جلب تقرير الطالب الآن، حاول مرة أخرى." });
+      return json(502, { error: "تعذّر جلب تقرير الطالب الآن، حاول مرة أخرى.", debug: { status: null, message: String(e?.message || e) } });
     }
   }
 

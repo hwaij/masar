@@ -52,6 +52,10 @@ async function callAdminReport(params) {
   if (!res.ok) {
     const err = new Error(data?.error || "UNKNOWN");
     err.status = res.status;
+    // debug (code/message/hint من PostgREST، أو تفاصيل خطأ JS) - موجود فقط
+    // لأوضاع overview/studentsOverview/studentWindowReport (راجع
+    // admin-report.js)، undefined لبقية الأوضاع فلا يتغيّر سلوكها.
+    if (data?.debug) err.debug = data.debug;
     throw err;
   }
   return data;

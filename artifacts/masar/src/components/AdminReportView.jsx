@@ -12,7 +12,7 @@
 // الاقتراح، لا بإعادة كتابة نص، فلا التباس بين طلاب متشابهين بالاسم/الرقم.
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Search, Loader2, Download, ShieldAlert, ClipboardList, Calendar, Users, Bell, Send, CheckCircle2, X, ChevronLeft, XCircle } from "lucide-react";
+import { Search, Loader2, Download, ShieldAlert, ClipboardList, Calendar, Users, Bell, Send, CheckCircle2, X, ChevronLeft, XCircle, Award } from "lucide-react";
 import {
   suggestStudents, fetchStudentReport, fetchOverview, sendReminder, sendCustomReminder,
   fetchStudentsOverview, fetchStudentWindowReport, sendGroupMessage, fetchMessages, fetchMessageReceipts,
@@ -110,6 +110,27 @@ function computeRange(rangeId, customFrom, customTo) {
     return { from: localDayKey(d), to: today };
   }
   return { from: customFrom || null, to: customTo || null };
+}
+
+// "سُجّل لاحقاً؟" (تسجيل بأثر رجعي) - يقارن تاريخ created_at الفعلي
+// (مُحوَّلاً لتوقيت الكويت صراحة، لا توقيت متصفّح الأدمن مهما كان مكانه)
+// بتاريخ السجل (date) نفسه. لا عمود جديد بالقاعدة - يُحسَب هنا فقط من
+// البيانات الموجودة أصلاً (كلا الحقلين يصلان مع كل سجل أكل من admin-report.js).
+function kuwaitDateOf(isoString) {
+  if (!isoString) return null;
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuwait", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(isoString));
+    const y = parts.find((p) => p.type === "year")?.value;
+    const m = parts.find((p) => p.type === "month")?.value;
+    const d = parts.find((p) => p.type === "day")?.value;
+    return y && m && d ? `${y}-${m}-${d}` : null;
+  } catch {
+    return null;
+  }
+}
+function isLoggedLate(entry) {
+  const kd = kuwaitDateOf(entry?.created_at);
+  return !!kd && !!entry?.date && kd > entry.date;
 }
 
 // "البحث": تفاصيل دقيقة لطالب واحد محدَّد بالاسم/الرقم - السجل الكامل +
@@ -396,6 +417,7 @@ function SearchTab() {
                       <th style={AR.th}>{isEn ? "Carbs" : "كارب"}</th>
                       <th style={AR.th}>{isEn ? "Fat" : "دهون"}</th>
                       <th style={AR.th}>{isEn ? "Source" : "المصدر"}</th>
+                      <th style={AR.th}>{isEn ? "Logged late?" : "سُجّل لاحقاً؟"}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -410,6 +432,11 @@ function SearchTab() {
                         <td style={AR.td}>{e.carbs}</td>
                         <td style={AR.td}>{e.fat}</td>
                         <td style={AR.td}>{e.source || "—"}</td>
+                        <td style={AR.td}>
+                          {isLoggedLate(e) ? (
+                            <span style={{ ...AR.badge, background: OVERVIEW_BADGE.noGoal.bg, color: OVERVIEW_BADGE.noGoal.color }}>{isEn ? "Yes" : "نعم"}</span>
+                          ) : "—"}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -632,7 +659,7 @@ function OverviewTab() {
                       <td style={AR.td}>
                         {isEn ? `${r.usageDaysNumerator} of ${r.usageDaysDenominator}` : `${r.usageDaysNumerator} من ${r.usageDaysDenominator}`}{" "}
                         <span style={{ fontSize: 11, color: "var(--muted2)" }}>
-                          {isEn ? `(${r.generalActivityDays} active)` : `(نشاط: ${r.generalActivityDays})`}
+                          {isEn ? `(${r.generalActivityDays} active, ${r.lateLoggedDays} late)` : `(نشاط: ${r.generalActivityDays}، متأخر: ${r.lateLoggedDays})`}
                         </span>
                       </td>
                       <td style={AR.td}>
@@ -726,7 +753,7 @@ function StudentWindowReportModal({ owner, universityId, name, onClose }) {
     if (!report?.found) return { days: [], sourceCounts: {}, avg: null, lastActivityDate: null, gapDays: 0 };
     const byDate = new Map();
     const ensure = (date) => {
-      if (!byDate.has(date)) byDate.set(date, { date, calories: 0, protein: 0, carbs: 0, fat: 0, sodium: 0, mealsCount: 0, waterCups: null, weightKg: null, steps: null, workoutDone: null });
+      if (!byDate.has(date)) byDate.set(date, { date, calories: 0, protein: 0, carbs: 0, fat: 0, sodium: 0, mealsCount: 0, waterCups: null, weightKg: null, steps: null, workoutDone: null, hasLateEntry: false });
       return byDate.get(date);
     };
     const counts = {};
@@ -739,6 +766,7 @@ function StudentWindowReportModal({ owner, universityId, name, onClose }) {
       d.sodium += Number(e.sodium) || 0;
       d.mealsCount += 1;
       if (e.source) counts[e.source] = (counts[e.source] || 0) + 1;
+      if (isLoggedLate(e)) d.hasLateEntry = true;
     }
     for (const w of report.waterLog || []) ensure(w.date).waterCups = w.cups_count;
     for (const w of report.weightLog || []) ensure(w.date).weightKg = w.weight_kg;
@@ -862,7 +890,14 @@ function StudentWindowReportModal({ owner, universityId, name, onClose }) {
                     <tr><td style={AR.td} colSpan={10}>{isEn ? "No activity logged in this window." : "لا نشاط مسجَّل بهذه النافذة."}</td></tr>
                   ) : days.map((d) => (
                     <tr key={d.date}>
-                      <td style={AR.td}>{d.date}</td>
+                      <td style={AR.td}>
+                        {d.date}
+                        {d.hasLateEntry && (
+                          <span style={{ fontSize: 10, color: "var(--muted2)", marginInlineStart: 6 }}>
+                            {isEn ? "(logged late)" : "(سُجّل لاحقاً)"}
+                          </span>
+                        )}
+                      </td>
                       <td style={AR.td}>{d.mealsCount || "—"}</td>
                       <td style={AR.td}>{d.mealsCount ? Math.round(d.calories) : "—"}</td>
                       <td style={AR.td}>{d.mealsCount ? Math.round(d.protein) : "—"}</td>
@@ -1530,6 +1565,137 @@ function RemindersTab() {
   );
 }
 
+const DEFAULT_MIN_USAGE_DAYS = 10;
+
+// "المشرفين": الطلاب الأكثر استخداماً - عدد أيام تسجيل الأكل ضمن نافذة
+// الأسبوعين (daysLoggedInWindow، يشمل التسجيل بأثر رجعي لأن مصدره تاريخ
+// السجل date لا created_at) أكبر من حد أدنى قابل للتعديل. لا نداء RPC جديد
+// - نفس بيانات تبويب "الطلاب" (fetchStudentsOverview، الحظر مُستبعَد منها
+// أصلاً)، الفلترة/الترتيب هنا بالذاكرة فقط.
+function TopUsersTab() {
+  const { i18n } = useTranslation();
+  const isEn = i18n.language === "en";
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [errorDebug, setErrorDebug] = useState(null);
+  const [students, setStudents] = useState([]);
+  const [minDays, setMinDays] = useState(DEFAULT_MIN_USAGE_DAYS);
+  const [exporting, setExporting] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    fetchStudentsOverview()
+      .then((d) => { if (active) setStudents(d?.students || []); })
+      .catch((e) => {
+        if (!active) return;
+        setError(isEn ? "Failed to load the students list, please try again." : "تعذّر جلب قائمة الطلاب الآن، حاول مرة أخرى.");
+        setErrorDebug(e.debug || null);
+      })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [isEn]);
+
+  const topUsers = useMemo(
+    () => students.filter((s) => (s.daysLoggedInWindow || 0) > minDays).sort((a, b) => (b.daysLoggedInWindow || 0) - (a.daysLoggedInWindow || 0)),
+    [students, minDays],
+  );
+
+  function adjustMinDays(delta) {
+    setMinDays((v) => Math.max(0, Math.min(14, v + delta)));
+  }
+
+  async function handleExport() {
+    if (exporting || topUsers.length === 0) return;
+    setExporting(true);
+    try {
+      const { buildTopUsersExcelBuffer } = await import("../lib/excelReport");
+      const buffer = await buildTopUsersExcelBuffer(topUsers);
+      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = "top-users.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch (e) {
+      console.error("[TopUsersTab] export failed:", e);
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  return (
+    <div>
+      <p style={S.profileHint}>
+        {isEn
+          ? "Students whose food-logging days within their two-week window exceed a threshold."
+          : "الطلاب الذين تجاوز عدد أيام تسجيلهم للأكل ضمن نافذة الأسبوعين حدّاً معيّناً."}
+      </p>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+        <span style={{ fontSize: 12.5, color: "var(--ink-soft)" }}>{isEn ? "Minimum days:" : "الحد الأدنى للأيام:"}</span>
+        <button onClick={() => adjustMinDays(-1)} style={S.iconBtn}>−</button>
+        <input
+          type="number" min={0} max={14} value={minDays}
+          onChange={(e) => setMinDays(Math.max(0, Math.min(14, Number(e.target.value) || 0)))}
+          style={{ ...AR.dateInput, width: 56, textAlign: "center" }}
+        />
+        <button onClick={() => adjustMinDays(1)} style={S.iconBtn}>+</button>
+      </div>
+
+      {loading && <div style={AR.emptyBox}><Loader2 size={20} className="spin" /></div>}
+      {error && (
+        <>
+          <div style={AR.errorBox}>
+            <ShieldAlert size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+            <span>{error}</span>
+          </div>
+          <RpcErrorDebug debug={errorDebug} isEn={isEn} />
+        </>
+      )}
+
+      {!loading && !error && (
+        <>
+          <div style={{ ...AR.resultCount, marginBottom: 12 }}>
+            {isEn ? `${topUsers.length} students exceeded ${minDays} days` : `${topUsers.length} طالب تجاوزوا ${minDays} أيام`}
+          </div>
+          <button onClick={handleExport} disabled={exporting || topUsers.length === 0} style={{ ...S.exportBtn, width: "auto", marginTop: 0, marginBottom: 16, padding: "7px 14px", opacity: exporting || topUsers.length === 0 ? 0.6 : 1 }}>
+            {exporting ? <Loader2 size={14} className="spin" /> : <Download size={14} />}
+            {isEn ? "Export Excel" : "تصدير Excel"}
+          </button>
+
+          {topUsers.length === 0 ? (
+            <div style={AR.emptyBox}>{isEn ? "No students exceed this threshold." : "لا يوجد طلاب يتجاوزون هذا الحد."}</div>
+          ) : (
+            <div style={AR.tableWrap}>
+              <table style={AR.table}>
+                <thead>
+                  <tr>
+                    <th style={AR.th}>{isEn ? "Name" : "الاسم"}</th>
+                    <th style={AR.th}>{isEn ? "University ID" : "الرقم الجامعي"}</th>
+                    <th style={AR.th}>{isEn ? "Usage days" : "أيام الاستخدام"}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {topUsers.map((s) => (
+                    <tr key={s.owner}>
+                      <td style={AR.td}>{s.name || "—"}</td>
+                      <td style={AR.td}>{s.universityId || "—"}</td>
+                      <td style={AR.td}>{isEn ? `${s.daysLoggedInWindow} of 14` : `${s.daysLoggedInWindow} من 14`}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function AdminReportView() {
   const { i18n } = useTranslation();
   const isEn = i18n.language === "en";
@@ -1551,8 +1717,15 @@ export default function AdminReportView() {
         <button onClick={() => setTab("reminders")} style={{ ...AR.topTab, ...(tab === "reminders" ? AR.topTabActive : {}) }}>
           <Bell size={14} /> {isEn ? "Reminders" : "تذكيرات"}
         </button>
+        <button onClick={() => setTab("topUsers")} style={{ ...AR.topTab, ...(tab === "topUsers" ? AR.topTabActive : {}) }}>
+          <Award size={14} /> {isEn ? "Top Users" : "المشرفين"}
+        </button>
       </div>
-      {tab === "search" ? <SearchTab /> : tab === "overview" ? <OverviewTab /> : tab === "students" ? <StudentsTab /> : <RemindersTab />}
+      {tab === "search" ? <SearchTab />
+        : tab === "overview" ? <OverviewTab />
+        : tab === "students" ? <StudentsTab />
+        : tab === "topUsers" ? <TopUsersTab />
+        : <RemindersTab />}
     </div>
   );
 }

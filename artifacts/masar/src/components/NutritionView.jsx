@@ -228,6 +228,10 @@ const SUBSCRIBE_URL = "https://www.instagram.com/hjmasar";
 
 const BARCODE_FORMATS_SUPPORT_ID = "masar-barcode-scanner-region";
 
+// أقصى عدد أيام يُسمح بالتسجيل بأثر رجعي لها - اليوم الحقيقي نفسه يُحسَب
+// كأحد الأيام الـ14 (لا يُضاف إليها)، فالحد الأقصى للماضي هو اليوم - 13.
+const MAX_BACKDATE_DAYS = 14;
+
 function BarcodeScannerModal({ onDetected, onClose }) {
   const { t } = useTranslation();
   const [error, setError] = useState(null);
@@ -2779,6 +2783,16 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
   // generateDailyAnalysis) حتى لا يتغيّر سلوكه القائم أثناء تصفّح يوم سابق.
   const [selectedDate, setSelectedDate] = useState(today);
   const isViewingToday = selectedDate === today;
+  // أقدم يوم مسموح بالتنقّل إليه (اليوم - 13، فيكون اليوم الحقيقي + أقدم
+  // يوم = 14 يوماً بالضبط - نفس اتفاقية "14 يوماً" المستخدَمة فعلاً بلوحة
+  // الأدمن: اليوم الأول = يوم الدخول نفسه، لا يوم إضافي بعده).
+  const minBackdateDate = useMemo(() => {
+    const [y, m, dd] = today.split("-").map(Number);
+    const d = new Date(y, m - 1, dd);
+    d.setDate(d.getDate() - (MAX_BACKDATE_DAYS - 1));
+    return localDayKey(d);
+  }, [today]);
+  const isAtBackdateFloor = selectedDate <= minBackdateDate;
 
   useEffect(() => {
     let active = true;
@@ -2835,8 +2849,10 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
     store.saveTourProgress({ modules: { nutrition: { done: true } } });
   }
 
-  // لا تنقّل لأيام مستقبلية (لا سجل لها بعد) - يُقيَّد هنا لا فقط بتعطيل
-  // الزر، حتى لا يتغيّر التاريخ حتى لو استُدعيت الدالة من مصدر آخر لاحقاً.
+  // لا تنقّل لأيام مستقبلية (لا سجل لها بعد)، ولا لأبعد من MAX_BACKDATE_DAYS
+  // يوماً للخلف (التسجيل بأثر رجعي ميزة مقصودة - لمن ينسى تسجيل أكله فينتبه
+  // باليوم التالي - لا نافذة بلا حد). يُقيَّد هنا لا فقط بتعطيل الزر، حتى لا
+  // يتغيّر التاريخ حتى لو استُدعيت الدالة من مصدر آخر لاحقاً.
   function shiftDay(delta) {
     // بناء التاريخ من مكوّناته محلياً مباشرة (لا new Date(selectedDate) التي
     // تُفسَّر UTC) - يبقى متسقاً مع today أعلاه (localDayKey محلي بالكامل)
@@ -2845,7 +2861,7 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
     const d = new Date(y, m - 1, dd);
     d.setDate(d.getDate() + delta);
     const next = localDayKey(d);
-    if (next > today) return;
+    if (next > today || next < minBackdateDate) return;
     setSelectedDate(next);
   }
 
@@ -3426,7 +3442,12 @@ ${missingMealsLine}
           صفحة "اليوم" (MasarApp.jsx). زر "التالي" مُعطَّل عند اليوم الحقيقي
           لأن لا سجل لأي يوم مستقبلي بعد. */}
       <div style={S.dateRow}>
-        <button onClick={() => shiftDay(-1)} style={S.iconBtn} aria-label={t("nutrition.previousDay")}>
+        <button
+          onClick={() => shiftDay(-1)}
+          disabled={isAtBackdateFloor}
+          style={{ ...S.iconBtn, ...(isAtBackdateFloor ? { opacity: 0.4, cursor: "not-allowed" } : {}) }}
+          aria-label={t("nutrition.previousDay")}
+        >
           {i18n.language === "en" ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
         </button>
         <div style={S.dateLabel}>

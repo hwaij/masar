@@ -35,6 +35,27 @@
 import ExcelJS from "exceljs";
 import { getDailyNutritionSummary } from "./nutrition-plan";
 
+// "سُجّل لاحقاً؟" (تسجيل بأثر رجعي) - نفس الدالة المكرَّرة عمداً في
+// AdminReportView.jsx (ملف مستقل، لا استيراد متبادل لدالة صغيرة واحدة) -
+// تقارن تاريخ created_at الفعلي بتوقيت الكويت صراحة (لا توقيت متصفّح من
+// يفتح ملف الإكسل) بتاريخ السجل (date) نفسه.
+function kuwaitDateOf(isoString) {
+  if (!isoString) return null;
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuwait", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(isoString));
+    const y = parts.find((p) => p.type === "year")?.value;
+    const m = parts.find((p) => p.type === "month")?.value;
+    const d = parts.find((p) => p.type === "day")?.value;
+    return y && m && d ? `${y}-${m}-${d}` : null;
+  } catch {
+    return null;
+  }
+}
+function isLoggedLate(entry) {
+  const kd = kuwaitDateOf(entry?.created_at);
+  return !!kd && !!entry?.date && kd > entry.date;
+}
+
 // ألوان تعبئة آمنة قياسية (ARGB) - خلفية فاتحة مقروءة بنص أسود افتراضي في
 // أي برنامج (Excel/Sheets/Numbers)، بمعزل تام عن أي "وضع داكن" لواجهة ذلك
 // البرنامج نفسه (تلوين الخلية في ملف .xlsx صريح وثابت، لا يتأثر بثيم التطبيق
@@ -410,6 +431,7 @@ export async function buildStudentNutritionLogExcelBuffer(entries, universityId,
     { header: "Sodium (mg)", key: "sodium", width: 12 },
     { header: "Cholesterol (mg)", key: "cholesterol", width: 16 },
     { header: "Source", key: "source", width: 12 },
+    { header: "Logged Late", key: "loggedLate", width: 14 },
   ];
 
   const headerRow = sheet.getRow(1);
@@ -437,6 +459,7 @@ export async function buildStudentNutritionLogExcelBuffer(entries, universityId,
       sodium: e.sodium,
       cholesterol: e.cholesterol,
       source: e.source || "",
+      loggedLate: isLoggedLate(e) ? "Yes" : "No",
     });
     addedRow.alignment = { horizontal: "left" };
     const isBanded = rowIndex % 2 === 1;
@@ -577,6 +600,45 @@ export async function buildGroupWindowReportExcelBuffer(students, windowReports)
       rowIndex += 1;
     }
   }
+
+  return workbook.xlsx.writeBuffer();
+}
+
+// تصدير تبويب "المشرفين" (الشاشة الإدارية - الطلاب الأكثر استخداماً) - عربي
+// بالكامل وRTL بطلب صريح، خلافاً لقاعدة "كل التقارير بالإنجليزي" أعلى هذا
+// الملف (تلك قاعدة التقارير الأخرى، هذا استثناء مقصود لهذا التصدير تحديداً
+// فقط). ثلاثة أعمدة فقط كما طُلب - لا احتياج/حالة/رسوم كبقية الأدوات هنا.
+export async function buildTopUsersExcelBuffer(students) {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("المشرفين", { views: [{ rightToLeft: true, state: "frozen", ySplit: 1 }] });
+
+  sheet.columns = [
+    { header: "الاسم", key: "name", width: 24 },
+    { header: "الرقم الجامعي", key: "universityId", width: 16 },
+    { header: "أيام الاستخدام", key: "usageDays", width: 16 },
+  ];
+
+  const headerRow = sheet.getRow(1);
+  headerRow.font = { bold: true };
+  headerRow.alignment = { horizontal: "right" };
+  headerRow.eachCell((cell) => {
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: FILL_HEADER } };
+    cell.border = ALL_BORDERS;
+  });
+
+  students.forEach((s, rowIndex) => {
+    const addedRow = sheet.addRow({
+      name: s.name || "",
+      universityId: s.universityId || "",
+      usageDays: `${s.daysLoggedInWindow ?? 0} من 14`,
+    });
+    addedRow.alignment = { horizontal: "right" };
+    const isBanded = rowIndex % 2 === 1;
+    addedRow.eachCell({ includeEmpty: true }, (cell) => {
+      if (isBanded) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: FILL_BAND } };
+      cell.border = ALL_BORDERS;
+    });
+  });
 
   return workbook.xlsx.writeBuffer();
 }

@@ -2455,7 +2455,8 @@ begin
           win.days_remaining as "daysRemaining",
           win.usage_numerator as "usageDaysNumerator",
           win.usage_denominator as "usageDaysDenominator",
-          win.general_activity_days as "generalActivityDays"
+          win.general_activity_days as "generalActivityDays",
+          win.late_logged_days as "lateLoggedDays"
         from profile p
         join auth.users u on u.id::text = p.owner
         left join health_profile hp on hp.owner = p.owner
@@ -2502,7 +2503,22 @@ begin
                   (now() at time zone 'Asia/Kuwait')::date,
                   ((u.created_at at time zone 'Asia/Kuwait')::date + 13)
                 )::text
-            ) as general_activity_days
+            ) as general_activity_days,
+            -- "سُجّل لاحقاً" (بأثر رجعي): عدد الأيام المميَّزة ضمن نافذة
+            -- الاستخدام التي وُجد فيها سجل أكل واحد على الأقل كُتب (created_at
+            -- بتوقيت الكويت) في يوم لاحق فعلياً ليوم السجل (date) نفسه - لا
+            -- علاقة لها بالساعة، فقط اختلاف اليوم التقويمي بين الاثنين.
+            (
+              select count(distinct nl4.date)
+              from nutrition_log nl4
+              where nl4.owner = p.owner
+                and nl4.date >= ((u.created_at at time zone 'Asia/Kuwait')::date)::text
+                and nl4.date <= least(
+                  (now() at time zone 'Asia/Kuwait')::date,
+                  ((u.created_at at time zone 'Asia/Kuwait')::date + 13)
+                )::text
+                and (nl4.created_at at time zone 'Asia/Kuwait')::date > nl4.date::date
+            ) as late_logged_days
         ) win
         where p.university_id is not null and p.university_id <> ''
           and not exists (

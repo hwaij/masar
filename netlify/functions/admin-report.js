@@ -293,6 +293,9 @@ exports.handler = async (event) => {
         usageDaysNumerator: typeof s.usageDaysNumerator === "number" ? s.usageDaysNumerator : 0,
         usageDaysDenominator: typeof s.usageDaysDenominator === "number" ? s.usageDaysDenominator : 0,
         generalActivityDays: typeof s.generalActivityDays === "number" ? s.generalActivityDays : 0,
+        // عدد أيام "أيام الاستخدام" نفسها (X من Y) التي سُجِّلت بأثر رجعي -
+        // راجع تعليق admin_overview_for_date في supabase-schema.sql.
+        lateLoggedDays: typeof s.lateLoggedDays === "number" ? s.lateLoggedDays : 0,
       }));
       const noUniversityId = (data?.noUniversityId || []).map((s) => ({ owner: s.owner, name: s.name || "" }));
       return json(200, { date, students, noUniversityId, loadedCount: students.length });

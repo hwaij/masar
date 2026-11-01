@@ -1571,9 +1571,11 @@ const DEFAULT_MIN_USAGE_DAYS = 10;
 // تحليل CSV مشاركي الدراسة الخارجية (FSN 499) بالواجهة نفسها - بلا أي مكتبة
 // (لا papa/xlsx بـpackage.json)، محلّل مبسَّط عمداً لصيغة أعمدة ثابتة
 // ومحدودة (لا فواصل داخل قيمة/لا اقتباس) كما تصل من ملف المشرف مباشرة.
-// العمود المطلوب: university_id فقط. recall1_date/recall2_date اختياريان -
-// غيابهما بلا أي خطأ (أعمدة النافذة B تُعاد فارغة من admin_study_usage_report
-// نفسها). أي أعمدة أخرى (كـstudy_code قديم) تُتجاهَل بصمت بلا خطأ. رقم
+// العمود المطلوب: university_id فقط - نافذة الريكول (B) أُلغيت نهائياً من
+// هذه الميزة (المشرفة تحتاج فقط نافذة A: أول 14 يوم من التسجيل)، فلا داعي
+// لقراءة أو إرسال recall1_date/recall2_date بعد الآن حتى لو وُجدا بالملف
+// (admin_study_usage_report نفسها لم تتغيّر وتتعامل معهما كغائبين بأمان،
+// لكن لا فائدة من إرسالهما). أي أعمدة أخرى تُتجاهَل بصمت بلا خطأ. رقم
 // المشارك "No." لم يعد يُقرأ من الملف إطلاقاً - هو ترتيب الصف نفسه، يُحسَب
 // داخل admin_study_usage_report (jsonb_array_elements ... with ordinality).
 function parseStudyParticipantsCsv(text) {
@@ -1582,15 +1584,11 @@ function parseStudyParticipantsCsv(text) {
   const header = lines[0].split(",").map((h) => h.trim().toLowerCase());
   const idx = {
     universityId: header.indexOf("university_id"),
-    recall1Date: header.indexOf("recall1_date"),
-    recall2Date: header.indexOf("recall2_date"),
   };
   return lines.slice(1).map((line) => {
     const cols = line.split(",").map((c) => c.trim());
     return {
       universityId: idx.universityId >= 0 ? (cols[idx.universityId] || "") : "",
-      recall1Date: idx.recall1Date >= 0 ? (cols[idx.recall1Date] || "") : "",
-      recall2Date: idx.recall2Date >= 0 ? (cols[idx.recall2Date] || "") : "",
     };
   });
 }
@@ -1804,8 +1802,8 @@ function TopUsersTab() {
         </h3>
         <p style={S.profileHint}>
           {isEn
-            ? "Upload the participants CSV (university_id required; recall1_date/recall2_date optional) to measure app-usage only - days used and meals logged, no food/calorie data."
-            : "رفع ملف CSV للمشاركين (university_id مطلوب؛ recall1_date وrecall2_date اختياريان) لقياس استخدام التطبيق فقط - أيام الاستخدام والوجبات المسجَّلة، بلا أي بيانات غذائية."}
+            ? "Upload the participants CSV (university_id column) to measure app-usage only - days used (of the first 14 days) and meals logged, no food/calorie data."
+            : "رفع ملف CSV للمشاركين (عمود university_id) لقياس استخدام التطبيق فقط - أيام الاستخدام (أول 14 يوماً من التسجيل) والوجبات المسجَّلة، بلا أي بيانات غذائية."}
         </p>
         <input ref={studyFileInputRef} type="file" accept=".csv,text/csv" onChange={handleStudyCsvUpload} style={{ display: "none" }} />
         <button

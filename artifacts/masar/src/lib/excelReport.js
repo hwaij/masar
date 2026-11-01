@@ -697,20 +697,18 @@ function groupStats(values) {
 function yn(v) {
   return v ? "Yes" : "No";
 }
-function blankIfNull(v) {
-  return v === null || v === undefined ? "" : v;
-}
-function ynOrBlank(v) {
-  return v === null || v === undefined ? "" : v ? "Yes" : "No";
-}
 
+// مُبسَّطة للحد الأدنى الذي طلبته المشرفة بالضبط: أيام الاستخدام، عدد
+// الوجبات، وهل سجّل 3 وجبات يومياً - فقط نافذة A (أول 14 يوماً من التسجيل).
+// نافذة الريكول (B) بكل أعمدتها أُلغيت تماماً من هذا الملف (لم تُحذف من
+// admin_study_usage_report نفسها - ببساطة لا تُقرأ/تُعرَض هنا بعد الآن).
 export async function buildStudyUsageReportExcelBuffer(participants, { anonymize = false } = {}) {
   const rows = participants || [];
   const workbook = new ExcelJS.Workbook();
 
-  // 1) Summary - one row per participant, exact column order as specified.
+  // 1) Summary - one row per participant, exactly these columns/order.
   const summary = workbook.addWorksheet("Summary", { views: [{ rightToLeft: false, state: "frozen", ySplit: 1 }] });
-  const summaryColumns = [
+  summary.columns = [
     { header: "No.", key: "no", width: 6 },
     ...(anonymize ? [] : [
       { header: "University ID", key: "universityId", width: 16 },
@@ -718,30 +716,11 @@ export async function buildStudyUsageReportExcelBuffer(participants, { anonymize
     ]),
     { header: "Sex", key: "sex", width: 10 },
     { header: "Status", key: "status", width: 20 },
-    { header: "Window status", key: "windowStatus", width: 14 },
-    { header: "Join date", key: "joinDate", width: 12 },
-    { header: "App window end", key: "appWindowEnd", width: 14 },
     { header: "Days used (of 14)", key: "daysUsedA", width: 14 },
-    { header: "Usage %", key: "usagePctA", width: 12 },
     { header: "Total main meals", key: "totalMainMealsA", width: 16 },
-    { header: "Snack entries", key: "snackEntriesA", width: 14 },
     { header: "Days with 3 main meals", key: "days3MainA", width: 18 },
     { header: "Logged 3 main meals every used day", key: "logged3MainEveryDayA", width: 22 },
-    { header: "Days with breakfast", key: "daysWithBreakfast", width: 14 },
-    { header: "Days with lunch", key: "daysWithLunch", width: 14 },
-    { header: "Days with dinner", key: "daysWithDinner", width: 14 },
-    { header: "Days with snack", key: "daysWithSnack", width: 14 },
-    { header: "Raw entries", key: "rawEntries", width: 12 },
-    { header: "Recall 1", key: "recall1", width: 12 },
-    { header: "Recall 2", key: "recall2", width: 12 },
-    { header: "Window days (B)", key: "windowDaysB", width: 14 },
-    { header: "Days used (B)", key: "daysUsedB", width: 12 },
-    { header: "Usage % (B)", key: "usagePctB", width: 12 },
-    { header: "Total main meals (B)", key: "totalMainMealsB", width: 16 },
-    { header: "Days with 3 main meals (B)", key: "days3MainB", width: 18 },
-    { header: "Logged 3 main meals every used day (B)", key: "logged3MainEveryDayB", width: 22 },
   ];
-  summary.columns = summaryColumns;
   const summaryHeader = summary.getRow(1);
   summaryHeader.font = { bold: true };
   summaryHeader.alignment = { horizontal: "left", wrapText: true };
@@ -756,28 +735,10 @@ export async function buildStudyUsageReportExcelBuffer(participants, { anonymize
       name: p.name || "",
       sex: p.sex || "Not set",
       status: p.status || "",
-      windowStatus: blankIfNull(p.windowStatus),
-      joinDate: blankIfNull(p.joinDate),
-      appWindowEnd: blankIfNull(p.appWindowEnd),
       daysUsedA: p.daysUsedA,
-      usagePctA: p.usagePctA,
       totalMainMealsA: p.totalMainMealsA,
-      snackEntriesA: p.snackEntriesA,
       days3MainA: p.days3MainA,
       logged3MainEveryDayA: yn(p.logged3MainEveryDayA),
-      daysWithBreakfast: p.daysWithBreakfast,
-      daysWithLunch: p.daysWithLunch,
-      daysWithDinner: p.daysWithDinner,
-      daysWithSnack: p.daysWithSnack,
-      rawEntries: p.rawEntries,
-      recall1: blankIfNull(p.recall1),
-      recall2: blankIfNull(p.recall2),
-      windowDaysB: blankIfNull(p.windowDaysB),
-      daysUsedB: blankIfNull(p.daysUsedB),
-      usagePctB: blankIfNull(p.usagePctB),
-      totalMainMealsB: blankIfNull(p.totalMainMealsB),
-      days3MainB: blankIfNull(p.days3MainB),
-      logged3MainEveryDayB: ynOrBlank(p.logged3MainEveryDayB),
     });
     addedRow.alignment = { horizontal: "left" };
     const isBanded = rowIndex % 2 === 1;
@@ -787,8 +748,8 @@ export async function buildStudyUsageReportExcelBuffer(participants, { anonymize
     });
   });
 
-  // 2) Daily - 14 rows per registered participant (window A only), one row
-  // for an unregistered participant ("Not registered in app").
+  // 2) Daily - 14 rows per registered participant (window A, even if the
+  // participant logged nothing), one row for an unregistered participant.
   const daily = workbook.addWorksheet("Daily", { views: [{ rightToLeft: false, state: "frozen", ySplit: 1 }] });
   daily.columns = [
     { header: "No.", key: "no", width: 6 },
@@ -802,9 +763,7 @@ export async function buildStudyUsageReportExcelBuffer(participants, { anonymize
     { header: "Breakfast", key: "breakfast", width: 10 },
     { header: "Lunch", key: "lunch", width: 10 },
     { header: "Dinner", key: "dinner", width: 10 },
-    { header: "Snack entries", key: "snackEntries", width: 12 },
     { header: "Main meals", key: "mainMeals", width: 11 },
-    { header: "Entries", key: "entries", width: 9 },
   ];
   const dailyHeader = daily.getRow(1);
   dailyHeader.font = { bold: true };
@@ -820,7 +779,7 @@ export async function buildStudyUsageReportExcelBuffer(participants, { anonymize
     if (days.length === 0) {
       const addedRow = daily.addRow({
         ...base, dayNum: "", date: "Not registered in app",
-        breakfast: "", lunch: "", dinner: "", snackEntries: "", mainMeals: "", entries: "",
+        breakfast: "", lunch: "", dinner: "", mainMeals: "",
       });
       addedRow.alignment = { horizontal: "left" };
       const isBanded = dailyRowIndex % 2 === 1;
@@ -839,9 +798,7 @@ export async function buildStudyUsageReportExcelBuffer(participants, { anonymize
         breakfast: yn(d.breakfast),
         lunch: yn(d.lunch),
         dinner: yn(d.dinner),
-        snackEntries: d.snackEntries,
         mainMeals: d.mainMeals,
-        entries: d.entries,
       });
       addedRow.alignment = { horizontal: "left" };
       const isBanded = dailyRowIndex % 2 === 1;
@@ -853,9 +810,7 @@ export async function buildStudyUsageReportExcelBuffer(participants, { anonymize
     });
   });
 
-  // 3) Stats - group stats (no exclusions for A; B computed only over
-  // participants with a valid recall window) + a 0-14 distribution table +
-  // short definitional notes.
+  // 3) Stats - group stats only, no exclusions, no distribution table.
   const stats = workbook.addWorksheet("Stats", { views: [{ rightToLeft: false }] });
   [30, 10, 22, 24, 10, 10].forEach((w, i) => { stats.getColumn(i + 1).width = w; });
 
@@ -870,16 +825,10 @@ export async function buildStudyUsageReportExcelBuffer(participants, { anonymize
   }
 
   styleRow(stats.addRow(["Variable", "n", "Mean ± SD", "Median (Q1-Q3)", "Min", "Max"]), { header: true });
-  const daysUsedBValues = rows.filter((p) => p.daysUsedB !== null && p.daysUsedB !== undefined).map((p) => p.daysUsedB);
-  const usagePctBValues = rows.filter((p) => p.usagePctB !== null && p.usagePctB !== undefined).map((p) => p.usagePctB);
-  const totalMainMealsBValues = rows.filter((p) => p.totalMainMealsB !== null && p.totalMainMealsB !== undefined).map((p) => p.totalMainMealsB);
   const metricDefs = [
-    { label: "Days used (A)", values: rows.map((p) => p.daysUsedA) },
-    { label: "Usage % (A)", values: rows.map((p) => p.usagePctA) },
-    { label: "Total main meals (A)", values: rows.map((p) => p.totalMainMealsA) },
-    { label: "Days used (B)", values: daysUsedBValues },
-    { label: "Usage % (B)", values: usagePctBValues },
-    { label: "Total main meals (B)", values: totalMainMealsBValues },
+    { label: "Days used", values: rows.map((p) => p.daysUsedA) },
+    { label: "Total main meals", values: rows.map((p) => p.totalMainMealsA) },
+    { label: "Days with 3 main meals", values: rows.map((p) => p.days3MainA) },
   ];
   metricDefs.forEach((m, i) => {
     const s = groupStats(m.values);
@@ -887,25 +836,13 @@ export async function buildStudyUsageReportExcelBuffer(participants, { anonymize
   });
 
   stats.addRow([]);
-  styleRow(stats.addRow(["Days used (A) distribution - no exclusions", "Count", "%"]), { header: true });
-  const totalN = rows.length || 1;
-  for (let v = 0; v <= 14; v++) {
-    const count = rows.filter((p) => p.daysUsedA === v).length;
-    styleRow(stats.addRow([`${v} of 14 days`, count, `${round1((count / totalN) * 100)}%`]), { banded: v % 2 === 1 });
-  }
-
-  stats.addRow([]);
-  styleRow(stats.addRow(["Notes"]), { header: true });
   const notes = [
-    "Window A is fixed: the first 14 days from account signup (Kuwait time) - the same window used elsewhere in the admin dashboard. Window B is the actual period between the uploaded Recall 1 and Recall 2 dates (Kuwait time), inclusive - independent of Window A, and blank when recall dates are missing or invalid.",
-    "A \"day used\" is any date within the window that has at least one food-log entry, regardless of meal type. Usage % = days used / window length x 100.",
-    "A \"main meal\" is a (date, breakfast/lunch/dinner) combination with at least one entry that day - not a raw entry count. Entries with no meal type set count toward \"day used\" and raw entries only, not toward any meal column.",
-    "\"Snack entries\" is the raw count of entries classified snack that day - counted separately, never added into the main-meal counts.",
-    "This report measures app-usage intensity only (days used and meals logged). It does not use the app's food/calorie/macro data in any way.",
+    "\"Days used\" is the count of distinct dates within the first 14 days from signup (Kuwait time) that have at least one food-log entry.",
+    "A \"main meal\" is a (date, breakfast/lunch/dinner) combination with at least one entry that day.",
   ];
-  notes.forEach((n, i) => {
-    styleRow(stats.addRow([n]), { banded: i % 2 === 1 });
-    stats.lastRow.eachCell((cell, colNumber) => { if (colNumber === 1) stats.mergeCells(stats.lastRow.number, 1, stats.lastRow.number, 6); });
+  notes.forEach((n) => {
+    styleRow(stats.addRow([n]));
+    stats.mergeCells(stats.lastRow.number, 1, stats.lastRow.number, 6);
   });
 
   return workbook.xlsx.writeBuffer();

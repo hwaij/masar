@@ -209,3 +209,30 @@ export async function fetchMessages() {
 export async function fetchMessageReceipts(messageId) {
   return callAdminReport({ mode: "messageReceipts", messageId });
 }
+
+// فتح/إغلاق مفتاح "السماح بتسجيل الأكل لتاريخ أقدم من 14 يوماً" - enabled
+// true يحتاج durationHours (6|24|72)؛ false يُغلق فوراً بصرف النظر عن
+// durationHours. الحارس الحقيقي الوحيد يبقى trigger قاعدة البيانات
+// (enforce_nutrition_log_date_window) - هذا فقط يكتب الإعداد نفسه.
+export async function setAllowOldDates({ enabled, durationHours }) {
+  const token = await getAccessToken();
+  if (!token) throw new Error("NOT_SIGNED_IN");
+  const res = await fetch(`${ADMIN_REPORT_URL}?mode=setAllowOldDates`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ enabled, durationHours }),
+  });
+  let data;
+  try {
+    data = await res.json();
+  } catch {
+    data = {};
+  }
+  if (!res.ok) {
+    const err = new Error(data?.error || "UNKNOWN");
+    err.status = res.status;
+    if (data?.debug) err.debug = data.debug;
+    throw err;
+  }
+  return data?.value || null;
+}

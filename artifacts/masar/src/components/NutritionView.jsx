@@ -24,6 +24,7 @@ import {
   findFuzzyFoodSuggestions,
 } from "../lib/nutrition";
 import { getDailyNutritionSummary } from "../lib/nutrition-plan";
+import { fetchAllowOldDatesSetting } from "../lib/appSettings";
 import { requestNotificationPermission } from "../lib/push";
 import { searchGenericFoods, genericFoodToProduct, GENERIC_FOODS } from "../lib/generic-foods";
 import { deriveDataOrigin, getFoodSourceLabel } from "../lib/foodSource";
@@ -2783,15 +2784,29 @@ export default function NutritionView({ healthProfile, showToast, profile, setPr
   // generateDailyAnalysis) حتى لا يتغيّر سلوكه القائم أثناء تصفّح يوم سابق.
   const [selectedDate, setSelectedDate] = useState(today);
   const isViewingToday = selectedDate === today;
+  // مفتاح الأدمن المؤقت "allow_old_dates" (راجع lib/appSettings.js) - إن
+  // كان مفتوحاً الآن فعلياً، لا حد خلفي للتنقّل هنا إطلاقاً (أي تاريخ ماضٍ،
+  // لا مستقبلي - ذلك يبقى ممنوعاً دائماً أدناه بصرف النظر عن هذا المفتاح).
+  // هذا عرض/تمكين واجهة فقط - الحارس الحقيقي الوحيد الموثوق هو trigger
+  // enforce_nutrition_log_date_window بقاعدة البيانات نفسها (راجع
+  // supabase-schema.sql)، فتعطّل هذا الجلب أو تأخّره لا يفتح ثغرة فعلية.
+  const [allowOldDatesOpen, setAllowOldDatesOpen] = useState(false);
+  useEffect(() => {
+    let active = true;
+    fetchAllowOldDatesSetting().then((s) => { if (active) setAllowOldDatesOpen(s.isOpenNow); });
+    return () => { active = false; };
+  }, []);
   // أقدم يوم مسموح بالتنقّل إليه (اليوم - 13، فيكون اليوم الحقيقي + أقدم
   // يوم = 14 يوماً بالضبط - نفس اتفاقية "14 يوماً" المستخدَمة فعلاً بلوحة
-  // الأدمن: اليوم الأول = يوم الدخول نفسه، لا يوم إضافي بعده).
+  // الأدمن: اليوم الأول = يوم الدخول نفسه، لا يوم إضافي بعده) - أو بلا حد
+  // فعلي إطلاقاً إن كان مفتاح allow_old_dates مفتوحاً الآن.
   const minBackdateDate = useMemo(() => {
+    if (allowOldDatesOpen) return "0001-01-01";
     const [y, m, dd] = today.split("-").map(Number);
     const d = new Date(y, m - 1, dd);
     d.setDate(d.getDate() - (MAX_BACKDATE_DAYS - 1));
     return localDayKey(d);
-  }, [today]);
+  }, [today, allowOldDatesOpen]);
   const isAtBackdateFloor = selectedDate <= minBackdateDate;
 
   useEffect(() => {

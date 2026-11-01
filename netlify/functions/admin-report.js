@@ -646,5 +646,62 @@ exports.handler = async (event) => {
     }
   }
 
+  // مفتاح أدمن مؤقت: فتح/إغلاق السماح بتسجيل الأكل لتاريخ أقدم من 14 يوماً
+  // (عطل حقيقي يفوّت المستخدمين تسجيل أكلهم) - الحارس الحقيقي الوحيد الموثوق
+  // هو trigger enforce_nutrition_log_date_window على nutrition_log (راجع
+  // supabase-schema.sql)؛ هذا الوضع فقط يكتب الإعداد نفسه (app_settings،
+  // مفتاح allow_old_dates مباشرة عبر REST - لا RPC لازمة، service_role
+  // يتجاوز RLS كلياً) + سطر تدقيق (admin_setting_log) - لا كتابة بأي بيانات
+  // مستخدم إطلاقاً، ولا قراءة بيانات أكل أي أحد.
+  if (mode === "setAllowOldDates") {
+    if (event.httpMethod !== "POST") return json(405, { error: "Method not allowed" });
+
+    let bodyParams = {};
+    try {
+      bodyParams = JSON.parse(event.body || "{}");
+    } catch {
+      bodyParams = {};
+    }
+    const enabled = !!bodyParams.enabled;
+    const durationHours = Number(bodyParams.durationHours);
+    const allowedDurations = [6, 24, 72];
+    if (enabled && !allowedDurations.includes(durationHours)) {
+      return json(400, { error: "مدة غير صالحة (6 أو 24 أو 72 ساعة فقط)." });
+    }
+
+    const closesAt = enabled ? new Date(Date.now() + durationHours * 60 * 60 * 1000).toISOString() : null;
+    const value = { enabled, closes_at: closesAt };
+
+    try {
+      const upsertRes = await fetch(`${url}/rest/v1/app_settings`, {
+        method: "POST",
+        headers: { ...serviceHeaders, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=representation" },
+        body: JSON.stringify({ key: "allow_old_dates", value, updated_at: new Date().toISOString() }),
+      });
+      if (!upsertRes.ok) {
+        const debug = await describeFailedRpcResponse(upsertRes);
+        console.error("[admin-report] setAllowOldDates upsert failed:", debug);
+        return json(502, { error: "تعذّر حفظ الإعداد الآن، حاول مرة أخرى.", debug });
+      }
+
+      // سطر تدقيق - أفضل مجهود (لا تُفسَد نتيجة الحفظ الأساسي إن فشل هذا
+      // النداء الثاني؛ الإعداد نفسه مكتوب بالفعل وهو الحارس الحقيقي).
+      try {
+        await fetch(`${url}/rest/v1/admin_setting_log`, {
+          method: "POST",
+          headers: { ...serviceHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify({ key: "allow_old_dates", action: enabled ? "opened" : "closed", value, actor: callerEmail || null }),
+        });
+      } catch (logErr) {
+        console.error("[admin-report] admin_setting_log insert failed:", logErr);
+      }
+
+      return json(200, { value });
+    } catch (e) {
+      console.error("[admin-report] setAllowOldDates failed:", e);
+      return json(502, { error: "تعذّر حفظ الإعداد الآن، حاول مرة أخرى.", debug: { status: null, message: String(e?.message || e) } });
+    }
+  }
+
   return json(400, { error: "طلب غير صالح." });
 };

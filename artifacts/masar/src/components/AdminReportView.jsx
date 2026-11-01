@@ -16,8 +16,9 @@ import { Search, Loader2, Download, ShieldAlert, ClipboardList, Calendar, Users,
 import {
   suggestStudents, fetchStudentReport, fetchOverview, sendReminder, sendCustomReminder,
   fetchStudentsOverview, fetchStudentWindowReport, sendGroupMessage, fetchMessages, fetchMessageReceipts,
-  fetchStudyUsageReport,
+  fetchStudyUsageReport, setAllowOldDates,
 } from "../lib/adminReport";
+import { fetchAllowOldDatesSetting } from "../lib/appSettings";
 import { localDayKey } from "../lib/tips";
 import { getDailyNutritionSummary } from "../lib/nutrition-plan";
 import { S } from "./styles";
@@ -1639,6 +1640,55 @@ function TopUsersTab() {
   const [studyAnonymize, setStudyAnonymize] = useState(false);
   const [studyExporting, setStudyExporting] = useState(false);
 
+  // مفتاح أدمن مؤقت: السماح بتسجيل الأكل لتاريخ أقدم من 14 يوماً - راجع
+  // lib/appSettings.js (القراءة، نفس القراءة التي تستخدمها NutritionView)
+  // وlib/adminReport.js (الكتابة، أدمن فقط عبر admin-report.js).
+  const [allowOldDatesSetting, setAllowOldDatesSetting] = useState(null);
+  const [allowOldDatesLoading, setAllowOldDatesLoading] = useState(true);
+  const [allowOldDatesBusy, setAllowOldDatesBusy] = useState(false);
+  const [allowOldDatesError, setAllowOldDatesError] = useState(null);
+  const [selectedDurationHours, setSelectedDurationHours] = useState(24);
+
+  async function reloadAllowOldDatesSetting() {
+    const s = await fetchAllowOldDatesSetting();
+    setAllowOldDatesSetting(s);
+    return s;
+  }
+
+  useEffect(() => {
+    let active = true;
+    reloadAllowOldDatesSetting().finally(() => { if (active) setAllowOldDatesLoading(false); });
+    return () => { active = false; };
+  }, []);
+
+  async function handleOpenAllowOldDates() {
+    if (allowOldDatesBusy) return;
+    setAllowOldDatesBusy(true);
+    setAllowOldDatesError(null);
+    try {
+      await setAllowOldDates({ enabled: true, durationHours: selectedDurationHours });
+      await reloadAllowOldDatesSetting();
+    } catch (e) {
+      setAllowOldDatesError(isEn ? "Failed to open the setting, please try again." : "تعذّر فتح المفتاح الآن، حاول مرة أخرى.");
+    } finally {
+      setAllowOldDatesBusy(false);
+    }
+  }
+
+  async function handleCloseAllowOldDates() {
+    if (allowOldDatesBusy) return;
+    setAllowOldDatesBusy(true);
+    setAllowOldDatesError(null);
+    try {
+      await setAllowOldDates({ enabled: false, durationHours: null });
+      await reloadAllowOldDatesSetting();
+    } catch (e) {
+      setAllowOldDatesError(isEn ? "Failed to close the setting, please try again." : "تعذّر إغلاق المفتاح الآن، حاول مرة أخرى.");
+    } finally {
+      setAllowOldDatesBusy(false);
+    }
+  }
+
   useEffect(() => {
     let active = true;
     fetchStudentsOverview()
@@ -1756,6 +1806,69 @@ function TopUsersTab() {
 
   return (
     <div>
+      <div style={{ border: "1px solid var(--line)", borderRadius: 10, padding: "12px 14px", marginBottom: 20, background: "var(--surface-sunken)" }}>
+        <h3 style={{ fontSize: 14.5, fontWeight: 700, color: "var(--ink)", marginBottom: 6 }}>
+          {isEn ? "Allow logging old dates" : "السماح بتسجيل الأيام القديمة"}
+        </h3>
+        <p style={S.profileHint}>
+          {isEn
+            ? "Temporarily lifts the 14-day backdating limit for everyone (outage recovery). Closed by default."
+            : "يرفع حد الـ14 يوماً للخلف مؤقتاً لكل المستخدمين (للتعافي من عطل). مغلق افتراضياً."}
+        </p>
+        {allowOldDatesLoading ? (
+          <Loader2 size={18} className="spin" />
+        ) : (
+          <>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>
+              {allowOldDatesSetting?.isOpenNow
+                ? (isEn
+                    ? `Open - closes at ${new Date(allowOldDatesSetting.closesAt).toLocaleString("en-GB", { timeZone: "Asia/Kuwait", dateStyle: "medium", timeStyle: "short" })} (Kuwait time)`
+                    : `مفتوح - يُغلق تلقائياً في ${new Date(allowOldDatesSetting.closesAt).toLocaleString("en-GB", { timeZone: "Asia/Kuwait", dateStyle: "medium", timeStyle: "short" })} (بتوقيت الكويت)`)
+                : (isEn ? "Closed" : "مغلق")}
+            </div>
+            {!allowOldDatesSetting?.isOpenNow && (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 12.5, color: "var(--ink-soft)" }}>{isEn ? "Auto-close after:" : "الإغلاق التلقائي بعد:"}</span>
+                {[6, 24, 72].map((h) => (
+                  <button
+                    key={h}
+                    onClick={() => setSelectedDurationHours(h)}
+                    style={{ ...AR.rangeBtn, ...(selectedDurationHours === h ? AR.rangeBtnActive : {}) }}
+                  >
+                    {isEn ? `${h}h` : `${h} ساعة`}
+                  </button>
+                ))}
+              </div>
+            )}
+            {allowOldDatesError && (
+              <div style={AR.errorBox}>
+                <ShieldAlert size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+                <span>{allowOldDatesError}</span>
+              </div>
+            )}
+            {allowOldDatesSetting?.isOpenNow ? (
+              <button
+                onClick={handleCloseAllowOldDates}
+                disabled={allowOldDatesBusy}
+                style={{ ...S.exportBtn, width: "auto", marginTop: 0, marginBottom: 0, padding: "7px 14px", opacity: allowOldDatesBusy ? 0.6 : 1 }}
+              >
+                {allowOldDatesBusy && <Loader2 size={14} className="spin" />}
+                {isEn ? "Close now" : "إغلاق الآن"}
+              </button>
+            ) : (
+              <button
+                onClick={handleOpenAllowOldDates}
+                disabled={allowOldDatesBusy}
+                style={{ ...S.exportBtn, width: "auto", marginTop: 0, marginBottom: 0, padding: "7px 14px", opacity: allowOldDatesBusy ? 0.6 : 1 }}
+              >
+                {allowOldDatesBusy && <Loader2 size={14} className="spin" />}
+                {isEn ? "Open" : "فتح"}
+              </button>
+            )}
+          </>
+        )}
+      </div>
+
       <p style={S.profileHint}>
         {isEn
           ? "Students whose food-logging days within their two-week window exceed a threshold."

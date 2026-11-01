@@ -2966,6 +2966,125 @@ $$;
 revoke all on function public.admin_study_usage_report(jsonb) from public, anon, authenticated;
 grant execute on function public.admin_study_usage_report(jsonb) to service_role;
 
+-- ============================================================
+-- مفتاح أدمن مؤقت: السماح بتسجيل الأكل لأي تاريخ ماضٍ (تجاوز حد الـ14 يوماً
+-- الاعتيادي للخلف) - لحالات عطل حقيقي يفوّت فيها المستخدمون تسجيل أكلهم في
+-- أيامهم الفعلية. مغلق افتراضياً (نفس حد 14 يوماً كما كان دائماً، بلا أي
+-- تغيير بالسلوك الاعتيادي). يُفتح الأدمن يدوياً بمدة محدَّدة (6/24/72
+-- ساعة)، ويُغلق تلقائياً بعد انتهاء تلك المدة (بالفحص عند كل إدخال فعلي -
+-- لا وظيفة مجدولة منفصلة) أو يدوياً بزر واحد بأي وقت. لا علاقة له بتاريخ
+-- مستقبلي إطلاقاً (ذلك مرفوض دائماً بلا استثناء، بصرف النظر عن هذا المفتاح).
+-- ============================================================
+
+-- جدول إعدادات عام صغير بمفتاح/قيمة (jsonb) - بُني عاماً كـkey/value
+-- لإعادة استخدامه لإعدادات مستقبلية مشابهة بلا تغيير بنيوي، لكن يُستخدَم
+-- هنا لمفتاح واحد فقط (allow_old_dates) بالقيمة {enabled, closes_at}.
+create table if not exists app_settings (
+  key        text primary key,
+  value      jsonb not null,
+  updated_at timestamptz not null default now()
+);
+alter table app_settings enable row level security;
+
+-- القراءة مسموحة لأي مستخدم مسجَّل دخول، لكن فقط لمفتاح allow_old_dates
+-- تحديداً - التطبيق يحتاج قراءة هذا المفتاح تحديداً بلا أي نداء خادم
+-- (NutritionView: هل النافذة مفتوحة الآن فعلياً؟ وتبويب "المشرفين" لعرض
+-- الحالة). أي مفتاح إعدادات آخر قد يُضاف لاحقاً لهذا الجدول نفسه يحتاج
+-- policy خاصة به صريحة - لا هذه تلقائياً.
+drop policy if exists app_settings_select_allow_old_dates on app_settings;
+create policy app_settings_select_allow_old_dates on app_settings for select to authenticated
+  using (key = 'allow_old_dates');
+
+-- لا أي policy لـinsert/update/delete لأي دور عادي - الكتابة حصراً من
+-- netlify/functions/admin-report.js (mode=setAllowOldDates) بمفتاح
+-- service_role بعد فحص بريد الأدمن بالخادم (يتجاوز RLS كلياً بامتياز
+-- bypassrls الخاص بالدور نفسه، لا بأي policy هنا) - تماماً كبقية الكتابات
+-- الإدارية بهذا الملف (admin_messages مثلاً).
+insert into app_settings (key, value)
+values ('allow_old_dates', jsonb_build_object('enabled', false, 'closes_at', null))
+on conflict (key) do nothing;
+
+-- سجل تدقيق فتح/إغلاق كل إعداد إداري (مفتاح واحد لكل صف هنا: allow_old_dates
+-- فقط حالياً) - من فعل الإجراء ومتى وما القيمة الجديدة، للمراجعة اليدوية
+-- لاحقاً (SQL Editor مباشرة) - لا قراءة ولا كتابة من تطبيق العميل بأي دور
+-- عادي إطلاقاً (RLS مفعّل بلا أي policy، نفس نمط حصر blocked_users تماماً
+-- أعلى هذا الملف). لا بيانات مستخدمين هنا بأي شكل.
+create table if not exists admin_setting_log (
+  id        bigint generated always as identity primary key,
+  key       text not null,
+  action    text not null check (action in ('opened', 'closed')),
+  value     jsonb not null,
+  actor     text,
+  acted_at  timestamptz not null default now()
+);
+alter table admin_setting_log enable row level security;
+
+-- حارس حقيقي لحد الـ14 يوماً للخلف على nutrition_log (لا تعطيل زر بالواجهة
+-- فقط - أي طلب مباشر لـinsert/update عبر supabase-js أو REST يتجاوز
+-- الواجهة يُرفض أيضاً). SECURITY DEFINER ضروري هنا (نفس سبب
+-- prevent_blocked_university_id أعلاه بالضبط بالمبدأ): تحوّط لقراءة
+-- app_settings يعمل بصرف النظر عن أي تفصيل بسياسة RLS - لا اعتماد وحيد
+-- عليها.
+--
+-- يُفحص فقط عند INSERT، أو عند UPDATE غيَّر عمود date فعلياً (is not
+-- distinct from - لا الاعتماد وحيداً على "before update of date" الذي
+-- يُطلِق التريغر لمجرّد ذِكر العمود بجملة SET حتى لو لم تتغيّر قيمته فعلياً)
+-- - تعديل إدخال قديم موجود (تصحيح سعرات/بروتين...، كما تفعل
+-- updateNutritionEntry في store.js التي لا تُرسِل عمود date أصلاً) لا
+-- يستدعي هذا الفحص إطلاقاً، فيستمر العمل عليه بلا أي أثر لهذه الميزة - ولا
+-- تأثير على أي حذف (لا تريغر عليه إطلاقاً).
+--
+-- تاريخ مستقبلي: مرفوض دائماً بلا أي استثناء - المفتاح يسمح بتجاوز الحد
+-- الخلفي فقط، لا علاقة له بالمستقبل إطلاقاً.
+create or replace function public.enforce_nutrition_log_date_window()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_today_kw date;
+  v_floor_kw date;
+  v_override jsonb;
+  v_override_open boolean;
+begin
+  if tg_op = 'UPDATE' and new.date is not distinct from old.date then
+    return new;
+  end if;
+
+  v_today_kw := (now() at time zone 'Asia/Kuwait')::date;
+
+  if new.date::date > v_today_kw then
+    raise exception 'FUTURE_DATE_NOT_ALLOWED'
+      using errcode = 'P0001',
+            detail = 'Nutrition log entries cannot be dated in the future.';
+  end if;
+
+  v_floor_kw := v_today_kw - 13;
+  if new.date::date >= v_floor_kw then
+    return new;
+  end if;
+
+  select value into v_override from app_settings where key = 'allow_old_dates';
+  v_override_open := coalesce((v_override->>'enabled')::boolean, false)
+    and v_override->>'closes_at' is not null
+    and (v_override->>'closes_at')::timestamptz > now();
+
+  if not v_override_open then
+    raise exception 'DATE_TOO_OLD'
+      using errcode = 'P0001',
+            detail = 'Entries older than 14 days require the admin override to be open.';
+  end if;
+
+  return new;
+end;
+$$;
+drop trigger if exists trg_enforce_nutrition_log_date_window on public.nutrition_log;
+create trigger trg_enforce_nutrition_log_date_window
+  before insert or update of date on public.nutrition_log
+  for each row
+  execute function public.enforce_nutrition_log_date_window();
+
 -- إجبار طبقة PostgREST (التي تُعرِّض RPC عبر supabase.rpc(...)) على إعادة
 -- تحميل ذاكرتها المؤقتة للمخطط فوراً، بدل انتظار إعادة التحميل التلقائية
 -- (تحدث عادة خلال ثوانٍ، لكن قد تتأخر) - يضمن أن get_group_by_invite_code

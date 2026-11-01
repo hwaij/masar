@@ -1569,27 +1569,52 @@ function RemindersTab() {
 const DEFAULT_MIN_USAGE_DAYS = 10;
 
 // تحليل CSV مشاركي الدراسة الخارجية (FSN 499) بالواجهة نفسها - بلا أي مكتبة
-// (لا papa/xlsx بـpackage.json)، محلّل مبسَّط عمداً لصيغة أعمدة ثابتة
-// ومحدودة (لا فواصل داخل قيمة/لا اقتباس) كما تصل من ملف المشرف مباشرة.
-// العمود المطلوب: university_id فقط - نافذة الريكول (B) أُلغيت نهائياً من
-// هذه الميزة (المشرفة تحتاج فقط نافذة A: أول 14 يوم من التسجيل)، فلا داعي
-// لقراءة أو إرسال recall1_date/recall2_date بعد الآن حتى لو وُجدا بالملف
-// (admin_study_usage_report نفسها لم تتغيّر وتتعامل معهما كغائبين بأمان،
-// لكن لا فائدة من إرسالهما). أي أعمدة أخرى تُتجاهَل بصمت بلا خطأ. رقم
-// المشارك "No." لم يعد يُقرأ من الملف إطلاقاً - هو ترتيب الصف نفسه، يُحسَب
-// داخل admin_study_usage_report (jsonb_array_elements ... with ordinality).
+// (لا papa/xlsx بـpackage.json). العمود المطلوب: university_id فقط - نافذة
+// الريكول (B) أُلغيت نهائياً من هذه الميزة، فلا داعي لقراءة أو إرسال
+// recall1_date/recall2_date بعد الآن حتى لو وُجدا بالملف.
+//
+// إصلاح حقيقي (وُجد بالاختبار الفعلي، راجع التقرير): المحلّل القديم كان
+// يفصل الأعمدة بفاصلة واحدة فقط، بافتراض لا شيء آخر - لكن ملفات Excel
+// مُصدَّرة بإعدادات إقليمية غير أمريكية (شائع بالخليج/أوروبا، حين الفاصلة
+// العشرية = "," فتستخدم Excel الفاصلة المنقوطة ";" فاصلاً للأعمدة بدلاً من
+// ",", رغم بقاء امتداد الملف .csv) أو ملفات بها حقول بين علامتي اقتباس
+// ("study_code","university_id"...) كانت تكسر المطابقة بصمت تام: لا يُطابَق
+// أي عمود (لأن السطر كله يصبح خلية واحدة طويلة بلا فاصل متوقَّع)، فيُنتج
+// صفاً لكل مشارك بـuniversityId فارغ لكل الصفوف - لا خطأ بالـconsole ولا
+// بالشبكة (الطلب نفسه ينجح فعلياً، فقط بمدخل فاسد بالكامل)، فيظهر ملخص
+// برقم "غير مسجّل: الكل" بلا أي فائدة - هذا هو العطل الذي وصفته المشرفة
+// بالضبط. الإصلاح: اكتشاف الفاصل الفعلي تلقائياً (فاصلة ثم فاصلة منقوطة ثم
+// تاب، أي واحد منها يُطابِق "university_id" بالترويسة فعلياً)، وتجريد علامتي
+// الاقتباس المحيطة بأي خلية (ترويسة أو بيانات) قبل أي مطابقة/استخدام. وإذا
+// تعذّر إيجاد العمود فعلياً بعد كل ذلك، تُعاد مصفوفة فارغة (لا صفوف بقيم
+// فارغة صامتة) فيظهر خطأ "لا يحوي عمود university_id" الموجود بالفعل بدل
+// نجاح صامت بمدخل فاسد.
+function stripCsvQuotes(raw) {
+  const t = raw.trim();
+  if (t.length >= 2 && t.startsWith('"') && t.endsWith('"')) {
+    return t.slice(1, -1).replace(/""/g, '"').trim();
+  }
+  return t;
+}
+function detectCsvDelimiter(headerLine) {
+  for (const d of [",", ";", "\t"]) {
+    const cells = headerLine.split(d).map((c) => stripCsvQuotes(c).toLowerCase());
+    if (cells.includes("university_id")) return d;
+  }
+  return ",";
+}
 function parseStudyParticipantsCsv(text) {
-  const lines = String(text || "").split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
+  let raw = String(text || "");
+  if (raw.charCodeAt(0) === 0xfeff) raw = raw.slice(1);
+  const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
   if (lines.length < 2) return [];
-  const header = lines[0].split(",").map((h) => h.trim().toLowerCase());
-  const idx = {
-    universityId: header.indexOf("university_id"),
-  };
+  const delimiter = detectCsvDelimiter(lines[0]);
+  const header = lines[0].split(delimiter).map((h) => stripCsvQuotes(h).toLowerCase());
+  const universityIdCol = header.indexOf("university_id");
+  if (universityIdCol < 0) return [];
   return lines.slice(1).map((line) => {
-    const cols = line.split(",").map((c) => c.trim());
-    return {
-      universityId: idx.universityId >= 0 ? (cols[idx.universityId] || "") : "",
-    };
+    const cols = line.split(delimiter).map((c) => stripCsvQuotes(c));
+    return { universityId: cols[universityIdCol] || "" };
   });
 }
 

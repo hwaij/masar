@@ -602,12 +602,13 @@ exports.handler = async (event) => {
     }
   }
 
-  // تقرير استخدام تطبيق لمشاركي دراسة خارجية (FSN 499) - راجع
-  // admin_study_usage_report في supabase-schema.sql للتعريفات الكاملة. الرفع
-  // بالملف (CSV) يُحلَّل بالواجهة قبل الإرسال - هذه الدالة تستقبل مصفوفة
-  // كائنات منظَّمة جاهزة فقط، لا نص CSV خام، ولا تخزّن أي شيء بقاعدة البيانات
-  // أو بالخادم (p_participants تُمرَّر مباشرة لنداء RPC واحد ويُعاد ناتجه
-  // فوراً - بلا أي insert/upsert بأي جدول).
+  // تقرير استخدام تطبيق لمشاركي دراسة خارجية (FSN 499) - قراءة فقط، لا كتابة
+  // بأي جدول. راجع admin_study_usage_report في supabase-schema.sql للتعريفات
+  // الكاملة (نافذتا A/B، "يوم مستخدَم"، "وجبة رئيسية"). الرفع بالملف (CSV)
+  // يُحلَّل بالواجهة قبل الإرسال - هذه الدالة تستقبل مصفوفة كائنات منظَّمة
+  // {universityId, recall1Date, recall2Date} فقط، لا نص CSV خام، ولا تخزّن
+  // أي شيء بقاعدة البيانات أو بالخادم (p_participants تُمرَّر مباشرة لنداء
+  // RPC واحد ويُعاد ناتجه فوراً).
   if (mode === "studyUsageReport") {
     if (event.httpMethod !== "POST") return json(405, { error: "Method not allowed" });
 
@@ -621,10 +622,9 @@ exports.handler = async (event) => {
     if (!participants || participants.length === 0) return json(400, { error: "قائمة المشاركين فارغة." });
     if (participants.length > 500) return json(400, { error: "عدد المشاركين كبير جداً (الحد 500)." });
     const cleanParticipants = participants.map((p) => ({
-      studyCode: typeof p?.studyCode === "string" ? p.studyCode.slice(0, 40) : "",
       universityId: typeof p?.universityId === "string" ? p.universityId.slice(0, 40) : "",
-      fromDate: typeof p?.fromDate === "string" ? p.fromDate.slice(0, 20) : "",
-      toDate: typeof p?.toDate === "string" ? p.toDate.slice(0, 20) : "",
+      recall1Date: typeof p?.recall1Date === "string" ? p.recall1Date.slice(0, 20) : "",
+      recall2Date: typeof p?.recall2Date === "string" ? p.recall2Date.slice(0, 20) : "",
     }));
 
     try {

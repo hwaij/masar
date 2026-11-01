@@ -1571,27 +1571,26 @@ const DEFAULT_MIN_USAGE_DAYS = 10;
 // تحليل CSV مشاركي الدراسة الخارجية (FSN 499) بالواجهة نفسها - بلا أي مكتبة
 // (لا papa/xlsx بـpackage.json)، محلّل مبسَّط عمداً لصيغة أعمدة ثابتة
 // ومحدودة (لا فواصل داخل قيمة/لا اقتباس) كما تصل من ملف المشرف مباشرة.
-// أعمدة متوقَّعة: study_code, university_id, recall1_date, recall2_date -
-// بأي ترتيب (يُطابَق بالاسم لا الموضع)؛ study_code فارغ يُترَك فارغاً هنا
-// ويُولَّد تلقائياً (P01, P02...) بترتيب الصفوف من داخل admin_study_usage_report
-// نفسها (راجع supabase-schema.sql) - لا تكرار لنفس المنطق هنا.
+// العمود المطلوب: university_id فقط. recall1_date/recall2_date اختياريان -
+// غيابهما بلا أي خطأ (أعمدة النافذة B تُعاد فارغة من admin_study_usage_report
+// نفسها). أي أعمدة أخرى (كـstudy_code قديم) تُتجاهَل بصمت بلا خطأ. رقم
+// المشارك "No." لم يعد يُقرأ من الملف إطلاقاً - هو ترتيب الصف نفسه، يُحسَب
+// داخل admin_study_usage_report (jsonb_array_elements ... with ordinality).
 function parseStudyParticipantsCsv(text) {
   const lines = String(text || "").split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
   if (lines.length < 2) return [];
   const header = lines[0].split(",").map((h) => h.trim().toLowerCase());
   const idx = {
-    studyCode: header.indexOf("study_code"),
     universityId: header.indexOf("university_id"),
-    fromDate: header.indexOf("recall1_date"),
-    toDate: header.indexOf("recall2_date"),
+    recall1Date: header.indexOf("recall1_date"),
+    recall2Date: header.indexOf("recall2_date"),
   };
   return lines.slice(1).map((line) => {
     const cols = line.split(",").map((c) => c.trim());
     return {
-      studyCode: idx.studyCode >= 0 ? (cols[idx.studyCode] || "") : "",
       universityId: idx.universityId >= 0 ? (cols[idx.universityId] || "") : "",
-      fromDate: idx.fromDate >= 0 ? (cols[idx.fromDate] || "") : "",
-      toDate: idx.toDate >= 0 ? (cols[idx.toDate] || "") : "",
+      recall1Date: idx.recall1Date >= 0 ? (cols[idx.recall1Date] || "") : "",
+      recall2Date: idx.recall2Date >= 0 ? (cols[idx.recall2Date] || "") : "",
     };
   });
 }
@@ -1613,7 +1612,9 @@ function TopUsersTab() {
   const studyFileInputRef = useRef(null);
   const [studyBusy, setStudyBusy] = useState(false);
   const [studyError, setStudyError] = useState(null);
-  const [studySummary, setStudySummary] = useState(null);
+  const [studyResults, setStudyResults] = useState(null);
+  const [studyAnonymize, setStudyAnonymize] = useState(false);
+  const [studyExporting, setStudyExporting] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -1659,27 +1660,60 @@ function TopUsersTab() {
     }
   }
 
-  // تصدير "تقرير استخدام الدراسة" (FSN 499) - رفع CSV بالواجهة، تحليله
-  // بالمتصفح فقط، إرسال مصفوفة منظَّمة لدالة الخادم (لا نص CSV خام ولا أي
-  // تخزين - راجع admin-report.js/supabase-schema.sql). يقيس استخدام
-  // التطبيق فقط، لا بيانات غذائية إطلاقاً (راجع buildStudyUsageReportExcelBuffer).
+  // "تقرير استخدام الدراسة" (FSN 499) - خطوتان منفصلتان كما طُلب: (1) رفع
+  // CSV، تحليله بالمتصفح فقط، إرسال مصفوفة {universityId, recall1Date,
+  // recall2Date} منظَّمة لدالة الخادم (لا نص CSV خام ولا أي تخزين - راجع
+  // admin-report.js/supabase-schema.sql) وعرض ملخص قبل أي تصدير؛ (2) تصدير
+  // Excel فعلي من النتائج المحمَّلة بالفعل (بلا نداء شبكة إضافي)، مع خيار
+  // "Anonymize" لحذف عمودي الاسم/الرقم الجامعي فقط من الملف. قراءة فقط -
+  // لا كتابة بأي قاعدة بيانات في أي خطوة.
   async function handleStudyCsvUpload(e) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
     setStudyBusy(true);
     setStudyError(null);
-    setStudySummary(null);
+    setStudyResults(null);
     try {
       const text = await file.text();
       const participants = parseStudyParticipantsCsv(text);
       if (participants.length === 0) {
-        setStudyError(isEn ? "The CSV file is empty or has no valid rows." : "ملف CSV فارغ أو لا يحوي صفوفاً صالحة.");
+        setStudyError(isEn ? "The CSV file is empty, or has no university_id column." : "ملف CSV فارغ، أو لا يحوي عمود university_id.");
         return;
       }
       const results = await fetchStudyUsageReport(participants);
+      if (results.length !== participants.length) {
+        setStudyError(isEn ? "Row count mismatch between upload and report - please try again." : "عدم تطابق بعدد الصفوف بين الملف المرفوع والتقرير - حاول مرة أخرى.");
+        return;
+      }
+      setStudyResults(results);
+    } catch (err) {
+      console.error("[TopUsersTab] study usage report failed:", err);
+      setStudyError(isEn ? "Failed to generate the study report, please try again." : "تعذّر إنشاء تقرير الدراسة الآن، حاول مرة أخرى.");
+    } finally {
+      setStudyBusy(false);
+    }
+  }
+
+  const studySummary = useMemo(() => {
+    if (!studyResults) return null;
+    const notRegistered = studyResults.filter((r) => r.status === "Not registered in app");
+    const registeredNoLogs = studyResults.filter((r) => r.status === "Registered - no logs");
+    const used = studyResults.filter((r) => r.status === "Used");
+    return {
+      total: studyResults.length,
+      notRegistered,
+      registeredNoLogs: registeredNoLogs.length,
+      used: used.length,
+    };
+  }, [studyResults]);
+
+  async function handleStudyExport() {
+    if (studyExporting || !studyResults || studyResults.length === 0) return;
+    setStudyExporting(true);
+    try {
       const { buildStudyUsageReportExcelBuffer } = await import("../lib/excelReport");
-      const buffer = await buildStudyUsageReportExcelBuffer(results);
+      const buffer = await buildStudyUsageReportExcelBuffer(studyResults, { anonymize: studyAnonymize });
       const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -1689,15 +1723,11 @@ function TopUsersTab() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(blobUrl);
-
-      const unmatchedCount = results.filter((r) => !r.linked).length;
-      const flaggedCount = results.filter((r) => (r.notes || []).length > 0).length;
-      setStudySummary({ total: results.length, unmatched: unmatchedCount, flagged: flaggedCount });
     } catch (err) {
-      console.error("[TopUsersTab] study usage report failed:", err);
-      setStudyError(isEn ? "Failed to generate the study report, please try again." : "تعذّر إنشاء تقرير الدراسة الآن، حاول مرة أخرى.");
+      console.error("[TopUsersTab] study usage export failed:", err);
+      setStudyError(isEn ? "Failed to export the Excel file, please try again." : "تعذّر تصدير ملف Excel، حاول مرة أخرى.");
     } finally {
-      setStudyBusy(false);
+      setStudyExporting(false);
     }
   }
 
@@ -1774,8 +1804,8 @@ function TopUsersTab() {
         </h3>
         <p style={S.profileHint}>
           {isEn
-            ? "Upload the participants CSV (study_code, university_id, recall1_date, recall2_date) to export an app-usage-only report (no food/calorie data) covering each participant's own recall-to-recall window."
-            : "رفع ملف CSV للمشاركين (study_code, university_id, recall1_date, recall2_date) لتصدير تقرير يقيس استخدام التطبيق فقط (بلا بيانات غذائية) ضمن نافذة Recall 1 إلى Recall 2 الخاصة بكل مشارك."}
+            ? "Upload the participants CSV (university_id required; recall1_date/recall2_date optional) to measure app-usage only - days used and meals logged, no food/calorie data."
+            : "رفع ملف CSV للمشاركين (university_id مطلوب؛ recall1_date وrecall2_date اختياريان) لقياس استخدام التطبيق فقط - أيام الاستخدام والوجبات المسجَّلة، بلا أي بيانات غذائية."}
         </p>
         <input ref={studyFileInputRef} type="file" accept=".csv,text/csv" onChange={handleStudyCsvUpload} style={{ display: "none" }} />
         <button
@@ -1784,7 +1814,7 @@ function TopUsersTab() {
           style={{ ...S.exportBtn, width: "auto", marginTop: 0, marginBottom: 12, padding: "7px 14px", opacity: studyBusy ? 0.6 : 1 }}
         >
           {studyBusy ? <Loader2 size={14} className="spin" /> : <Download size={14} />}
-          {isEn ? "Upload CSV & export study report" : "رفع CSV وتصدير تقرير الدراسة"}
+          {isEn ? "Upload participants CSV" : "رفع ملف المشاركين CSV"}
         </button>
         {studyError && (
           <div style={AR.errorBox}>
@@ -1793,10 +1823,30 @@ function TopUsersTab() {
           </div>
         )}
         {studySummary && !studyError && (
-          <div style={{ ...AR.resultCount }}>
-            {isEn
-              ? `Processed ${studySummary.total} participants - ${studySummary.unmatched} not found in the app, ${studySummary.flagged} flagged in notes.`
-              : `تمت معالجة ${studySummary.total} مشارك - ${studySummary.unmatched} غير مسجّلين بالتطبيق، ${studySummary.flagged} فيهم ملاحظة بالتقرير.`}
+          <div style={{ border: "1px solid var(--line)", borderRadius: 10, padding: "12px 14px", marginBottom: 14, background: "var(--surface-sunken)" }}>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
+              {isEn
+                ? `Uploaded: ${studySummary.total} - Registered: ${studySummary.total - studySummary.notRegistered.length} - Not registered: ${studySummary.notRegistered.length} - Used: ${studySummary.used}`
+                : `المرفوع: ${studySummary.total} - المسجّلون: ${studySummary.total - studySummary.notRegistered.length} - غير المسجّلين: ${studySummary.notRegistered.length} - فيهم استخدام: ${studySummary.used}`}
+            </div>
+            {studySummary.notRegistered.length > 0 && (
+              <div style={{ fontSize: 12.5, color: "var(--muted2)", lineHeight: 1.7 }}>
+                {isEn ? "Not registered (university IDs): " : "غير مسجّلين (الأرقام الجامعية): "}
+                {studySummary.notRegistered.map((r) => r.universityId || "—").join(", ")}
+              </div>
+            )}
+            <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, fontSize: 13, cursor: "pointer" }}>
+              <input type="checkbox" checked={studyAnonymize} onChange={(e) => setStudyAnonymize(e.target.checked)} />
+              {isEn ? "Anonymize (remove names & university IDs)" : "Anonymize (حذف الاسم والرقم الجامعي)"}
+            </label>
+            <button
+              onClick={handleStudyExport}
+              disabled={studyExporting}
+              style={{ ...S.exportBtn, width: "auto", marginTop: 10, marginBottom: 0, padding: "7px 14px", opacity: studyExporting ? 0.6 : 1 }}
+            >
+              {studyExporting ? <Loader2 size={14} className="spin" /> : <Download size={14} />}
+              {isEn ? "Export Excel" : "تصدير Excel"}
+            </button>
           </div>
         )}
       </div>

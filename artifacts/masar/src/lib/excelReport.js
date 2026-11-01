@@ -722,16 +722,15 @@ export async function buildStudyUsageReportExcelBuffer(participants, { anonymize
     { header: "Join date", key: "joinDate", width: 12 },
     { header: "App window end", key: "appWindowEnd", width: 14 },
     { header: "Days used (of 14)", key: "daysUsedA", width: 14 },
-    { header: "Usage % (A)", key: "usagePctA", width: 12 },
-    { header: "Total main meals (A)", key: "totalMainMealsA", width: 16 },
-    { header: "Snack entries (A)", key: "snackEntriesA", width: 14 },
-    { header: "Days with 3 main meals (A)", key: "days3MainA", width: 18 },
-    { header: "Logged 3 main meals every used day (A)", key: "logged3MainEveryDayA", width: 22 },
+    { header: "Usage %", key: "usagePctA", width: 12 },
+    { header: "Total main meals", key: "totalMainMealsA", width: 16 },
+    { header: "Snack entries", key: "snackEntriesA", width: 14 },
+    { header: "Days with 3 main meals", key: "days3MainA", width: 18 },
+    { header: "Logged 3 main meals every used day", key: "logged3MainEveryDayA", width: 22 },
     { header: "Days with breakfast", key: "daysWithBreakfast", width: 14 },
     { header: "Days with lunch", key: "daysWithLunch", width: 14 },
     { header: "Days with dinner", key: "daysWithDinner", width: 14 },
     { header: "Days with snack", key: "daysWithSnack", width: 14 },
-    { header: "Days logged later", key: "daysLoggedLater", width: 14 },
     { header: "Raw entries", key: "rawEntries", width: 12 },
     { header: "Recall 1", key: "recall1", width: 12 },
     { header: "Recall 2", key: "recall2", width: 12 },
@@ -770,7 +769,6 @@ export async function buildStudyUsageReportExcelBuffer(participants, { anonymize
       daysWithLunch: p.daysWithLunch,
       daysWithDinner: p.daysWithDinner,
       daysWithSnack: p.daysWithSnack,
-      daysLoggedLater: p.daysLoggedLater,
       rawEntries: p.rawEntries,
       recall1: blankIfNull(p.recall1),
       recall2: blankIfNull(p.recall2),
@@ -807,7 +805,6 @@ export async function buildStudyUsageReportExcelBuffer(participants, { anonymize
     { header: "Snack entries", key: "snackEntries", width: 12 },
     { header: "Main meals", key: "mainMeals", width: 11 },
     { header: "Entries", key: "entries", width: 9 },
-    { header: "Logged later", key: "loggedLater", width: 12 },
   ];
   const dailyHeader = daily.getRow(1);
   dailyHeader.font = { bold: true };
@@ -823,7 +820,7 @@ export async function buildStudyUsageReportExcelBuffer(participants, { anonymize
     if (days.length === 0) {
       const addedRow = daily.addRow({
         ...base, dayNum: "", date: "Not registered in app",
-        breakfast: "", lunch: "", dinner: "", snackEntries: "", mainMeals: "", entries: "", loggedLater: "",
+        breakfast: "", lunch: "", dinner: "", snackEntries: "", mainMeals: "", entries: "",
       });
       addedRow.alignment = { horizontal: "left" };
       const isBanded = dailyRowIndex % 2 === 1;
@@ -845,7 +842,6 @@ export async function buildStudyUsageReportExcelBuffer(participants, { anonymize
         snackEntries: d.snackEntries,
         mainMeals: d.mainMeals,
         entries: d.entries,
-        loggedLater: yn(d.loggedLater),
       });
       addedRow.alignment = { horizontal: "left" };
       const isBanded = dailyRowIndex % 2 === 1;
@@ -905,8 +901,7 @@ export async function buildStudyUsageReportExcelBuffer(participants, { anonymize
     "A \"day used\" is any date within the window that has at least one food-log entry, regardless of meal type. Usage % = days used / window length x 100.",
     "A \"main meal\" is a (date, breakfast/lunch/dinner) combination with at least one entry that day - not a raw entry count. Entries with no meal type set count toward \"day used\" and raw entries only, not toward any meal column.",
     "\"Snack entries\" is the raw count of entries classified snack that day - counted separately, never added into the main-meal counts.",
-    "\"Logged later\" flags an entry whose created_at date (Kuwait time) is after the log date itself - i.e. it was backdated.",
-    "This report measures app-usage intensity only (days used, meals, logged-later entries). It does not use the app's food/calorie/macro data in any way.",
+    "This report measures app-usage intensity only (days used and meals logged). It does not use the app's food/calorie/macro data in any way.",
   ];
   notes.forEach((n, i) => {
     styleRow(stats.addRow([n]), { banded: i % 2 === 1 });

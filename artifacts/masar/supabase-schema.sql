@@ -2723,6 +2723,200 @@ $$;
 revoke all on function public.acknowledge_admin_message(uuid) from public;
 grant execute on function public.acknowledge_admin_message(uuid) to authenticated;
 
+-- ============================================================
+-- تقرير استخدام تطبيق "مسارك" لمشاركي دراسة خارجية (FSN 499) - يقيس فقط
+-- شدة استخدام التطبيق (أيام/وجبات/ساعات تسجيل) بين تاريخي Recall 1 و
+-- Recall 2 الفعليين لكل مشارك (نافذة متغيّرة الطول لكل مشارك، لا نافذة
+-- الأسبوعين الثابتة لبقية الشاشة الإدارية) - لا يحسب ولا يُرجع أي بيانات
+-- غذائية (سعرات/بروتين/كارب/دهون) إطلاقاً، لأن تحليل الدراسة لا يستخدمها.
+-- لا تُخزَّن بيانات المشاركين (p_participants) في أي جدول - تُعالَج بالذاكرة
+-- فقط داخل هذا النداء وتُعاد كنتيجة JSON مباشرة، بلا أي insert.
+--
+-- p_participants: مصفوفة JSON [{studyCode, universityId, fromDate, toDate}, ...]
+-- (fromDate/toDate بصيغة YYYY-MM-DD = تاريخ Recall 1/Recall 2 بالضبط، لا
+-- أي حساب نافذة ثابتة). studyCode فارغ/غائب يُستبدَل تلقائياً بـP01، P02...
+-- بترتيب الصفوف (jsonb_array_elements ... with ordinality).
+--
+-- لا يُستبعَد أي مشارك: رقم جامعي غير موجود بجدول profile (owner=null) أو
+-- نافذة غير صالحة (تاريخ ناقص/recall2 قبل recall1) يُعاد له صف كامل بقيم
+-- صفر + ملاحظة توضيحية بالعربية (notes)، لا حذفاً من النتيجة.
+--
+-- تعريفات محسوبة حرفياً كما طُلب (راجع ورقة "التعريفات" بالتصدير بالواجهة):
+-- * "يوم مستخدَم" = تاريخ في nutrition_log ضمن نافذة المشارك فيه إدخال واحد
+--   على الأقل.
+-- * "وجبة" = تركيبة (تاريخ، meal_type) فيها إدخال واحد على الأقل - لا عدد
+--   الإدخالات الخام. meal_type الفعلية (من nutrition.js/قيد قاعدة البيانات):
+--   breakfast/lunch/dinner/snack فقط (قد تكون null لإدخالات قديمة غير
+--   مصنَّفة - تُحسَب بـ"يوم مستخدَم"/rawEntryCount فقط، لا بأي من أعمدة
+--   الوجبات الرئيسية/السناك).
+-- * "وجبات رئيسية باليوم" (main_meal_types_present) = عدد الأنواع المميّزة
+--   من (breakfast/lunch/dinner) الموجودة باليوم، 0-3 (قاعدة (تاريخ،
+--   meal_type) الحرفية المذكورة أعلاه بالضبط).
+-- * السناك "يُحسَب منفصل" - بقاعدة مختلفة عمداً عن الوجبات الرئيسية: بعدد
+--   الإدخالات الخام (snack_entries_count) لا بتركيبة (تاريخ، meal_type)
+--   المحدودة بمرة واحدة - هذا هو الاختيار الوحيد الذي يجعل تصنيف "4 أو 5
+--   وجبات" (= رئيسية + عدد السناكات) قابلاً للوصول فعلاً كما طُلب حرفياً
+--   (3 رئيسية + سناك واحد فقط كحد أقصى بقاعدة (تاريخ، نوع) الموحَّدة = 4
+--   كحد أقصى، لن تصل "5" أبداً) - مُوثَّق بوضوح بورقة "التعريفات" بالتصدير،
+--   لا اختياراً صامتاً.
+-- * توزيع الساعات (hourCounts أدناه) بمستوى "الوجبة" لا الإدخال الخام: لكل
+--   تركيبة (تاريخ، meal_type) يُستخدَم أقدم created_at (distinct on ...
+--   order by created_at asc) كممثّل وقتها - لا كل إدخال خام على حدة. إدخال
+--   "سُجّل لاحقاً" (تاريخ created_at بتوقيت الكويت أكبر من عمود date نفسه)
+--   يُستبعَد من ساعته العددية ويُحسَب بمفتاح "late" منفصل بدلاً من ذلك.
+-- * نافذة المشارك = recall2 - recall1 + 1 يوماً (تحذير بالملاحظات إذا <14
+--   أو >25 يوماً، لا استبعاد).
+create or replace function public.admin_study_usage_report(p_participants jsonb)
+returns json
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  result json;
+begin
+  with parsed as (
+    select
+      coalesce(nullif(trim(p->>'studyCode'), ''), 'P' || lpad((ord)::text, 2, '0')) as study_code,
+      trim(p->>'universityId') as university_id,
+      nullif(trim(p->>'fromDate'), '') as from_text,
+      nullif(trim(p->>'toDate'), '') as to_text
+    from jsonb_array_elements(p_participants) with ordinality as t(p, ord)
+  ),
+  resolved as (
+    select
+      parsed.*,
+      (case when parsed.from_text ~ '^\d{4}-\d{2}-\d{2}$' then parsed.from_text::date else null end) as from_date,
+      (case when parsed.to_text ~ '^\d{4}-\d{2}-\d{2}$' then parsed.to_text::date else null end) as to_date,
+      pr.owner,
+      pr.name
+    from parsed
+    left join lateral (
+      select p.owner, p.name from profile p
+      where p.university_id = parsed.university_id
+      order by p.owner limit 1
+    ) pr on true
+  ),
+  withnotes as (
+    select
+      r.*,
+      (r.owner is not null) as linked,
+      (
+        r.owner is not null and r.from_date is not null and r.to_date is not null and r.to_date >= r.from_date
+      ) as valid_window,
+      (case when r.from_date is not null and r.to_date is not null and r.to_date >= r.from_date then (r.to_date - r.from_date + 1) else 0 end) as window_days,
+      array_remove(array[
+        case when r.university_id is null or r.university_id = '' then 'رقم جامعي فارغ' end,
+        case when r.owner is null then 'غير مسجّل في التطبيق' end,
+        case when r.from_text is null or r.to_text is null or r.from_date is null or r.to_date is null then 'تاريخ ناقص أو غير صالح' end,
+        case when r.from_date is not null and r.to_date is not null and r.to_date < r.from_date then 'recall2 قبل recall1' end,
+        case when r.from_date is not null and r.to_date is not null and r.to_date >= r.from_date and (r.to_date - r.from_date + 1) < 14 then 'نافذة أقل من 14 يوماً' end,
+        case when r.from_date is not null and r.to_date is not null and r.to_date >= r.from_date and (r.to_date - r.from_date + 1) > 25 then 'نافذة أكثر من 25 يوماً' end
+      ], null) as notes
+    from resolved r
+  ),
+  participant_logs as (
+    select w.study_code, w.owner, nl.id, nl.date, nl.meal_type, nl.created_at
+    from withnotes w
+    join nutrition_log nl on nl.owner = w.owner
+    where w.valid_window
+      and nl.date >= w.from_date::text and nl.date <= w.to_date::text
+  ),
+  entry_late as (
+    select
+      pl.*,
+      (pl.created_at at time zone 'Asia/Kuwait')::date as created_kuwait_date,
+      extract(hour from (pl.created_at at time zone 'Asia/Kuwait'))::int as created_kuwait_hour,
+      ((pl.created_at at time zone 'Asia/Kuwait')::date > pl.date::date) as is_late
+    from participant_logs pl
+  ),
+  day_agg as (
+    select
+      study_code, owner, date,
+      count(distinct meal_type) filter (where meal_type in ('breakfast','lunch','dinner')) as main_meal_types_present,
+      count(*) filter (where meal_type = 'snack') as snack_entries_count,
+      bool_or(meal_type = 'breakfast') as has_breakfast,
+      bool_or(meal_type = 'lunch') as has_lunch,
+      bool_or(meal_type = 'dinner') as has_dinner,
+      bool_or(meal_type = 'snack') as has_snack,
+      count(*) as raw_entries_that_day,
+      bool_or(is_late) as day_has_late_entry
+    from entry_late
+    group by study_code, owner, date
+  ),
+  participant_agg as (
+    select
+      study_code, owner,
+      count(*) as used_days,
+      sum(main_meal_types_present) as total_main_meals,
+      sum(snack_entries_count) as total_snacks,
+      sum(case when main_meal_types_present = 3 then 1 else 0 end) as days_3_main,
+      sum(case when (main_meal_types_present + snack_entries_count) = 3 then 1 else 0 end) as days_total_3,
+      sum(case when (main_meal_types_present + snack_entries_count) = 4 then 1 else 0 end) as days_total_4,
+      sum(case when (main_meal_types_present + snack_entries_count) = 5 then 1 else 0 end) as days_total_5,
+      sum(case when has_breakfast then 1 else 0 end) as days_with_breakfast,
+      sum(case when has_lunch then 1 else 0 end) as days_with_lunch,
+      sum(case when has_dinner then 1 else 0 end) as days_with_dinner,
+      sum(case when has_snack then 1 else 0 end) as days_with_snack,
+      sum(raw_entries_that_day) as raw_entry_count,
+      sum(case when day_has_late_entry then 1 else 0 end) as late_days_count,
+      bool_and(main_meal_types_present = 3) as all_days_3_main
+    from day_agg
+    group by study_code, owner
+  ),
+  meal_reps as (
+    select distinct on (study_code, owner, date, meal_type)
+      study_code, owner, date, meal_type, created_kuwait_hour, is_late
+    from entry_late
+    order by study_code, owner, date, meal_type, created_at asc
+  ),
+  hour_agg as (
+    select study_code, owner, jsonb_object_agg(hour_label, cnt) as hour_counts
+    from (
+      select study_code, owner,
+        case when is_late then 'late' else created_kuwait_hour::text end as hour_label,
+        count(*) as cnt
+      from meal_reps
+      group by study_code, owner, hour_label
+    ) h
+    group by study_code, owner
+  )
+  select json_agg(row_to_json(x) order by x."studyCode") into result
+  from (
+    select
+      w.study_code as "studyCode",
+      w.university_id as "universityId",
+      w.name,
+      w.from_text as "recall1Date",
+      w.to_text as "recall2Date",
+      w.linked,
+      w.window_days as "windowDays",
+      coalesce(pa.used_days, 0) as "usedDays",
+      coalesce(pa.total_main_meals, 0) as "totalMainMeals",
+      coalesce(pa.total_snacks, 0) as "totalSnacks",
+      coalesce(pa.days_3_main, 0) as "days3Main",
+      coalesce(pa.days_total_3, 0) as "days3Total",
+      coalesce(pa.days_total_4, 0) as "days4Total",
+      coalesce(pa.days_total_5, 0) as "days5Total",
+      coalesce(pa.days_with_breakfast, 0) as "daysWithBreakfast",
+      coalesce(pa.days_with_lunch, 0) as "daysWithLunch",
+      coalesce(pa.days_with_dinner, 0) as "daysWithDinner",
+      coalesce(pa.days_with_snack, 0) as "daysWithSnack",
+      coalesce(pa.raw_entry_count, 0) as "rawEntryCount",
+      coalesce(pa.late_days_count, 0) as "lateLoggedDaysCount",
+      (case when coalesce(pa.used_days, 0) > 0 then coalesce(pa.all_days_3_main, false) else false end) as "allDays3Main",
+      coalesce(ha.hour_counts, '{}'::jsonb) as "hourCounts",
+      w.notes
+    from withnotes w
+    left join participant_agg pa on pa.study_code = w.study_code and pa.owner is not distinct from w.owner
+    left join hour_agg ha on ha.study_code = w.study_code and ha.owner is not distinct from w.owner
+  ) x;
+  return result;
+end;
+$$;
+revoke all on function public.admin_study_usage_report(jsonb) from public, anon, authenticated;
+grant execute on function public.admin_study_usage_report(jsonb) to service_role;
+
 -- إجبار طبقة PostgREST (التي تُعرِّض RPC عبر supabase.rpc(...)) على إعادة
 -- تحميل ذاكرتها المؤقتة للمخطط فوراً، بدل انتظار إعادة التحميل التلقائية
 -- (تحدث عادة خلال ثوانٍ، لكن قد تتأخر) - يضمن أن get_group_by_invite_code

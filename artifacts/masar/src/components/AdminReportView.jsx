@@ -16,6 +16,7 @@ import { Search, Loader2, Download, ShieldAlert, ClipboardList, Calendar, Users,
 import {
   suggestStudents, fetchStudentReport, fetchOverview, sendReminder, sendCustomReminder,
   fetchStudentsOverview, fetchStudentWindowReport, sendGroupMessage, fetchMessages, fetchMessageReceipts,
+  fetchStudyUsageReport,
 } from "../lib/adminReport";
 import { localDayKey } from "../lib/tips";
 import { getDailyNutritionSummary } from "../lib/nutrition-plan";
@@ -1567,6 +1568,34 @@ function RemindersTab() {
 
 const DEFAULT_MIN_USAGE_DAYS = 10;
 
+// تحليل CSV مشاركي الدراسة الخارجية (FSN 499) بالواجهة نفسها - بلا أي مكتبة
+// (لا papa/xlsx بـpackage.json)، محلّل مبسَّط عمداً لصيغة أعمدة ثابتة
+// ومحدودة (لا فواصل داخل قيمة/لا اقتباس) كما تصل من ملف المشرف مباشرة.
+// أعمدة متوقَّعة: study_code, university_id, recall1_date, recall2_date -
+// بأي ترتيب (يُطابَق بالاسم لا الموضع)؛ study_code فارغ يُترَك فارغاً هنا
+// ويُولَّد تلقائياً (P01, P02...) بترتيب الصفوف من داخل admin_study_usage_report
+// نفسها (راجع supabase-schema.sql) - لا تكرار لنفس المنطق هنا.
+function parseStudyParticipantsCsv(text) {
+  const lines = String(text || "").split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
+  if (lines.length < 2) return [];
+  const header = lines[0].split(",").map((h) => h.trim().toLowerCase());
+  const idx = {
+    studyCode: header.indexOf("study_code"),
+    universityId: header.indexOf("university_id"),
+    fromDate: header.indexOf("recall1_date"),
+    toDate: header.indexOf("recall2_date"),
+  };
+  return lines.slice(1).map((line) => {
+    const cols = line.split(",").map((c) => c.trim());
+    return {
+      studyCode: idx.studyCode >= 0 ? (cols[idx.studyCode] || "") : "",
+      universityId: idx.universityId >= 0 ? (cols[idx.universityId] || "") : "",
+      fromDate: idx.fromDate >= 0 ? (cols[idx.fromDate] || "") : "",
+      toDate: idx.toDate >= 0 ? (cols[idx.toDate] || "") : "",
+    };
+  });
+}
+
 // "المشرفين": الطلاب الأكثر استخداماً - عدد أيام تسجيل الأكل ضمن نافذة
 // الأسبوعين (daysLoggedInWindow، يشمل التسجيل بأثر رجعي لأن مصدره تاريخ
 // السجل date لا created_at) أكبر من حد أدنى قابل للتعديل. لا نداء RPC جديد
@@ -1581,6 +1610,10 @@ function TopUsersTab() {
   const [students, setStudents] = useState([]);
   const [minDays, setMinDays] = useState(DEFAULT_MIN_USAGE_DAYS);
   const [exporting, setExporting] = useState(false);
+  const studyFileInputRef = useRef(null);
+  const [studyBusy, setStudyBusy] = useState(false);
+  const [studyError, setStudyError] = useState(null);
+  const [studySummary, setStudySummary] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -1623,6 +1656,48 @@ function TopUsersTab() {
       console.error("[TopUsersTab] export failed:", e);
     } finally {
       setExporting(false);
+    }
+  }
+
+  // تصدير "تقرير استخدام الدراسة" (FSN 499) - رفع CSV بالواجهة، تحليله
+  // بالمتصفح فقط، إرسال مصفوفة منظَّمة لدالة الخادم (لا نص CSV خام ولا أي
+  // تخزين - راجع admin-report.js/supabase-schema.sql). يقيس استخدام
+  // التطبيق فقط، لا بيانات غذائية إطلاقاً (راجع buildStudyUsageReportExcelBuffer).
+  async function handleStudyCsvUpload(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setStudyBusy(true);
+    setStudyError(null);
+    setStudySummary(null);
+    try {
+      const text = await file.text();
+      const participants = parseStudyParticipantsCsv(text);
+      if (participants.length === 0) {
+        setStudyError(isEn ? "The CSV file is empty or has no valid rows." : "ملف CSV فارغ أو لا يحوي صفوفاً صالحة.");
+        return;
+      }
+      const results = await fetchStudyUsageReport(participants);
+      const { buildStudyUsageReportExcelBuffer } = await import("../lib/excelReport");
+      const buffer = await buildStudyUsageReportExcelBuffer(results);
+      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = "study-usage-report.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+
+      const unmatchedCount = results.filter((r) => !r.linked).length;
+      const flaggedCount = results.filter((r) => (r.notes || []).length > 0).length;
+      setStudySummary({ total: results.length, unmatched: unmatchedCount, flagged: flaggedCount });
+    } catch (err) {
+      console.error("[TopUsersTab] study usage report failed:", err);
+      setStudyError(isEn ? "Failed to generate the study report, please try again." : "تعذّر إنشاء تقرير الدراسة الآن، حاول مرة أخرى.");
+    } finally {
+      setStudyBusy(false);
     }
   }
 
@@ -1692,6 +1767,39 @@ function TopUsersTab() {
           )}
         </>
       )}
+
+      <div style={{ marginTop: 28, paddingTop: 20, borderTop: "1px solid var(--line)" }}>
+        <h3 style={{ fontSize: 14.5, fontWeight: 700, color: "var(--ink)", marginBottom: 6 }}>
+          {isEn ? "Study usage report (FSN 499)" : "تقرير استخدام الدراسة (FSN 499)"}
+        </h3>
+        <p style={S.profileHint}>
+          {isEn
+            ? "Upload the participants CSV (study_code, university_id, recall1_date, recall2_date) to export an app-usage-only report (no food/calorie data) covering each participant's own recall-to-recall window."
+            : "رفع ملف CSV للمشاركين (study_code, university_id, recall1_date, recall2_date) لتصدير تقرير يقيس استخدام التطبيق فقط (بلا بيانات غذائية) ضمن نافذة Recall 1 إلى Recall 2 الخاصة بكل مشارك."}
+        </p>
+        <input ref={studyFileInputRef} type="file" accept=".csv,text/csv" onChange={handleStudyCsvUpload} style={{ display: "none" }} />
+        <button
+          onClick={() => studyFileInputRef.current?.click()}
+          disabled={studyBusy}
+          style={{ ...S.exportBtn, width: "auto", marginTop: 0, marginBottom: 12, padding: "7px 14px", opacity: studyBusy ? 0.6 : 1 }}
+        >
+          {studyBusy ? <Loader2 size={14} className="spin" /> : <Download size={14} />}
+          {isEn ? "Upload CSV & export study report" : "رفع CSV وتصدير تقرير الدراسة"}
+        </button>
+        {studyError && (
+          <div style={AR.errorBox}>
+            <ShieldAlert size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+            <span>{studyError}</span>
+          </div>
+        )}
+        {studySummary && !studyError && (
+          <div style={{ ...AR.resultCount }}>
+            {isEn
+              ? `Processed ${studySummary.total} participants - ${studySummary.unmatched} not found in the app, ${studySummary.flagged} flagged in notes.`
+              : `تمت معالجة ${studySummary.total} مشارك - ${studySummary.unmatched} غير مسجّلين بالتطبيق، ${studySummary.flagged} فيهم ملاحظة بالتقرير.`}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

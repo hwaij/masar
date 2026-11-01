@@ -602,5 +602,49 @@ exports.handler = async (event) => {
     }
   }
 
+  // تقرير استخدام تطبيق لمشاركي دراسة خارجية (FSN 499) - راجع
+  // admin_study_usage_report في supabase-schema.sql للتعريفات الكاملة. الرفع
+  // بالملف (CSV) يُحلَّل بالواجهة قبل الإرسال - هذه الدالة تستقبل مصفوفة
+  // كائنات منظَّمة جاهزة فقط، لا نص CSV خام، ولا تخزّن أي شيء بقاعدة البيانات
+  // أو بالخادم (p_participants تُمرَّر مباشرة لنداء RPC واحد ويُعاد ناتجه
+  // فوراً - بلا أي insert/upsert بأي جدول).
+  if (mode === "studyUsageReport") {
+    if (event.httpMethod !== "POST") return json(405, { error: "Method not allowed" });
+
+    let bodyParams = {};
+    try {
+      bodyParams = JSON.parse(event.body || "{}");
+    } catch {
+      bodyParams = {};
+    }
+    const participants = Array.isArray(bodyParams.participants) ? bodyParams.participants : null;
+    if (!participants || participants.length === 0) return json(400, { error: "قائمة المشاركين فارغة." });
+    if (participants.length > 500) return json(400, { error: "عدد المشاركين كبير جداً (الحد 500)." });
+    const cleanParticipants = participants.map((p) => ({
+      studyCode: typeof p?.studyCode === "string" ? p.studyCode.slice(0, 40) : "",
+      universityId: typeof p?.universityId === "string" ? p.universityId.slice(0, 40) : "",
+      fromDate: typeof p?.fromDate === "string" ? p.fromDate.slice(0, 20) : "",
+      toDate: typeof p?.toDate === "string" ? p.toDate.slice(0, 20) : "",
+    }));
+
+    try {
+      const res = await fetch(`${url}/rest/v1/rpc/admin_study_usage_report`, {
+        method: "POST",
+        headers: { ...serviceHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ p_participants: cleanParticipants }),
+      });
+      if (!res.ok) {
+        const debug = await describeFailedRpcResponse(res);
+        console.error("[admin-report] admin_study_usage_report RPC failed:", debug);
+        return json(502, { error: "تعذّر إنشاء تقرير الدراسة الآن، حاول مرة أخرى.", debug });
+      }
+      const data = await res.json();
+      return json(200, { participants: Array.isArray(data) ? data : [] });
+    } catch (e) {
+      console.error("[admin-report] studyUsageReport failed:", e);
+      return json(502, { error: "تعذّر إنشاء تقرير الدراسة الآن، حاول مرة أخرى.", debug: { status: null, message: String(e?.message || e) } });
+    }
+  }
+
   return json(400, { error: "طلب غير صالح." });
 };

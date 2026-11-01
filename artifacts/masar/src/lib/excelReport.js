@@ -642,3 +642,314 @@ export async function buildTopUsersExcelBuffer(students) {
 
   return workbook.xlsx.writeBuffer();
 }
+
+// --- تقرير استخدام تطبيق لمشاركي دراسة خارجية (FSN 499) -------------------
+// participants: ناتج admin_study_usage_report (عبر fetchStudyUsageReport)
+// مباشرة بلا أي حساب/تعديل بالخادم - كل الحسابات تمّت بالفعل بـSQL، هذا
+// الملف فقط يعرضها بخمس ورقات كما طُلب حرفياً. عربي بالكامل/RTL بطلب صريح
+// (نفس استثناء buildTopUsersExcelBuffer أعلاه) - ولا بيانات غذائية
+// (سعرات/بروتين/كارب/دهون) في أي مكان بهذا الملف، لأن تحليل الدراسة لا
+// يستخدمها إطلاقاً (مذكور أيضاً صريحاً بورقة "التعريفات" أدناه).
+function round1(n) {
+  return Math.round((Number(n) || 0) * 10) / 10;
+}
+
+// انحراف معياري "عيني" (sample، بالقسمة على n-1) - الاختيار الإحصائي
+// المعتاد لعيّنة دراسة محدودة (لا مجتمع كامل) - موضَّح بعنوان العمود نفسه.
+function sampleStdDev(values, meanVal) {
+  if (values.length < 2) return 0;
+  const sumSq = values.reduce((acc, v) => acc + (v - meanVal) ** 2, 0);
+  return Math.sqrt(sumSq / (values.length - 1));
+}
+
+// ربيع بالاستيفاء الخطي (type 7 - نفس طريقة Excel القياسية QUARTILE.INC
+// وnumpy الافتراضية) - شائعة ومفهومة لمراجع دراسة أكاديمية.
+function quantile(sortedValues, q) {
+  if (sortedValues.length === 0) return 0;
+  if (sortedValues.length === 1) return sortedValues[0];
+  const pos = (sortedValues.length - 1) * q;
+  const base = Math.floor(pos);
+  const rest = pos - base;
+  if (sortedValues[base + 1] !== undefined) {
+    return sortedValues[base] + rest * (sortedValues[base + 1] - sortedValues[base]);
+  }
+  return sortedValues[base];
+}
+
+function groupStats(values) {
+  const n = values.length;
+  if (n === 0) return { n: 0, mean: 0, sd: 0, median: 0, q1: 0, q3: 0, min: 0, max: 0 };
+  const sorted = [...values].sort((a, b) => a - b);
+  const mean = values.reduce((a, b) => a + b, 0) / n;
+  return {
+    n,
+    mean: round1(mean),
+    sd: round1(sampleStdDev(values, mean)),
+    median: round1(quantile(sorted, 0.5)),
+    q1: round1(quantile(sorted, 0.25)),
+    q3: round1(quantile(sorted, 0.75)),
+    min: round1(sorted[0]),
+    max: round1(sorted[n - 1]),
+  };
+}
+
+// مشتقّات كل مشارك (نسبة الاستخدام/متوسط الوجبات) محسوبة هنا بالواجهة من
+// الحقول الخام التي أعادتها admin_study_usage_report - لا حساب مكرَّر
+// بالخادم، وتُعاد قيمة 0 بأمان عند قسمة على صفر (نافذة/أيام استخدام = 0)
+// بدل NaN/Infinity.
+function deriveParticipant(p) {
+  const usagePct = p.windowDays > 0 ? Math.round((p.usedDays / p.windowDays) * 100) : 0;
+  const totalMeals = (p.totalMainMeals || 0) + (p.totalSnacks || 0);
+  const avgMealsPerUsedDay = p.usedDays > 0 ? totalMeals / p.usedDays : 0;
+  const days3MainPct = p.usedDays > 0 ? Math.round((p.days3Main / p.usedDays) * 100) : 0;
+  return { ...p, usagePct, totalMeals, avgMealsPerUsedDay, days3MainPct };
+}
+
+const HOUR_KEYS = Array.from({ length: 24 }, (_, h) => String(h));
+
+export async function buildStudyUsageReportExcelBuffer(participantsRaw) {
+  const participants = (participantsRaw || []).map(deriveParticipant);
+  const workbook = new ExcelJS.Workbook();
+
+  // 1) الملخص بالمشارك
+  const summary = workbook.addWorksheet("الملخص بالمشارك", { views: [{ rightToLeft: true, state: "frozen", ySplit: 1 }] });
+  summary.columns = [
+    { header: "رمز المشارك", key: "studyCode", width: 12 },
+    { header: "تاريخ Recall 1", key: "recall1Date", width: 14 },
+    { header: "تاريخ Recall 2", key: "recall2Date", width: 14 },
+    { header: "أيام النافذة", key: "windowDays", width: 12 },
+    { header: "أيام الاستخدام", key: "usedDays", width: 12 },
+    { header: "نسبة الاستخدام %", key: "usagePct", width: 14 },
+    { header: "إجمالي الوجبات الرئيسية", key: "totalMainMeals", width: 16 },
+    { header: "إجمالي السناكات", key: "totalSnacks", width: 14 },
+    { header: "متوسط الوجبات/يوم مستخدَم", key: "avgMealsPerUsedDay", width: 18 },
+    { header: "أيام بـ3 وجبات رئيسية", key: "days3Main", width: 16 },
+    { header: "أيام بـ3 وجبات إجمالي", key: "days3Total", width: 16 },
+    { header: "أيام بـ4 وجبات", key: "days4Total", width: 12 },
+    { header: "أيام بـ5 وجبات", key: "days5Total", width: 12 },
+    { header: "سجّل 3 وجبات يومياً؟", key: "all3Daily", width: 16 },
+    { header: "نسبة الأيام بـ3 وجبات رئيسية %", key: "days3MainPct", width: 20 },
+    { header: "أيام فيها فطور", key: "daysWithBreakfast", width: 12 },
+    { header: "أيام فيها غداء", key: "daysWithLunch", width: 12 },
+    { header: "أيام فيها عشاء", key: "daysWithDinner", width: 12 },
+    { header: "أيام فيها سناك", key: "daysWithSnack", width: 12 },
+    { header: "عدد الإدخالات الخام (مرجعي)", key: "rawEntryCount", width: 18 },
+    { header: "أيام سُجّلت لاحقاً", key: "lateLoggedDaysCount", width: 14 },
+    { header: "ملاحظات", key: "notes", width: 30 },
+  ];
+  const summaryHeader = summary.getRow(1);
+  summaryHeader.font = { bold: true };
+  summaryHeader.alignment = { horizontal: "right", wrapText: true };
+  summaryHeader.eachCell((cell) => {
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: FILL_HEADER } };
+    cell.border = ALL_BORDERS;
+  });
+  participants.forEach((p, rowIndex) => {
+    const addedRow = summary.addRow({
+      studyCode: p.studyCode,
+      recall1Date: p.recall1Date || "",
+      recall2Date: p.recall2Date || "",
+      windowDays: p.windowDays,
+      usedDays: p.usedDays,
+      usagePct: p.usagePct,
+      totalMainMeals: p.totalMainMeals,
+      totalSnacks: p.totalSnacks,
+      avgMealsPerUsedDay: round1(p.avgMealsPerUsedDay),
+      days3Main: p.days3Main,
+      days3Total: p.days3Total,
+      days4Total: p.days4Total,
+      days5Total: p.days5Total,
+      all3Daily: p.usedDays > 0 && p.allDays3Main ? "نعم" : "لا",
+      days3MainPct: p.days3MainPct,
+      daysWithBreakfast: p.daysWithBreakfast,
+      daysWithLunch: p.daysWithLunch,
+      daysWithDinner: p.daysWithDinner,
+      daysWithSnack: p.daysWithSnack,
+      rawEntryCount: p.rawEntryCount,
+      lateLoggedDaysCount: p.lateLoggedDaysCount,
+      notes: (p.notes || []).join("؛ "),
+    });
+    addedRow.alignment = { horizontal: "right" };
+    const isBanded = rowIndex % 2 === 1;
+    addedRow.eachCell({ includeEmpty: true }, (cell) => {
+      if (isBanded) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: FILL_BAND } };
+      cell.border = ALL_BORDERS;
+    });
+  });
+
+  // 2) الوجبات حسب الساعة
+  const hours = workbook.addWorksheet("الوجبات حسب الساعة", { views: [{ rightToLeft: true, state: "frozen", ySplit: 1 }] });
+  hours.columns = [
+    { header: "رمز المشارك", key: "studyCode", width: 12 },
+    ...HOUR_KEYS.map((h) => ({ header: h, key: `h${h}`, width: 6 })),
+    { header: "سُجّلت لاحقاً", key: "late", width: 12 },
+  ];
+  const hoursHeader = hours.getRow(1);
+  hoursHeader.font = { bold: true };
+  hoursHeader.alignment = { horizontal: "right" };
+  hoursHeader.eachCell((cell) => {
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: FILL_HEADER } };
+    cell.border = ALL_BORDERS;
+  });
+  participants.forEach((p, rowIndex) => {
+    const hc = p.hourCounts || {};
+    const rowData = { studyCode: p.studyCode, late: hc.late || 0 };
+    HOUR_KEYS.forEach((h) => { rowData[`h${h}`] = hc[h] || 0; });
+    const addedRow = hours.addRow(rowData);
+    addedRow.alignment = { horizontal: "right" };
+    const isBanded = rowIndex % 2 === 1;
+    addedRow.eachCell({ includeEmpty: true }, (cell) => {
+      if (isBanded) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: FILL_BAND } };
+      cell.border = ALL_BORDERS;
+    });
+  });
+
+  // 3) إحصاءات المجموعة - بلا أي استبعاد (كل المشاركين، حتى غير المسجَّلين/
+  // بنافذة غير صالحة بقيمهم الصفرية) كما طُلب حرفياً.
+  const stats = workbook.addWorksheet("إحصاءات المجموعة", { views: [{ rightToLeft: true }] });
+  stats.columns = [
+    { header: "المتغيّر", key: "label", width: 26 },
+    { header: "العدد (n)", key: "n", width: 10 },
+    { header: "المتوسط ± الانحراف المعياري (عيني)", key: "meanSd", width: 28 },
+    { header: "الوسيط (الربيع الأول - الربيع الثالث)", key: "medianIqr", width: 28 },
+    { header: "الأدنى", key: "min", width: 10 },
+    { header: "الأعلى", key: "max", width: 10 },
+  ];
+  const statsHeader = stats.getRow(1);
+  statsHeader.font = { bold: true };
+  statsHeader.alignment = { horizontal: "right", wrapText: true };
+  statsHeader.eachCell((cell) => {
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: FILL_HEADER } };
+    cell.border = ALL_BORDERS;
+  });
+  const metricDefs = [
+    { label: "أيام الاستخدام", values: participants.map((p) => p.usedDays) },
+    { label: "نسبة الاستخدام %", values: participants.map((p) => p.usagePct) },
+    { label: "إجمالي الوجبات (رئيسية + سناك)", values: participants.map((p) => p.totalMeals) },
+    { label: "متوسط الوجبات/يوم مستخدَم", values: participants.map((p) => p.avgMealsPerUsedDay) },
+  ];
+  metricDefs.forEach((m, rowIndex) => {
+    const s = groupStats(m.values);
+    const addedRow = stats.addRow({
+      label: m.label,
+      n: s.n,
+      meanSd: `${s.mean} ± ${s.sd}`,
+      medianIqr: `${s.median} (${s.q1} - ${s.q3})`,
+      min: s.min,
+      max: s.max,
+    });
+    addedRow.alignment = { horizontal: "right" };
+    const isBanded = rowIndex % 2 === 1;
+    addedRow.eachCell({ includeEmpty: true }, (cell) => {
+      if (isBanded) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: FILL_BAND } };
+      cell.border = ALL_BORDERS;
+    });
+  });
+
+  // 4) المفتاح - الورقة الوحيدة التي فيها رقم جامعي/اسم (ربط رمز المشارك
+  // بهويته الحقيقية) - الورقات الثلاث الأخرى تحوي رمز المشارك (P01...) فقط.
+  const key = workbook.addWorksheet("المفتاح", { views: [{ rightToLeft: true, state: "frozen", ySplit: 1 }] });
+  key.columns = [
+    { header: "رمز المشارك", key: "studyCode", width: 12 },
+    { header: "الرقم الجامعي", key: "universityId", width: 16 },
+    { header: "الاسم", key: "name", width: 24 },
+    { header: "تاريخ Recall 1", key: "recall1Date", width: 14 },
+    { header: "تاريخ Recall 2", key: "recall2Date", width: 14 },
+    { header: "حالة الربط", key: "linkStatus", width: 22 },
+  ];
+  const keyHeader = key.getRow(1);
+  keyHeader.font = { bold: true };
+  keyHeader.alignment = { horizontal: "right" };
+  keyHeader.eachCell((cell) => {
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: FILL_HEADER } };
+    cell.border = ALL_BORDERS;
+  });
+  participants.forEach((p, rowIndex) => {
+    const linkStatus = !p.linked
+      ? "غير مسجّل في التطبيق"
+      : p.windowDays === 0
+        ? "مرتبط - نافذة غير صالحة"
+        : "مرتبط";
+    const addedRow = key.addRow({
+      studyCode: p.studyCode,
+      universityId: p.universityId || "",
+      name: p.name || "",
+      recall1Date: p.recall1Date || "",
+      recall2Date: p.recall2Date || "",
+      linkStatus,
+    });
+    addedRow.alignment = { horizontal: "right" };
+    const isBanded = rowIndex % 2 === 1;
+    addedRow.eachCell({ includeEmpty: true }, (cell) => {
+      if (isBanded) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: FILL_BAND } };
+      cell.border = ALL_BORDERS;
+    });
+  });
+
+  // 5) التعريفات (عربي + إنجليزي) - توضّح صريحاً أن بيانات الأكل (سعرات/
+  // ماكروز) غير مستخدَمة بهذا التحليل إطلاقاً، وأن النافذة هي الفترة
+  // الفعلية بين الاستدعاءين (Recall 1/2) لكل مشارك، وتشرح الاختيارات التي
+  // تتطلّب حكماً اجتهادياً (قاعدة السناك، وتصنيف 3/4/5 وجبات) بشفافية كاملة
+  // كما طُلب صريحاً - لا اختياراً صامتاً.
+  const defs = workbook.addWorksheet("التعريفات", { views: [{ rightToLeft: true }] });
+  defs.columns = [
+    { header: "التعريف", key: "ar", width: 70 },
+    { header: "Definition (English)", key: "en", width: 70 },
+  ];
+  const defsHeader = defs.getRow(1);
+  defsHeader.font = { bold: true };
+  defsHeader.alignment = { horizontal: "right", wrapText: true };
+  defsHeader.eachCell((cell) => {
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: FILL_HEADER } };
+    cell.border = ALL_BORDERS;
+  });
+  const defRows = [
+    [
+      "هذا التقرير يقيس فقط شدّة استخدام تطبيق «مسارك» (أيام/وجبات/ساعات تسجيل). لا يحسب ولا يعرض أي بيانات غذائية (سعرات، بروتين، كارب، دهون) إطلاقاً - تحليل هذه الدراسة لا يستخدم بيانات الأكل من التطبيق.",
+      "This report measures ONLY app-usage intensity (days/meals/logging hours). It does not compute or display any food/calorie/macro data - the study's analysis does not use the app's nutrition data at all.",
+    ],
+    [
+      "نافذة كل مشارك = الفترة الفعلية بين تاريخ Recall 1 وتاريخ Recall 2 (بتوقيت الكويت)، شاملة الطرفين (عدد الأيام = الفرق + 1). هذه ليست نافذة الأسبوعين الثابتة المستخدمة في بقية الشاشة الإدارية - كل مشارك له نافذة بطوله الخاص.",
+      "Each participant's window = the actual period between Recall 1 and Recall 2 (Kuwait time), inclusive (day count = difference + 1). This is NOT the fixed 14-day window used elsewhere in the admin dashboard - each participant has their own window length.",
+    ],
+    [
+      "«يوم مستخدَم» = تاريخ ضمن نافذة المشارك فيه إدخال واحد على الأقل بسجل الأكل (nutrition_log)، بصرف النظر عن نوع الوجبة.",
+      "A \"used day\" = a date within the participant's window that has at least one food-log entry, regardless of meal type.",
+    ],
+    [
+      "«الوجبة» = تركيبة (تاريخ، نوع الوجبة) فيها إدخال واحد على الأقل - لا عدد الإدخالات الخام. أنواع الوجبات الفعلية بالتطبيق: فطور/غداء/عشاء/سناك فقط (قد يكون نوع الوجبة غير محدَّد لإدخالات قديمة - تُحسَب بـ«يوم مستخدَم» وعدد الإدخالات الخام فقط، لا بأي عمود وجبات رئيسية/سناك).",
+      "A \"meal\" = a (date, meal_type) combination with at least one entry - not the raw entry count. Actual meal types in the app: breakfast/lunch/dinner/snack only (older entries may have no meal type set - counted toward \"used day\" and raw entry count only, not toward any main-meal/snack column).",
+    ],
+    [
+      "«وجبات رئيسية باليوم» = عدد الأنواع المميّزة من (فطور/غداء/عشاء) الموجودة بذلك اليوم، من 0 إلى 3 (بقاعدة (تاريخ، نوع) أعلاه بالضبط - فطور واحد أو أكثر بنفس اليوم يُحسَب «فطور موجود» مرة واحدة فقط).",
+      "\"Main meals per day\" = the count of distinct types among (breakfast/lunch/dinner) present that day, 0 to 3 (using the (date, type) rule above - multiple breakfast entries the same day still count as one \"breakfast present\").",
+    ],
+    [
+      "اختيار مُتعمَّد يتطلّب حكماً اجتهادياً (مُوثَّق بشفافية كما طُلب): السناك يُحسَب بقاعدة مختلفة عمداً عن الوجبات الرئيسية - بعدد الإدخالات الخام المصنَّفة «سناك» بذلك اليوم، لا بقاعدة (تاريخ، نوع) المحدودة بمرة واحدة. لو طُبِّقت قاعدة (تاريخ، نوع) نفسها على السناك، لكان الحد الأقصى اليومي 3 رئيسية + سناك واحد = 4 وجبات فقط، فلن يكون تصنيف «5 وجبات» المطلوب قابلاً للوصول أبداً. هذا هو التفسير الوحيد المتّسق داخلياً مع طلب وجود فئة «5».",
+      "A deliberate judgment call (transparently documented as requested): snacks use a DIFFERENT counting rule than main meals - the raw count of entries classified \"snack\" that day, not the one-per-(date,type) rule. Applying that same rule to snacks would cap any day at 3 main + 1 snack = 4 meals max, making the requested \"5 meals\" bucket unreachable. This is the only internally-consistent reading that makes the requested \"5\" bucket reachable.",
+    ],
+    [
+      "تصنيف «3 أو 4 أو 5 وجبات باليوم» = الوجبات الرئيسية لذلك اليوم (0-3) + عدد السناكات لذلك اليوم (بتعريف السناك أعلاه). «سجّل 3 وجبات يومياً؟» = نعم فقط إذا كانت كل الأيام المستخدَمة (بلا استثناء) فيها 3 وجبات رئيسية كاملة - يوم واحد ناقص يكفي لتصبح الإجابة «لا».",
+      "\"3/4/5 meals per day\" classification = that day's main meals (0-3) + that day's snack count (per the snack definition above). \"Logged 3 meals daily?\" = Yes only if EVERY used day (no exceptions) had all 3 main meals - a single falling-short day is enough to make it \"No\".",
+    ],
+    [
+      "توزيع الساعات (ورقة «الوجبات حسب الساعة») بمستوى «الوجبة» لا الإدخال الخام: لكل تركيبة (تاريخ، نوع وجبة) تُستخدَم ساعة أقدم إدخال (created_at بتوقيت الكويت) كممثّل وقتها - فإدخالان من نوع سناك بنفس اليوم يُحسبان ساعة واحدة فقط بهذه الورقة (بخلاف عمود «إجمالي السناكات» بورقة الملخص الذي يعدّهما إدخالين). إدخال «سُجّل لاحقاً» (تاريخ created_at بتوقيت الكويت أكبر من تاريخ السجل نفسه) يُستبعَد من ساعته العددية تماماً ويُحسَب بعمود «سُجّلت لاحقاً» المنفصل فقط - لأن ساعة التسجيل الفعلية لا تمثّل وقت الأكل الحقيقي حينها.",
+      "Hour distribution (\"Meals by Hour\" sheet) is at the MEAL level, not the raw entry level: for each (date, meal_type) combination, the earliest entry's created_at (Kuwait time) hour is used as that meal's representative time - so two same-day snack entries count as one meal-slot here (unlike the \"Total Snacks\" column on the Summary sheet, which counts both as separate entries). A \"logged late\" entry (created_at's Kuwait date is after the log date itself) is fully excluded from its numeric hour and counted only in the separate \"Logged Late\" column, since its logging hour does not represent the real eating time.",
+    ],
+    [
+      "لا يُستبعَد أي مشارك من هذا التقرير: رقم جامعي غير موجود بالتطبيق أو نافذة غير صالحة (recall2 قبل recall1، تاريخ ناقص) يظهر بصف كامل بقيم صفر وملاحظة توضيحية، لا حذفاً. إحصاءات ورقة «إحصاءات المجموعة» تشمل كل المشاركين بلا استبعاد كذلك.",
+      "No participant is excluded from this report: a university ID not found in the app, or an invalid window (recall2 before recall1, missing date), appears as a full zero-value row with an explanatory note, not a removed row. The \"Group Statistics\" sheet also includes every participant with no exclusions.",
+    ],
+  ];
+  defRows.forEach(([ar, en], rowIndex) => {
+    const addedRow = defs.addRow({ ar, en });
+    addedRow.alignment = { horizontal: "right", vertical: "top", wrapText: true };
+    const isBanded = rowIndex % 2 === 1;
+    addedRow.eachCell({ includeEmpty: true }, (cell) => {
+      if (isBanded) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: FILL_BAND } };
+      cell.border = ALL_BORDERS;
+    });
+  });
+
+  return workbook.xlsx.writeBuffer();
+}

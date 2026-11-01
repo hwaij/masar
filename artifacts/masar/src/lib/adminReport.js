@@ -173,6 +173,33 @@ export async function sendGroupMessage({ targetOwners, body, targetDescription }
   return data;
 }
 
+// تقرير استخدام تطبيق لمشاركي دراسة خارجية (FSN 499) - participants مصفوفة
+// {studyCode, universityId, fromDate, toDate} مُحلَّلة من ملف CSV بالواجهة
+// (راجع AdminReportView.jsx) - لا يُرسَل نص CSV خام، ولا يُخزَّن أي شيء هنا
+// أو بالخادم. راجع mode=studyUsageReport في admin-report.js.
+export async function fetchStudyUsageReport(participants) {
+  const token = await getAccessToken();
+  if (!token) throw new Error("NOT_SIGNED_IN");
+  const res = await fetch(`${ADMIN_REPORT_URL}?mode=studyUsageReport`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ participants }),
+  });
+  let data;
+  try {
+    data = await res.json();
+  } catch {
+    data = {};
+  }
+  if (!res.ok) {
+    const err = new Error(data?.error || "UNKNOWN");
+    err.status = res.status;
+    if (data?.debug) err.debug = data.debug;
+    throw err;
+  }
+  return data?.participants || [];
+}
+
 // قائمة الرسائل المرسَلة سابقاً + عدّاد الاستلام لكل واحدة.
 export async function fetchMessages() {
   return callAdminReport({ mode: "messages" });

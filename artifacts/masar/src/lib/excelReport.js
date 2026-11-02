@@ -839,6 +839,7 @@ export async function buildStudyUsageReportExcelBuffer(participants, { anonymize
   const notes = [
     "\"Days used\" is the count of distinct dates within the first 14 days from signup (Kuwait time) that have at least one food-log entry.",
     "A \"main meal\" is a (date, breakfast/lunch/dinner) combination with at least one entry that day.",
+    "14-day window starts at the later of account sign-up date and Recall 1 date.",
   ];
   notes.forEach((n) => {
     styleRow(stats.addRow([n]));

@@ -2783,9 +2783,30 @@ grant execute on function public.acknowledge_admin_message(uuid) to authenticate
 -- admin_student_window_report بالضبط)، ويُختار الحساب الأكثر استخداماً
 -- (أيام أكثر)؛ التعادل (نادر) يُحسَم بأقدم تسجيل ثم بمعرّف الحساب، بشكل
 -- حتمي قابل لإعادة الإنتاج. هذا يضمن تطابق Days used (A) هنا مع ما يُظهره
--- admin_student_window_report لنفس الحساب تماماً دائماً (اختُبر على
--- Postgres حقيقي - راجع التقرير المُسلَّم) - لا نسخة منفصلة من منطق حساب
--- النافذة أو الأيام، نفس الاستعلامات بالضبط.
+-- admin_student_window_report لنفس الحساب تماماً دائماً - إلا في الحالة
+-- الموضَّحة بالفقرة التالية عمداً (ليست خللاً، بل تصحيح لاحق مطلوب صريحاً).
+--
+-- إصلاح حقيقي ثانٍ (وُجد بالدليل - مشاركة أخرى مسجَّلة بالتطبيق قبل بدء
+-- الدراسة بثلاثة أشهر، استخدامها الفعلي كله خلال فترة الدراسة نفسها لاحقاً،
+-- فنافذة الـ14 يوماً المرتكزة على تاريخ تسجيلها فقط كانت تقع كاملة قبل بدء
+-- الدراسة بأشهر، فتظهر "بلا استخدام" رغم استخدامها الحقيقي الكامل خلال
+-- الدراسة): بداية نافذة A أصبحت الأكبر (greatest) بين تاريخ تسجيل الحساب
+-- (بتوقيت الكويت) وrecall1Date المرفوع (إن كان تاريخاً صالحاً) - لا تاريخ
+-- التسجيل فقط كما كانت - ونهايتها = تلك البداية + 13 (لا تزال 14 يوماً
+-- بالضبط). إن غاب recall1Date أو كان غير صالح، تبقى البداية تاريخ التسجيل
+-- كما كانت دائماً (بلا أي تغيير لتلك الحالة). الاختيار بين الحسابات المتعددة
+-- (best_candidate أعلاه) يستخدم هذه النافذة الجديدة نفسها لكل حساب مرشَّح،
+-- لا نافذة التسجيل القديمة - فالاختيار والحساب النهائي متّسقان دائماً معاً.
+-- كل مكان يعتمد على بداية/نهاية النافذة (أيام الاستخدام، الوجبات، صفوف
+-- "daily" الأربعة عشر وتواريخها، وWindow status) يستخدم هذه البداية
+-- الموحَّدة فقط. نتيجة لهذا: تطابق Days used (A) مع admin_student_window_report
+-- يبقى تاماً فقط عندما يكون recall1Date غائباً أو أقدم من/يساوي تاريخ
+-- التسجيل (فتبقى البداية = تاريخ التسجيل، كالسابق بالضبط)؛ أما إذا كان
+-- recall1Date بعد تاريخ التسجيل (حالة الجازي)، فالنتيجتان تختلفان عمداً -
+-- admin_student_window_report يبقى يعرض نافذة التسجيل الثابتة دائماً (لم
+-- يُطلَب تغييرها)، بينما هذه الدالة تعرض نافذة الدراسة الفعلية الصحيحة -
+-- هذا الفارق مقصود تماماً، لا خلل (اختُبر الاثنان معاً على Postgres حقيقي
+-- لتأكيد هذا الفارق بالضبط - راجع التقرير المُسلَّم).
 create or replace function public.admin_study_usage_report(p_participants jsonb)
 returns json
 language plpgsql
@@ -2801,7 +2822,11 @@ begin
       trim(coalesce(p->>'universityId', '')) as university_id_raw,
       regexp_replace(trim(coalesce(p->>'universityId', '')), '[^0-9]', '', 'g') as uid_norm,
       nullif(trim(coalesce(p->>'recall1Date', '')), '') as recall1_text,
-      nullif(trim(coalesce(p->>'recall2Date', '')), '') as recall2_text
+      nullif(trim(coalesce(p->>'recall2Date', '')), '') as recall2_text,
+      (case when nullif(trim(coalesce(p->>'recall1Date', '')), '') ~ '^\d{4}-\d{2}-\d{2}$'
+            then nullif(trim(coalesce(p->>'recall1Date', '')), '')::date else null end) as recall1_date,
+      (case when nullif(trim(coalesce(p->>'recall2Date', '')), '') ~ '^\d{4}-\d{2}-\d{2}$'
+            then nullif(trim(coalesce(p->>'recall2Date', '')), '')::date else null end) as recall2_date
     from jsonb_array_elements(p_participants) with ordinality as t(p, ord)
   ),
   candidates as (
@@ -2810,12 +2835,19 @@ begin
       p.owner,
       p.name,
       (u.created_at at time zone 'Asia/Kuwait')::date as signup_local_date,
+      (case when parsed.recall1_date is not null
+            then greatest((u.created_at at time zone 'Asia/Kuwait')::date, parsed.recall1_date)
+            else (u.created_at at time zone 'Asia/Kuwait')::date end) as window_start_a,
       (
         select count(distinct nl.date)
         from nutrition_log nl
         where nl.owner = p.owner
-          and nl.date >= ((u.created_at at time zone 'Asia/Kuwait')::date)::text
-          and nl.date <= (((u.created_at at time zone 'Asia/Kuwait')::date) + 13)::text
+          and nl.date >= (case when parsed.recall1_date is not null
+                                then greatest((u.created_at at time zone 'Asia/Kuwait')::date, parsed.recall1_date)
+                                else (u.created_at at time zone 'Asia/Kuwait')::date end)::text
+          and nl.date <= ((case when parsed.recall1_date is not null
+                                 then greatest((u.created_at at time zone 'Asia/Kuwait')::date, parsed.recall1_date)
+                                 else (u.created_at at time zone 'Asia/Kuwait')::date end) + 13)::text
       ) as window_days_used
     from parsed
     join profile p
@@ -2824,15 +2856,13 @@ begin
     join auth.users u on u.id::text = p.owner
   ),
   best_candidate as (
-    select distinct on (no) no, owner, name, signup_local_date
+    select distinct on (no) no, owner, name, signup_local_date, window_start_a
     from candidates
     order by no, window_days_used desc, signup_local_date asc, owner asc
   ),
   resolved as (
     select
       parsed.*,
-      (case when parsed.recall1_text ~ '^\d{4}-\d{2}-\d{2}$' then parsed.recall1_text::date else null end) as recall1_date,
-      (case when parsed.recall2_text ~ '^\d{4}-\d{2}-\d{2}$' then parsed.recall2_text::date else null end) as recall2_date,
       bc.owner,
       bc.name
     from parsed
@@ -2844,7 +2874,9 @@ begin
       (r.owner is not null) as linked,
       hp.gender,
       (u.created_at at time zone 'Asia/Kuwait')::date as signup_local_date,
-      ((u.created_at at time zone 'Asia/Kuwait')::date + 13) as window_end_a,
+      (case when r.recall1_date is not null
+            then greatest((u.created_at at time zone 'Asia/Kuwait')::date, r.recall1_date)
+            else (u.created_at at time zone 'Asia/Kuwait')::date end) as window_start_a,
       (r.recall1_date is not null and r.recall2_date is not null and r.recall2_date >= r.recall1_date) as valid_b,
       (case when r.recall1_date is not null and r.recall2_date is not null and r.recall2_date >= r.recall1_date
             then (r.recall2_date - r.recall1_date + 1) else null end) as window_days_b
@@ -2855,8 +2887,9 @@ begin
   meta2 as (
     select
       m.*,
-      (case when m.signup_local_date is not null
-            then (((now() at time zone 'Asia/Kuwait')::date - m.signup_local_date) + 1)
+      (m.window_start_a + 13) as window_end_a,
+      (case when m.window_start_a is not null
+            then (((now() at time zone 'Asia/Kuwait')::date - m.window_start_a) + 1)
             else null end) as current_window_day
     from meta m
   ),
@@ -2865,7 +2898,7 @@ begin
     from meta2 m
     join nutrition_log nl on nl.owner = m.owner
     where m.linked
-      and nl.date >= m.signup_local_date::text
+      and nl.date >= m.window_start_a::text
       and nl.date <= m.window_end_a::text
   ),
   logs_a_late as (
@@ -2910,7 +2943,7 @@ begin
       (
         select json_agg(json_build_object(
           'dayNum', gs.off + 1,
-          'date', (m.signup_local_date + gs.off)::text,
+          'date', (m.window_start_a + gs.off)::text,
           'breakfast', coalesce(da.has_bf, false),
           'lunch', coalesce(da.has_lu, false),
           'dinner', coalesce(da.has_di, false),
@@ -2920,7 +2953,7 @@ begin
           'loggedLater', coalesce(da.day_late, false)
         ) order by gs.off)
         from generate_series(0, 13) as gs(off)
-        left join day_agg_a da on da.no = m.no and da.date = (m.signup_local_date + gs.off)::text
+        left join day_agg_a da on da.no = m.no and da.date = (m.window_start_a + gs.off)::text
       ) as daily
     from meta2 m
     where m.linked

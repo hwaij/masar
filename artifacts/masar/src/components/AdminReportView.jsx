@@ -1570,9 +1570,19 @@ function RemindersTab() {
 const DEFAULT_MIN_USAGE_DAYS = 10;
 
 // تحليل CSV مشاركي الدراسة الخارجية (FSN 499) بالواجهة نفسها - بلا أي مكتبة
-// (لا papa/xlsx بـpackage.json). العمود المطلوب: university_id فقط - نافذة
-// الريكول (B) أُلغيت نهائياً من هذه الميزة، فلا داعي لقراءة أو إرسال
-// recall1_date/recall2_date بعد الآن حتى لو وُجدا بالملف.
+// (لا papa/xlsx بـpackage.json). العمود المطلوب: university_id فقط؛
+// recall1_date/recall2_date اختياريان (يعملان بغيابهما بلا أي خطأ).
+//
+// إصلاح حقيقي ثانٍ (وُجد بالدليل، راجع التقرير): recall1_date/recall2_date
+// كانا يُقرآن ويُرسَلان سابقاً، لكن أُزيلا بالخطأ عند تبسيط ملف Excel (ورقة
+// B حُذفت من الملف، فظُنَّ خطأً أن الحمولة نفسها لم تعد تحتاجهما) - رغم أن
+// admin_study_usage_report نفسها تستخدم recall1Date لتحديد بداية نافذة A
+// الفعلية (الأكبر بين تاريخ التسجيل وrecall1Date، لصالح المشاركين
+// المسجَّلين قبل الدراسة بوقت طويل كالجازي) - بلا هذا الحقل، كل المشاركين
+// يرجعون لحساب النافذة من تاريخ التسجيل فقط، فيظهر من سجَّل قبل الدراسة
+// "بلا استخدام" رغم استخدامه الفعلي الكامل خلال الدراسة. أُعيد قراءة
+// العمودين هنا (ملف Excel لم يتغيّر - ورقة B تبقى محذوفة، الحقلان يُرسَلان
+// فقط لحساب نافذة A الصحيحة بالخادم، لا لعرض أي عمود جديد).
 //
 // إصلاح حقيقي (وُجد بالاختبار الفعلي، راجع التقرير): المحلّل القديم كان
 // يفصل الأعمدة بفاصلة واحدة فقط، بافتراض لا شيء آخر - لكن ملفات Excel
@@ -1613,9 +1623,15 @@ function parseStudyParticipantsCsv(text) {
   const header = lines[0].split(delimiter).map((h) => stripCsvQuotes(h).toLowerCase());
   const universityIdCol = header.indexOf("university_id");
   if (universityIdCol < 0) return [];
+  const recall1Col = header.indexOf("recall1_date");
+  const recall2Col = header.indexOf("recall2_date");
   return lines.slice(1).map((line) => {
     const cols = line.split(delimiter).map((c) => stripCsvQuotes(c));
-    return { universityId: cols[universityIdCol] || "" };
+    return {
+      universityId: cols[universityIdCol] || "",
+      recall1Date: recall1Col >= 0 ? (cols[recall1Col] || "") : "",
+      recall2Date: recall2Col >= 0 ? (cols[recall2Col] || "") : "",
+    };
   });
 }
 
@@ -1940,8 +1956,8 @@ function TopUsersTab() {
         </h3>
         <p style={S.profileHint}>
           {isEn
-            ? "Upload the participants CSV (university_id column) to measure app-usage only - days used (of the first 14 days) and meals logged, no food/calorie data."
-            : "رفع ملف CSV للمشاركين (عمود university_id) لقياس استخدام التطبيق فقط - أيام الاستخدام (أول 14 يوماً من التسجيل) والوجبات المسجَّلة، بلا أي بيانات غذائية."}
+            ? "Upload the participants CSV (university_id column; recall1_date/recall2_date optional - shifts the 14-day window start later for participants who signed up before the study) to measure app-usage only - days used and meals logged, no food/calorie data."
+            : "رفع ملف CSV للمشاركين (عمود university_id؛ recall1_date وrecall2_date اختياريان - يؤخّران بداية نافذة الـ14 يوماً للمشاركين المسجَّلين قبل الدراسة) لقياس استخدام التطبيق فقط - أيام الاستخدام والوجبات المسجَّلة، بلا أي بيانات غذائية."}
         </p>
         <input ref={studyFileInputRef} type="file" accept=".csv,text/csv" onChange={handleStudyCsvUpload} style={{ display: "none" }} />
         <button

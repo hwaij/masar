@@ -2769,6 +2769,23 @@ grant execute on function public.acknowledge_admin_message(uuid) to authenticate
 -- "daily" بكل عنصر = 14 صفاً (يوم 1..14 بنافذة A فقط، ليس B) لكل مشارك
 -- مسجَّل بالتطبيق (مصفوفة فارغة لغير المسجَّل - تعرضها الواجهة كصف واحد
 -- "Not registered in app").
+--
+-- إصلاح حقيقي (وُجد بالدليل - مشاركة ظهرت "بلا استخدام" هنا بينما تقريرها
+-- الفردي admin_student_window_report يُظهر 13 يوم استخدام حقيقي): عند وجود
+-- أكثر من صف profile بنفس الرقم الجامعي بعد التطبيع (حسابان لنفس الشخص -
+-- غالباً من أوائل مستخدمي التطبيق قبل ضبط التسجيل)، كان الاختيار بـ"order
+-- by p.owner limit 1" أي الحساب الأول بترتيب معرّفه (UUID) أبجدياً - ترتيب
+-- عشوائي كلياً بلا علاقة بأي الحسابين هو الحقيقي، فيختار بالخطأ أحياناً
+-- الحساب المكرَّر الفارغ تماماً بينما الحساب الآخر (بنفس الرقم) فيه كل
+-- النشاط الفعلي. الإصلاح: من بين كل الحسابات (owners) المطابقة لنفس الرقم
+-- الجامعي بعد التطبيع، يُحتسَب لكل واحد منها أيام استخدامه الفعلية ضمن
+-- نافذته الخاصة (14 يوماً من تسجيله هو - نفس حساب admin_students_overview/
+-- admin_student_window_report بالضبط)، ويُختار الحساب الأكثر استخداماً
+-- (أيام أكثر)؛ التعادل (نادر) يُحسَم بأقدم تسجيل ثم بمعرّف الحساب، بشكل
+-- حتمي قابل لإعادة الإنتاج. هذا يضمن تطابق Days used (A) هنا مع ما يُظهره
+-- admin_student_window_report لنفس الحساب تماماً دائماً (اختُبر على
+-- Postgres حقيقي - راجع التقرير المُسلَّم) - لا نسخة منفصلة من منطق حساب
+-- النافذة أو الأيام، نفس الاستعلامات بالضبط.
 create or replace function public.admin_study_usage_report(p_participants jsonb)
 returns json
 language plpgsql
@@ -2787,20 +2804,39 @@ begin
       nullif(trim(coalesce(p->>'recall2Date', '')), '') as recall2_text
     from jsonb_array_elements(p_participants) with ordinality as t(p, ord)
   ),
+  candidates as (
+    select
+      parsed.no,
+      p.owner,
+      p.name,
+      (u.created_at at time zone 'Asia/Kuwait')::date as signup_local_date,
+      (
+        select count(distinct nl.date)
+        from nutrition_log nl
+        where nl.owner = p.owner
+          and nl.date >= ((u.created_at at time zone 'Asia/Kuwait')::date)::text
+          and nl.date <= (((u.created_at at time zone 'Asia/Kuwait')::date) + 13)::text
+      ) as window_days_used
+    from parsed
+    join profile p
+      on parsed.uid_norm <> ''
+      and regexp_replace(coalesce(p.university_id, ''), '[^0-9]', '', 'g') = parsed.uid_norm
+    join auth.users u on u.id::text = p.owner
+  ),
+  best_candidate as (
+    select distinct on (no) no, owner, name, signup_local_date
+    from candidates
+    order by no, window_days_used desc, signup_local_date asc, owner asc
+  ),
   resolved as (
     select
       parsed.*,
       (case when parsed.recall1_text ~ '^\d{4}-\d{2}-\d{2}$' then parsed.recall1_text::date else null end) as recall1_date,
       (case when parsed.recall2_text ~ '^\d{4}-\d{2}-\d{2}$' then parsed.recall2_text::date else null end) as recall2_date,
-      pr.owner,
-      pr.name
+      bc.owner,
+      bc.name
     from parsed
-    left join lateral (
-      select p.owner, p.name from profile p
-      where parsed.uid_norm <> ''
-        and regexp_replace(coalesce(p.university_id, ''), '[^0-9]', '', 'g') = parsed.uid_norm
-      order by p.owner limit 1
-    ) pr on true
+    left join best_candidate bc on bc.no = parsed.no
   ),
   meta as (
     select
